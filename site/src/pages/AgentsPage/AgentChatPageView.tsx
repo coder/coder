@@ -1,10 +1,4 @@
-import {
-	ArchiveIcon,
-	MonitorDotIcon,
-	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
-} from "lucide-react";
+import { ArchiveIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -20,11 +14,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
-
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -43,6 +32,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -132,12 +122,7 @@ interface AgentChatPageViewProps {
 	};
 
 	// Workspace action handlers.
-	canOpenEditors: boolean;
-	canOpenWorkspace: boolean;
 	sshCommand: string | undefined;
-	handleOpenInEditor: (editor: "cursor" | "vscode") => void;
-	handleViewWorkspace: () => void;
-	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
@@ -206,12 +191,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	prNumber,
 	diffStatusData,
 	gitWatcher,
-	canOpenEditors,
-	canOpenWorkspace,
 	sshCommand,
-	handleOpenInEditor,
-	handleViewWorkspace,
-	handleOpenTerminal,
 	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -275,48 +255,29 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Compute local diff stats from git watcher unified diffs.
 
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder = (() => {
+		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
+		return repoRoots[0] || workspaceAgent?.expanded_directory;
+	})();
+
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
 		: undefined;
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		let { type, text } = getDisplayWorkspaceStatus(
-			workspace.latest_build.status,
-			workspace.latest_build.job,
+
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
 		);
-		const agentPreparing =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "created" ||
-				workspaceAgent?.lifecycle_state === "starting");
-		const agentStartupFailed =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "start_error" ||
-				workspaceAgent?.lifecycle_state === "start_timeout");
-		if (agentPreparing) {
-			type = "active";
-			text = "Preparing";
-		} else if (agentStartupFailed) {
-			type = "warning";
-			text = "Startup failed";
-		}
-		const effectiveType = workspace.health.healthy ? type : "warning";
-		const statusLabel = workspace.health.healthy
-			? `Workspace ${text.toLowerCase()}`
-			: `Workspace ${text.toLowerCase()} (unhealthy)`;
-		const iconCls = "size-3";
-		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-			success: <MonitorIcon className={iconCls} />,
-			active: <MonitorDotIcon className={iconCls} />,
-			inactive: <MonitorPauseIcon className={iconCls} />,
-			error: <MonitorXIcon className={iconCls} />,
-			danger: <MonitorXIcon className={iconCls} />,
-			warning: <MonitorXIcon className={iconCls} />,
-		};
+		const statusIcon = <StatusIcon type={effectiveType} />;
 		return {
 			name: workspace.name,
 			route: workspaceRoute,
-			statusIcon: statusIconMap[effectiveType],
+			statusIcon,
 			statusLabel,
 		};
 	})();
@@ -356,14 +317,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								panel={{
 									showSidebarPanel,
 									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-								}}
-								workspace={{
-									canOpenEditors,
-									canOpenWorkspace,
-									onOpenInEditor: handleOpenInEditor,
-									onViewWorkspace: handleViewWorkspace,
-									onOpenTerminal: handleOpenTerminal,
-									sshCommand,
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -454,7 +407,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								lastInjectedContext={lastInjectedContext}
+								workspace={workspace}
+								workspaceAgent={workspaceAgent}
+								chatId={agentId}
+								sshCommand={sshCommand}
 								attachedWorkspace={attachedWorkspace}
+								folder={preferredFolder}
 							/>
 						</div>
 					</div>
@@ -568,14 +526,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
-					workspace={{
-						canOpenEditors: false,
-						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
-						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
-						sshCommand: undefined,
-					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onRegenerateTitle={() => {}}
@@ -645,14 +595,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenEditors: false,
-					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
-					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
-					sshCommand: undefined,
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}

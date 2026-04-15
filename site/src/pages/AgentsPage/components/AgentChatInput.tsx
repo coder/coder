@@ -67,6 +67,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import { WorkspacePill } from "./WorkspacePill";
 
 export {
 	ImageThumbnail,
@@ -148,7 +149,12 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -285,7 +291,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
@@ -395,7 +406,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (attachedWorkspace) {
+	// When workspace data is available, WorkspacePill handles
+	// the display (including app dropdown). Otherwise fall back
+	// to the simple attached-workspace ToolBadge.
+	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (selectedWorkspace && onWorkspaceChange) {
@@ -918,6 +932,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
+						{workspace && workspaceAgent && chatId && (
+							<WorkspacePill
+								workspace={workspace}
+								agent={workspaceAgent}
+								chatId={chatId}
+								sshCommand={sshCommand}
+								folder={folder}
+							/>
+						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"

@@ -7,9 +7,8 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { API, watchWorkspace } from "#/api/api";
+import { watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -31,11 +30,6 @@ import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "#/modules/apps/apps";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -1069,74 +1063,10 @@ const AgentChatPage: FC = () => {
 	);
 
 	const parentChat = parentChatQuery.data;
-	const workspaceRoute = workspace
-		? `/@${workspace.owner_name}/${workspace.name}`
-		: null;
-	const canOpenWorkspace = Boolean(workspaceRoute);
-	const canOpenEditors = Boolean(workspace && workspaceAgent);
-	const terminalHref =
-		workspace && workspaceAgent
-			? getTerminalHref({
-					username: workspace.owner_name,
-					workspace: workspace.name,
-					agent: workspaceAgent.name,
-				})
-			: null;
 	const sshCommand =
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-
-	// See mutation destructuring comment above (React Compiler).
-	const { mutate: generateKey } = useMutation({
-		mutationFn: () => API.getApiKey(),
-	});
-
-	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
-		if (!workspace || !workspaceAgent) {
-			return;
-		}
-
-		// Prefer the active git repo root so VS Code opens to the
-		// actual project directory, falling back to the agent's
-		// configured directory.
-		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
-		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
-
-		generateKey(undefined, {
-			onSuccess: ({ key }) => {
-				location.href = getVSCodeHref(editor, {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					token: key,
-					agent: workspaceAgent.name,
-					folder,
-					chatId: agentId,
-				});
-			},
-			onError: () => {
-				toast.error(
-					editor === "cursor"
-						? "Failed to open in Cursor."
-						: "Failed to open in VS Code.",
-				);
-			},
-		});
-	};
-
-	const handleViewWorkspace = () => {
-		if (!workspaceRoute) {
-			return;
-		}
-		window.open(workspaceRoute, "_blank");
-	};
-
-	const handleOpenTerminal = () => {
-		if (!terminalHref) {
-			return;
-		}
-		openAppInNewWindow(terminalHref);
-	};
 
 	const handleArchiveAgentAction = () => {
 		if (!agentId || isArchived) {
@@ -1261,12 +1191,7 @@ const AgentChatPage: FC = () => {
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
 			gitWatcher={gitWatcher}
-			canOpenEditors={canOpenEditors}
-			canOpenWorkspace={canOpenWorkspace}
 			sshCommand={sshCommand}
-			handleOpenInEditor={handleOpenInEditor}
-			handleViewWorkspace={handleViewWorkspace}
-			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}

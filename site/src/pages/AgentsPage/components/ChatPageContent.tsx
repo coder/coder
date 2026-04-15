@@ -184,7 +184,12 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -222,7 +227,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -396,7 +406,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatId={chatId}
+			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
+			folder={folder}
 		/>
 	);
 
