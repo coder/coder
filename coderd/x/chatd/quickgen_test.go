@@ -10,9 +10,9 @@ import (
 	"charm.land/fantasy"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -375,8 +375,8 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			deadline, ok := ctx.Deadline()
 			require.True(t, ok, "manual title generation should set a deadline")
 			require.WithinDuration(
@@ -413,8 +413,8 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Len(t, call.Prompt, 2)
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
@@ -447,8 +447,8 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			return &fantasy.ObjectResponse{
 				Object: map[string]any{"title": "\"\""},
 				Usage: fantasy.Usage{
@@ -504,8 +504,8 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
 	t.Parallel()
 
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	model := &chattest.FakeModel{
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
 					fantasy.TextContent{Text: "  \"Quoted summary\"  "},
@@ -518,53 +518,6 @@ func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
 	text, err := generateShortText(context.Background(), model, "system", "user")
 	require.NoError(t, err)
 	require.Equal(t, "Quoted summary", text)
-}
-
-type stubModel struct {
-	generateFn       func(context.Context, fantasy.Call) (*fantasy.Response, error)
-	generateObjectFn func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error)
-}
-
-func (m *stubModel) Generate(
-	ctx context.Context,
-	call fantasy.Call,
-) (*fantasy.Response, error) {
-	if m.generateFn == nil {
-		return nil, xerrors.New("generate not implemented")
-	}
-	return m.generateFn(ctx, call)
-}
-
-func (*stubModel) Stream(
-	context.Context,
-	fantasy.Call,
-) (fantasy.StreamResponse, error) {
-	return nil, xerrors.New("stream not implemented")
-}
-
-func (m *stubModel) GenerateObject(
-	ctx context.Context,
-	call fantasy.ObjectCall,
-) (*fantasy.ObjectResponse, error) {
-	if m.generateObjectFn == nil {
-		return nil, xerrors.New("generate object not implemented")
-	}
-	return m.generateObjectFn(ctx, call)
-}
-
-func (*stubModel) StreamObject(
-	context.Context,
-	fantasy.ObjectCall,
-) (fantasy.ObjectStreamResponse, error) {
-	return nil, xerrors.New("stream object not implemented")
-}
-
-func (*stubModel) Provider() string {
-	return "test"
-}
-
-func (*stubModel) Model() string {
-	return "test"
 }
 
 func mustChatMessage(

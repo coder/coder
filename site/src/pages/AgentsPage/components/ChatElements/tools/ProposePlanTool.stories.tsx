@@ -35,6 +35,10 @@ const samplePlan = [
 	"> **Note**: Based on [RFC 6749](https://tools.ietf.org/html/rfc6749).",
 ].join("\n");
 
+const defaultPlanPath =
+	"/home/coder/.coder/plans/PLAN-a1b2c3d4-e5f6-7890-abcd-ef1234567890.md";
+const defaultPlanFilename = defaultPlanPath.split("/").pop() ?? "PLAN.md";
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/ProposePlan",
 	component: Tool,
@@ -54,20 +58,22 @@ export default meta;
 type Story = StoryObj<typeof Tool>;
 
 export const Running: Story = {
-	args: { status: "running", args: { path: "/home/coder/PLAN.md" } },
+	args: { status: "running", args: { path: defaultPlanPath } },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Proposing PLAN\.md/)).toBeInTheDocument();
+		expect(
+			canvas.getByText(`Proposing ${defaultPlanFilename}…`),
+		).toBeInTheDocument();
 	},
 };
 
 export const Completed: Story = {
 	args: {
 		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: {
 			ok: true,
-			path: "/home/coder/PLAN.md",
+			path: defaultPlanPath,
 			kind: "plan",
 			file_id: "test-file-id-completed",
 			media_type: "text/markdown",
@@ -138,12 +144,14 @@ export const ErrorState: Story = {
 	args: {
 		status: "completed",
 		isError: true,
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: "Failed to read file: file not found",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Proposed PLAN\.md/)).toBeInTheDocument();
+		expect(
+			canvas.getByText(`Proposed ${defaultPlanFilename}`),
+		).toBeInTheDocument();
 		expect(canvas.getByLabelText("Error")).toBeInTheDocument();
 	},
 };
@@ -151,10 +159,10 @@ export const ErrorState: Story = {
 export const EmptyContent: Story = {
 	args: {
 		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: {
 			ok: true,
-			path: "/home/coder/PLAN.md",
+			path: defaultPlanPath,
 			kind: "plan",
 			file_id: "test-file-id-empty-content",
 			media_type: "text/markdown",
@@ -172,10 +180,10 @@ export const EmptyContent: Story = {
 export const FileIDLoading: Story = {
 	args: {
 		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: {
 			ok: true,
-			path: "/home/coder/PLAN.md",
+			path: defaultPlanPath,
 			kind: "plan",
 			file_id: "test-file-id-loading",
 			media_type: "text/markdown",
@@ -195,10 +203,10 @@ export const FileIDLoading: Story = {
 export const FileIDCompleted: Story = {
 	args: {
 		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: {
 			ok: true,
-			path: "/home/coder/PLAN.md",
+			path: defaultPlanPath,
 			kind: "plan",
 			file_id: "test-file-id-success",
 			media_type: "text/markdown",
@@ -216,10 +224,10 @@ export const FileIDCompleted: Story = {
 export const FileIDFetchError: Story = {
 	args: {
 		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
+		args: { path: defaultPlanPath },
 		result: {
 			ok: true,
-			path: "/home/coder/PLAN.md",
+			path: defaultPlanPath,
 			kind: "plan",
 			file_id: "test-file-id-error",
 			media_type: "text/markdown",

@@ -70,7 +70,7 @@ export const LiveStreamTailContent = ({
 	}
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-2">
 			{shouldRenderEmptyState && (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>

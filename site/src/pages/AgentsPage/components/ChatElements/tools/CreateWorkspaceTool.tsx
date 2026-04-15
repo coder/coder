@@ -1,4 +1,9 @@
-import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ExternalLinkIcon,
+	LoaderIcon,
+	MonitorIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import {
@@ -6,14 +11,16 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { asRecord, asString, type ToolStatus } from "./utils";
+import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
 /**
  * Rendering for `create_workspace` tool calls.
  *
- * Shows "Creating workspace…" while running, and "Created <name>" when
- * complete with a link to view the workspace.
+ * Shows "Creating workspace…" while running with streaming build logs,
+ * and "Created <name>" when complete with a link to view the workspace.
+ * Build logs are available in a collapsible section.
  */
 export const CreateWorkspaceTool: React.FC<{
 	workspaceName: string;
@@ -21,7 +28,17 @@ export const CreateWorkspaceTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ workspaceName, resultJson, status, isError, errorMessage }) => {
+	buildId?: string;
+	created?: boolean;
+}> = ({
+	workspaceName,
+	resultJson,
+	status,
+	isError,
+	errorMessage,
+	buildId,
+	created = true,
+}) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
 	if (resultJson) {
@@ -39,38 +56,55 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const label = isRunning
 		? "Creating workspace…"
-		: wsName
-			? `Created ${wsName}`
-			: "Created workspace";
+		: isError
+			? `Failed to create ${wsName || "workspace"}`
+			: created === false
+				? `Workspace ${wsName} already exists`
+				: wsName
+					? `Created ${wsName}`
+					: "Created workspace";
+
+	const hasBuildLogs = isRunning || Boolean(buildId);
+
+	const header = (
+		<>
+			<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			<span className="text-sm text-content-secondary">{label}</span>
+			{isError && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent>
+						{errorMessage || "Failed to create workspace"}
+					</TooltipContent>
+				</Tooltip>
+			)}
+			{isRunning && (
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+			)}
+			{workspaceLink && !isRunning && (
+				<Link
+					to={workspaceLink}
+					onClick={(e) => e.stopPropagation()}
+					className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+					aria-label="View workspace"
+				>
+					<ExternalLinkIcon className="h-3 w-3" />
+				</Link>
+			)}
+		</>
+	);
 
 	return (
 		<div className="w-full">
-			<div className="flex items-center gap-2">
-				<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
-				{isError && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent>
-							{errorMessage || "Failed to create workspace"}
-						</TooltipContent>
-					</Tooltip>
-				)}
-				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-				)}
-				{workspaceLink && !isRunning && (
-					<Link
-						to={workspaceLink}
-						onClick={(e) => e.stopPropagation()}
-						className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-						aria-label="View workspace"
-					>
-						<ExternalLinkIcon className="h-3 w-3" />
-					</Link>
-				)}
-			</div>
+			<ToolCollapsible
+				header={header}
+				hasContent={hasBuildLogs}
+				defaultExpanded={isRunning}
+			>
+				<WorkspaceBuildLogSection status={status} buildId={buildId} />
+			</ToolCollapsible>
 		</div>
 	);
 };

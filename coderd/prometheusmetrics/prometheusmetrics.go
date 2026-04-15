@@ -294,6 +294,18 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	agentsFirstConnectionHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "first_connection_seconds",
+		Help:      "Duration from agent creation to first connection to the control plane in seconds.",
+		Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
+	}, []string{agentmetrics.LabelTemplateName, agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName})
+	err = registerer.Register(agentsFirstConnectionHistogram)
+	if err != nil {
+		return nil, err
+	}
+
 	metricsCollectorAgents := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -306,6 +318,12 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	// observedFirstConnection tracks which agents have already had
+	// their first-connection duration recorded in the histogram.
+	// Each agent is observed exactly once; the map is pruned every
+	// tick to remove agents that no longer appear in the query.
+	observedFirstConnection := make(map[uuid.UUID]struct{})
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -317,21 +335,43 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
 
+		collect := func() {
 			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
+			defer func() {
+				logger.Debug(ctx, "agent metrics collection is done")
+				timer.ObserveDuration()
+				ticker.Reset(duration)
+			}()
+
 			derpMap := derpMapFn()
+
+			// Use a consistent value for now for the duration of this collection
+			// to avoid drift during the loop over workspaceAgents, which can cause
+			// incorrect reporting of agent connection status.
+			now := dbtime.Now()
 
 			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx)
 			if err != nil {
 				logger.Error(ctx, "can't get workspace agents", slog.Error(err))
-				goto done
+				return
+			}
+
+			// Prepopulate our known agents and apps before processing, this saves us from having to make a database
+			// roundtrip for every iteration of the loop to get the list of apps for the current agent.
+			agentIDs := make([]uuid.UUID, 0, len(workspaceAgents))
+			for _, agent := range workspaceAgents {
+				agentIDs = append(agentIDs, agent.WorkspaceAgent.ID)
+			}
+			allApps, err := db.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+			if err != nil {
+				logger.Error(ctx, "can't get workspace apps", slog.Error(err))
+				return
+			}
+			appsByAgentID := make(map[uuid.UUID][]database.WorkspaceApp, len(workspaceAgents))
+			for _, app := range allApps {
+				appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 			}
 
 			for _, agent := range workspaceAgents {
@@ -342,7 +382,29 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
-				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
+				// Record first connection duration exactly once per agent.
+				if agent.WorkspaceAgent.FirstConnectedAt.Valid {
+					if _, alreadyObserved := observedFirstConnection[agent.WorkspaceAgent.ID]; !alreadyObserved {
+						duration := agent.WorkspaceAgent.FirstConnectedAt.Time.Sub(agent.WorkspaceAgent.CreatedAt).Seconds()
+						if duration < 0 {
+							logger.Warn(ctx, "negative agent first connection duration (possible clock skew); dropping sample",
+								slog.F("agent_id", agent.WorkspaceAgent.ID),
+								slog.F("created_at", agent.WorkspaceAgent.CreatedAt),
+								slog.F("first_connected_at", agent.WorkspaceAgent.FirstConnectedAt.Time),
+								slog.F("duration_s", duration),
+							)
+						} else {
+							agentsFirstConnectionHistogram.WithLabelValues(
+								agent.TemplateName,
+								agent.WorkspaceAgent.Name,
+								agent.OwnerUsername,
+								agent.WorkspaceName,
+							).Observe(duration)
+						}
+						observedFirstConnection[agent.WorkspaceAgent.ID] = struct{}{}
+					}
+				}
+				connectionStatus := agent.WorkspaceAgent.Status(now, agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
 
 				tailnetNode := "unknown"
@@ -380,14 +442,22 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 
 				// Collect information about registered applications
-				apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.WorkspaceAgent.ID)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.Error(err))
-					continue
-				}
-
-				for _, app := range apps {
+				for _, app := range appsByAgentID[agent.WorkspaceAgent.ID] {
 					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
+				}
+			}
+
+			// Prune observed agents that are no longer in the
+			// current fetch to prevent unbounded memory growth.
+			{
+				currentAgentIDs := make(map[uuid.UUID]struct{}, len(workspaceAgents))
+				for _, agent := range workspaceAgents {
+					currentAgentIDs[agent.WorkspaceAgent.ID] = struct{}{}
+				}
+				for id := range observedFirstConnection {
+					if _, exists := currentAgentIDs[id]; !exists {
+						delete(observedFirstConnection, id)
+					}
 				}
 			}
 
@@ -395,11 +465,15 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			agentsConnectionsGauge.Commit()
 			agentsConnectionLatenciesGauge.Commit()
 			agentsAppsGauge.Commit()
+		}
 
-		done:
-			logger.Debug(ctx, "agent metrics collection is done")
-			timer.ObserveDuration()
-			ticker.Reset(duration)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			collect()
 		}
 	}()
 	return func() {

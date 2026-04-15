@@ -455,11 +455,12 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	var child database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    parent.OrganizationID,
 			OwnerID:           parent.OwnerID,
 			WorkspaceID:       parent.WorkspaceID,
 			BuildID:           parent.BuildID,

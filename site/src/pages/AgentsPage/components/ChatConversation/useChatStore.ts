@@ -206,10 +206,9 @@ export const useChatStore = (
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				// Only classify a store-held ID as stale if it was
 				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (by the WS
-				// handler or handleSend) are new, not stale, and
-				// must not trigger the destructive replaceMessages
-				// path.
+				// added to the store after the last sync (for example
+				// by the WS handler) are new, not stale, and must not
+				// trigger the destructive replaceMessages path.
 				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&

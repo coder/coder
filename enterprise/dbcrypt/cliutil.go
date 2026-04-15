@@ -96,6 +96,34 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 				log.Debug(ctx, "encrypted user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			}
+
+			userSecrets, err := cryptTx.ListUserSecretsWithValues(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get user secrets for user %s: %w", uid, err)
+			}
+			for _, secret := range userSecrets {
+				if secret.ValueKeyID.Valid && secret.ValueKeyID.String == ciphers[0].HexDigest() {
+					log.Debug(ctx, "skipping user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+					continue
+				}
+				if _, err := cryptTx.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+					UserID:            uid,
+					Name:              secret.Name,
+					UpdateValue:       true,
+					Value:             secret.Value,
+					ValueKeyID:        sql.NullString{}, // dbcrypt will re-encrypt
+					UpdateDescription: false,
+					Description:       "",
+					UpdateEnvName:     false,
+					EnvName:           "",
+					UpdateFilePath:    false,
+					FilePath:          "",
+				}); err != nil {
+					return xerrors.Errorf("rotate user secret user_id=%s name=%s: %w", uid, secret.Name, err)
+				}
+				log.Debug(ctx, "rotated user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -235,6 +263,34 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				}
 				log.Debug(ctx, "decrypted user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1))
 			}
+
+			userSecrets, err := tx.ListUserSecretsWithValues(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get user secrets for user %s: %w", uid, err)
+			}
+			for _, secret := range userSecrets {
+				if !secret.ValueKeyID.Valid {
+					log.Debug(ctx, "skipping user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
+					continue
+				}
+				if _, err := tx.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+					UserID:            uid,
+					Name:              secret.Name,
+					UpdateValue:       true,
+					Value:             secret.Value,
+					ValueKeyID:        sql.NullString{}, // clear the key ID
+					UpdateDescription: false,
+					Description:       "",
+					UpdateEnvName:     false,
+					EnvName:           "",
+					UpdateFilePath:    false,
+					FilePath:          "",
+				}); err != nil {
+					return xerrors.Errorf("decrypt user secret user_id=%s name=%s: %w", uid, secret.Name, err)
+				}
+				log.Debug(ctx, "decrypted user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -292,6 +348,8 @@ DELETE FROM external_auth_links
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM user_chat_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+DELETE FROM user_secrets
+	WHERE value_key_id IS NOT NULL;
 UPDATE chat_providers
 	SET api_key = '',
 		api_key_key_id = NULL

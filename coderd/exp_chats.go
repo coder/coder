@@ -398,6 +398,33 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate organization membership.
+	if req.OrganizationID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id is required.",
+		})
+		return
+	}
+	orgMembers, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: req.OrganizationID,
+		UserID:         apiKey.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate organization membership.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(orgMembers) == 0 {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return
+	}
+
 	// Validate per-chat system prompt length.
 	const maxSystemPromptLen = 10000
 	if len(req.SystemPrompt) > maxSystemPromptLen {
@@ -407,7 +434,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -528,6 +554,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
@@ -777,7 +804,9 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
 	}
 
-	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, time.Now())
+	// TODO(CODAGT-161): pass real organization ID
+	// when the HTTP endpoint supports org-scoped queries.
+	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, uuid.NullUUID{}, time.Now())
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve usage limit status", slog.Error(err))
 	}
@@ -1078,7 +1107,9 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, time.Now())
+	// TODO(CODAGT-161): pass real organization ID
+	// when the HTTP endpoint supports org-scoped queries.
+	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, uuid.NullUUID{}, time.Now())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat usage limit status.",
@@ -1810,9 +1841,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		// - pinOrder > 0 && already pinned: reorder (shift
 		//   neighbors, clamp to [1, count]).
 		// - pinOrder > 0 && not pinned: append to end. The
-		//   requested value is intentionally ignored because
-		//   PinChatByID also bumps updated_at to keep the
-		//   chat visible in the paginated sidebar.
+		//   requested value is intentionally ignored; the
+		//   SQL ORDER BY sorts pinned chats first so they
+		//   appear on page 1 of the paginated sidebar.
 		var err error
 		errMsg := "Failed to pin chat."
 		switch {
@@ -1846,6 +1877,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	// Gate message sending behind the same agents-access check
+	// used by postChats. Sending a message triggers AI/LLM
+	// inference, so it should require the same authorization as
+	// chat creation. This is a handler-level band-aid; the
+	// structural fix is to make agents-access org-aware so
+	// dbauthz enforces this at the RBAC layer.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2090,6 +2133,15 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	// Gate queued-message promotion behind agents-access.
+	// Promoting a queued message triggers AI/LLM inference,
+	// same as sending a new message.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
@@ -2911,6 +2963,12 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
+	}
+
+	if workspace.OrganizationID != req.OrganizationID {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace does not belong to the specified organization.",
+		}
 	}
 
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
@@ -5626,7 +5684,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		previousSummary database.GetPRInsightsSummaryRow
 		timeSeries      []database.GetPRInsightsTimeSeriesRow
 		byModel         []database.GetPRInsightsPerModelRow
-		recentPRs       []database.GetPRInsightsRecentPRsRow
+		recentPRs       []database.GetPRInsightsPullRequestsRow
 	)
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -5674,11 +5732,10 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 
 	eg.Go(func() error {
 		var err error
-		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+		recentPRs, err = api.Database.GetPRInsightsPullRequests(egCtx, database.GetPRInsightsPullRequestsParams{
 			StartDate: startDate,
 			EndDate:   endDate,
 			OwnerID:   ownerID,
-			LimitVal:  20,
 		})
 		return err
 	})
@@ -5788,10 +5845,10 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{
-		Summary:    summary,
-		TimeSeries: tsEntries,
-		ByModel:    modelEntries,
-		RecentPRs:  prEntries,
+		Summary:      summary,
+		TimeSeries:   tsEntries,
+		ByModel:      modelEntries,
+		PullRequests: prEntries,
 	})
 }
 
@@ -5802,6 +5859,15 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
+
+	// Gate tool-result submission behind agents-access.
+	// Submitting tool results resumes AI/LLM inference on
+	// a chat in requires_action state.
+	// See: https://github.com/coder/coder/issues/24250
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))

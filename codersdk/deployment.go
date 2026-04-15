@@ -3653,6 +3653,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "acquireBatchSize",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		{
+			Name:        "Chat: Debug Logging Enabled",
+			Description: "Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.",
+			Flag:        "chat-debug-logging-enabled",
+			Env:         "CODER_CHAT_DEBUG_LOGGING_ENABLED",
+			Value:       &c.AI.Chat.DebugLoggingEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "debugLoggingEnabled",
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4119,7 +4129,8 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
 }
 
 type AIConfig struct {
@@ -4373,7 +4384,6 @@ const (
 	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
 	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
@@ -4390,8 +4400,6 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentWebPush:
-		return "Browser Push Notifications"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
 	case ExperimentAgents:
@@ -4402,7 +4410,7 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
-		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		// e.g. "mcp-server-http" -> "Mcp Server Http"
 		caser := cases.Title(language.English)
 		return caser.String(strings.ReplaceAll(string(e), "-", " "))
 	}
@@ -4414,7 +4422,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentWebPush,
 	ExperimentOAuth2,
 	ExperimentAgents,
 	ExperimentMCPServerHTTP,

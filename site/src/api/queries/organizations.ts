@@ -5,6 +5,7 @@ import {
 	type GetProvisionerJobsParams,
 } from "#/api/api";
 import type {
+	AuthorizationCheck,
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	Organization,
@@ -160,7 +161,7 @@ export const updateOrganizationMemberRoles = (
 	};
 };
 
-export const organizationsKey = ["organizations"] as const;
+const organizationsKey = ["organizations"] as const;
 
 const notAvailable = { available: false, value: undefined } as const;
 
@@ -292,6 +293,31 @@ export const provisionerJobs = (
 	return {
 		queryKey: provisionerJobsQueryKey(orgId, params),
 		queryFn: () => API.getProvisionerJobs(orgId, params),
+	};
+};
+
+/**
+ * Fetch organizations the current user is permitted to use for a given
+ * action. Fetches all organizations, runs a per-org authorization
+ * check, and returns only those that pass.
+ */
+export const permittedOrganizations = (check: AuthorizationCheck) => {
+	return {
+		queryKey: ["organizations", "permitted", check],
+		queryFn: async (): Promise<Organization[]> => {
+			const orgs = await API.getOrganizations();
+			const checks = Object.fromEntries(
+				orgs.map((org) => [
+					org.id,
+					{
+						...check,
+						object: { ...check.object, organization_id: org.id },
+					},
+				]),
+			);
+			const permissions = await API.checkAuthorization({ checks });
+			return orgs.filter((org) => permissions[org.id]);
+		},
 	};
 };
 

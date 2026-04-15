@@ -46,10 +46,14 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	envOpts := codersdk.UserSecretEnvValidationOptions{
-		AIGatewayEnabled: api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+	if err := codersdk.UserSecretValueValid(req.Value); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid secret value.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	if err := codersdk.UserSecretEnvNameValid(req.EnvName, envOpts); err != nil {
+	if err := codersdk.UserSecretEnvNameValid(req.EnvName); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid environment variable name.",
 			Detail:  err.Error(),
@@ -177,10 +181,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.EnvName != nil {
-		envOpts := codersdk.UserSecretEnvValidationOptions{
-			AIGatewayEnabled: api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-		}
-		if err := codersdk.UserSecretEnvNameValid(*req.EnvName, envOpts); err != nil {
+		if err := codersdk.UserSecretEnvNameValid(*req.EnvName); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid environment variable name.",
 				Detail:  err.Error(),
@@ -212,6 +213,13 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		FilePath:          "",
 	}
 	if req.Value != nil {
+		if err := codersdk.UserSecretValueValid(*req.Value); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid secret value.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		params.Value = *req.Value
 	}
 	if req.Description != nil {

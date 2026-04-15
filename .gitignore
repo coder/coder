@@ -103,6 +103,6 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
--e 
+
 # Agent planning documents (local working files).
 docs/plans/
