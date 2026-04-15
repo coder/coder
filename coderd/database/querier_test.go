@@ -2198,8 +2198,11 @@ func TestGetActiveUserCount(t *testing.T) {
 	}
 
 	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Seed users with different properties.
+	// Seed users: 2 active humans, 1 active service account,
+	// 1 dormant, 1 deleted. Only the 2 active humans should
+	// be counted for license seat purposes.
 	_ = dbgen.User(t, db, database.User{
 		Status: database.UserStatusActive,
 	})
@@ -2218,25 +2221,9 @@ func TestGetActiveUserCount(t *testing.T) {
 		Deleted: true,
 	})
 
-	t.Run("ExcludesServiceAccounts", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// Only the two active, non-service-account, non-deleted users
-		// should be counted.
-		count, err := db.GetActiveUserCount(ctx, false)
-		require.NoError(t, err)
-		require.Equal(t, int64(2), count)
-	})
-
-	t.Run("IncludeSystemFalse", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// Same as above — system users are excluded by default and we
-		// have none, so the count should remain 2.
-		count, err := db.GetActiveUserCount(ctx, false)
-		require.NoError(t, err)
-		require.Equal(t, int64(2), count)
-	})
+	count, err := db.GetActiveUserCount(ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count)
 }
 
 func TestUserChangeLoginType(t *testing.T) {
