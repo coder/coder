@@ -4366,13 +4366,22 @@ func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstan
 	if err != nil {
 		return nil, err
 	}
+	// Filter to agents whose workspace is accessible. Template-version
+	// agents can share the same instance ID but do not belong to a
+	// workspace, so GetWorkspaceByAgentID returns sql.ErrNoRows for
+	// them. Exclude those agents rather than failing the entire lookup.
+	filtered := make([]database.WorkspaceAgent, 0, len(agents))
 	for _, agent := range agents {
 		_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
 			return nil, err
 		}
+		filtered = append(filtered, agent)
 	}
-	return agents, nil
+	return filtered, nil
 }
 
 func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
