@@ -313,7 +313,7 @@ validate:
 
 	// Update the associated user's github.com user ID if the token
 	// is for github.com and validation returned user info.
-	if originalAccessToken != token.AccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+	if db != nil && originalAccessToken != token.AccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
 		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
 			ID: externalAuthLink.UserID,
 			GithubComUserID: sql.NullInt64{
