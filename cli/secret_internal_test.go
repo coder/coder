@@ -12,28 +12,26 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestTrimSingleTrailingNewline(t *testing.T) {
+func TestHasSuspiciousTrailingNewline(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name       string
 		input      string
-		want       string
 		suspicious bool
 	}{
-		{name: "NoTrailingNewline", input: "token", want: "token", suspicious: false},
-		{name: "SingleTrailingLF", input: "token\n", want: "token", suspicious: true},
-		{name: "SingleTrailingCRLF", input: "token\r\n", want: "token", suspicious: true},
-		{name: "MultilineValue", input: "line1\nline2\n", want: "line1\nline2", suspicious: false},
+		{name: "NoTrailingNewline", input: "token", suspicious: false},
+		{name: "SingleTrailingLF", input: "token\n", suspicious: true},
+		{name: "SingleTrailingCRLF", input: "token\r\n", suspicious: true},
+		{name: "SingleTrailingCR", input: "token\r", suspicious: true},
+		{name: "MultilineValue", input: "line1\nline2\n", suspicious: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, suspicious := trimSingleTrailingNewline(tt.input)
-			require.Equal(t, tt.want, got)
-			require.Equal(t, tt.suspicious, suspicious)
+			require.Equal(t, tt.suspicious, hasSuspiciousTrailingNewline(tt.input))
 		})
 	}
 }
@@ -64,42 +62,57 @@ func TestReadInvocationStdin(t *testing.T) {
 	})
 }
 
-func TestResolveInvocationStdinValue(t *testing.T) {
+func TestTrailingNewlineWarnings(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WarningWithoutPromptKeepsValue", func(t *testing.T) {
+	t.Run("WarnSuspiciousValue", func(t *testing.T) {
 		t.Parallel()
 
-		origPrompt := promptSecretTrimTrailingNewline
-		t.Cleanup(func() { promptSecretTrimTrailingNewline = origPrompt })
-		promptSecretTrimTrailingNewline = func(inv *serpent.Invocation) (bool, bool, error) {
-			return false, false, nil
-		}
-
 		var stderr bytes.Buffer
-		inv := newSecretTestInvocation(t, strings.NewReader("token\n"), &stderr)
-
-		got, err := resolveInvocationStdinValue(inv, "token\n")
-		require.NoError(t, err)
-		require.Equal(t, "token\n", got)
+		warnSuspiciousTrailingNewline(&stderr, "token\n", "api-key")
 		require.Contains(t, stderr.String(), "stdin ends with a trailing newline")
 	})
 
-	t.Run("PromptAcceptedTrimsValue", func(t *testing.T) {
+	t.Run("IncludesUpdateCommand", func(t *testing.T) {
 		t.Parallel()
 
-		origPrompt := promptSecretTrimTrailingNewline
-		t.Cleanup(func() { promptSecretTrimTrailingNewline = origPrompt })
-		promptSecretTrimTrailingNewline = func(inv *serpent.Invocation) (bool, bool, error) {
-			return true, true, nil
-		}
+		var stderr bytes.Buffer
+		warnSuspiciousTrailingNewline(&stderr, "token\n", "api-key")
+		require.Contains(t, stderr.String(), `coder secret update api-key`)
+	})
+
+	t.Run("DoesNotWarnForMultiline", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		warnSuspiciousTrailingNewline(&stderr, "line1\nline2\n", "api-key")
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("SecretValueWarnsAndPreservesValue", func(t *testing.T) {
+		t.Parallel()
 
 		var stderr bytes.Buffer
 		inv := newSecretTestInvocation(t, strings.NewReader("token\n"), &stderr)
 
-		got, err := resolveInvocationStdinValue(inv, "token\n")
+		got, ok, err := secretValue(inv, "")
 		require.NoError(t, err)
-		require.Equal(t, "token", got)
+		require.True(t, ok)
+		require.Equal(t, "token\n", got)
+		require.Contains(t, stderr.String(), "stdin ends with a trailing newline")
+		require.Contains(t, stderr.String(), `coder secret update`)
+	})
+
+	t.Run("SecretValueDoesNotWarnForMultiline", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		inv := newSecretTestInvocation(t, strings.NewReader("line1\nline2\n"), &stderr)
+
+		got, ok, err := secretValue(inv, "")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, "line1\nline2\n", got)
 		require.Empty(t, stderr.String())
 	})
 }
@@ -112,8 +125,10 @@ func newSecretTestInvocation(t *testing.T, stdin io.Reader, stderr io.Writer) *s
 		stderr = io.Discard
 	}
 	inv := (&serpent.Invocation{
-		Stdin:  stdin,
-		Stderr: stderr,
+		Stdin:   stdin,
+		Stderr:  stderr,
+		Command: &serpent.Command{},
+		Args:    []string{"api-key"},
 	}).WithTestParsedFlags(t, flags)
 	return inv
 }

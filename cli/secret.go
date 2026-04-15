@@ -3,8 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -216,35 +214,15 @@ func (r *RootCmd) secretUpdate() *serpent.Command {
 	return cmd
 }
 
-var promptSecretTrimTrailingNewline = func(inv *serpent.Invocation) (bool, bool, error) {
-	promptInv, cleanup, err := controllingTTYInvocation(inv)
-	if err != nil {
-		return false, false, nil
-	}
-	defer cleanup()
-
-	warnTrailingNewline(promptInv.Stderr)
-	answer, err := cliui.Prompt(promptInv, cliui.PromptOptions{
-		Text:      "Trim the trailing newline from the stdin secret value?",
-		IsConfirm: true,
-		Default:   cliui.ConfirmNo,
-	})
-	if err != nil {
-		return false, true, err
-	}
-
-	return answer == cliui.ConfirmYes, true, nil
-}
-
 func secretValue(inv *serpent.Invocation, value string) (string, bool, error) {
-	valueSource := optionValueSource(inv, "value")
+	valueProvided := userSetOption(inv, "value")
 	stdinValue, stdinProvided, err := readInvocationStdin(inv)
 	if err != nil {
 		return "", false, err
 	}
 
 	sourceNames := make([]string, 0, 2)
-	if valueSource != serpent.ValueSourceNone && valueSource != serpent.ValueSourceDefault {
+	if valueProvided {
 		sourceNames = append(sourceNames, "--value")
 	}
 	if stdinProvided {
@@ -254,16 +232,13 @@ func secretValue(inv *serpent.Invocation, value string) (string, bool, error) {
 		return "", false, xerrors.Errorf("secret value may be provided by only one source, got %s", strings.Join(sourceNames, ", "))
 	}
 
-	if valueSource != serpent.ValueSourceNone && valueSource != serpent.ValueSourceDefault {
+	if valueProvided {
 		return value, true, nil
 	}
 
 	if stdinProvided {
-		resolvedStdinValue, err := resolveInvocationStdinValue(inv, stdinValue)
-		if err != nil {
-			return "", false, err
-		}
-		return resolvedStdinValue, true, nil
+		warnSuspiciousTrailingNewline(inv.Stderr, stdinValue, inv.Args[0])
+		return stdinValue, true, nil
 	}
 
 	return "", false, nil
@@ -285,88 +260,37 @@ func readInvocationStdin(inv *serpent.Invocation) (string, bool, error) {
 	return string(bytes), true, nil
 }
 
-func resolveInvocationStdinValue(inv *serpent.Invocation, value string) (string, error) {
-	trimmedValue, suspiciousTrailingNewline := trimSingleTrailingNewline(value)
-	if suspiciousTrailingNewline {
-		trim, prompted, err := promptSecretTrimTrailingNewline(inv)
-		if err != nil {
-			return "", err
-		}
-		if trim {
-			return trimmedValue, nil
-		}
-		if !prompted {
-			warnTrailingNewline(inv.Stderr)
-		}
-	}
-
-	return value, nil
-}
-
-func optionValueSource(inv *serpent.Invocation, name string) serpent.ValueSource {
-	opt := inv.Command.Options.ByName(name)
-	if opt == nil {
-		return serpent.ValueSourceNone
-	}
-	return opt.ValueSource
-}
-
 // Shell helpers like echo usually append a line ending to piped stdin. We
 // treat a single trailing LF or CRLF as suspicious, but avoid flagging values
 // that are clearly multiline.
-func trimSingleTrailingNewline(value string) (string, bool) {
+func hasSuspiciousTrailingNewline(value string) bool {
 	switch {
 	case strings.HasSuffix(value, "\r\n"):
 		trimmed := strings.TrimSuffix(value, "\r\n")
-		return trimmed, !strings.ContainsAny(trimmed, "\r\n")
+		return !strings.ContainsAny(trimmed, "\r\n")
 	case strings.HasSuffix(value, "\n"):
 		trimmed := strings.TrimSuffix(value, "\n")
-		return trimmed, !strings.ContainsAny(trimmed, "\r\n")
+		return !strings.ContainsAny(trimmed, "\r\n")
 	case strings.HasSuffix(value, "\r"):
 		trimmed := strings.TrimSuffix(value, "\r")
-		return trimmed, !strings.ContainsAny(trimmed, "\r\n")
+		return !strings.ContainsAny(trimmed, "\r\n")
 	default:
-		return value, false
+		return false
 	}
 }
 
-func warnTrailingNewline(w io.Writer) {
+func warnSuspiciousTrailingNewline(w io.Writer, value string, secretName string) {
+	if !hasSuspiciousTrailingNewline(value) {
+		return
+	}
+
 	cliui.Warn(
 		w,
 		"stdin ends with a trailing newline.",
 		"Using echo often appends an unintended newline to the secret value.",
 		"Use printf %s or echo -n if you do not want to store the newline.",
+		fmt.Sprintf(`To replace it, run: printf %%s "$UPDATED_VALUE" | coder secret update %s`, secretName),
 	)
-}
-
-func controllingTTYInvocation(inv *serpent.Invocation) (*serpent.Invocation, func(), error) {
-	inPath, outPath := controllingTTYPaths()
-	inFile, err := os.OpenFile(inPath, os.O_RDWR, 0)
-	if err != nil {
-		return nil, nil, err
-	}
-	outFile, err := os.OpenFile(outPath, os.O_RDWR, 0)
-	if err != nil {
-		_ = inFile.Close()
-		return nil, nil, err
-	}
-
-	promptInv := *inv
-	promptInv.Stdin = inFile
-	promptInv.Stdout = outFile
-	promptInv.Stderr = outFile
-
-	return &promptInv, func() {
-		_ = inFile.Close()
-		_ = outFile.Close()
-	}, nil
-}
-
-func controllingTTYPaths() (inputPath string, outputPath string) {
-	if runtime.GOOS == "windows" {
-		return "CONIN$", "CONOUT$"
-	}
-	return "/dev/tty", "/dev/tty"
 }
 
 type secretListRow struct {

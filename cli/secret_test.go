@@ -11,6 +11,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -128,6 +130,43 @@ func TestSecretCreate(t *testing.T) {
 		require.Equal(t, "api-key", secret.Name)
 		require.Equal(t, "API key for workspace tools", secret.Description)
 		require.Equal(t, "API_KEY", secret.EnvName)
+	})
+
+	t.Run("StdinTrailingNewlineWarnsAndPreservesValue", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		inv, root := clitest.New(
+			t,
+			"secret",
+			"create",
+			"api-key",
+			"--description", "API key for workspace tools",
+			"--env", "API_KEY",
+		)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("super-secret-value\n")
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, output.Stdout(), "api-key")
+		require.Contains(t, output.Stderr(), "stdin ends with a trailing newline")
+		require.Contains(t, output.Stderr(), `printf %s "$UPDATED_VALUE" | coder secret update api-key`)
+
+		secret, err := db.GetUserSecretByUserIDAndName(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetUserSecretByUserIDAndNameParams{
+				UserID: user.ID,
+				Name:   "api-key",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, "super-secret-value\n", secret.Value)
 	})
 
 	t.Run("EmptyStdinIsNotProvided", func(t *testing.T) {
