@@ -338,9 +338,7 @@ export const WithOrganizationPicker: Story = {
 		const canvas = within(canvasElement);
 		// Verify the org picker rendered (component didn't crash).
 		await waitFor(() => {
-			expect(
-				canvas.getByTestId("organization-autocomplete"),
-			).toBeInTheDocument();
+			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
 		});
 		// Type into the chat input to trigger re-renders. If the
 		// permittedOrgs fallback is referentially unstable, this
@@ -349,7 +347,7 @@ export const WithOrganizationPicker: Story = {
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
 		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("organization-autocomplete")).toBeInTheDocument();
+		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
 	},
 };
 
