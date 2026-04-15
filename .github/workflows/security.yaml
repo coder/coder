@@ -89,13 +89,30 @@ jobs:
 
       - name: Run OSV-Scanner vulnerability scanner
         id: scan
-        continue-on-error: true
         env:
           IMAGE_REF: ghcr.io/coder/coder:latest
         run: |
+          set +e
           osv-scanner scan image "$IMAGE_REF" \
             --format sarif \
             --output-file osv-results.sarif
+          scan_exit_code=$?
+          set -e
+
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${scan_exit_code}" -eq 0 ]]; then
+            exit 0
+          fi
+
+          if [[ "${scan_exit_code}" -eq 1 ]]; then
+            echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
+            echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            exit 0
+          fi
+
+          echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
+          exit "${scan_exit_code}"
 
       - name: Upload OSV-Scanner scan results to GitHub Security tab
         if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
@@ -111,10 +128,6 @@ jobs:
           name: osv-scanner
           path: osv-results.sarif
           retention-days: 7
-
-      - name: Fail if OSV-Scanner found vulnerabilities
-        if: ${{ steps.scan.outcome == 'failure' }}
-        run: exit 1
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}

@@ -1013,6 +1013,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
+
+				revision, _ := buildinfo.Revision()
+				if err = prometheusmetrics.BuildInfo(options.PrometheusRegistry, buildinfo.Version(), revision); err != nil {
+					return xerrors.Errorf("register build info metric: %w", err)
+				}
 			}
 
 			// This is helpful for tests, but can be silently ignored.

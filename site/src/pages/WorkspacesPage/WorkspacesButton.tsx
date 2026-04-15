@@ -63,7 +63,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[320px]"
+				className="bg-surface-secondary border-surface-quaternary w-[320px] overflow-hidden flex flex-col"
 			>
 				<MenuSearch
 					value={searchTerm}
@@ -73,7 +73,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY maxHeight={380} className="flex flex-col py-2">
+				<OverflowY maxHeight={380} className="flex flex-col py-2 min-h-0">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (

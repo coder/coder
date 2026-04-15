@@ -67,6 +67,7 @@ export interface AIBridgeConfig {
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
 	readonly send_actor_headers: boolean;
+	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider rate limits (429, 503, 529 overloaded).

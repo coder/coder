@@ -13102,6 +13102,9 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "allow_byok": {
+                    "type": "boolean"
+                },
                 "anthropic": {
                     "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [

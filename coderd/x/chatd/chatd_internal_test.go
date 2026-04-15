@@ -2749,6 +2749,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		chatHeartbeatInterval: time.Minute,
 		configCache:           newChatConfigCache(ctx, db, clock),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+		metrics:               chatloop.NopMetrics(),
 	}
 
 	// Publish a stale "pending" notification on the control channel

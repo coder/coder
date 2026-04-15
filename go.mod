@@ -81,13 +81,14 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
-// See: https://github.com/coder/fantasy/commits/7aaf56df81f9
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
+// 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
+// See: https://github.com/coder/fantasy/commits/190272ce52f0
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260415162245-190272ce52f0
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.
-// See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
+// See: https://github.com/coder/anthropic-sdk-go/commits/a31d7d0e7067
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260415160422-a31d7d0e7067
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262
@@ -496,7 +497,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.1-0.20260410135158-9ac7525ed947
+	github.com/coder/aibridge v1.1.2
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8

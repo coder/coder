@@ -816,6 +816,10 @@ aibridge:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
+  # Allow users to provide their own LLM API keys or subscriptions. When disabled,
+  # only centralized key authentication is permitted.
+  # (default: true, type: bool)
+  allow_byok: true
   # Enable the circuit breaker to protect against cascading failures from upstream
   # AI provider rate limits (429, 503, 529 overloaded).
   # (default: false, type: bool)
