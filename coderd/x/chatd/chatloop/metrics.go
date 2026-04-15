@@ -25,13 +25,13 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	Chats                        *prometheus.GaugeVec
-	MessageCount                 *prometheus.HistogramVec
-	PromptSizeBytes              *prometheus.HistogramVec
-	ToolResultSizeBytes          *prometheus.HistogramVec
-	SerializationDurationSeconds *prometheus.HistogramVec
-	CompactionTotal              *prometheus.CounterVec
-	StepsTotal                   *prometheus.CounterVec
+	Chats               *prometheus.GaugeVec
+	MessageCount        *prometheus.HistogramVec
+	PromptSizeBytes     *prometheus.HistogramVec
+	ToolResultSizeBytes *prometheus.HistogramVec
+	TTFTSeconds         *prometheus.HistogramVec
+	CompactionTotal     *prometheus.CounterVec
+	StepsTotal          *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -49,28 +49,28 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "message_count",
-			Help:      "Number of messages in the prompt at each Model.Stream call.",
+			Help:      "Number of messages in the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 8), // 1, 2, 4, 8, 16, 32, 64, 128
 		}, []string{"provider"}),
 		PromptSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "prompt_size_bytes",
-			Help:      "Estimated byte size of the prompt at each Model.Stream call.",
+			Help:      "Estimated byte size of the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
 		}, []string{"provider"}),
 		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "tool_result_size_bytes",
-			Help:      "Size in bytes of each tool result returned from executeSingleTool.",
+			Help:      "Size in bytes of each tool execution result.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
 		}, []string{"provider", "tool_name"}),
-		SerializationDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "serialization_duration_seconds",
-			Help:      "Wall time from Model.Stream call to first streamed chunk (time-to-first-token).",
+			Name:      "ttft_seconds",
+			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
@@ -103,11 +103,14 @@ func (m *Metrics) RecordCompaction(provider string, compacted bool, err error) {
 	switch {
 	case err != nil && errors.Is(err, context.DeadlineExceeded):
 		m.CompactionTotal.WithLabelValues(provider, CompactionResultTimeout).Inc()
+	case err != nil && errors.Is(err, context.Canceled):
+		// User interruption, not a compaction failure.
+		return
 	case err != nil:
 		m.CompactionTotal.WithLabelValues(provider, CompactionResultError).Inc()
 	case compacted:
 		m.CompactionTotal.WithLabelValues(provider, CompactionResultSuccess).Inc()
-		// !compacted && err == nil means threshold not reached — not
+		// !compacted && err == nil means threshold not reached -- not
 		// recorded.
 	}
 }

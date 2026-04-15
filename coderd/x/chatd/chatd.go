@@ -5179,12 +5179,18 @@ func (p *Server) runChat(
 		)
 	}
 
+	// Record builtin tool names before appending MCP tools
+	// so the metrics layer can bound label cardinality.
+	builtinToolNames := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		builtinToolNames[t.Info().Name] = true
+	}
+
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
 	tools = append(tools, mcpTools...)
 	tools = append(tools, workspaceMCPTools...)
-
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop — the client handles
@@ -5265,7 +5271,8 @@ func (p *Server) runChat(
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
-		Metrics: p.metrics,
+		Metrics:          p.metrics,
+		BuiltinToolNames: builtinToolNames,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: providerOptions,

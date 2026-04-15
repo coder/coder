@@ -154,6 +154,11 @@ type RunOptions struct {
 	// Metrics records Prometheus metrics for the chatd subsystem.
 	// When nil, no metrics are recorded.
 	Metrics *Metrics
+
+	// BuiltinToolNames lists tool names that are built into chatd.
+	// Tool results from tools not in this set are recorded under
+	// the "mcp" label to bound cardinality.
+	BuiltinToolNames map[string]bool
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -301,6 +306,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
+	if opts.Metrics == nil {
+		opts.Metrics = NopMetrics()
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -347,10 +355,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
-			if opts.Metrics != nil {
-				opts.Metrics.StepsTotal.WithLabelValues(opts.Model.Provider()).Inc()
-			}
-			stepStart := time.Now() // Copy messages so that provider-specific caching
+			provider := opts.Model.Provider()
+			opts.Metrics.StepsTotal.WithLabelValues(provider).Inc()
+			stepStart := time.Now()
+			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
@@ -360,11 +368,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
-			if opts.Metrics != nil {
-				provider := opts.Model.Provider()
-				opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
-				opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
-			}
+			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
 			call := fantasy.Call{
 				Prompt:           prepared,
 				Tools:            tools,
@@ -381,7 +386,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
-					opts.Model.Provider(),
+					provider,
 					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
@@ -455,7 +460,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Model.Provider(), func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -754,19 +759,17 @@ func guardedStream(
 		return guardedAttempt{}, err
 	}
 
-	var ttftOnce sync.Once
+	recordTTFT := sync.OnceFunc(func() {
+		metrics.TTFTSeconds.WithLabelValues(provider).Observe(
+			clock.Since(streamStart).Seconds(),
+		)
+	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Disarm()
-				ttftOnce.Do(func() {
-					if metrics != nil {
-						metrics.SerializationDurationSeconds.WithLabelValues(provider).Observe(
-							clock.Since(streamStart).Seconds(),
-						)
-					}
-				})
+				recordTTFT()
 				if !yield(part) {
 					return
 				}
@@ -1011,6 +1014,7 @@ func executeTools(
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
 	provider string,
+	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1065,7 +1069,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames)
 		}()
 	}
 	wg.Wait()
@@ -1088,6 +1092,7 @@ func executeSingleTool(
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
 	provider string,
+	builtinToolNames map[string]bool,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1095,11 +1100,13 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		if metrics != nil {
-			metrics.ToolResultSizeBytes.WithLabelValues(provider, tc.ToolName).Observe(
-				float64(ToolResultSize(result)),
-			)
+		toolLabel := tc.ToolName
+		if !builtinToolNames[tc.ToolName] {
+			toolLabel = "mcp"
 		}
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, toolLabel).Observe(
+			float64(ToolResultSize(result)),
+		)
 	}()
 
 	tool, exists := toolMap[tc.ToolName]
