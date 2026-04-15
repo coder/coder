@@ -1475,7 +1475,7 @@ const AgentChatPage: FC = () => {
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={desktopEnabled ? agentId : undefined}
-			onForkFromMessage={handleForkFromMessage}
+			onForkFromMessage={isArchived ? undefined : handleForkFromMessage}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}
 			onMCPSelectionChange={handleMCPSelectionChange}

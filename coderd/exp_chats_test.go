@@ -9624,6 +9624,69 @@ func TestForkChat(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
+	t.Run("MessageFromDifferentChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create two separate chats.
+		chatA, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat A",
+		})
+		require.NoError(t, err)
+
+		chatB, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat B",
+		})
+		require.NoError(t, err)
+
+		// Insert a message into chatB only.
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("message in chat B"),
+		})
+		require.NoError(t, err)
+
+		chatBMsgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chatB.ID,
+			CreatedBy:           []uuid.UUID{firstUser.UserID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+			Content:             []string{string(userContent.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+		require.Len(t, chatBMsgs, 1)
+
+		// Forking chatA with a message ID that belongs to chatB
+		// should fail with a 400 error.
+		_, err = client.ForkChat(ctx, chatA.ID, codersdk.ForkChatRequest{
+			MessageID: chatBMsgs[0].ID,
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
 

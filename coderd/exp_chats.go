@@ -2509,9 +2509,9 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
+	sourceChat := httpmw.ChatParam(r)
 
-	if !api.Authorize(r, policy.ActionRead, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionRead, sourceChat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -2520,7 +2520,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 	// mirrors the defense-in-depth check in dbauthz.ForkChat but
 	// surfaces a clean 404 instead of an opaque 500 on permission
 	// failure.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(chat.OwnerID.String()).InOrg(chat.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(sourceChat.OwnerID.String()).InOrg(sourceChat.OrganizationID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -2546,7 +2546,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if msg.ChatID != chat.ID {
+	if msg.ChatID != sourceChat.ID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid message ID.",
 			Detail:  "The specified message does not belong to this chat.",
@@ -2556,7 +2556,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Derive a title from the first user message that will be copied.
 	msgs, err := api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
-		ChatID:   chat.ID,
+		ChatID:   sourceChat.ID,
 		LimitVal: 10,
 	})
 	if err != nil {
@@ -2568,6 +2568,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	title := "New Chat"
+	var titleFound bool
 	for _, m := range msgs {
 		if m.ID > req.MessageID {
 			break
@@ -2579,11 +2580,12 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 				for _, p := range parts {
 					if p.Type == codersdk.ChatMessagePartTypeText && p.Text != "" {
 						title = chatTitleFromMessage(p.Text)
+						titleFound = true
 						break
 					}
 				}
 			}
-			if title != "New Chat" {
+			if titleFound {
 				break
 			}
 		}
@@ -2591,7 +2593,7 @@ func (api *API) forkChat(rw http.ResponseWriter, r *http.Request) {
 
 	newChat, err := api.Database.ForkChat(ctx, database.ForkChatParams{
 		Title:         title,
-		SourceChatID:  chat.ID,
+		SourceChatID:  sourceChat.ID,
 		UpToMessageID: req.MessageID,
 	})
 	if err != nil {
