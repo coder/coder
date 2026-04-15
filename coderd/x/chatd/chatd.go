@@ -4543,15 +4543,17 @@ func (p *Server) runChat(
 	// Connect to MCP servers in parallel with instruction
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
-		var (
-			instruction        string
-			resolvedUserPrompt string
-			mcpTools           []fantasy.AgentTool
-			mcpCleanup         func()
-			workspaceMCPTools  []fantasy.AgentTool
-			skills             []chattool.SkillMeta
-		)	// Check if instruction files need to be (re-)persisted.
+	var (
+		instruction        string
+		resolvedUserPrompt string
+		mcpTools           []fantasy.AgentTool
+		mcpCleanup         func()
+		workspaceMCPTools  []fantasy.AgentTool
+		skills             []chattool.SkillMeta
+	)
+	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
+
 	// the workspace agent has changed (e.g. workspace rebuilt).
 	needsInstructionPersist := false
 	hasContextFiles := false
@@ -5070,39 +5072,39 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		// Workspace provisioning tools.
-			onChatUpdated := func(updatedChat database.Chat) {
-				workspaceCtx.selectWorkspace(updatedChat)
-				// Notify the frontend immediately so it can
-				// start streaming build logs before the tool
-				// completes.
-				p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		onChatUpdated := func(updatedChat database.Chat) {
+			workspaceCtx.selectWorkspace(updatedChat)
+			// Notify the frontend immediately so it can
+			// start streaming build logs before the tool
+			// completes.
+			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
-				// When a workspace is first attached mid-turn
-				// (e.g. via create_workspace), fetch and persist
-				// instruction files immediately so the LLM has
-				// AGENTS.md context for the remainder of this
-				// turn. The persisted marker prevents redundant
-				// fetches on subsequent turns.
-				if instruction == "" && updatedChat.WorkspaceID.Valid {
-					newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
-						ctx,
-						updatedChat,
-						modelConfig.ID,
-						workspaceCtx.getWorkspaceAgent,
-						workspaceCtx.getWorkspaceConn,
+			// When a workspace is first attached mid-turn
+			// (e.g. via create_workspace), fetch and persist
+			// instruction files immediately so the LLM has
+			// AGENTS.md context for the remainder of this
+			// turn. The persisted marker prevents redundant
+			// fetches on subsequent turns.
+			if instruction == "" && updatedChat.WorkspaceID.Valid {
+				newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
+					ctx,
+					updatedChat,
+					modelConfig.ID,
+					workspaceCtx.getWorkspaceAgent,
+					workspaceCtx.getWorkspaceConn,
+				)
+				if persistErr != nil {
+					p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
+						slog.F("chat_id", updatedChat.ID),
+						slog.Error(persistErr),
 					)
-					if persistErr != nil {
-						p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
-							slog.F("chat_id", updatedChat.ID),
-							slog.Error(persistErr),
-						)
-					} else {
-						instruction = newInstruction
-						if len(discoveredSkills) > 0 {
-							skills = discoveredSkills
-						}
+				} else {
+					instruction = newInstruction
+					if len(discoveredSkills) > 0 {
+						skills = discoveredSkills
 					}
 				}
+			}
 			}
 			tools = append(tools,
 				chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
@@ -5124,7 +5126,6 @@ func (p *Server) runChat(
 					Logger:                         p.logger,
 					AllowedTemplateIDs:             p.chatTemplateAllowlist,
 				}),
-
 
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:            p.db,
@@ -5338,25 +5339,25 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-				// Re-derive instruction and skills from the reloaded
-				// messages so that any context added during the
-				// chatloop (e.g. via persistInstructionFiles when
-				// the agent changes) is picked up after compaction.
-				// The captured instruction takes priority; fall
-				// back to persisted DB content otherwise.
-				reloadedInstruction := instruction
-				if reloadedInstruction == "" {
-					reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
-				}
-				if reloadedInstruction != "" {
+			// Re-derive instruction and skills from the reloaded
+			// messages so that any context added during the
+			// chatloop (e.g. via persistInstructionFiles when
+			// the agent changes) is picked up after compaction.
+			// The captured instruction takes priority; fall
+			// back to persisted DB content otherwise.
+			reloadedInstruction := instruction
+			if reloadedInstruction == "" {
+				reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
+			}
+			if reloadedInstruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			effectiveSkills := skillsFromParts(reloadedMsgs)
-
 			if len(effectiveSkills) == 0 {
 				effectiveSkills = skills
 			}
+
 			if skillIndex := chattool.FormatSkillIndex(effectiveSkills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
