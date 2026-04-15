@@ -232,6 +232,14 @@ export const updateDeadline = (
 	};
 };
 
+/**
+ * Creates a mutation config to change the workspace's template version.
+ *
+ * **Stop-before-start:** If the workspace is currently running, the API
+ * layer (`API.changeWorkspaceVersion`) will stop it and wait for the stop
+ * to complete before issuing the start build with the new version.
+ * This mirrors the behaviour of `updateWorkspace`.
+ */
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,

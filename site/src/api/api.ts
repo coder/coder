@@ -2459,6 +2459,26 @@ class ApiMethods {
 		}));
 	};
 
+	/**
+	 * Stops a workspace if it is currently running and waits for the stop
+	 * to complete. Throws if the stop build is canceled.
+	 *
+	 * Shared by changeWorkspaceVersion and updateWorkspace to ensure
+	 * a clean stop-before-start when switching template versions.
+	 */ private stopWorkspaceIfRunning = async (
+		workspace: TypesGen.Workspace,
+	): Promise<void> => {
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			if (awaitedStopBuild?.status === "canceled") {
+				throw new Error(
+					"Workspace stop was canceled, not proceeding with update.",
+				);
+			}
+		}
+	};
+
 	/** Steps to change the workspace version
 	 * - Get the latest template to access the latest active version
 	 * - Get the current build parameters
@@ -2466,6 +2486,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the new version
 	 *   - If there are missing parameters raise an error
+	 * - Stop the workspace if it is already running
 	 * - Create a build with the version and updated build parameters
 	 */
 	changeWorkspaceVersion = async (
@@ -2500,6 +2521,8 @@ class ApiMethods {
 			throw new MissingBuildParameters(missingParameters, templateVersionId);
 		}
 
+		await this.stopWorkspaceIfRunning(workspace);
+
 		return this.postWorkspaceBuild(workspace.id, {
 			transition: "start",
 			template_version_id: templateVersionId,
@@ -2514,7 +2537,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the newest version
 	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace with the current template version if it is already running
+	 * - Stop the workspace if it is already running (via stopWorkspaceIfRunning)
 	 * - Create a build with the latest version and updated build parameters
 	 */
 	updateWorkspace = async (
@@ -2546,18 +2569,7 @@ class ApiMethods {
 			}
 		}
 
-		// Stop the workspace if it is already running.
-		if (workspace.latest_build.status === "running") {
-			const stopBuild = await this.stopWorkspace(workspace.id);
-			const awaitedStopBuild = await this.waitForBuild(stopBuild);
-			// If the stop is canceled halfway through, we bail.
-			// This is the same behaviour as restartWorkspace.
-			if (awaitedStopBuild?.status === "canceled") {
-				return Promise.reject(
-					new Error("Workspace stop was canceled, not proceeding with update."),
-				);
-			}
-		}
+		await this.stopWorkspaceIfRunning(workspace);
 
 		try {
 			return await this.postWorkspaceBuild(workspace.id, {
