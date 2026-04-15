@@ -921,31 +921,60 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 	}
 	var b strings.Builder
 	w := 64
-	line := func(content string) {
-		_, _ = fmt.Fprintf(&b, "║ %-*s ║\n", w, content)
+	line := func(content ...string) {
+		for _, c := range content {
+			_, _ = fmt.Fprintf(&b, "║ %-*s ║\n", w, c)
+		}
+	}
+	indent := func(s string) string {
+		return "           " + s
 	}
 	divider := "╔" + strings.Repeat("═", w+2) + "╗"
 	bottom := "╚" + strings.Repeat("═", w+2) + "╝"
 
 	_, _ = fmt.Fprintln(&b)
 	_, _ = fmt.Fprintln(&b, divider)
-	line("")
-	line("           Coder is now running in development mode.")
-	line("")
+	line(
+		"",
+		indent("Coder is now running in development mode."),
+		"",
+		"API:",
+	)
+
 	for _, h := range ifaces {
-		line(fmt.Sprintf("API:    http://%s:%d", h, cfg.apiPort))
-		line(fmt.Sprintf("Web UI: http://%s:%d", h, cfg.webPort))
-		if cfg.useProxy {
-			line(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort))
+		line(indent(fmt.Sprintf("http://%s:%d", h, cfg.apiPort)))
+	}
+	line(
+		"",
+		"WebUI:",
+	)
+	for _, h := range ifaces {
+		line(indent(fmt.Sprintf("http://%s:%d", h, cfg.webPort)))
+	}
+	if cfg.useProxy {
+		line(
+			"",
+			"Proxy:",
+		)
+		for _, h := range ifaces {
+			line(indent(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort)))
 		}
 	}
 	if cfg.prometheusPort != 0 {
-		line(fmt.Sprintf("Metrics: http://127.0.0.1:%d", cfg.prometheusPort))
+		line(
+			"",
+			"Metrics:",
+		)
+		for _, h := range ifaces {
+			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.prometheusPort)))
+		}
 	}
-	line("")
-	line("Use ./scripts/coder-dev.sh to talk to this instance!")
-	line(fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
-	line("")
+	line(
+		"",
+		"Use ./scripts/coder-dev.sh to talk to this instance!",
+		fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot),
+		"",
+	)
 	_, _ = fmt.Fprintln(&b, bottom)
 	logger.Info(ctx, b.String())
 }
