@@ -9,8 +9,6 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Label } from "#/components/Label/Label";
-import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -27,6 +25,7 @@ import {
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
+import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -433,30 +432,23 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{showOrganizations &&
-						!permittedOrgsQuery.isLoading &&
-						permittedOrgs.length > 1 && (
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="organization">Organization</Label>
-								<OrganizationAutocomplete
-									id="organization"
-									required
-									value={selectedOrg}
-									options={permittedOrgs}
-									onChange={(newOrg) => {
-										const orgChanged = newOrg?.id !== selectedOrg?.id;
-										if (orgChanged && attachments.length > 0) {
-											setPendingOrgChange(newOrg);
-											return;
-										}
-										if (orgChanged) {
-											handleWorkspaceChange(null);
-										}
-										setSelectedOrg(newOrg);
-									}}
-								/>
-							</div>
-						)}
+					{showOrganizations && permittedOrgs.length > 1 && (
+						<CompactOrgSelector
+							value={selectedOrg}
+							options={permittedOrgs}
+							onChange={(newOrg) => {
+								const orgChanged = newOrg.id !== selectedOrg?.id;
+								if (orgChanged && attachments.length > 0) {
+									setPendingOrgChange(newOrg);
+									return;
+								}
+								if (orgChanged) {
+									handleWorkspaceChange(null);
+								}
+								setSelectedOrg(newOrg);
+							}}
+						/>
+					)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
