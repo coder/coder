@@ -755,15 +755,19 @@ func (m *mapper) run() {
 			}
 			best = m.bestMappings(m.c.getLatestMapping())
 		}
-		update := m.bestToUpdate(best)
-		if update == nil {
+		su := m.bestToUpdate(best)
+		if su == nil {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
-			// lots of reasons this could happen, most usually, the peer has disconnected.
+		if err := m.c.Enqueue(su.resp); err != nil {
+			// lots of reasons this could happen, most usually, the peer has disconnected
+			// or the send buffer is full. Do NOT commit the sent cache so the update
+			// is retried on the next mapper cycle.
 			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
+			continue
 		}
+		m.commitSent(su)
 	}
 }
 
@@ -794,8 +798,21 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	return best
 }
 
-func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
-	resp := new(proto.CoordinateResponse)
+// sentUpdate holds the response to enqueue along with the deferred
+// modifications to m.sent.  The caller must invoke commitSent only
+// after a successful Enqueue so that dropped messages are retried on
+// the next mapper cycle.
+type sentUpdate struct {
+	resp    *proto.CoordinateResponse
+	upserts map[uuid.UUID]mapping
+	deletes []uuid.UUID
+}
+
+func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
+	su := &sentUpdate{
+		resp:    new(proto.CoordinateResponse),
+		upserts: make(map[uuid.UUID]mapping),
+	}
 
 	skipped := 0
 	for k, mpng := range best {
@@ -841,17 +858,17 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			}
 			reason = "update"
 		}
-		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+		su.resp.PeerUpdates = append(su.resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 			Id:     agpl.UUIDToByteSlice(k),
 			Node:   mpng.node,
 			Kind:   mpng.kind,
 			Reason: reason,
 		})
-		m.sent[k] = mpng
+		su.upserts[k] = mpng
 	}
 	m.logger.Debug(m.ctx, "bestToUpdate summary",
 		slog.F("total_best", len(best)),
-		slog.F("updates_sent", len(resp.PeerUpdates)),
+		slog.F("updates_sent", len(su.resp.PeerUpdates)),
 		slog.F("skipped", skipped),
 	)
 
@@ -860,19 +877,30 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			m.logger.Debug(m.ctx, "peer no longer in best mappings, sending DISCONNECTED",
 				slog.F("peer_id", k),
 			)
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+			su.resp.PeerUpdates = append(su.resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})
-			delete(m.sent, k)
+			su.deletes = append(su.deletes, k)
 		}
 	}
 
-	if len(resp.PeerUpdates) == 0 {
+	if len(su.resp.PeerUpdates) == 0 {
 		return nil
 	}
-	return resp
+	return su
+}
+
+// commitSent applies the deferred sent-cache mutations from a
+// successful Enqueue call.
+func (m *mapper) commitSent(su *sentUpdate) {
+	for k, mpng := range su.upserts {
+		m.sent[k] = mpng
+	}
+	for _, k := range su.deletes {
+		delete(m.sent, k)
+	}
 }
 
 // querier is responsible for monitoring pubsub notifications and querying the database for the

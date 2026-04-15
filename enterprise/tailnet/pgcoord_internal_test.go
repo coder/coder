@@ -34,6 +34,159 @@ import (
 // make gen/golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
+func TestBestToUpdate_DoesNotModifySent(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	peerID := uuid.New()
+	node := &proto.Node{Id: 1, AsOf: nil}
+
+	m := &mapper{
+		ctx:    ctx,
+		logger: logger,
+		sent:   make(map[uuid.UUID]mapping),
+	}
+
+	best := map[uuid.UUID]mapping{
+		peerID: {
+			peer: peerID,
+			node: node,
+			kind: proto.CoordinateResponse_PeerUpdate_NODE,
+		},
+	}
+
+	// Call bestToUpdate — it should NOT modify m.sent.
+	su := m.bestToUpdate(best)
+	require.NotNil(t, su)
+	require.Len(t, su.resp.PeerUpdates, 1)
+	assert.Empty(t, m.sent, "bestToUpdate must not modify m.sent")
+
+	// Verify the upserts are captured in the sentUpdate.
+	assert.Len(t, su.upserts, 1)
+	assert.Contains(t, su.upserts, peerID)
+}
+
+func TestBestToUpdate_DeletesNotAppliedToSent(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	peerID := uuid.New()
+	node := &proto.Node{Id: 1}
+
+	m := &mapper{
+		ctx:    ctx,
+		logger: logger,
+		sent: map[uuid.UUID]mapping{
+			peerID: {peer: peerID, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE},
+		},
+	}
+
+	// Empty best means peerID is no longer present → DISCONNECTED.
+	best := map[uuid.UUID]mapping{}
+	su := m.bestToUpdate(best)
+	require.NotNil(t, su)
+
+	// m.sent must still contain the peer (not deleted yet).
+	assert.Contains(t, m.sent, peerID, "bestToUpdate must not delete from m.sent")
+	assert.Len(t, su.deletes, 1)
+	assert.Equal(t, peerID, su.deletes[0])
+}
+
+func TestCommitSent(t *testing.T) {
+	t.Parallel()
+
+	peerA := uuid.New()
+	peerB := uuid.New()
+	nodeA := &proto.Node{Id: 1}
+
+	m := &mapper{
+		sent: map[uuid.UUID]mapping{
+			peerB: {peer: peerB, kind: proto.CoordinateResponse_PeerUpdate_NODE},
+		},
+	}
+
+	su := &sentUpdate{
+		upserts: map[uuid.UUID]mapping{
+			peerA: {peer: peerA, node: nodeA, kind: proto.CoordinateResponse_PeerUpdate_NODE},
+		},
+		deletes: []uuid.UUID{peerB},
+	}
+
+	m.commitSent(su)
+
+	assert.Contains(t, m.sent, peerA)
+	assert.NotContains(t, m.sent, peerB)
+}
+
+func TestMapper_EnqueueFailure_RetryNextCycle(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	peerID := uuid.New()
+	node := &proto.Node{Id: 1}
+
+	// Create a connIO with a zero-buffered responses channel so Enqueue
+	// returns ErrWouldBlock immediately.
+	responses := make(chan *proto.CoordinateResponse) // unbuffered
+	peerCtx, peerCancel := context.WithCancel(ctx)
+	defer peerCancel()
+	c := &connIO{
+		coordCtx:  ctx,
+		peerCtx:   peerCtx,
+		cancel:    peerCancel,
+		logger:    logger,
+		responses: responses,
+	}
+
+	m := &mapper{
+		ctx:    ctx,
+		logger: logger,
+		c:      c,
+		sent:   make(map[uuid.UUID]mapping),
+	}
+
+	best := map[uuid.UUID]mapping{
+		peerID: {
+			peer: peerID,
+			node: node,
+			kind: proto.CoordinateResponse_PeerUpdate_NODE,
+		},
+	}
+
+	// First call: bestToUpdate produces an update.
+	su := m.bestToUpdate(best)
+	require.NotNil(t, su)
+
+	// Enqueue should fail (would block).
+	err := m.c.Enqueue(su.resp)
+	require.Error(t, err)
+	// Do NOT commit sent.
+
+	// Second call: because sent was not updated, bestToUpdate should
+	// still produce an update for the same peer.
+	su2 := m.bestToUpdate(best)
+	require.NotNil(t, su2, "update must be retried when Enqueue failed")
+	require.Len(t, su2.resp.PeerUpdates, 1)
+
+	// Now simulate success by buffering the channel.
+	responses2 := make(chan *proto.CoordinateResponse, 1)
+	c.responses = responses2
+
+	err = m.c.Enqueue(su2.resp)
+	require.NoError(t, err)
+	m.commitSent(su2)
+
+	// Third call: sent is now updated, so bestToUpdate should skip
+	// the peer (node unchanged).
+	su3 := m.bestToUpdate(best)
+	assert.Nil(t, su3, "no update expected after successful enqueue")
+}
+
+
 // TestHeartbeats_Cleanup tests the cleanup loop
 func TestHeartbeats_Cleanup(t *testing.T) {
 	t.Parallel()
