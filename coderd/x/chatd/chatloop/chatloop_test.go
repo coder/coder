@@ -167,6 +167,84 @@ func TestRun_ActiveToolsRejectsDisallowedExecution(t *testing.T) {
 	require.True(t, foundToolError, "persisted step should include the rejected tool result")
 }
 
+func TestRun_ActiveToolsAllowsProviderRunnerExecution(t *testing.T) {
+	t.Parallel()
+
+	providerRunnerName := "computer"
+	var runnerCalls atomic.Int32
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-provider-runner", ToolCallName: providerRunnerName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-provider-runner", Delta: `{}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-provider-runner"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-provider-runner",
+					ToolCallName:  providerRunnerName,
+					ToolCallInput: `{}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	runnerTool := fantasy.NewAgentTool(
+		providerRunnerName,
+		"provider runner",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			runnerCalls.Add(1)
+			return fantasy.NewTextResponse("ran provider runner"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "use the computer"),
+		},
+		Tools:       []fantasy.AgentTool{newNoopTool(activeToolName)},
+		ActiveTools: []string{activeToolName},
+		ProviderTools: []ProviderTool{
+			{
+				Definition: fantasy.FunctionTool{
+					Name:        providerRunnerName,
+					Description: "provider runner",
+					InputSchema: map[string]any{
+						"type":       "object",
+						"properties": map[string]any{},
+					},
+				},
+				Runner: runnerTool,
+			},
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), runnerCalls.Load(),
+		"provider runner should execute even when omitted from active tools")
+
+	var foundToolResult bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != providerRunnerName {
+			continue
+		}
+		textResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok)
+		assert.Equal(t, "ran provider runner", textResult.Text)
+		foundToolResult = true
+	}
+	require.True(t, foundToolResult,
+		"persisted step should include the provider runner result")
+}
+
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	t.Parallel()
 

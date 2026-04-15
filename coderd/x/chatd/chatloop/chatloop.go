@@ -1067,11 +1067,14 @@ func executeTools(
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
 	}
+	providerRunnerNames := make(map[string]struct{}, len(providerTools))
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
 	for _, pt := range providerTools {
 		if pt.Runner != nil {
-			toolMap[pt.Runner.Info().Name] = pt.Runner
+			name := pt.Runner.Info().Name
+			toolMap[name] = pt.Runner
+			providerRunnerNames[name] = struct{}{}
 		}
 	}
 
@@ -1097,7 +1100,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames, activeTools)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1122,6 +1125,7 @@ func executeSingleTool(
 	provider string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
+	providerRunnerNames map[string]struct{},
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1138,7 +1142,7 @@ func executeSingleTool(
 		)
 	}()
 
-	if !isToolActive(tc.ToolName, activeTools) {
+	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}

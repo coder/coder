@@ -4382,29 +4382,34 @@ type runChatResult struct {
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 
-func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPlanMode) []string {
+func allowedPlanToolNames(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+) []string {
 	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
+	isRootChat := !parentChatID.Valid
 	builtinPlanPolicy := map[string]bool{
 		"read_file":                true,
-		"write_file":               true,
-		"edit_files":               true,
+		"write_file":               isRootChat,
+		"edit_files":               isRootChat,
 		"execute":                  false,
 		"process_output":           false,
 		"process_list":             false,
 		"process_signal":           false,
-		"list_templates":           true,
-		"read_template":            true,
-		"create_workspace":         true,
-		"start_workspace":          true,
-		"propose_plan":             true,
-		"spawn_agent":              true,
-		"wait_agent":               true,
+		"list_templates":           isRootChat,
+		"read_template":            isRootChat,
+		"create_workspace":         isRootChat,
+		"start_workspace":          isRootChat,
+		"propose_plan":             isRootChat,
+		"spawn_agent":              isRootChat,
+		"wait_agent":               isRootChat,
 		"message_agent":            false,
 		"close_agent":              false,
 		"spawn_computer_use_agent": false,
 		"read_skill":               true,
 		"read_skill_file":          true,
-		"ask_user_question":        true,
+		"ask_user_question":        isRootChat,
 	}
 	if !isPlanModeTurn {
 		toolNames := make([]string, 0, len(allTools))
@@ -5446,7 +5451,7 @@ func (p *Server) runChat(
 		Model:            model,
 		Messages:         prompt,
 		Tools:            tools,
-		ActiveTools:      allowedPlanToolNames(tools, currentPlanMode),
+		ActiveTools:      allowedPlanToolNames(tools, currentPlanMode, chat.ParentChatID),
 		StopAfterTools:   stopAfterPlanTools(currentPlanMode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,

@@ -469,8 +469,16 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
 	require.Contains(t, rootCalls[0], "ask_user_question",
 		"root plan-mode chat should have ask_user_question")
+	require.Contains(t, rootCalls[0], "write_file",
+		"root plan-mode chat should have write_file")
+	require.Contains(t, rootCalls[0], "edit_files",
+		"root plan-mode chat should have edit_files")
 	require.NotContains(t, childCalls[0], "ask_user_question",
 		"plan-mode subagent should NOT have ask_user_question")
+	require.NotContains(t, childCalls[0], "write_file",
+		"plan-mode subagent should NOT have write_file")
+	require.NotContains(t, childCalls[0], "edit_files",
+		"plan-mode subagent should NOT have edit_files")
 }
 
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {

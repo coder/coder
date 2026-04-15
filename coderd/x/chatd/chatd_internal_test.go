@@ -83,7 +83,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"propose_plan",
 			"custom_tool",
 			"execute",
-		), database.NullChatPlanMode{})
+		), database.NullChatPlanMode{}, uuid.NullUUID{})
 
 		require.Equal(t, []string{
 			"read_file",
@@ -116,7 +116,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
-		), planMode)
+		), planMode, uuid.NullUUID{})
 
 		require.Equal(t, []string{
 			"read_file",
@@ -135,6 +135,35 @@ func TestAllowedPlanToolNames(t *testing.T) {
 		}, got)
 	})
 
+	t.Run("PlanModeChildChatsStayReadOnly", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true})
+
+		require.Equal(t, []string{
+			"read_file",
+			"read_skill",
+			"read_skill_file",
+		}, got)
+		require.NotContains(t, got, "write_file")
+		require.NotContains(t, got, "edit_files")
+		require.NotContains(t, got, "ask_user_question")
+	})
+
 	t.Run("PlanModeExcludesDangerousTools", func(t *testing.T) {
 		t.Parallel()
 
@@ -144,7 +173,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"message_agent",
 			"spawn_computer_use_agent",
 			"propose_plan",
-		), planMode)
+		), planMode, uuid.NullUUID{})
 
 		require.Equal(t, []string{"propose_plan"}, got)
 		require.NotContains(t, got, "execute")
@@ -161,7 +190,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"custom_tool",
 			"another_custom_tool",
 			"propose_plan",
-		), planMode)
+		), planMode, uuid.NullUUID{})
 
 		require.Equal(t, []string{
 			"read_file",
