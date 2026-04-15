@@ -1552,3 +1552,205 @@ func TestRun_PersistStepInterruptedFallback(t *testing.T) {
 	}
 	require.True(t, foundText, "fallback should persist the text content")
 }
+
+func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
+	t.Parallel()
+
+	const injectedInstruction = "You are working in /home/coder/project. Follow AGENTS.md guidelines."
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+
+	// Step 0 calls a tool. Step 1 sees the injected system message.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	// Simulate: after the tool executes (step 0), instruction
+	// becomes available. PrepareMessages injects it before step 1.
+	instructionInjected := make(chan struct{})
+	var instructionAvailable atomic.Value
+	// The tool sets instruction after execution.
+	tool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			instructionAvailable.Store(injectedInstruction)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and open a PR"),
+		},
+		Tools:    []fantasy.AgentTool{tool},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			select {
+			case <-instructionInjected:
+				return nil
+			default:
+			}
+			instr, ok := instructionAvailable.Load().(string)
+			if !ok || instr == "" {
+				return nil
+			}
+			close(instructionInjected)
+			// Insert a system message after existing system messages.
+			result := make([]fantasy.Message, 0, len(msgs)+1)
+			inserted := false
+			for i, msg := range msgs {
+				result = append(result, msg)
+				if !inserted && msg.Role == fantasy.MessageRoleSystem {
+					// Insert after the last system message.
+					if i+1 >= len(msgs) || msgs[i+1].Role != fantasy.MessageRoleSystem {
+						result = append(result, fantasy.Message{
+							Role: fantasy.MessageRoleSystem,
+							Content: []fantasy.MessagePart{
+								fantasy.TextPart{Text: instr},
+							},
+						})
+						inserted = true
+					}
+				}
+			}
+			if !inserted {
+				// No system messages — prepend.
+				result = append([]fantasy.Message{{
+					Role: fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: instr},
+					},
+				}}, result...)
+			}
+			return result
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+
+	// The second LLM call should contain the injected instruction.
+	require.NotEmpty(t, secondCallPrompt)
+	var foundInstruction bool
+	for _, msg := range secondCallPrompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			continue
+		}
+		for _, part := range msg.Content {
+			if tp, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+				if strings.Contains(tp.Text, "AGENTS.md") {
+					foundInstruction = true
+				}
+			}
+		}
+	}
+	require.True(t, foundInstruction,
+		"step 1 prompt should contain the injected system instruction")
+}
+
+func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	// Three steps: tool call, tool call, text. PrepareMessages
+	// should inject on step 1 and return nil on step 2.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step < 2 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-" + strings.Repeat("x", step+1), ToolCallName: "noop"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-" + strings.Repeat("x", step+1), Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-" + strings.Repeat("x", step+1)},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-" + strings.Repeat("x", step+1),
+						ToolCallName:  "noop",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var prepareCalls atomic.Int32
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "do something"),
+		},
+		Tools:    []fantasy.AgentTool{newNoopTool("noop")},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			call := prepareCalls.Add(1)
+			if call == 1 {
+				// First call: inject a message.
+				return append(msgs, fantasy.Message{
+					Role:    fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "injected"}},
+				})
+			}
+			// Subsequent calls: no changes.
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 3, streamCalls)
+	// PrepareMessages is called before each of the 3 steps.
+	require.Equal(t, 3, int(prepareCalls.Load()))
+}

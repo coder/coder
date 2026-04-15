@@ -139,6 +139,12 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
+	// PrepareMessages is called before each LLM step with the
+	// current message history. If it returns non-nil, the returned
+	// slice replaces messages for this and all subsequent steps.
+	// Used to inject system context that becomes available mid-loop
+	// (e.g. AGENTS.md after create_workspace).
+	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -363,6 +369,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
 			// affect the prepared slice.
+			if opts.PrepareMessages != nil {
+				if updated := opts.PrepareMessages(messages); updated != nil {
+					messages = updated
+				}
+			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
 			if applyAnthropicCaching {
@@ -370,6 +381,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
+
 			call := fantasy.Call{
 				Prompt:           prepared,
 				Tools:            tools,

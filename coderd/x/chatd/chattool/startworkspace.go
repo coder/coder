@@ -134,6 +134,13 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 						build.ID,
 					)), nil
 				}
+				// The agent is now online — re-fire so callers can
+				// load instruction files from the running agent.
+				if options.OnChatUpdated != nil {
+					if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
+						options.OnChatUpdated(latest)
+					}
+				}
 				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
@@ -188,6 +195,14 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
 					startBuild.ID,
 				)), nil
+			}
+
+			// The agent is now online — re-fire so callers can
+			// load instruction files from the running agent.
+			if options.OnChatUpdated != nil {
+				if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
+				}
 			}
 
 			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
