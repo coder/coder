@@ -4626,7 +4626,7 @@ func (p *Server) runChat(
 		// are picked up without requiring a new chat. Falls back
 		// to persisted parts if the workspace dial fails.
 		g2.Go(func() error {
-			_, freshParts, discoveredSkills, _, fetchErr := p.fetchWorkspaceContext(
+			_, freshParts, discoveredSkills, workspaceConnOK, fetchErr := p.fetchWorkspaceContext(
 				ctx,
 				chat,
 				workspaceCtx.getWorkspaceAgent,
@@ -4637,7 +4637,9 @@ func (p *Server) runChat(
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
-			if fetchErr == nil && len(freshParts) > 0 {
+			switch {
+			case fetchErr == nil && len(freshParts) > 0:
+				// Workspace returned fresh context files.
 				instruction = formatSystemInstructionsFromParts(freshParts)
 				skills = selectSkillMetasForInstructionRefresh(
 					persistedSkills,
@@ -4645,9 +4647,16 @@ func (p *Server) runChat(
 					uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
 					uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
 				)
-			} else {
-				// Workspace unreachable: fall back to persisted
-				// context-file parts from the message history.
+			case fetchErr == nil && workspaceConnOK:
+				// Workspace reachable but returned no context
+				// files (e.g. AGENTS.md was deleted). Honor the
+				// removal by clearing the instruction.
+				instruction = ""
+				skills = discoveredSkills
+			default:
+				// Workspace unreachable or fetch failed: fall
+				// back to persisted context-file parts from the
+				// message history.
 				instruction = instructionFromContextFiles(messages)
 				skills = persistedSkills
 			}
@@ -5341,19 +5350,22 @@ func (p *Server) runChat(
 			// messages so that any context added during the
 			// chatloop (e.g. via agent-added context or new
 			// persisted instruction files) is picked up after
-			// compaction.
-			reloadedInstruction := instructionFromContextFiles(reloadedMsgs)
+			// compaction. The captured instruction (set at turn
+			// start from the workspace) takes priority because
+			// it may be fresher than the persisted DB content.
+			reloadedInstruction := instruction
 			if reloadedInstruction == "" {
-				// Fall back to the captured instruction if the
-				// reloaded messages don't contain context files
-				// (e.g. they were compacted away).
-				reloadedInstruction = instruction
+				// No fresh instruction was captured at turn start.
+				// Try to recover from persisted context-file parts
+				// in the reloaded messages.
+				reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
 			}
 			if reloadedInstruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			reloadedSkills := skillsFromParts(reloadedMsgs)
+
 			if len(reloadedSkills) == 0 {
 				reloadedSkills = skills
 			}
@@ -5371,7 +5383,8 @@ func (p *Server) runChat(
 				)
 			}
 			return reloadedPrompt, nil
-		}, DisableChainMode: func() {
+		},
+		DisableChainMode: func() {
 			chainModeActive = false
 		},
 
@@ -5767,7 +5780,6 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 	return lastID, found
 }
 
-// persistInstructionFiles reads instruction files and discovers
 // fetchWorkspaceContext retrieves fresh instruction files and
 // skills from the workspace agent without persisting. It handles
 // agent connection, context configuration fetching, content
@@ -5883,10 +5895,8 @@ func (p *Server) persistInstructionFiles(
 			if part.ContextFileContent != "" {
 				hasContent = true
 			}
-		default:
 		}
 	}
-
 	directory := agent.ExpandedDirectory
 	if directory == "" {
 		directory = agent.Directory
