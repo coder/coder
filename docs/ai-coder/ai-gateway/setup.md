@@ -92,14 +92,101 @@ proxy between AI Gateway and AWS Bedrock.
    coder server
    ```
 
-### Additional providers and Model Proxies
+### GitHub Copilot
 
-AI Gateway can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+Configure a `copilot` provider using the
+[indexed provider format](#multiple-instances-of-the-same-provider) with
+separate instances for Individual, Business, and Enterprise tiers.
+
+See [GitHub Copilot — Provider configuration](./clients/copilot.md#provider-configuration)
+for full setup instructions.
+
+### ChatGPT
+
+Configure a ChatGPT provider by creating an `openai`-typed instance with the
+ChatGPT Codex base URL:
+
+```sh
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=openai
+export CODER_AIBRIDGE_PROVIDER_0_NAME=chatgpt
+export CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://chatgpt.com/backend-api/codex
+```
 
 </div>
 
 > [!NOTE]
 > See the [Supported APIs](./reference.md#supported-apis) section below for precise endpoint coverage and interception behavior.
+
+### Multiple instances of the same provider
+
+You can configure multiple instances of the same provider type — for example, to
+route different teams to separate API keys, use different base URLs per region, or
+connect to both a direct API and a proxy simultaneously. Use indexed environment
+variables following the pattern `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>`:
+
+```sh
+# Anthropic routed through a corporate proxy
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic
+export CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-corp
+export CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-corp-xxx
+export CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://llm-proxy.internal.example.com/anthropic
+
+# Anthropic direct (for teams that need direct access)
+export CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic
+export CODER_AIBRIDGE_PROVIDER_1_NAME=anthropic-direct
+export CODER_AIBRIDGE_PROVIDER_1_KEY=sk-ant-direct-yyy
+
+# Azure-hosted OpenAI deployment
+export CODER_AIBRIDGE_PROVIDER_2_TYPE=openai
+export CODER_AIBRIDGE_PROVIDER_2_NAME=azure-openai
+export CODER_AIBRIDGE_PROVIDER_2_KEY=azure-key-zzz
+export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://my-deployment.openai.azure.com/
+
+# Anthropic via AWS Bedrock
+export CODER_AIBRIDGE_PROVIDER_3_TYPE=anthropic
+export CODER_AIBRIDGE_PROVIDER_3_NAME=anthropic-bedrock
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_REGION=us-west-2
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+export CODER_AIBRIDGE_PROVIDER_3_BEDROCK_ACCESS_KEY_SECRET=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+coder server
+```
+
+Each provider instance gets a unique route based on its `NAME`. Clients send
+requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
+
+| Instance name       | Route                                               |
+|---------------------|-----------------------------------------------------|
+| `anthropic-corp`    | `/api/v2/aibridge/anthropic-corp/v1/messages`       |
+| `anthropic-direct`  | `/api/v2/aibridge/anthropic-direct/v1/messages`     |
+| `azure-openai`      | `/api/v2/aibridge/azure-openai/v1/chat/completions` |
+| `anthropic-bedrock` | `/api/v2/aibridge/anthropic-bedrock/v1/messages`    |
+
+**Supported keys per provider:**
+
+| Key        | Required | Description                                          |
+|------------|----------|------------------------------------------------------|
+| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`   |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE` |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)  |
+| `BASE_URL` | No       | Base URL of the upstream API                         |
+
+For `anthropic` providers using AWS Bedrock, the following keys are also
+available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
+`BEDROCK_ACCESS_KEY` (alias: `BEDROCK_ACCESS_KEYS`),
+`BEDROCK_ACCESS_KEY_SECRET` (alias: `BEDROCK_ACCESS_KEY_SECRETS`),
+`BEDROCK_MODEL`, `BEDROCK_SMALL_FAST_MODEL`.
+
+> [!NOTE]
+> Indices must be contiguous and start at `0`. Each instance must have a unique
+> `NAME` — if two instances of the same `TYPE` omit `NAME`, they will both
+> default to the type name and fail with a duplicate name error.
+>
+> The legacy single-provider environment variables (`CODER_AIBRIDGE_OPENAI_KEY`,
+> `CODER_AIBRIDGE_ANTHROPIC_KEY`, etc.) continue to work. However, setting both
+> a legacy variable and an indexed provider with the same default name (e.g.
+> `CODER_AIBRIDGE_OPENAI_KEY` and an indexed provider named `openai`) will
+> produce a startup error — remove one or the other to resolve the conflict.
 
 ## Data Retention
 

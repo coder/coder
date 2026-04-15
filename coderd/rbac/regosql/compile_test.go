@@ -287,16 +287,15 @@ neq(input.object.owner, "");
 			Queries: []string{
 				`"me" = input.object.owner; input.object.owner != ""; input.object.org_owner = ""`,
 			},
-			ExpectedSQL:       p(p("'me' = owner_id :: text") + " AND " + p("owner_id :: text != ''") + " AND " + p("'' = ''")),
-			VariableConverter: regosql.ChatConverter(),
+			ExpectedSQL:       p(p("'me' = owner_id :: text") + " AND " + p("owner_id :: text != ''") + " AND " + p("organization_id :: text = ''")),
+			VariableConverter: regosql.NoACLConverter(),
 		},
 		{
-			Name: "ChatOrgScopedNeverMatches",
+			Name: "ChatOrgScopedMatches",
 			Queries: []string{
 				`input.object.org_owner = "org-id"`,
 			},
-			ExpectedSQL:       p("'' = 'org-id'"),
-			VariableConverter: regosql.ChatConverter(),
+			ExpectedSQL: p("organization_id :: text = 'org-id'"), VariableConverter: regosql.NoACLConverter(),
 		},
 		{
 			Name: "AuditLogUUID",

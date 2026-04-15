@@ -7,7 +7,10 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
-import { provisionerDaemons } from "#/api/queries/organizations";
+import {
+	permittedOrganizations,
+	provisionerDaemons,
+} from "#/api/queries/organizations";
 import type {
 	CreateTemplateVersionRequest,
 	Organization,
@@ -191,6 +194,10 @@ type CreateTemplateFormProps = (
 	showOrganizationPicker?: boolean;
 };
 
+// Stable reference for empty org options to avoid re-render loops
+// in the render-time state adjustment pattern.
+const emptyOrgs: Organization[] = [];
+
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const [searchParams] = useSearchParams();
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -221,6 +228,34 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
+
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "template" },
+			action: "create",
+		}),
+		enabled: Boolean(showOrganizationPicker),
+	});
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
+
+	// Clear invalid selections when permission filtering removes the
+	// selected org. Uses the React render-time adjustment pattern.
+	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
+	if (orgOptions !== prevOrgOptions) {
+		setPrevOrgOptions(orgOptions);
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(null);
+			void form.setFieldValue("organization", "");
+		}
+	}
+
+	// Auto-select when exactly one org is available and nothing is
+	// selected. Runs every render (not gated on options change) so it
+	// works when mock data is available synchronously on first render.
+	if (orgOptions.length === 1 && selectedOrg === null) {
+		setSelectedOrg(orgOptions[0]);
+		void form.setFieldValue("organization", orgOptions[0].name || "");
+	}
 
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
@@ -263,19 +298,16 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 							<div className="flex flex-col gap-2">
 								<Label htmlFor="organization">Organization</Label>
 								<OrganizationAutocomplete
-									{...getFieldHelpers("organization")}
 									id="organization"
 									required
+									value={selectedOrg}
+									options={orgOptions}
 									onChange={(newValue) => {
 										setSelectedOrg(newValue);
 										void form.setFieldValue(
 											"organization",
 											newValue?.name || "",
 										);
-									}}
-									check={{
-										object: { resource_type: "template" },
-										action: "create",
 									}}
 								/>
 							</div>

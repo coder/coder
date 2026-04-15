@@ -1,8 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockWorkspace } from "#/testHelpers/entities";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "chat" }, action: "create" },
+];
 
 const modelConfigID = "model-config-1";
 
@@ -226,6 +238,7 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 					fileName: "photo.png",
 					fileType: "image/png",
 					lastModified: 1000,
+					organizationId: "my-organization-id",
 				},
 			]),
 		);
@@ -307,6 +320,74 @@ export const ForbiddenErrorWithRole: Story = {
 		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const WithOrganizationPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Verify the org picker rendered (component didn't crash).
+		await waitFor(() => {
+			expect(
+				canvas.getByTestId("organization-autocomplete"),
+			).toBeInTheDocument();
+		});
+		// Type into the chat input to trigger re-renders. If the
+		// permittedOrgs fallback is referentially unstable, this
+		// causes a render cascade that hits React's update limit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("hello world");
+		// The org picker should still be present after typing.
+		expect(canvas.getByTestId("organization-autocomplete")).toBeInTheDocument();
+	},
+};
+
+/**
+ * Standalone story for the org-change confirmation dialog. Renders
+ * the ConfirmDialog directly in its open state, following the same
+ * pattern as DeleteConfirmationDialog in AgentsPageView.stories.
+ */
+export const OrgChangeConfirmation: Story = {
+	render: () => (
+		<ConfirmDialog
+			open={true}
+			title="Change organization?"
+			description="Changing organization will remove your current attachments."
+			type="info"
+			hideCancel={false}
+			confirmText="Continue"
+			onConfirm={fn()}
+			onClose={fn()}
+		/>
+	),
+	play: async () => {
+		const dialog = await screen.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText("Change organization?"),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText(
+				"Changing organization will remove your current attachments.",
+			),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByRole("button", { name: /continue/i }),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByRole("button", { name: /cancel/i }),
+		).toBeInTheDocument();
 	},
 };
 

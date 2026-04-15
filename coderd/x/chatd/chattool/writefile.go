@@ -11,6 +11,7 @@ import (
 
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 }
 
 type WriteFileArgs struct {
@@ -30,7 +31,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeWriteFileTool(ctx, conn, args)
+			return executeWriteFileTool(ctx, conn, args, options.ResolvePlanPath)
 		},
 	)
 }
@@ -39,12 +40,28 @@ func executeWriteFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args WriteFileArgs,
+	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
-	if args.Path == "" {
+	requestedPath := strings.TrimSpace(args.Path)
+	if requestedPath == "" {
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
+	hasPlanFileName := looksLikePlanFileName(requestedPath)
+	if hasPlanFileName && !isAbsolutePath(requestedPath) {
+		return fantasy.NewTextErrorResponse(
+			"plan files must use absolute paths; use the chat-specific absolute plan path",
+		), nil
+	}
+
+	if resolvePlanPath != nil && hasPlanFileName {
+		chatPath, home, err := resolvePlanPath(ctx)
+		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
+			return resp, nil
+		}
+	}
+
+	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	return toolResponse(map[string]any{"ok": true}), nil

@@ -156,7 +156,7 @@ export const StartupScriptFailed: Story = {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
 				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/startup script failed/i,
+					/one or more workspace agents need attention/i,
 				),
 			);
 		});
@@ -177,7 +177,7 @@ export const AgentDisconnected: Story = {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
 				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/agent has disconnected/i,
+					/one or more workspace agents need attention/i,
 				),
 			);
 		});
@@ -198,7 +198,7 @@ export const AgentTimeout: Story = {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
 				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/taking longer than expected/i,
+					/one or more workspace agents need attention/i,
 				),
 			);
 		});

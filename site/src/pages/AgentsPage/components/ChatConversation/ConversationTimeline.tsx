@@ -12,7 +12,6 @@ import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -427,7 +426,6 @@ const ChatMessageItem = memo<{
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
-	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
 
@@ -446,7 +444,6 @@ const ChatMessageItem = memo<{
 		parsed,
 		onEditUserMessage,
 		editingMessageId,
-		savingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
 		fadeFromBottom = false,
@@ -458,7 +455,6 @@ const ChatMessageItem = memo<{
 		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
-		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
 		if (
@@ -516,6 +512,11 @@ const ChatMessageItem = memo<{
 			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
 		const hasFileBlocks = userFileBlocks.length > 0;
 		const hasCopyableContent = Boolean(parsed.markdown.trim());
+		const needsAssistantBottomSpacer =
+			!hideActions &&
+			!isUser &&
+			!hasCopyableContent &&
+			(Boolean(parsed.reasoning) || parsed.sources.length > 0);
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -536,7 +537,6 @@ const ChatMessageItem = memo<{
 									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 									editingMessageId === message.id &&
 										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-									isSavingMessage && "ring-2 ring-content-secondary/40",
 									fadeFromBottom && "relative overflow-hidden",
 								)}
 								style={
@@ -566,13 +566,6 @@ const ChatMessageItem = memo<{
 															)
 														: parsed.markdown || ""}
 												</span>
-											)}
-											{isSavingMessage && (
-												<Spinner
-													className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
-													aria-label="Saving message edit"
-													loading
-												/>
 											)}
 										</div>
 									)}
@@ -670,12 +663,9 @@ const ChatMessageItem = memo<{
 						</div>
 					)}
 				{/* Spacer for assistant messages without an action bar
-				   (e.g. thinking-only) so they have consistent bottom
-				   padding before the next user bubble. */}
-				{!hideActions &&
-					!isUser &&
-					!hasCopyableContent &&
-					Boolean(parsed.reasoning) && <div className="min-h-6" />}
+				   (e.g. reasoning-only or sources-only) so they have
+				   consistent bottom padding before the next user bubble. */}
+				{needsAssistantBottomSpacer && <div className="min-h-6" />}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -702,7 +692,6 @@ const StickyUserMessage = memo<{
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
-	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 }>(
 	({
@@ -710,7 +699,6 @@ const StickyUserMessage = memo<{
 		parsed,
 		onEditUserMessage,
 		editingMessageId,
-		savingMessageId,
 		isAfterEditingMessage = false,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
@@ -935,7 +923,6 @@ const StickyUserMessage = memo<{
 							parsed={parsed}
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
-							savingMessageId={savingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
 						/>
 					</div>
@@ -978,7 +965,6 @@ const StickyUserMessage = memo<{
 									parsed={parsed}
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
-									savingMessageId={savingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
 									fadeFromBottom
 								/>
@@ -1000,7 +986,6 @@ interface ConversationTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
-	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	computerUseSubagentIds?: Set<string>;
@@ -1014,7 +999,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		subagentTitles,
 		onEditUserMessage,
 		editingMessageId,
-		savingMessageId,
 		urlTransform,
 		mcpServers,
 		computerUseSubagentIds,
@@ -1041,7 +1025,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 
 		return (
-			<div className="flex flex-col gap-2">
+			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
 				{parsedMessages.map(({ message, parsed }, msgIdx) => {
 					if (message.role === "user") {
 						return (
@@ -1051,7 +1035,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								parsed={parsed}
 								onEditUserMessage={onEditUserMessage}
 								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							/>
 						);
@@ -1065,7 +1048,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							key={message.id}
 							message={message}
 							parsed={parsed}
-							savingMessageId={savingMessageId}
 							urlTransform={urlTransform}
 							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							hideActions={!isLastInChain}

@@ -7,10 +7,10 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { API, watchWorkspace } from "#/api/api";
+import { watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
+import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatDesktopEnabled,
@@ -30,11 +30,6 @@ import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "#/modules/apps/apps";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -51,11 +46,14 @@ import {
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
+	type ChatStore,
+	type ChatStoreState,
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -102,11 +100,46 @@ export function getPersistedDraftInputValue(
 }
 
 /** @internal Exported for testing. */
+export const restoreOptimisticRequestSnapshot = (
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "setChatStatus"
+		| "setQueuedMessages"
+		| "setStreamError"
+		| "setStreamState"
+	>,
+	snapshot: Pick<
+		ChatStoreState,
+		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
+	>,
+): void => {
+	store.batch(() => {
+		store.setQueuedMessages(snapshot.queuedMessages);
+		store.setChatStatus(snapshot.chatStatus);
+		store.setStreamState(snapshot.streamState);
+		store.setStreamError(snapshot.streamError);
+	});
+};
+
+const buildAttachmentMediaTypes = (
+	attachments?: readonly PendingAttachment[],
+): ReadonlyMap<string, string> | undefined => {
+	if (!attachments?.length) {
+		return undefined;
+	}
+
+	return new Map(
+		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
+	);
+};
+
+/** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -129,6 +162,9 @@ export function useConversationEditingState(deps: {
 				initialEditorState: draft.editorState,
 			};
 		},
+	);
+	const serializedEditorStateRef = useRef<string | undefined>(
+		initialEditorState,
 	);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -176,6 +212,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
@@ -188,6 +225,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingMessageId(null);
@@ -221,6 +259,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: text,
 			initialEditorState: undefined,
 		});
+		serializedEditorStateRef.current = undefined;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
@@ -233,6 +272,7 @@ export function useConversationEditingState(deps: {
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
 		});
+		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
@@ -240,25 +280,48 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
-	const handleSendFromInput = async (message: string, fileIds?: string[]) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
+	// Clears the composer for an in-flight history edit and
+	// returns a rollback function that restores the editing draft
+	// if the send fails.
+	const clearInputForHistoryEdit = (message: string) => {
+		const snapshot = {
+			editorState: serializedEditorStateRef.current,
+			fileBlocks: editingFileBlocks,
+			messageId: editingMessageId,
+		};
 
-		await onSend(message, fileIds, editedMessageID);
-		// Clear input and editing state on success.
+		chatInputRef.current?.clear();
+		inputValueRef.current = "";
+		setEditingMessageId(null);
+
+		return () => {
+			setDraftState({
+				editorInitialValue: message,
+				initialEditorState: snapshot.editorState,
+			});
+			serializedEditorStateRef.current = snapshot.editorState;
+			setRemountKey((k) => k + 1);
+			inputValueRef.current = message;
+			setEditingMessageId(snapshot.messageId);
+			setEditingFileBlocks(snapshot.fileBlocks);
+		};
+	};
+
+	// Clears all input and editing state after a successful send.
+	const finalizeSuccessfulSend = (
+		editedMessageID: number | undefined,
+		queueEditID: number | null,
+	) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
 		inputValueRef.current = "";
+		serializedEditorStateRef.current = undefined;
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
-		if (editingMessageId !== null) {
-			setEditingMessageId(null);
+		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
@@ -270,12 +333,41 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
+	// Wraps the parent onSend to clear local input/editing state
+	// and handle queue-edit deletion.
+	const handleSendFromInput = async (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => {
+		const editedMessageID =
+			editingMessageId !== null ? editingMessageId : undefined;
+		const queueEditID = editingQueuedMessageID;
+		const sendPromise = onSend(message, attachments, editedMessageID);
+
+		// For history edits, clear input immediately and prepare
+		// a rollback in case the send fails.
+		const rollback =
+			editedMessageID !== undefined
+				? clearInputForHistoryEdit(message)
+				: undefined;
+
+		try {
+			await sendPromise;
+		} catch (error) {
+			rollback?.();
+			throw error;
+		}
+
+		finalizeSuccessfulSend(editedMessageID, queueEditID);
+	};
+
 	const handleContentChange = (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
+		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
 		// history or queued message — the original draft (possibly
@@ -372,6 +464,7 @@ type _UncoveredAgentFields = Omit<
 	| "status"
 	| "name"
 	| "expanded_directory"
+	| "lifecycle_state"
 	// Fields below are intentionally not compared. They change
 	// frequently (stats, metadata) or are objects/arrays that would
 	// require deep comparison, and the UI does not read them.
@@ -383,7 +476,6 @@ type _UncoveredAgentFields = Omit<
 	| "disconnected_at"
 	| "started_at"
 	| "ready_at"
-	| "lifecycle_state"
 	| "resource_id"
 	| "instance_id"
 	| "architecture"
@@ -430,9 +522,6 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -546,7 +635,8 @@ const AgentChatPage: FC = () => {
 									prevAgent?.status === nextAgent?.status &&
 									prevAgent?.name === nextAgent?.name &&
 									prevAgent?.expanded_directory ===
-										nextAgent?.expanded_directory
+										nextAgent?.expanded_directory &&
+									prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
 								) {
 									return prev;
 								}
@@ -775,7 +865,7 @@ const AgentChatPage: FC = () => {
 
 	const handleSend = async (
 		message: string,
-		fileIds?: string[],
+		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => {
 		const chatInputHandle = (
@@ -790,7 +880,9 @@ const AgentChatPage: FC = () => {
 			(p) => p.type === "file-reference",
 		);
 		const hasContent =
-			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
+			message.trim() ||
+			(attachments && attachments.length > 0) ||
+			hasFileReferences;
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
@@ -818,28 +910,41 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
-		// Add pre-uploaded file references.
-		if (fileIds && fileIds.length > 0) {
-			for (const fileId of fileIds) {
+		// Add pre-uploaded file attachments.
+		if (attachments && attachments.length > 0) {
+			for (const { fileId } of attachments) {
 				content.push({ type: "file", file_id: fileId });
 			}
 		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
+			const originalEditedMessage = chatMessagesList?.find(
+				(existingMessage) => existingMessage.id === editedMessageID,
+			);
+			const optimisticMessage = originalEditedMessage
+				? buildOptimisticEditedMessage({
+						requestContent: request.content,
+						originalMessage: originalEditedMessage,
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					})
+				: undefined;
+			const previousSnapshot = store.getSnapshot();
 			clearChatErrorReason(agentId);
 			clearStreamError();
-			setPendingEditMessageId(editedMessageID);
+			store.batch(() => {
+				store.setQueuedMessages([]);
+				store.setChatStatus("running");
+				store.clearStreamState();
+			});
 			scrollToBottomRef.current?.();
 			try {
 				await editMessage({
 					messageId: editedMessageID,
+					optimisticMessage,
 					req: request,
 				});
-				store.clearStreamState();
-				store.setChatStatus("running");
-				setPendingEditMessageId(null);
 			} catch (error) {
-				setPendingEditMessageId(null);
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
 				handleUsageLimitError(error);
 				throw error;
 			}
@@ -918,10 +1023,8 @@ const AgentChatPage: FC = () => {
 
 	const handlePromoteQueuedMessage = async (id: number) => {
 		const previousSnapshot = store.getSnapshot();
-		const previousQueuedMessages = previousSnapshot.queuedMessages;
-		const previousChatStatus = previousSnapshot.chatStatus;
 		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
 		);
 		store.clearStreamState();
 		if (agentId) {
@@ -937,8 +1040,7 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessage(promotedMessage);
 			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			store.setChatStatus(previousChatStatus);
+			restoreOptimisticRequestSnapshot(store, previousSnapshot);
 			handleUsageLimitError(error);
 			throw error;
 		}
@@ -961,74 +1063,10 @@ const AgentChatPage: FC = () => {
 	);
 
 	const parentChat = parentChatQuery.data;
-	const workspaceRoute = workspace
-		? `/@${workspace.owner_name}/${workspace.name}`
-		: null;
-	const canOpenWorkspace = Boolean(workspaceRoute);
-	const canOpenEditors = Boolean(workspace && workspaceAgent);
-	const terminalHref =
-		workspace && workspaceAgent
-			? getTerminalHref({
-					username: workspace.owner_name,
-					workspace: workspace.name,
-					agent: workspaceAgent.name,
-				})
-			: null;
 	const sshCommand =
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-
-	// See mutation destructuring comment above (React Compiler).
-	const { mutate: generateKey } = useMutation({
-		mutationFn: () => API.getApiKey(),
-	});
-
-	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
-		if (!workspace || !workspaceAgent) {
-			return;
-		}
-
-		// Prefer the active git repo root so VS Code opens to the
-		// actual project directory, falling back to the agent's
-		// configured directory.
-		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
-		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
-
-		generateKey(undefined, {
-			onSuccess: ({ key }) => {
-				location.href = getVSCodeHref(editor, {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					token: key,
-					agent: workspaceAgent.name,
-					folder,
-					chatId: agentId,
-				});
-			},
-			onError: () => {
-				toast.error(
-					editor === "cursor"
-						? "Failed to open in Cursor."
-						: "Failed to open in VS Code.",
-				);
-			},
-		});
-	};
-
-	const handleViewWorkspace = () => {
-		if (!workspaceRoute) {
-			return;
-		}
-		window.open(workspaceRoute, "_blank");
-	};
-
-	const handleOpenTerminal = () => {
-		if (!terminalHref) {
-			return;
-		}
-		openAppInNewWindow(terminalHref);
-	};
 
 	const handleArchiveAgentAction = () => {
 		if (!agentId || isArchived) {
@@ -1125,15 +1163,16 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
+			chatBuildId={chatQuery.data?.build_id}
 			store={store}
 			editing={editing}
-			pendingEditMessageId={pendingEditMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
@@ -1152,12 +1191,7 @@ const AgentChatPage: FC = () => {
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
 			gitWatcher={gitWatcher}
-			canOpenEditors={canOpenEditors}
-			canOpenWorkspace={canOpenWorkspace}
 			sshCommand={sshCommand}
-			handleOpenInEditor={handleOpenInEditor}
-			handleViewWorkspace={handleViewWorkspace}
-			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}

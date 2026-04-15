@@ -128,6 +128,18 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - Keep nullable-field handling, type coercion, and response shaping in the
   converter so handlers stay focused on request flow and authorization.
 
+### Transactions and `InTx`
+
+- Inside `db.InTx(...)` closures, do not use the outer store (`api.Database`,
+  `p.db`, etc.) directly or indirectly. Use the `tx` handle for DB work inside
+  the closure, or fetch read-only inputs before opening the transaction.
+- Watch for helper methods on a receiver that hide outer-store access. A call
+  like `p.someHelper(ctx)` is still unsafe inside `InTx` if that helper uses
+  `p.db` internally.
+- Using the outer store while a transaction is open can hold one connection and
+  then block on another pool checkout, which can cause pool starvation and
+  `idle in transaction` incidents under load.
+
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md

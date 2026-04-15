@@ -60,6 +60,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -300,6 +301,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -1008,6 +1010,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -1359,6 +1362,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -1577,6 +1581,7 @@ Status Code **200**
 | `»»» template_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_version_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_build_transition` | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» workspace_id`               | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» workspace_name`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» organization_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1710,20 +1715,21 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                                                                             |
-|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `error_code`              | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                        |
-| `status`                  | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
-| `type`                    | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                             |
-| `reason`                  | `autostart`, `autostop`, `initiator`                                                                                                                                                 |
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                   |
-| `open_in`                 | `slim-window`, `tab`                                                                                                                                                                 |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                                                                   |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                                                                             |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                         |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                                                                           |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                                                                            |
-| `transition`              | `delete`, `start`, `stop`                                                                                                                                                            |
+| Property                     | Value(s)                                                                                                                                                                             |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error_code`                 | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                        |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                            |
+| `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                             |
+| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                 |
+| `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                   |
+| `open_in`                    | `slim-window`, `tab`                                                                                                                                                                 |
+| `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                   |
+| `state`                      | `complete`, `failure`, `idle`, `working`                                                                                                                                             |
+| `lifecycle_state`            | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                         |
+| `startup_script_behavior`    | `blocking`, `non-blocking`                                                                                                                                                           |
+| `workspace_transition`       | `delete`, `start`, `stop`                                                                                                                                                            |
+| `transition`                 | `delete`, `start`, `stop`                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1810,6 +1816,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },

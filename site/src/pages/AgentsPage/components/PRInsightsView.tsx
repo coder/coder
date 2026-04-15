@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { CodeIcon, ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -11,6 +11,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "#/components/Chart/Chart";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Table,
 	TableBody,
@@ -21,6 +22,7 @@ import {
 } from "#/components/Table/Table";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
+import { paginateItems } from "#/utils/paginateItems";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
 dayjs.extend(relativeTime);
@@ -286,6 +288,8 @@ const TimeRangeFilter: FC<{
 // Main view
 // ---------------------------------------------------------------------------
 
+const RECENT_PRS_PAGE_SIZE = 10;
+
 export const PRInsightsView: FC<PRInsightsViewProps> = ({
 	data,
 	timeRange,
@@ -293,6 +297,18 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 }) => {
 	const { summary, time_series, by_model, recent_prs } = data;
 	const isEmpty = summary.total_prs_created === 0;
+
+	// Client-side pagination for recent PRs table.
+	// Page resets to 1 on data refresh because the parent unmounts this
+	// component during loading. Clamping ensures the page is valid if the
+	// list shrinks without a full remount.
+	const [recentPrsPage, setRecentPrsPage] = useState(1);
+	const {
+		pagedItems: pagedRecentPrs,
+		clampedPage: clampedRecentPrsPage,
+		hasPreviousPage: hasRecentPrsPrev,
+		hasNextPage: hasRecentPrsNext,
+	} = paginateItems(recent_prs, RECENT_PRS_PAGE_SIZE, recentPrsPage);
 
 	return (
 		<div className="space-y-8">
@@ -354,8 +370,8 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 						</div>
 					</section>
 
-					{/* ── Model breakdown + Recent PRs side by side ── */}
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					{/* ── Model breakdown + Recent PRs ── */}
+					<div className="space-y-6">
 						{/* ── Model performance (simplified) ── */}
 						{by_model.length > 0 && (
 							<section>
@@ -413,7 +429,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 						{recent_prs.length > 0 && (
 							<section>
 								<div className="mb-4">
-									<SectionTitle>Recent</SectionTitle>
+									<SectionTitle>Pull requests</SectionTitle>
 								</div>
 								<div className="overflow-hidden rounded-lg border border-border-default">
 									<Table className="table-fixed text-sm">
@@ -436,7 +452,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 											</TableRow>
 										</TableHeader>{" "}
 										<TableBody>
-											{recent_prs.map((pr) => (
+											{pagedRecentPrs.map((pr) => (
 												<TableRow
 													key={pr.chat_id}
 													className="border-t border-border-default transition-colors hover:bg-surface-secondary/50"
@@ -480,6 +496,18 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 										</TableBody>
 									</Table>
 								</div>
+								{recent_prs.length > RECENT_PRS_PAGE_SIZE && (
+									<div className="pt-4">
+										<PaginationWidgetBase
+											totalRecords={recent_prs.length}
+											currentPage={clampedRecentPrsPage}
+											pageSize={RECENT_PRS_PAGE_SIZE}
+											onPageChange={setRecentPrsPage}
+											hasPreviousPage={hasRecentPrsPrev}
+											hasNextPage={hasRecentPrsNext}
+										/>
+									</div>
+								)}
 							</section>
 						)}
 					</div>

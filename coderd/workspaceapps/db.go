@@ -231,7 +231,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	// Check that the agent is online.
-	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
+	agentStatus := dbReq.Agent.Status(dbtime.Now(), p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
 		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
@@ -372,18 +372,16 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 			return false, warnings, nil
 		}
 
-		// Check if the user is a member of the same organization as the workspace
+		// Check if the user is a member of the same organization as the workspace.
 		workspaceOrgID := dbReq.Workspace.OrganizationID
-		expandedRoles, err := roles.Roles.Expand()
+		isMember, err := roles.HasOrganizationMembership(workspaceOrgID)
 		if err != nil {
-			return false, warnings, xerrors.Errorf("expand roles: %w", err)
+			return false, warnings, xerrors.Errorf("check organization membership: %w", err)
 		}
-		for _, role := range expandedRoles {
-			if _, ok := role.ByOrgID[workspaceOrgID.String()]; ok {
-				return true, []string{}, nil
-			}
+		if isMember {
+			return true, []string{}, nil
 		}
-		// User is not a member of the workspace's organization
+		// User is not a member of the workspace's organization.
 		return false, warnings, nil
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.

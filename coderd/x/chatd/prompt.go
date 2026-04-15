@@ -1,5 +1,7 @@
 package chatd
 
+const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
+
 // DefaultSystemPrompt is used for new chats when no deployment override is
 // configured.
 const DefaultSystemPrompt = `You are the Coder agent — an interactive chat tool that helps users with software-engineering tasks inside of the Coder product.
@@ -88,11 +90,16 @@ Propose a plan when:
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
 Once a workspace is available:
 1. Use spawn_agent and wait_agent to research the codebase and gather context as needed.
-2. Use write_file to create a Markdown plan file in the workspace (e.g. /home/coder/PLAN.md).
+2. Use write_file to create a Markdown plan file at the absolute
+   chat-specific path from the <plan-file-path> block below when it is
+   available.
 3. Iterate on the plan with edit_files if needed.
-4. Call propose_plan with the absolute file path to present the plan to the user.
+4. Call propose_plan with the same absolute plan file path from the
+   <plan-file-path> block below.
 5. Wait for the user to review and approve the plan before starting implementation.
 
-The propose_plan tool reads the file from the workspace — do not pass content directly.
+The propose_plan tool reads the file from the workspace. Do not pass content directly.
 Write the file first, then present it. All file paths must be absolute.
+When the <plan-file-path> block below is present, use that exact path.
+` + defaultSystemPromptPlanPathBlockPlaceholder + `
 </planning>`

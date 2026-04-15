@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -24,12 +25,14 @@ type StartWorkspaceFn func(
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	DB          database.Store
-	OwnerID     uuid.UUID
-	ChatID      uuid.UUID
-	StartFn     StartWorkspaceFn
-	AgentConnFn AgentConnFunc
-	WorkspaceMu *sync.Mutex
+	DB            database.Store
+	OwnerID       uuid.UUID
+	ChatID        uuid.UUID
+	StartFn       StartWorkspaceFn
+	AgentConnFn   AgentConnFunc
+	WorkspaceMu   *sync.Mutex
+	OnChatUpdated func(database.Chat)
+	Logger        slog.Logger
 }
 
 // StartWorkspace returns a tool that starts a stopped workspace
@@ -99,18 +102,44 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
-				if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
-					), nil
+				// Publish the build ID to the frontend so it
+				// can start streaming logs immediately.
+				updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+					ID:          options.ChatID,
+					WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+					BuildID: uuid.NullUUID{
+						UUID:  build.ID,
+						Valid: build.ID != uuid.Nil,
+					},
+					AgentID: uuid.NullUUID{},
+				})
+				if bindErr != nil {
+					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+						slog.F("chat_id", options.ChatID),
+						slog.F("build_id", build.ID),
+						slog.Error(bindErr),
+					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
 				}
-				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
-
+				if err := waitForBuild(ctx, options.DB, build.ID); err != nil {
+					// newBuildError returns via toolResponse (IsError: false)
+					// rather than NewTextErrorResponse (IsError: true) so the
+					// JSON result preserves build_id for the frontend's log
+					// viewer. The fantasy/chatprompt pipeline discards structured
+					// fields from IsError content.
+					// The frontend detects errors via the "error" key instead.
+					return buildToolResponse(newBuildError(
+						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
+						build.ID,
+					)), nil
+				}
+				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -125,7 +154,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			_, err = options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
@@ -134,51 +163,84 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
-				return fantasy.NewTextErrorResponse(
+			// Persist the build ID on the chat binding so the
+			// frontend can stream logs without polling.
+			updatedChat, bindErr := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          options.ChatID,
+				WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+				BuildID: uuid.NullUUID{
+					UUID:  startBuild.ID,
+					Valid: startBuild.ID != uuid.Nil,
+				},
+				AgentID: uuid.NullUUID{},
+			})
+			if bindErr != nil {
+				options.Logger.Error(ctx, "failed to persist build ID on chat binding",
+					slog.F("chat_id", options.ChatID),
+					slog.F("build_id", startBuild.ID),
+					slog.Error(bindErr),
+				)
+			} else if options.OnChatUpdated != nil {
+				options.OnChatUpdated(updatedChat)
+			}
+			if err := waitForBuild(ctx, options.DB, startBuild.ID); err != nil {
+				return buildToolResponse(newBuildError(
 					xerrors.Errorf("workspace start build failed: %w", err).Error(),
-				), nil
+					startBuild.ID,
+				)), nil
 			}
 
-			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
-		},
-	)
+			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+		})
 }
 
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
-// success response.
+// success response. When buildID is non-zero, it is included in the
+// response so the frontend can fetch historical build logs. Pass
+// uuid.Nil when no build was triggered (e.g. workspace already
+// running); the response will include no_build: true so the
+// frontend can suppress the build-log section.
 func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
+	buildID uuid.UUID,
 ) (fantasy.ToolResponse, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
 		// Workspace started but no agent found - still report
 		// success so the model knows the workspace is up.
-		return toolResponse(map[string]any{
+		result := map[string]any{
 			"started":        true,
 			"workspace_name": ws.Name,
 			"agent_status":   "no_agent",
-		}), nil
+		}
+		setBuildID(result, buildID)
+		setNoBuild(result, buildID)
+		return toolResponse(result), nil
 	}
 
 	selected, err := agentselect.FindChatAgent(agents)
 	if err != nil {
-		return toolResponse(map[string]any{
+		result := map[string]any{
 			"started":        true,
 			"workspace_name": ws.Name,
 			"agent_status":   "selection_error",
 			"agent_error":    err.Error(),
-		}), nil
+		}
+		setBuildID(result, buildID)
+		setNoBuild(result, buildID)
+		return toolResponse(result), nil
 	}
 
 	result := map[string]any{
 		"started":        true,
 		"workspace_name": ws.Name,
 	}
+	setBuildID(result, buildID)
+	setNoBuild(result, buildID)
 	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
 	}

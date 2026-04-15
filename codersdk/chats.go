@@ -55,6 +55,7 @@ const (
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
@@ -381,12 +382,13 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content       []ChatInputPart   `json:"content"`
-	SystemPrompt  string            `json:"system_prompt,omitempty"`
-	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels        map[string]string `json:"labels,omitempty"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	Content        []ChatInputPart   `json:"content"`
+	SystemPrompt   string            `json:"system_prompt,omitempty"`
+	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels         map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -545,6 +547,160 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// ChatDebugLoggingAdminSettings describes the runtime admin setting
+// that allows users to opt into chat debug logging.
+type ChatDebugLoggingAdminSettings struct {
+	AllowUsers         bool `json:"allow_users"`
+	ForcedByDeployment bool `json:"forced_by_deployment"`
+}
+
+// UserChatDebugLoggingSettings describes whether debug logging is
+// active for the current user and whether the user may control it.
+type UserChatDebugLoggingSettings struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+	UserToggleAllowed   bool `json:"user_toggle_allowed"`
+	ForcedByDeployment  bool `json:"forced_by_deployment"`
+}
+
+// UpdateChatDebugLoggingAllowUsersRequest is the admin request to
+// toggle whether users may opt into chat debug logging.
+type UpdateChatDebugLoggingAllowUsersRequest struct {
+	AllowUsers bool `json:"allow_users"`
+}
+
+// UpdateUserChatDebugLoggingRequest is the per-user request to
+// opt into or out of chat debug logging.
+type UpdateUserChatDebugLoggingRequest struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+}
+
+// ChatDebugStatus enumerates the lifecycle states shared by debug
+// runs and steps. These values must match the literals used in
+// FinalizeStaleChatDebugRows and all insert/update callers.
+type ChatDebugStatus string
+
+const (
+	ChatDebugStatusInProgress  ChatDebugStatus = "in_progress"
+	ChatDebugStatusCompleted   ChatDebugStatus = "completed"
+	ChatDebugStatusError       ChatDebugStatus = "error"
+	ChatDebugStatusInterrupted ChatDebugStatus = "interrupted"
+)
+
+// ChatDebugTerminalStatuses returns the statuses that represent a
+// finished lifecycle. The SQL query FinalizeStaleChatDebugRows uses
+// a NOT IN list that must match these exactly. A test in
+// coderd/database asserts this alignment at CI time.
+func ChatDebugTerminalStatuses() []ChatDebugStatus {
+	return []ChatDebugStatus{
+		ChatDebugStatusCompleted,
+		ChatDebugStatusError,
+		ChatDebugStatusInterrupted,
+	}
+}
+
+// AllChatDebugStatuses contains every ChatDebugStatus value.
+// Update this when adding new constants above.
+var AllChatDebugStatuses = []ChatDebugStatus{
+	ChatDebugStatusInProgress,
+	ChatDebugStatusCompleted,
+	ChatDebugStatusError,
+	ChatDebugStatusInterrupted,
+}
+
+// ChatDebugRunKind labels the operation that produced the debug
+// run. Each value corresponds to a distinct call-site in chatd.
+type ChatDebugRunKind string
+
+const (
+	ChatDebugRunKindChatTurn        ChatDebugRunKind = "chat_turn"
+	ChatDebugRunKindTitleGeneration ChatDebugRunKind = "title_generation"
+	ChatDebugRunKindQuickgen        ChatDebugRunKind = "quickgen"
+	ChatDebugRunKindCompaction      ChatDebugRunKind = "compaction"
+)
+
+// AllChatDebugRunKinds contains every ChatDebugRunKind value.
+// Update this when adding new constants above.
+var AllChatDebugRunKinds = []ChatDebugRunKind{
+	ChatDebugRunKindChatTurn,
+	ChatDebugRunKindTitleGeneration,
+	ChatDebugRunKindQuickgen,
+	ChatDebugRunKindCompaction,
+}
+
+// ChatDebugStepOperation labels the model interaction type for a
+// debug step.
+type ChatDebugStepOperation string
+
+const (
+	ChatDebugStepOperationStream   ChatDebugStepOperation = "stream"
+	ChatDebugStepOperationGenerate ChatDebugStepOperation = "generate"
+)
+
+// AllChatDebugStepOperations contains every ChatDebugStepOperation
+// value. Update this when adding new constants above.
+var AllChatDebugStepOperations = []ChatDebugStepOperation{
+	ChatDebugStepOperationStream,
+	ChatDebugStepOperationGenerate,
+}
+
+// ChatDebugRunSummary is a lightweight run entry for list endpoints.
+type ChatDebugRunSummary struct {
+	ID         uuid.UUID        `json:"id" format:"uuid"`
+	ChatID     uuid.UUID        `json:"chat_id" format:"uuid"`
+	Kind       ChatDebugRunKind `json:"kind"`
+	Status     ChatDebugStatus  `json:"status"`
+	Provider   *string          `json:"provider,omitempty"`
+	Model      *string          `json:"model,omitempty"`
+	Summary    map[string]any   `json:"summary"`
+	StartedAt  time.Time        `json:"started_at" format:"date-time"`
+	UpdatedAt  time.Time        `json:"updated_at" format:"date-time"`
+	FinishedAt *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugRun is the detailed run response including steps.
+// This type is consumed by the run-detail handler added in a later
+// PR in this stack; it is forward-declared here so that all SDK
+// types live in the same schema-layer commit.
+type ChatDebugRun struct {
+	ID                  uuid.UUID        `json:"id" format:"uuid"`
+	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
+	RootChatID          *uuid.UUID       `json:"root_chat_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID       `json:"parent_chat_id,omitempty" format:"uuid"`
+	ModelConfigID       *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
+	TriggerMessageID    *int64           `json:"trigger_message_id,omitempty"`
+	HistoryTipMessageID *int64           `json:"history_tip_message_id,omitempty"`
+	Kind                ChatDebugRunKind `json:"kind"`
+	Status              ChatDebugStatus  `json:"status"`
+	Provider            *string          `json:"provider,omitempty"`
+	Model               *string          `json:"model,omitempty"`
+	Summary             map[string]any   `json:"summary"`
+	StartedAt           time.Time        `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time        `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+	Steps               []ChatDebugStep  `json:"steps"`
+}
+
+// ChatDebugStep is a single step within a debug run.
+type ChatDebugStep struct {
+	ID                  uuid.UUID              `json:"id" format:"uuid"`
+	RunID               uuid.UUID              `json:"run_id" format:"uuid"`
+	ChatID              uuid.UUID              `json:"chat_id" format:"uuid"`
+	StepNumber          int32                  `json:"step_number"`
+	Operation           ChatDebugStepOperation `json:"operation"`
+	Status              ChatDebugStatus        `json:"status"`
+	HistoryTipMessageID *int64                 `json:"history_tip_message_id,omitempty"`
+	AssistantMessageID  *int64                 `json:"assistant_message_id,omitempty"`
+	NormalizedRequest   map[string]any         `json:"normalized_request"`
+	NormalizedResponse  map[string]any         `json:"normalized_response,omitempty"`
+	Usage               map[string]any         `json:"usage,omitempty"`
+	Attempts            []map[string]any       `json:"attempts"`
+	Error               map[string]any         `json:"error,omitempty"`
+	Metadata            map[string]any         `json:"metadata"`
+	StartedAt           time.Time              `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time              `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time             `json:"finished_at,omitempty" format:"date-time"`
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
@@ -1128,11 +1284,6 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
-}
-
-type chatStreamEnvelope struct {
-	Type ServerSentEventType `json:"type"`
-	Data json.RawMessage     `json:"data,omitempty"`
 }
 
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
@@ -1987,8 +2138,8 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var batch []ChatStreamEvent
+			if err := wsjson.Read(streamCtx, conn, &batch); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2005,61 +2156,10 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var batch []ChatStreamEvent
-				decodeErr := json.Unmarshal(envelope.Data, &batch)
-				if decodeErr == nil {
-					for _, streamedEvent := range batch {
-						if !send(streamedEvent) {
-							return
-						}
-					}
-					continue
-				}
-
-				{
-					_ = send(ChatStreamEvent{
-						Type: ChatStreamEventTypeError,
-						Error: &ChatStreamError{
-							Message: fmt.Sprintf(
-								"decode chat stream event batch: %v",
-								decodeErr,
-							),
-						},
-					})
+			for _, event := range batch {
+				if !send(event) {
 					return
 				}
-			case ServerSentEventTypeError:
-				message := "chat stream returned an error"
-				if len(envelope.Data) > 0 {
-					var response Response
-					if err := json.Unmarshal(envelope.Data, &response); err == nil {
-						message = formatChatStreamResponseError(response)
-					} else {
-						trimmed := strings.TrimSpace(string(envelope.Data))
-						if trimmed != "" {
-							message = trimmed
-						}
-					}
-				}
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: message,
-					},
-				})
-				return
-			default:
-				_ = send(ChatStreamEvent{
-					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
-						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
-					},
-				})
-				return
 			}
 		}
 	}()
@@ -2098,8 +2198,8 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 		}()
 
 		for {
-			var envelope chatStreamEnvelope
-			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+			var event ChatWatchEvent
+			if err := wsjson.Read(streamCtx, conn, &event); err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -2110,23 +2210,10 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 				return
 			}
 
-			switch envelope.Type {
-			case ServerSentEventTypePing:
-				continue
-			case ServerSentEventTypeData:
-				var event ChatWatchEvent
-				if err := json.Unmarshal(envelope.Data, &event); err != nil {
-					return
-				}
-				select {
-				case <-streamCtx.Done():
-					return
-				case events <- event:
-				}
-			case ServerSentEventTypeError:
+			select {
+			case <-streamCtx.Done():
 				return
-			default:
-				return
+			case events <- event:
 			}
 		}
 	}()
@@ -2478,27 +2565,12 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 	return result, json.NewDecoder(res.Body).Decode(&result)
 }
 
-func formatChatStreamResponseError(response Response) string {
-	message := strings.TrimSpace(response.Message)
-	detail := strings.TrimSpace(response.Detail)
-	switch {
-	case message == "" && detail == "":
-		return "chat stream returned an error"
-	case message == "":
-		return detail
-	case detail == "":
-		return message
-	default:
-		return fmt.Sprintf("%s: %s", message, detail)
-	}
-}
-
 // PRInsightsResponse is the response from the PR insights endpoint.
 type PRInsightsResponse struct {
-	Summary    PRInsightsSummary           `json:"summary"`
-	TimeSeries []PRInsightsTimeSeriesEntry `json:"time_series"`
-	ByModel    []PRInsightsModelBreakdown  `json:"by_model"`
-	RecentPRs  []PRInsightsPullRequest     `json:"recent_prs"`
+	Summary      PRInsightsSummary           `json:"summary"`
+	TimeSeries   []PRInsightsTimeSeriesEntry `json:"time_series"`
+	ByModel      []PRInsightsModelBreakdown  `json:"by_model"`
+	PullRequests []PRInsightsPullRequest     `json:"recent_prs"`
 }
 
 // PRInsightsSummary contains aggregate PR metrics for a time period,

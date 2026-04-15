@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
@@ -1427,6 +1428,27 @@ export const StartWorkspaceRunning: Story = {
 		name: "start_workspace",
 		status: "running",
 	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Starting workspace…")).toBeInTheDocument();
@@ -1441,11 +1463,39 @@ export const StartWorkspaceCompleted: Story = {
 			started: true,
 			workspace_name: "my-project",
 			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Started my-project")).toBeInTheDocument();
+	},
+};
+
+export const StartWorkspaceLegacy: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "legacy-workspace",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Started legacy-workspace")).toBeInTheDocument();
 	},
 };
 
@@ -1457,5 +1507,174 @@ export const StartWorkspaceError: Story = {
 		result: {
 			error: "workspace was deleted; use create_workspace to make a new one",
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
+	},
+};
+
+export const StartWorkspaceBuildFailed: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error: "workspace start build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to start workspace")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// create_workspace stories
+// ---------------------------------------------------------------------------
+
+export const CreateWorkspaceRunning: Story = {
+	args: {
+		name: "create_workspace",
+		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "starting",
+					},
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceCompleted: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "my-project",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceLegacy: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "legacy-workspace",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Created legacy-workspace")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceAlreadyExists: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: false,
+			workspace_name: "my-project",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Workspace my-project already exists"),
+		).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceError: Story = {
+	args: {
+		name: "create_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "template not found",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceBuildFailed: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error: "workspace build failed: terraform apply failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
 	},
 };

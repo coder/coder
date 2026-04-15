@@ -71,14 +71,14 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	updatedChat.Title = wantTitle
 
 	messageEvents := make(chan struct {
-		payload coderdpubsub.ChatEvent
+		payload codersdk.ChatWatchEvent
 		err     error
 	}, 1)
 	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatEventChannel(ownerID),
-		coderdpubsub.HandleChatEvent(func(_ context.Context, payload coderdpubsub.ChatEvent, err error) {
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
 			messageEvents <- struct {
-				payload coderdpubsub.ChatEvent
+				payload codersdk.ChatWatchEvent
 				err     error
 			}{payload: payload, err: err}
 		}),
@@ -184,7 +184,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	select {
 	case event := <-messageEvents:
 		require.NoError(t, event.err)
-		require.Equal(t, coderdpubsub.ChatEventKindTitleChange, event.payload.Kind)
+		require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.payload.Kind)
 		require.Equal(t, chatID, event.payload.Chat.ID)
 		require.Equal(t, wantTitle, event.payload.Chat.Title)
 	case <-time.After(time.Second):
@@ -234,14 +234,14 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	unlockedChat.StartedAt = sql.NullTime{}
 
 	messageEvents := make(chan struct {
-		payload coderdpubsub.ChatEvent
+		payload codersdk.ChatWatchEvent
 		err     error
 	}, 1)
 	cancelSub, err := pubsub.SubscribeWithErr(
-		coderdpubsub.ChatEventChannel(ownerID),
-		coderdpubsub.HandleChatEvent(func(_ context.Context, payload coderdpubsub.ChatEvent, err error) {
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
 			messageEvents <- struct {
-				payload coderdpubsub.ChatEvent
+				payload codersdk.ChatWatchEvent
 				err     error
 			}{payload: payload, err: err}
 		}),
@@ -373,7 +373,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	select {
 	case event := <-messageEvents:
 		require.NoError(t, event.err)
-		require.Equal(t, coderdpubsub.ChatEventKindTitleChange, event.payload.Kind)
+		require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.payload.Kind)
 		require.Equal(t, chatID, event.payload.Chat.ID)
 		require.Equal(t, wantTitle, event.payload.Chat.Title)
 	case <-time.After(time.Second):

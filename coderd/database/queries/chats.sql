@@ -353,20 +353,18 @@ WHERE
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
-        -- This allows using the last element on a page as effectively a cursor.
-        -- This is an important option for scripts that need to paginate without
-        -- duplicating or missing data.
+        -- Cursor pagination: the last element on a page acts as the cursor.
+        -- The 4-tuple matches the ORDER BY below. All columns sort DESC
+        -- (pin_order is negated so lower values sort first in DESC order),
+        -- which lets us use a single tuple < comparison.
         WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            -- The pagination cursor is the last ID of the previous page.
-            -- The query is ordered by the updated_at field, so select all
-            -- rows before the cursor.
-            (updated_at, id) < (
+            (CASE WHEN pin_order > 0 THEN 1 ELSE 0 END, -pin_order, updated_at, id) < (
                 SELECT
-                    updated_at, id
+                    CASE WHEN c2.pin_order > 0 THEN 1 ELSE 0 END, -c2.pin_order, c2.updated_at, c2.id
                 FROM
-                    chats
+                    chats c2
                 WHERE
-                    id = @after_id
+                    c2.id = @after_id
             )
         )
         ELSE true
@@ -378,9 +376,15 @@ WHERE
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
-    -- Deterministic and consistent ordering of all rows, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
-    (updated_at, id) DESC OFFSET @offset_opt
+    -- Pinned chats (pin_order > 0) sort before unpinned ones. Within
+    -- pinned chats, lower pin_order values come first. The negation
+    -- trick (-pin_order) keeps all sort columns DESC so the cursor
+    -- tuple < comparison works with uniform direction.
+    CASE WHEN pin_order > 0 THEN 1 ELSE 0 END DESC,
+    -pin_order DESC,
+    updated_at DESC,
+    id DESC
+OFFSET @offset_opt
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
@@ -388,6 +392,7 @@ LIMIT
 
 -- name: InsertChat :one
 INSERT INTO chats (
+    organization_id,
     owner_id,
     workspace_id,
     build_id,
@@ -402,6 +407,7 @@ INSERT INTO chats (
     labels,
     dynamic_tools
 ) VALUES (
+    @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('build_id')::uuid,
@@ -1128,10 +1134,16 @@ FROM users
 WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserChatSpendInPeriod :one
+-- Returns the total spend for a user in the given period.
+-- When organization_id is NULL, spend across all organizations is
+-- returned (global behavior). Otherwise only spend within the
+-- specified organization is included.
 SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
 FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = @user_id::uuid
+  AND (sqlc.narg('organization_id')::uuid IS NULL
+       OR c.organization_id = sqlc.narg('organization_id')::uuid)
   AND cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
@@ -1183,11 +1195,16 @@ WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserGroupSpendLimit :one
 -- Returns the minimum (most restrictive) group limit for a user.
--- Returns -1 if the user has no group limits applied.
+-- Returns -1 if no group limits match the specified scope.
+-- When organization_id is NULL, groups across all organizations are
+-- considered (global behavior). Otherwise only groups within the
+-- specified organization are considered.
 SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
 FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
+  AND (sqlc.narg('organization_id')::uuid IS NULL
+       OR g.organization_id = sqlc.narg('organization_id')::uuid)
   AND g.chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetChatsByWorkspaceIDs :many
@@ -1199,20 +1216,28 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
--- 1. Individual user override (highest priority)
--- 2. Minimum group limit across all user's groups
+-- 1. Individual user override (highest priority, applies globally across
+--    all organizations since it lives on the users table)
+-- 2. Minimum group limit across the user's groups
 -- 3. Global default from config
 -- Returns -1 if limits are not enabled.
+-- When organization_id is NULL, groups across all organizations are
+-- considered (global behavior). Otherwise only groups within the
+-- specified organization are considered.
+-- limit_source indicates which tier won: 'user', 'group', 'default',
+-- or 'disabled'.
 SELECT CASE
-    -- If limits are disabled, return -1.
     WHEN NOT cfg.enabled THEN -1
-    -- Individual override takes priority.
     WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
-    -- Group limit (minimum across all user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
-    -- Fall back to global default.
     ELSE cfg.default_limit_micros
-END::bigint AS effective_limit_micros
+END::bigint AS effective_limit_micros,
+CASE
+    WHEN NOT cfg.enabled THEN 'disabled'
+    WHEN u.chat_spend_limit_micros IS NOT NULL THEN 'user'
+    WHEN gl.limit_micros IS NOT NULL THEN 'group'
+    ELSE 'default'
+END AS limit_source
 FROM chat_usage_limit_config cfg
 CROSS JOIN users u
 LEFT JOIN LATERAL (
@@ -1220,6 +1245,8 @@ LEFT JOIN LATERAL (
     FROM groups g
     JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = @user_id::uuid
+      AND (sqlc.narg('organization_id')::uuid IS NULL
+           OR g.organization_id = sqlc.narg('organization_id')::uuid)
       AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
 WHERE u.id = @user_id::uuid

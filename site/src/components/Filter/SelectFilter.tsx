@@ -71,6 +71,8 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 					minWidth: width,
 				}}
 				align="end"
+				// We want the backend to handle the filtering, not the client.
+				shouldFilter={false}
 			>
 				{selectFilterSearch}
 				<ComboboxList

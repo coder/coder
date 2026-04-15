@@ -71,7 +71,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	// An ID is only given in the request when it is a terraform-defined devcontainer
 	// that has attached resources. These subagents are pre-provisioned by terraform
 	// (the agent record already exists), so we update configurable fields like
-	// display_apps rather than creating a new agent.
+	// display_apps and directory rather than creating a new agent.
 	if req.Id != nil {
 		id, err := uuid.FromBytes(req.Id)
 		if err != nil {
@@ -95,6 +95,16 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			UpdatedAt:   createdAt,
 		}); err != nil {
 			return nil, xerrors.Errorf("update workspace agent display apps: %w", err)
+		}
+
+		if req.Directory != "" {
+			if err := a.Database.UpdateWorkspaceAgentDirectoryByID(ctx, database.UpdateWorkspaceAgentDirectoryByIDParams{
+				ID:        id,
+				Directory: req.Directory,
+				UpdatedAt: createdAt,
+			}); err != nil {
+				return nil, xerrors.Errorf("update workspace agent directory: %w", err)
+			}
 		}
 
 		return &agentproto.CreateSubAgentResponse{

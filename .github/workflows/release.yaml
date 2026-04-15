@@ -488,6 +488,22 @@ jobs:
           subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
           push-to-registry: true
 
+      - name: GitHub Attestation for release binaries
+        id: attest_binaries
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-path: |
+            ./build/*.tar.gz
+            ./build/*.zip
+            ./build/*.deb
+            ./build/*.rpm
+            ./build/*.apk
+            ./build/*_installer.exe
+            ./build/*_helm_*.tgz
+            ./build/provisioner_helm_*.tgz
+
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: ${{ !inputs.dry_run }}
@@ -500,6 +516,9 @@ jobs:
           fi
           if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
             echo "::warning::GitHub attestation for latest image failed"
+          fi
+          if [[ "${{ steps.attest_binaries.outcome }}" == "failure" && "${{ steps.attest_binaries.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for release binaries failed"
           fi
 
       - name: Generate offline docs

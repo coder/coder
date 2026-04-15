@@ -14,7 +14,7 @@ import (
 const ChatConfigEventChannel = "chat:config_change"
 
 // HandleChatConfigEvent wraps a typed callback for ChatConfigEvent
-// messages, following the same pattern as HandleChatEvent.
+// messages, following the same pattern as HandleChatWatchEvent.
 func HandleChatConfigEvent(cb func(ctx context.Context, payload ChatConfigEvent, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {

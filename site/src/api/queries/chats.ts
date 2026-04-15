@@ -6,6 +6,10 @@ import type {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import {
+	projectEditedConversationIntoCache,
+	reconcileEditedMessageInCache,
+} from "./chatMessageEdits";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -601,13 +605,21 @@ export const createChatMessage = (
 
 type EditChatMessageMutationArgs = {
 	messageId: number;
+	optimisticMessage?: TypesGen.ChatMessage;
 	req: TypesGen.EditChatMessageRequest;
+};
+
+type EditChatMessageMutationContext = {
+	previousData?: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 };
 
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onMutate: async ({ messageId }: EditChatMessageMutationArgs) => {
+	onMutate: async ({
+		messageId,
+		optimisticMessage,
+	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
 		// Cancel in-flight refetches so they don't overwrite the
 		// optimistic update before the mutation completes.
 		await queryClient.cancelQueries({
@@ -619,46 +631,43 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			InfiniteData<TypesGen.ChatMessagesResponse>
 		>(chatMessagesKey(chatId));
 
-		// Optimistically remove the edited message and everything
-		// after it. The server soft-deletes these and inserts a
-		// replacement with a new ID. Without this, the WebSocket
-		// handler's upsertCacheMessages adds new messages to the
-		// React Query cache without removing the soft-deleted ones,
-		// causing deleted messages to flash back into view until
-		// the full REST refetch resolves.
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-		>(chatMessagesKey(chatId), (current) => {
-			if (!current?.pages?.length) {
-				return current;
-			}
-			return {
-				...current,
-				pages: current.pages.map((page) => ({
-					...page,
-					messages: page.messages.filter((m) => m.id < messageId),
-				})),
-			};
-		});
+		>(chatMessagesKey(chatId), (current) =>
+			projectEditedConversationIntoCache({
+				currentData: current,
+				editedMessageId: messageId,
+				replacementMessage: optimisticMessage,
+				queuedMessages: [],
+			}),
+		);
 
 		return { previousData };
 	},
 	onError: (
 		_error: unknown,
 		_variables: EditChatMessageMutationArgs,
-		context:
-			| {
-					previousData?:
-						| InfiniteData<TypesGen.ChatMessagesResponse>
-						| undefined;
-			  }
-			| undefined,
+		context: EditChatMessageMutationContext | undefined,
 	) => {
 		// Restore the cache on failure so the user sees the
 		// original messages again.
 		if (context?.previousData) {
 			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
 		}
+	},
+	onSuccess: (
+		response: TypesGen.EditChatMessageResponse,
+		variables: EditChatMessageMutationArgs,
+	) => {
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) =>
+			reconcileEditedMessageInCache({
+				currentData: current,
+				optimisticMessageId: variables.messageId,
+				responseMessage: response.message,
+			}),
+		);
 	},
 	onSettled: () => {
 		// Always reconcile with the server regardless of whether

@@ -954,8 +954,9 @@ func TestWorker(t *testing.T) {
 	// 1. Real database store.
 	db, _ := dbtestutil.NewDB(t)
 
-	// 2. Create a user (FK for chats).
+	// 2. Create a user and an organization (FKs for chats).
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
 
 	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -978,6 +979,7 @@ func TestWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,

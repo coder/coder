@@ -56,6 +56,7 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
+	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
@@ -775,6 +776,7 @@ func (e *UsageLimitExceededError) Error() string {
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
+	OrganizationID     uuid.UUID
 	OwnerID            uuid.UUID
 	WorkspaceID        uuid.NullUUID
 	BuildID            uuid.NullUUID
@@ -852,6 +854,9 @@ type PromoteQueuedResult struct {
 // CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
+	if opts.OrganizationID == uuid.Nil {
+		return database.Chat{}, xerrors.New("organization_id is required")
+	}
 	if opts.OwnerID == uuid.Nil {
 		return database.Chat{}, xerrors.New("owner_id is required")
 	}
@@ -870,10 +875,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
+	// Resolve the deployment prompt before opening the transaction so
+	// chat creation does not hold one DB connection while waiting for
+	// another pool checkout.
+	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -883,6 +892,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    opts.OrganizationID,
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
 			BuildID:           opts.BuildID,
@@ -909,7 +919,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 		userPrompt := SanitizePromptText(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
@@ -996,7 +1005,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, txErr
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCreated, nil)
 	p.signalWake()
 	return chat, nil
 }
@@ -1041,7 +1050,7 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1158,13 +1167,13 @@ func (p *Server) SendMessage(
 
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID) error {
-	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, time.Now())
+func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID, organizationID uuid.NullUUID) error {
+	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, organizationID, time.Now())
 	if err != nil {
 		// Fail open: never block chat due to a limit-resolution failure.
 		p.logger.Warn(ctx, "usage limit check failed, allowing message",
@@ -1217,7 +1226,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
@@ -1301,7 +1310,7 @@ func (p *Server) EditMessage(
 		QueueUpdate: true,
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -1355,10 +1364,10 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 	if interrupted {
 		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
-		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(statusChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	p.publishChatPubsubEvents(archivedChats, coderdpubsub.ChatEventKindDeleted)
+	p.publishChatPubsubEvents(archivedChats, codersdk.ChatWatchEventKindDeleted)
 	return nil
 }
 
@@ -1373,7 +1382,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 		ctx,
 		chat.ID,
 		"unarchive",
-		coderdpubsub.ChatEventKindCreated,
+		codersdk.ChatWatchEventKindCreated,
 		p.db.UnarchiveChatByID,
 	)
 }
@@ -1382,7 +1391,7 @@ func (p *Server) applyChatLifecycleTransition(
 	ctx context.Context,
 	chatID uuid.UUID,
 	action string,
-	kind coderdpubsub.ChatEventKind,
+	kind codersdk.ChatWatchEventKind,
 	transition func(context.Context, uuid.UUID) ([]database.Chat, error),
 ) error {
 	updatedChats, err := transition(ctx, chatID)
@@ -1545,7 +1554,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 
 	return result, nil
@@ -2022,7 +2031,7 @@ func (p *Server) regenerateChatTitleWithStore(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
 		return database.Chat{}, limitErr
 	}
 
@@ -2092,7 +2101,7 @@ func (p *Server) regenerateChatTitleWithStore(
 		return updatedChat, nil
 	}
 
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 	return updatedChat, nil
 }
 
@@ -2347,7 +2356,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		return database.Chat{}, err
 	}
 	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return updatedChat, nil
 }
 
@@ -3627,7 +3636,7 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 }
 
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
-func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsub.ChatEventKind) {
+func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
 		p.publishChatPubsubEvent(chat, kind, nil)
 	}
@@ -3635,7 +3644,7 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsu
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind, diffStatus *codersdk.ChatDiffStatus) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
@@ -3647,7 +3656,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
-	event := coderdpubsub.ChatEvent{
+	event := codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: sdkChat,
 	}
@@ -3659,7 +3668,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.F("kind", kind),
@@ -3692,8 +3701,8 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 	toolCalls := pendingToStreamToolCalls(pending)
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 
-	event := coderdpubsub.ChatEvent{
-		Kind:      coderdpubsub.ChatEventKindActionRequired,
+	event := codersdk.ChatWatchEvent{
+		Kind:      codersdk.ChatWatchEventKindActionRequired,
 		Chat:      sdkChat,
 		ToolCalls: toolCalls,
 	}
@@ -3705,7 +3714,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat action_required pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
@@ -3733,7 +3742,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	}
 
 	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
 	return nil
 }
 
@@ -4215,7 +4224,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if title, ok := generatedTitle.Load(); ok {
 			updatedChat.Title = title
 		}
-		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 		// When the chat is parked in requires_action,
 		// publish the stream event and global pubsub event
@@ -4470,6 +4479,50 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
+	planPathFn := func(ctx context.Context) (string, string, error) {
+		conn, err := workspaceCtx.getWorkspaceConn(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+		if err != nil {
+			return "", "", err
+		}
+		return chattool.PlanPathForChat(home, chat.ID), home, nil
+	}
+	resolvePlanPathForTools := func(ctx context.Context) (string, string, error) {
+		ctx, cancel := context.WithTimeout(ctx, planPathLookupTimeout)
+		defer cancel()
+		return planPathFn(ctx)
+	}
+	resolvePlanPathBlock := func(resolveCtx context.Context) string {
+		if chat.ParentChatID.Valid {
+			return ""
+		}
+
+		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
+		defer cancel()
+
+		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			return ""
+		}
+
+		planPath, home, err := planPathFn(planCtx)
+		if err != nil {
+			p.logger.Debug(resolveCtx, "plan path instruction: failed to resolve plan path",
+				slog.Error(err),
+				slog.F("chat_id", chat.ID),
+			)
+			return ""
+		}
+
+		return formatPlanPathBlock(planPath, home)
+	}
+
 	// Connect to MCP servers in parallel with instruction
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
@@ -4663,6 +4716,7 @@ func (p *Server) runChat(
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
+	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
@@ -4975,9 +5029,11 @@ func (p *Server) runChat(
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -4998,41 +5054,49 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		// Workspace provisioning tools.
+		onChatUpdated := func(updatedChat database.Chat) {
+			workspaceCtx.selectWorkspace(updatedChat)
+			// Notify the frontend immediately so it can
+			// start streaming build logs before the tool
+			// completes.
+			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		}
 		tools = append(tools,
-			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:                 p.db,
+			chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
-			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 p.db,
+			chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
 				OwnerID:            chat.OwnerID,
 				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
-			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-				DB:                             p.db,
+			chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
 				OwnerID:                        chat.OwnerID,
 				ChatID:                         chat.ID,
 				CreateFn:                       p.createWorkspaceFn,
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  workspaceCtx.selectWorkspace,
+				OnChatUpdated:                  onChatUpdated,
 				Logger:                         p.logger,
 				AllowedTemplateIDs:             p.chatTemplateAllowlist,
 			}),
+
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-				DB:          p.db,
-				OwnerID:     chat.OwnerID,
-				ChatID:      chat.ID,
-				StartFn:     p.startWorkspaceFn,
-				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu: &workspaceMu,
+				DB:            p.db,
+				OwnerID:       chat.OwnerID,
+				ChatID:        chat.ID,
+				StartFn:       p.startWorkspaceFn,
+				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu:   &workspaceMu,
+				OnChatUpdated: onChatUpdated,
+				Logger:        p.logger,
 			}),
 		)
 		// Plan presentation tool.
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  resolvePlanPathForTools,
 			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
 				workspaceCtx.chatStateMu.Lock()
 				chatSnapshot := *workspaceCtx.currentChat
@@ -5225,6 +5289,7 @@ func (p *Server) runChat(
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
+			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
@@ -5894,6 +5959,89 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 		return ""
 	}
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+}
+
+// renderPlanPathPrompt fills the plan-path placeholder when it is
+// present in the prompt.
+func renderPlanPathPrompt(prompt []fantasy.Message, planPathBlock string) []fantasy.Message {
+	prompt, _ = replacePlanPathPlaceholder(prompt, planPathBlock)
+	return prompt
+}
+
+func replacePlanPathPlaceholder(
+	prompt []fantasy.Message,
+	planPathBlock string,
+) ([]fantasy.Message, bool) {
+	var updatedPrompt []fantasy.Message
+	replaced := false
+	for i, message := range prompt {
+		updatedMessage, ok := replacePlanPathPlaceholderInMessage(message, planPathBlock)
+		if !ok {
+			continue
+		}
+		if updatedPrompt == nil {
+			updatedPrompt = slices.Clone(prompt)
+		}
+		updatedPrompt[i] = updatedMessage
+		replaced = true
+	}
+	if !replaced {
+		return prompt, false
+	}
+	return updatedPrompt, true
+}
+
+func replacePlanPathPlaceholderInMessage(
+	message fantasy.Message,
+	planPathBlock string,
+) (fantasy.Message, bool) {
+	if message.Role != fantasy.MessageRoleSystem {
+		return message, false
+	}
+
+	content := slices.Clone(message.Content)
+	replaced := false
+	for i, part := range content {
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+		if !ok || !strings.Contains(textPart.Text, defaultSystemPromptPlanPathBlockPlaceholder) {
+			continue
+		}
+		replaced = true
+		content[i] = fantasy.TextPart{Text: strings.ReplaceAll(
+			textPart.Text,
+			defaultSystemPromptPlanPathBlockPlaceholder,
+			planPathBlock,
+		)}
+	}
+	if !replaced {
+		return message, false
+	}
+	message.Content = content
+	return message, true
+}
+
+func formatPlanPathBlock(chatPath, home string) string {
+	chatPath = strings.TrimSpace(chatPath)
+	if chatPath == "" {
+		return ""
+	}
+
+	avoidPlanPath := chattool.LegacySharedPlanPath
+	home = strings.TrimSpace(home)
+	if home != "" {
+		avoidPlanPath = strings.TrimRight(home, "/") + "/PLAN.md"
+	}
+
+	var b strings.Builder
+	_, _ = b.WriteString("<plan-file-path>\n")
+	_, _ = b.WriteString("Your plan file path for this chat is: ")
+	_, _ = b.WriteString(chatPath)
+	_, _ = b.WriteString("\n")
+	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
+	_, _ = b.WriteString(avoidPlanPath)
+	_, _ = b.WriteString(".\n")
+	_, _ = b.WriteString("</plan-file-path>")
+	return b.String()
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {

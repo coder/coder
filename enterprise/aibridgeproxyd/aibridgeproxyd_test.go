@@ -2093,6 +2093,64 @@ func TestUpstreamProxy(t *testing.T) {
 	}
 }
 
+// TestProxy_MITM_CustomProvider verifies that a non-builtin provider
+// (e.g. OpenRouter) whose domain is added to the allowlist is correctly
+// MITM'd and routed through the proxy to the bridge endpoint.
+func TestProxy_MITM_CustomProvider(t *testing.T) {
+	t.Parallel()
+
+	const (
+		openrouterDomain   = "openrouter.ai"
+		openrouterProvider = "openrouter"
+	)
+
+	// Track what aibridged receives.
+	var receivedPath, receivedBYOK string
+
+	// Create a mock aibridged server that captures requests.
+	aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello from aibridged"))
+	}))
+	t.Cleanup(aibridgedServer.Close)
+
+	// Wire the custom domain and provider mapping directly, as the
+	// real daemon would after calling domainsFromProviders.
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgedServer.URL),
+		withDomainAllowlist(openrouterDomain),
+		withAIBridgeProviderFromHost(func(host string) string {
+			if host == openrouterDomain {
+				return openrouterProvider
+			}
+			return ""
+		}),
+	)
+
+	certPool := getProxyCertPool(t)
+	client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+openrouterDomain+"/api/v1/chat/completions", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer user-llm-token")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "hello from aibridged", string(body))
+
+	// The proxy should route through the aibridge path using the custom
+	// provider name.
+	require.Equal(t, "/api/v2/aibridge/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
+	require.Equal(t, "coder-token", receivedBYOK)
+}
+
 func TestProxy_PrivateIPBlocking(t *testing.T) {
 	t.Parallel()
 

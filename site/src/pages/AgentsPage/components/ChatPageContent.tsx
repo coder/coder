@@ -2,7 +2,8 @@ import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -48,7 +49,6 @@ interface ChatPageTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
-	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -59,10 +59,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
-	savingMessageId,
 	urlTransform,
 	mcpServers,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 
@@ -86,7 +86,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+			<div
+				data-testid="chat-timeline-wrapper"
+				className={cn(
+					"mx-auto flex w-full flex-col gap-2 py-6",
+					chatWidthClass(chatFullWidth),
+				)}
+			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
@@ -97,7 +103,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
-					savingMessageId={savingMessageId}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
@@ -118,10 +123,20 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 };
 
+export type PendingAttachment = {
+	fileId: string;
+	mediaType: string;
+};
+
 interface ChatPageInputProps {
+	// Organization that owns this chat. Used to scope file uploads.
+	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string, fileIds?: string[]) => void;
+	onSend: (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -169,10 +184,16 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	organizationId,
 	store,
 	compressionThreshold,
 	onSend,
@@ -206,7 +227,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -249,8 +275,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const { organizations } = useDashboard();
-	const organizationId = organizations[0]?.id;
 	const {
 		attachments,
 		textContents,
@@ -312,9 +336,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
-					// Collect file IDs from already-uploaded attachments.
-					// Skip files in error state (e.g. too large).
-					const fileIds: string[] = [];
+					// Collect uploaded attachment metadata for the optimistic
+					// transcript builder while keeping the server payload
+					// shape unchanged downstream.
+					const pendingAttachments: PendingAttachment[] = [];
 					let skippedErrors = 0;
 					for (const file of attachments) {
 						const state = uploadStates.get(file);
@@ -323,7 +348,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							continue;
 						}
 						if (state?.status === "uploaded" && state.fileId) {
-							fileIds.push(state.fileId);
+							pendingAttachments.push({
+								fileId: state.fileId,
+								mediaType: file.type || "application/octet-stream",
+							});
 						}
 					}
 					if (skippedErrors > 0) {
@@ -331,9 +359,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
-					const fileArg = fileIds.length > 0 ? fileIds : undefined;
+					const attachmentArg =
+						pendingAttachments.length > 0 ? pendingAttachments : undefined;
 					try {
-						await onSend(message, fileArg);
+						await onSend(message, attachmentArg);
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
@@ -377,7 +406,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatId={chatId}
+			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
+			folder={folder}
 		/>
 	);
 

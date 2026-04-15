@@ -31,7 +31,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Margins } from "#/components/Margins/Margins";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
