@@ -384,11 +384,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	// Cap the raw request body to prevent excessive memory use
 	// from large dynamic tool schemas.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -417,6 +412,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not a member of the specified organization.",
 		})
+		return
+	}
+
+	// Authorize after parsing the body so the org ID is available.
+	// The resource must include InOrg so that org-level custom roles
+	// can grant chat creation within their organization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.InOrg(req.OrganizationID).WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -1876,11 +1879,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// Gate message sending behind the same agents-access check
 	// used by postChats. Sending a message triggers AI/LLM
 	// inference, so it should require the same authorization as
-	// chat creation. This is a handler-level band-aid; the
-	// structural fix is to make agents-access org-aware so
-	// dbauthz enforces this at the RBAC layer.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// chat creation. InOrg is required so that org-level custom
+	// roles can grant chat access within their organization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.InOrg(chat.OrganizationID).WithOwner(apiKey.UserID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -2131,9 +2132,10 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	// Gate queued-message promotion behind agents-access.
 	// Promoting a queued message triggers AI/LLM inference,
-	// same as sending a new message.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// same as sending a new message. InOrg is required so
+	// that org-level custom roles can grant chat access
+	// within their organization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.InOrg(chat.OrganizationID).WithOwner(apiKey.UserID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -3716,11 +3718,6 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	orgIDStr := r.URL.Query().Get("organization")
 	if orgIDStr == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -3733,6 +3730,14 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid organization ID.",
 		})
+		return
+	}
+
+	// Authorize after parsing the org ID so InOrg is available.
+	// This ensures org-level custom roles can grant chat file
+	// uploads within their organization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.InOrg(orgID).WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -5857,9 +5862,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	// Gate tool-result submission behind agents-access.
 	// Submitting tool results resumes AI/LLM inference on
-	// a chat in requires_action state.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// a chat in requires_action state. InOrg is required so
+	// that org-level custom roles can grant chat access
+	// within their organization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.InOrg(chat.OrganizationID).WithOwner(apiKey.UserID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}

@@ -21,11 +21,10 @@ import (
 //
 // Key RBAC facts for context:
 //   - Chat objects are org-scoped: ResourceChat.WithID(id).WithOwner(ownerID).InOrg(orgID)
-//   - The postChats handler checks ActionCreate on ResourceChat.WithOwner(userID) (no InOrg),
-//     meaning org-level permissions alone cannot satisfy the create check. Users need either
-//     the built-in agents-access role (user-level create) or a site-level wildcard (owner).
+//   - The postChats handler checks ActionCreate on ResourceChat.InOrg(orgID).WithOwner(userID),
+//     so org-level custom role permissions can satisfy the create check.
 //   - Read/update checks go through dbauthz on the actual chat object (which IS org-scoped),
-//     so org-level custom role permissions DO apply for reads and updates on existing chats.
+//     so org-level custom role permissions apply for reads and updates on existing chats.
 //   - The listChats handler hardcodes OwnerID to the calling user, so cross-user visibility
 //     must be tested via GetChat, not ListChats.
 func TestCustomRoleChatAccess(t *testing.T) {
@@ -95,8 +94,8 @@ func TestCustomRoleChatAccess(t *testing.T) {
 	}
 
 	// FullCRUD: A custom role granting read+update on chat combined with
-	// agents-access (for create) should allow the member to create their
-	// own chats AND read/update another user's chat via org-level perms.
+	// agents-access should allow the member to create their own chats AND
+	// read/update another user's chat via org-level perms.
 	t.Run("FullCRUD", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -115,7 +114,11 @@ func TestCustomRoleChatAccess(t *testing.T) {
 		_, err := s.ownerClient.CreateOrganizationRole(ctx, role)
 		require.NoError(t, err)
 
-		// Create a member with the custom role AND agents-access (for chat creation).
+		// Create a member with the custom role AND agents-access.
+		// agents-access is still needed for chat creation because
+		// downstream dbauthz checks (e.g. GetDefaultChatModelConfig)
+		// use un-org-scoped ResourceChat checks that only match
+		// user-level permissions.
 		memberRaw, _ := coderdtest.CreateAnotherUser(
 			t, s.ownerClient, s.firstUser.OrganizationID,
 			rbac.RoleIdentifier{Name: role.Name, OrganizationID: s.firstUser.OrganizationID},
@@ -123,7 +126,7 @@ func TestCustomRoleChatAccess(t *testing.T) {
 		)
 		memberExp := codersdk.NewExperimentalClient(memberRaw)
 
-		// 1. Member can create their own chat (via agents-access user-level create).
+		// 1. Member can create their own chat.
 		memberChat, err := memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: s.firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
