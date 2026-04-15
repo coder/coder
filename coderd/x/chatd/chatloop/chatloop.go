@@ -1094,6 +1094,13 @@ func executeSingleTool(
 		ToolName:         tc.ToolName,
 		ProviderExecuted: false,
 	}
+	defer func() {
+		if metrics != nil {
+			metrics.ToolResultSizeBytes.WithLabelValues(provider, tc.ToolName).Observe(
+				float64(ToolResultSize(result)),
+			)
+		}
+	}()
 
 	tool, exists := toolMap[tc.ToolName]
 	if !exists {
@@ -1132,11 +1139,6 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: resp.Content,
 		}
-	}
-	if metrics != nil {
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, tc.ToolName).Observe(
-			float64(ToolResultSize(result)),
-		)
 	}
 	return result
 }
