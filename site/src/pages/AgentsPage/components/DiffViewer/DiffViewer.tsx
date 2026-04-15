@@ -23,10 +23,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import {
-	DIFFS_FONT_STYLE,
-	getDiffViewerOptions,
-} from "../ChatElements/tools/utils";
+import { DIFFS_FONT_STYLE, diffViewerCSS } from "../ChatElements/tools/utils";
 
 // -------------------------------------------------------------------
 // Public interface
@@ -494,9 +491,143 @@ const LazyFileDiff: FC<LazyFileDiffProps> = ({
 };
 
 // -------------------------------------------------------------------
+// Extracted helpers
+// -------------------------------------------------------------------
+
+/** Build merged diff-viewer options from theme and style. */
+function computeDiffOptions(isDark: boolean, diffStyle: DiffStyle) {
+	return {
+		diffStyle,
+		diffIndicators: "bars" as const,
+		overflow: "wrap" as const,
+		themeType: (isDark ? "dark" : "light") as "dark" | "light",
+		theme: isDark ? "github-dark-high-contrast" : "github-light",
+		unsafeCSS: `${diffViewerCSS} ${STICKY_HEADER_CSS}`,
+	};
+}
+
+/** Fallback file-level options when there are no per-file callbacks. */
+function computeFileOptions(
+	diffOptions: ComponentProps<typeof FileDiff>["options"],
+) {
+	return {
+		...diffOptions,
+		overflow: "scroll" as const,
+		enableLineSelection: true,
+		enableHoverUtility: true,
+		onLineSelected() {
+			// TODO: Make this add context to the input so the
+			// user can type.
+		},
+	};
+}
+
+/**
+ * Build file tree and sorted file list. The sort order matches
+ * the tree display (directories first, then alphabetical).
+ */
+function computeFileLayout(parsedFiles: readonly FileDiffMetadata[]) {
+	const fileTree = buildFileTree(parsedFiles);
+
+	const order = new Map<string, number>();
+	const walk = (nodes: FileTreeNode[]) => {
+		for (const node of nodes) {
+			if (node.type === "file") {
+				order.set(node.fullPath, order.size);
+			} else {
+				walk(node.children);
+			}
+		}
+	};
+	walk(fileTree);
+
+	const sortedFiles = [...parsedFiles].sort(
+		(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
+	);
+
+	return { fileTree, sortedFiles };
+}
+
+/** Pre-compute per-file options with bound line callbacks. */
+function computePerFileOptions(
+	sortedFiles: readonly FileDiffMetadata[],
+	diffOptions: ComponentProps<typeof FileDiff>["options"],
+	onLineNumberClick: DiffViewerProps["onLineNumberClick"],
+	onLineSelected: DiffViewerProps["onLineSelected"],
+): Map<string, ComponentProps<typeof FileDiff>["options"]> | null {
+	if (!onLineNumberClick && !onLineSelected) return null;
+	const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
+	for (const file of sortedFiles) {
+		map.set(file.name, {
+			...diffOptions,
+			overflow: "scroll" as const,
+			enableLineSelection: true,
+			enableHoverUtility: true,
+			...(onLineNumberClick && {
+				onLineNumberClick: (props: {
+					lineNumber: number;
+					annotationSide: "additions" | "deletions";
+				}) => onLineNumberClick(file.name, props),
+			}),
+			onLineSelected: onLineSelected
+				? (
+						range: {
+							start: number;
+							end: number;
+							side?: "additions" | "deletions";
+							endSide?: "additions" | "deletions";
+						} | null,
+					) => onLineSelected(file.name, range)
+				: () => {
+						// TODO: Make this add context to the input.
+					},
+		});
+	}
+	return map;
+}
+
+/** Pre-compute per-file line annotations. */
+function computePerFileAnnotations(
+	sortedFiles: readonly FileDiffMetadata[],
+	getLineAnnotations: DiffViewerProps["getLineAnnotations"],
+): Map<string, DiffLineAnnotation<string>[]> | null {
+	if (!getLineAnnotations) return null;
+	return new Map(
+		sortedFiles
+			.map((f) => [f.name, getLineAnnotations(f.name)] as const)
+			.filter(
+				(entry): entry is [string, DiffLineAnnotation<string>[]] =>
+					entry[1].length > 0,
+			),
+	);
+}
+
+/** Pre-compute per-file selected line ranges. */
+function computePerFileSelectedLines(
+	sortedFiles: readonly FileDiffMetadata[],
+	getSelectedLines: DiffViewerProps["getSelectedLines"],
+): Map<string, SelectedLineRange> | null {
+	if (!getSelectedLines) return null;
+	return new Map(
+		sortedFiles
+			.map((f) => [f.name, getSelectedLines(f.name)] as const)
+			.filter(
+				(entry): entry is [string, SelectedLineRange] => entry[1] != null,
+			),
+	);
+}
+
+// -------------------------------------------------------------------
 // Main component
 // -------------------------------------------------------------------
 
+/**
+ * Public entry point. Handles loading/error states and computes
+ * diff data, then delegates rendering to `DiffViewerContent`
+ * which owns all ref-tracking and scroll behaviour. This split
+ * keeps each component small enough for the React Compiler to
+ * fully optimize.
+ */
 export const DiffViewer: FC<DiffViewerProps> = ({
 	parsedFiles,
 	isExpanded,
@@ -515,120 +646,106 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 
-	const diffOptions = (() => {
-		const base = getDiffViewerOptions(isDark);
-		return {
-			...base,
-			diffStyle,
-			// Extend the base CSS to make file headers sticky so they
-			// remain visible while scrolling through long diffs.
-			unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
-		};
-	})();
+	const diffOptions = computeDiffOptions(isDark, diffStyle);
+	const fileOptions = computeFileOptions(diffOptions);
+	const { fileTree, sortedFiles } = computeFileLayout(parsedFiles);
+	const perFileOptions = computePerFileOptions(
+		sortedFiles,
+		diffOptions,
+		onLineNumberClick,
+		onLineSelected,
+	);
+	const perFileAnnotations = computePerFileAnnotations(
+		sortedFiles,
+		getLineAnnotations,
+	);
+	const perFileSelectedLines = computePerFileSelectedLines(
+		sortedFiles,
+		getSelectedLines,
+	);
 
-	const fileOptions = {
-		...diffOptions,
-		overflow: "wrap" as const,
-		enableLineSelection: true,
-		enableHoverUtility: true,
-		onLineSelected() {
-			// TODO: Make this add context to the input so the
-			// user can type.
-		},
-	};
-
-	// When the parent provides per-file callbacks (e.g. line click
-	// handlers for comment inputs), build options per file. Otherwise
-	// share a single stable object to avoid unnecessary re-highlights.
-	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
-
-	const getOptionsForFile = (fileName: string) => ({
-		...diffOptions,
-		overflow: "wrap" as const,
-		enableLineSelection: true,
-		enableHoverUtility: true,
-		...(onLineNumberClick && {
-			onLineNumberClick: (props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			}) => onLineNumberClick(fileName, props),
-		}),
-		onLineSelected: onLineSelected
-			? (
-					range: {
-						start: number;
-						end: number;
-						side?: "additions" | "deletions";
-						endSide?: "additions" | "deletions";
-					} | null,
-				) => onLineSelected(fileName, range)
-			: () => {
-					// TODO: Make this add context to the input.
-				},
-	});
-
-	const fileTree = buildFileTree(parsedFiles);
-
-	// Sort diff blocks in the same order the file tree displays them
-	// (directories first, then alphabetical) so the rendering is
-	// consistent regardless of whether the sidebar is visible.
-	const sortedFiles = (() => {
-		const order = new Map<string, number>();
-		const walk = (nodes: FileTreeNode[]) => {
-			for (const node of nodes) {
-				if (node.type === "file") {
-					order.set(node.fullPath, order.size);
-				} else {
-					walk(node.children);
-				}
-			}
-		};
-		walk(fileTree);
-		return [...parsedFiles].sort(
-			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
+	if (isLoading) {
+		return (
+			<div className="flex h-full min-w-0 flex-col overflow-hidden">
+				<div className="space-y-4 p-4">
+					{Array.from({ length: 3 }, (_, i) => (
+						<div key={i} className="space-y-2">
+							<Skeleton className="h-4 w-48" />
+							<Skeleton className="h-3 w-full" />
+							<Skeleton className="h-3 w-full" />
+							<Skeleton className="h-3 w-3/4" />
+						</div>
+					))}
+				</div>
+			</div>
 		);
-	})();
+	}
 
-	// Pre-compute per-file options so each LazyFileDiff receives a
-	// stable reference and avoids re-highlighting on parent re-render.
-	const perFileOptions = (() => {
-		if (!hasPerFileCallbacks) return null;
-		const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
-		for (const file of sortedFiles) {
-			map.set(file.name, getOptionsForFile(file.name));
-		}
-		return map;
-	})();
-
-	// Pre-compute per-file line annotations for the same reason.
-	const perFileAnnotations = (() => {
-		if (!getLineAnnotations) return null;
-		return new Map(
-			sortedFiles
-				.map((f) => [f.name, getLineAnnotations(f.name)] as const)
-				.filter(
-					(entry): entry is [string, DiffLineAnnotation<string>[]] =>
-						entry[1].length > 0,
-				),
+	if (error) {
+		return (
+			<div className="p-3">
+				<ErrorAlert error={error} />
+			</div>
 		);
-	})();
+	}
 
-	// Pre-compute per-file selected lines so each LazyFileDiff
-	// receives a stable reference. Without this, calling
-	// getSelectedLines during render returns a new object every
-	// time, which busts the memo comparator and forces an
-	// expensive Shadow DOM + shiki re-highlight.
-	const perFileSelectedLines = (() => {
-		if (!getSelectedLines) return null;
-		return new Map(
-			sortedFiles
-				.map((f) => [f.name, getSelectedLines(f.name)] as const)
-				.filter(
-					(entry): entry is [string, SelectedLineRange] => entry[1] != null,
-				),
-		);
-	})();
+	return (
+		<DiffViewerContent
+			parsedFiles={parsedFiles}
+			sortedFiles={sortedFiles}
+			fileTree={fileTree}
+			fileOptions={fileOptions}
+			perFileOptions={perFileOptions}
+			perFileAnnotations={perFileAnnotations}
+			perFileSelectedLines={perFileSelectedLines}
+			renderAnnotation={renderAnnotation}
+			isExpanded={isExpanded}
+			emptyMessage={emptyMessage}
+			scrollToFile={scrollToFile}
+			onScrollToFileComplete={onScrollToFileComplete}
+		/>
+	);
+};
 
+// -------------------------------------------------------------------
+// Content renderer (scroll tracking + layout)
+// -------------------------------------------------------------------
+
+/**
+ * Owns the container-width measurement, file-ref tracking, scroll
+ * spy, and the actual JSX tree. Separated from `DiffViewer` so
+ * the ref-mutation in `setFileRef` does not poison the compiler's
+ * memoization of the data-computation layer above.
+ */
+const DiffViewerContent: FC<{
+	parsedFiles: readonly FileDiffMetadata[];
+	sortedFiles: readonly FileDiffMetadata[];
+	fileTree: FileTreeNode[];
+	fileOptions: ComponentProps<typeof FileDiff>["options"];
+	perFileOptions: Map<
+		string,
+		ComponentProps<typeof FileDiff>["options"]
+	> | null;
+	perFileAnnotations: Map<string, DiffLineAnnotation<string>[]> | null;
+	perFileSelectedLines: Map<string, SelectedLineRange> | null;
+	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	isExpanded?: boolean;
+	emptyMessage: string;
+	scrollToFile?: string | null;
+	onScrollToFileComplete?: () => void;
+}> = ({
+	sortedFiles,
+	fileTree,
+	fileOptions,
+	perFileOptions,
+	perFileAnnotations,
+	perFileSelectedLines,
+	renderAnnotation,
+	isExpanded,
+	emptyMessage,
+	scrollToFile,
+	onScrollToFileComplete,
+}) => {
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
 	// whether to show the file tree sidebar without a prop from the
@@ -658,7 +775,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
-	// Keep a ref callback that sets up per-file refs.
 	const setFileRef = (name: string, el: HTMLDivElement | null) => {
 		if (el) {
 			fileRefs.current.set(name, el);
@@ -760,38 +876,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}, [scrollToFile, onScrollToFileComplete]);
 
 	// ---------------------------------------------------------------
-	// Loading state
-	// ---------------------------------------------------------------
-	if (isLoading) {
-		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden">
-				<div className="space-y-4 p-4">
-					{Array.from({ length: 3 }, (_, i) => (
-						<div key={i} className="space-y-2">
-							<Skeleton className="h-4 w-48" />
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-3/4" />
-						</div>
-					))}
-				</div>
-			</div>
-		);
-	}
-
-	// ---------------------------------------------------------------
-	// Error state
-	// ---------------------------------------------------------------
-	if (error) {
-		return (
-			<div className="p-3">
-				<ErrorAlert error={error} />
-			</div>
-		);
-	}
-
-	// ---------------------------------------------------------------
-	// Main render
+	// Render
 	// ---------------------------------------------------------------
 	return (
 		<div

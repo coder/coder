@@ -117,10 +117,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	const tabIdPrefix = useId();
 	// Build the full list of tab IDs including the desktop tab
 	// so that effectiveTabId validation covers it.
-	const allTabIds = new Set(tabs.map((t) => t.id));
-	if (desktopChatId) {
-		allTabIds.add("desktop");
-	}
+	const allTabIds = new Set(
+		desktopChatId
+			? [...tabs.map((t) => t.id), "desktop"]
+			: tabs.map((t) => t.id),
+	);
 
 	// Derive the effective tab. Fall back to the first tab if
 	// the stored activeTabId no longer matches any tab in the list.
@@ -135,21 +136,25 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 
 	// Unified list of panels for rendering. Includes the desktop
 	// tab when available so we don't need to special-case it.
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
-	if (desktopChatId) {
-		allPanels.push({
-			id: "desktop",
-			content: (
-				<DesktopPanel
-					chatId={desktopChatId}
-					isVisible={effectiveTabId === "desktop"}
-				/>
-			),
-		});
-	}
+	const allPanels: { id: string; content: ReactNode }[] = [
+		...tabs.map((t) => ({
+			id: t.id,
+			content: t.content,
+		})),
+		...(desktopChatId
+			? [
+					{
+						id: "desktop",
+						content: (
+							<DesktopPanel
+								chatId={desktopChatId}
+								isVisible={effectiveTabId === "desktop"}
+							/>
+						),
+					},
+				]
+			: []),
+	];
 
 	const {
 		ref: tabScrollRef,

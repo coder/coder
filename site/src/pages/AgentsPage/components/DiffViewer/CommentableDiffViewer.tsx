@@ -203,7 +203,13 @@ interface CommentableDiffViewerProps {
 export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	parsedFiles,
 	chatInputRef,
-	...diffViewerProps
+	isExpanded,
+	isLoading,
+	error,
+	emptyMessage,
+	diffStyle,
+	scrollToFile,
+	onScrollToFileComplete,
 }) => {
 	// ---------------------------------------------------------------
 	// Comment / annotation state
@@ -316,8 +322,14 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	return (
 		<DiffViewer
-			{...diffViewerProps}
 			parsedFiles={parsedFiles}
+			isExpanded={isExpanded}
+			isLoading={isLoading}
+			error={error}
+			emptyMessage={emptyMessage}
+			diffStyle={diffStyle}
+			scrollToFile={scrollToFile}
+			onScrollToFileComplete={onScrollToFileComplete}
 			onLineNumberClick={handleLineNumberClick}
 			onLineSelected={handleLineSelected}
 			getLineAnnotations={getLineAnnotations}
