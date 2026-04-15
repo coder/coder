@@ -308,10 +308,16 @@ func Run(ctx context.Context, opts RunOptions) error {
 	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
+	var msgCache *mapMessageCache
+	if applyAnthropicCaching {
+		msgCache = newMapMessageCache()
+	}
+
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
 	needsFullHistoryReload := false
+
 	reloadFullHistory := func(stage string) error {
 		if opts.ReloadMessages == nil {
 			return nil
@@ -355,6 +361,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 				addAnthropicPromptCaching(prepared)
 			}
 
+			providerOpts := opts.ProviderOptions
+			if msgCache != nil {
+				providerOpts = cloneProviderOptionsWithCache(opts.ProviderOptions, msgCache)
+			}
+
 			call := fantasy.Call{
 				Prompt:           prepared,
 				Tools:            tools,
@@ -364,9 +375,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 				TopK:             opts.ModelConfig.TopK,
 				PresencePenalty:  opts.ModelConfig.PresencePenalty,
 				FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-				ProviderOptions:  opts.ProviderOptions,
+				ProviderOptions:  providerOpts,
 			}
-
 			var result stepResult
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 				attempt, streamErr := guardedStream(
@@ -591,6 +601,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 					if err := reloadFullHistory("after compaction"); err != nil {
 						return err
 					}
+					if msgCache != nil {
+						msgCache.Clear()
+					}
 				}
 			}
 			if !result.shouldContinue {
@@ -646,6 +659,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
 			}
 			messages = reloaded
+			if msgCache != nil {
+				msgCache.Clear()
+			}
 			continue
 		}
 		break
