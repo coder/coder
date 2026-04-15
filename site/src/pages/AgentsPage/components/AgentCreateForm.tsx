@@ -382,8 +382,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	if (permittedOrgs !== prevPermittedOrgs) {
 		setPrevPermittedOrgs(permittedOrgs);
 		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
-			setSelectedOrg(permittedOrgs[0] ?? null);
-			setOrgWasAdjusted(true);
+			// Fall back through: first permitted org, then the
+			// dashboard default. Never null out selectedOrg —
+			// organizationId must always be a valid UUID for the
+			// create-chat request.
+			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
+			setSelectedOrg(nextOrg);
+			if (nextOrg?.id !== selectedOrg.id) {
+				setOrgWasAdjusted(true);
+			}
 		}
 	}
 
