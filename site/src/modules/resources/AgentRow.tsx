@@ -498,7 +498,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<div className="flex items-stretch">
 										<div
 											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1"
+											className="min-w-0 flex-1 overflow-hidden"
 										>
 											<TabsList variant="insideBox" overflowKebabMenu>
 												{visibleLogTabs.map((tab) => (
