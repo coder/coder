@@ -15,6 +15,9 @@ const baseProps = {
 		include_default_system_prompt: true,
 		default_system_prompt: mockDefaultSystemPrompt,
 	} as TypesGen.ChatSystemPromptResponse,
+	planModeInstructionsData: {
+		plan_mode_instructions: "",
+	} as TypesGen.ChatPlanModeInstructionsResponse,
 	userPromptData: { custom_prompt: "" } as TypesGen.UserChatCustomPrompt,
 	desktopEnabledData: {
 		enable_desktop: false,
@@ -32,6 +35,8 @@ const baseProps = {
 	thresholdsError: undefined as unknown,
 	isSavingSystemPrompt: false,
 	isSaveSystemPromptError: false,
+	isSavingPlanModeInstructions: false,
+	isSavePlanModeInstructionsError: false,
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
 	isSavingDesktopEnabled: false,
@@ -46,6 +51,7 @@ const meta = {
 	args: {
 		...baseProps,
 		onSaveSystemPrompt: fn(),
+		onSavePlanModeInstructions: fn(),
 		onSaveUserPrompt: fn(),
 		onSaveDesktopEnabled: fn(),
 		onSaveWorkspaceTTL: fn(),

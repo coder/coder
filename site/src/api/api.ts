@@ -3242,6 +3242,24 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
+	getChatPlanModeInstructions =
+		async (): Promise<TypesGen.ChatPlanModeInstructionsResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPlanModeInstructionsResponse>(
+					"/api/experimental/chats/config/plan-mode-instructions",
+				);
+			return response.data;
+		};
+
+	updateChatPlanModeInstructions = async (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/plan-mode-instructions",
+			req,
+		);
+	};
+
 	getChatDesktopEnabled =
 		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =

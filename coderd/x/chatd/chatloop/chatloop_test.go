@@ -921,6 +921,74 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 		"tool-result timestamp must be >= tool-call timestamp")
 }
 
+func TestStopAfterTool_Success(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-plan",
+					ToolCallName:  "propose_plan",
+					ToolCallInput: `{"path":"/tmp/plan.md"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("plan saved"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	persistStepCalls := 0
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistStepCalls++
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrStopAfterTool)
+	require.Equal(t, 1, streamCalls)
+	require.Equal(t, 1, persistStepCalls)
+	require.Len(t, persistedSteps, 1)
+
+	var foundToolResult bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		foundToolResult = true
+		_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.False(t, isErr, "stop-after-tool should only trigger on successful tool results")
+	}
+	require.True(t, foundToolResult, "persisted step should include the successful tool result before stopping")
+}
+
 func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
 	t.Parallel()
 

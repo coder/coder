@@ -43,6 +43,10 @@ const (
 var (
 	ErrInterrupted     = xerrors.New("chat interrupted")
 	ErrDynamicToolCall = xerrors.New("dynamic tool call")
+	// ErrStopAfterTool is returned when a tool listed in
+	// StopAfterTools produces a successful result, indicating
+	// the run should terminate cleanly after persistence.
+	ErrStopAfterTool = xerrors.New("stop after tool")
 
 	errStartupTimeout = xerrors.New(
 		"chat response did not start before the startup timeout",
@@ -114,6 +118,11 @@ type RunOptions struct {
 	// the chatloop persists partial results and exits with
 	// ErrDynamicToolCall instead of executing the tool.
 	DynamicToolNames map[string]bool
+	// StopAfterTools lists tool names that, when they produce a
+	// successful result, cause the run to stop after persisting
+	// the current step. This is used for plan turns where
+	// propose_plan should terminate the run on success.
+	StopAfterTools map[string]struct{}
 
 	// ModelConfig holds per-call LLM parameters (temperature,
 	// max tokens, etc.) read from the chat model configuration.
@@ -537,6 +546,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
+
+			// Check if any executed tool triggers an early stop.
+			if shouldStopAfterTools(opts.StopAfterTools, toolResults) {
+				tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
+				return ErrStopAfterTool
+			}
 
 			// When chain mode is active (PreviousResponseID set), exit
 			// it after persisting the first chained step. Continuation
@@ -1304,6 +1319,24 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		prepared = append(prepared, pt.Definition)
 	}
 	return prepared
+}
+
+// shouldStopAfterTools returns true if any tool result in the
+// slice matches a name in stopTools and produced a successful
+// (non-error) result.
+func shouldStopAfterTools(stopTools map[string]struct{}, results []fantasy.ToolResultContent) bool {
+	if len(stopTools) == 0 {
+		return false
+	}
+	for _, tr := range results {
+		if _, ok := stopTools[tr.ToolName]; !ok {
+			continue
+		}
+		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); !isErr {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

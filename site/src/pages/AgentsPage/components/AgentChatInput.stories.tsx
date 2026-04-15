@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -581,6 +582,101 @@ export const PlusMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const PlanFirstMenuItem: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toBeInTheDocument();
+	},
+};
+
+export const PlanningIndicator: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+	},
+};
+
+export const PlanFirstCheckedState: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+	},
+};
+
+export const DetailPageWorkspacePicker: Story = {
+	args: {
+		workspaceOptions: [
+			{
+				id: "ws-detail",
+				name: "agents-workspace",
+				owner_name: "mike",
+			},
+		],
+		selectedWorkspaceId: "ws-detail",
+		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-detail",
+			name: "agents-workspace",
+			route: "/@mike/agents-workspace",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
+		expect(
+			canvas.queryByRole("button", {
+				name: "Remove workspace agents-workspace",
+			}),
+		).not.toBeInTheDocument();
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		await userEvent.click(moreOptionsButton);
+		await waitFor(() => {
+			const plusMenuId = moreOptionsButton.getAttribute("aria-controls");
+			if (!plusMenuId) {
+				throw new Error("Expected More options to control a menu dialog.");
+			}
+
+			const plusMenu = canvasElement.ownerDocument.getElementById(plusMenuId);
+			if (!(plusMenu instanceof HTMLElement)) {
+				throw new Error("Expected More options menu dialog to render.");
+			}
+
+			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
+		});
 	},
 };
 

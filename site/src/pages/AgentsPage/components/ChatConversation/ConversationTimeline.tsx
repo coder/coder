@@ -45,6 +45,23 @@ import type {
 	RenderBlock,
 } from "./types";
 
+const getChatMessageTextContent = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string | undefined => {
+	if (!content) {
+		return undefined;
+	}
+
+	let textContent = "";
+	for (const part of content) {
+		if (part.type === "text") {
+			textContent += part.text;
+		}
+	}
+
+	return textContent.length > 0 ? textContent : undefined;
+};
+
 const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
@@ -253,6 +270,12 @@ export const BlockList: FC<{
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (content: string) => void;
+	onImplementPlan?: () => void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
+	latestAskUserQuestionToolId?: string;
+	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	hasUserResponseAfterAskQuestion?: boolean;
 	urlTransform?: UrlTransform;
 }> = ({
 	blocks,
@@ -266,6 +289,12 @@ export const BlockList: FC<{
 	mcpServers,
 	onImageClick,
 	onTextFileClick,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
+	isChatCompleted,
+	latestAskUserQuestionToolId,
+	askUserQuestionResponseTextByToolId,
+	hasUserResponseAfterAskQuestion = false,
 	urlTransform,
 }) => {
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
@@ -369,6 +398,18 @@ export const BlockList: FC<{
 								}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								isLatestAskUserQuestion={
+									tool.id === latestAskUserQuestionToolId &&
+									!hasUserResponseAfterAskQuestion
+								}
+								previousResponseText={
+									tool.name === "ask_user_question"
+										? askUserQuestionResponseTextByToolId?.get(tool.id)
+										: undefined
+								}
 								modelIntent={tool.modelIntent}
 							/>
 						);
@@ -410,6 +451,18 @@ export const BlockList: FC<{
 					}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					isLatestAskUserQuestion={
+						tool.id === latestAskUserQuestionToolId &&
+						!hasUserResponseAfterAskQuestion
+					}
+					previousResponseText={
+						tool.name === "ask_user_question"
+							? askUserQuestionResponseTextByToolId?.get(tool.id)
+							: undefined
+					}
 					modelIntent={tool.modelIntent}
 				/>
 			))}
@@ -433,11 +486,17 @@ const ChatMessageItem = memo<{
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	onImplementPlan?: () => void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
+	latestAskUserQuestionToolId?: string;
+	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	hasUserResponseAfterAskQuestion?: boolean;
 }>(
 	({
 		message,
@@ -447,6 +506,12 @@ const ChatMessageItem = memo<{
 		isAfterEditingMessage = false,
 		hideActions = false,
 		fadeFromBottom = false,
+		onImplementPlan,
+		onSendAskUserQuestionResponse,
+		isChatCompleted,
+		latestAskUserQuestionToolId,
+		askUserQuestionResponseTextByToolId,
+		hasUserResponseAfterAskQuestion = false,
 
 		urlTransform,
 		mcpServers,
@@ -610,6 +675,18 @@ const ChatMessageItem = memo<{
 										subagentTitles={subagentTitles}
 										computerUseSubagentIds={computerUseSubagentIds}
 										showDesktopPreviews={showDesktopPreviews}
+										onImplementPlan={onImplementPlan}
+										onSendAskUserQuestionResponse={
+											onSendAskUserQuestionResponse
+										}
+										isChatCompleted={isChatCompleted}
+										latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+										askUserQuestionResponseTextByToolId={
+											askUserQuestionResponseTextByToolId
+										}
+										hasUserResponseAfterAskQuestion={
+											hasUserResponseAfterAskQuestion
+										}
 										onImageClick={setPreviewImage}
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
@@ -986,6 +1063,9 @@ interface ConversationTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	onImplementPlan?: () => void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	computerUseSubagentIds?: Set<string>;
@@ -999,6 +1079,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		subagentTitles,
 		onEditUserMessage,
 		editingMessageId,
+		onImplementPlan,
+		onSendAskUserQuestionResponse,
+		isChatCompleted,
 		urlTransform,
 		mcpServers,
 		computerUseSubagentIds,
@@ -1024,6 +1107,42 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		let latestAskUserQuestionToolId: string | undefined;
+		let hasUserResponseAfterAskQuestion = false;
+		const askUserQuestionResponseTextByToolId = new Map<string, string>();
+		let pendingAskUserQuestionToolId: string | undefined;
+		for (const { message, parsed } of parsedMessages) {
+			let askUserQuestionToolIdInMessage: string | undefined;
+			for (const tool of parsed.tools) {
+				if (tool.name === "ask_user_question") {
+					askUserQuestionToolIdInMessage = tool.id;
+					latestAskUserQuestionToolId = tool.id;
+					hasUserResponseAfterAskQuestion = false;
+				}
+			}
+
+			if (askUserQuestionToolIdInMessage) {
+				pendingAskUserQuestionToolId = askUserQuestionToolIdInMessage;
+			}
+
+			if (pendingAskUserQuestionToolId && message.role === "user") {
+				hasUserResponseAfterAskQuestion =
+					pendingAskUserQuestionToolId === latestAskUserQuestionToolId;
+				const responseText = getChatMessageTextContent(message.content);
+				if (responseText !== undefined) {
+					askUserQuestionResponseTextByToolId.set(
+						pendingAskUserQuestionToolId,
+						responseText,
+					);
+				}
+				pendingAskUserQuestionToolId = undefined;
+			}
+		}
+		const historicalAskUserQuestionResponseTextByToolId =
+			askUserQuestionResponseTextByToolId.size > 0
+				? askUserQuestionResponseTextByToolId
+				: undefined;
+
 		return (
 			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
 				{parsedMessages.map(({ message, parsed }, msgIdx) => {
@@ -1048,6 +1167,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							key={message.id}
 							message={message}
 							parsed={parsed}
+							onImplementPlan={onImplementPlan}
+							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+							isChatCompleted={isChatCompleted}
+							latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+							askUserQuestionResponseTextByToolId={
+								historicalAskUserQuestionResponseTextByToolId
+							}
+							hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 							urlTransform={urlTransform}
 							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 							hideActions={!isLastInChain}

@@ -287,6 +287,10 @@ CREATE TYPE chat_mode AS ENUM (
     'computer_use'
 );
 
+CREATE TYPE chat_plan_mode AS ENUM (
+    'plan'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'pending',
@@ -1470,7 +1474,8 @@ CREATE TABLE chats (
     last_read_message_id bigint,
     last_injected_context jsonb,
     dynamic_tools jsonb,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    plan_mode chat_plan_mode
 );
 
 CREATE TABLE connection_logs (

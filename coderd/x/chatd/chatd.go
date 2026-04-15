@@ -786,6 +786,7 @@ type CreateOptions struct {
 	Title              string
 	ModelConfigID      uuid.UUID
 	ChatMode           database.NullChatMode
+	PlanMode           database.NullChatPlanMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
@@ -813,6 +814,7 @@ type SendMessageOptions struct {
 	Content       []codersdk.ChatMessagePart
 	ModelConfigID *uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
+	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
 }
 
@@ -876,6 +878,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		opts.Labels = database.StringMap{}
 	}
 
+	effectivePlanMode := opts.PlanMode
+
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
 		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
@@ -898,6 +902,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			PlanMode:          effectivePlanMode,
 			// Chats created with an initial user message start pending.
 			// Waiting is reserved for idle chats with no pending work.
 			Status:       database.ChatStatusPending,
@@ -1035,6 +1040,8 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
+	requestedPlanMode := opts.PlanMode
+
 	var (
 		result            SendMessageResult
 		queuedMessagesSDK []codersdk.ChatQueuedMessage
@@ -1049,6 +1056,16 @@ func (p *Server) SendMessage(
 		// Enforce usage limits before queueing or inserting.
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
+		}
+
+		if requestedPlanMode != nil {
+			lockedChat, err = tx.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+				PlanMode: *requestedPlanMode,
+				ID:       opts.ChatID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat plan mode: %w", err)
+			}
 		}
 
 		modelConfigID := lockedChat.LastModelConfigID
@@ -4345,6 +4362,111 @@ type runChatResult struct {
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 
+func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPlanMode) []string {
+	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
+	knownBuiltIns := map[string]bool{
+		"read_file":                true,
+		"write_file":               true,
+		"edit_files":               true,
+		"execute":                  true,
+		"process_output":           true,
+		"process_list":             true,
+		"process_signal":           true,
+		"list_templates":           true,
+		"read_template":            true,
+		"create_workspace":         true,
+		"start_workspace":          true,
+		"propose_plan":             true,
+		"spawn_agent":              true,
+		"wait_agent":               true,
+		"message_agent":            true,
+		"close_agent":              true,
+		"spawn_computer_use_agent": true,
+		"read_skill":               true,
+		"read_skill_file":          true,
+		"ask_user_question":        true,
+	}
+	if !isPlanModeTurn {
+		toolNames := make([]string, 0, len(allTools))
+		for _, tool := range allTools {
+			name := tool.Info().Name
+			if name == "propose_plan" {
+				continue
+			}
+			toolNames = append(toolNames, name)
+		}
+		return toolNames
+	}
+
+	planAllowlist := map[string]bool{
+		"read_file":         true,
+		"write_file":        true,
+		"edit_files":        true,
+		"list_templates":    true,
+		"read_template":     true,
+		"create_workspace":  true,
+		"start_workspace":   true,
+		"propose_plan":      true,
+		"spawn_agent":       true,
+		"wait_agent":        true,
+		"read_skill":        true,
+		"read_skill_file":   true,
+		"ask_user_question": true,
+	}
+	toolNames := make([]string, 0, len(allTools))
+	for _, tool := range allTools {
+		name := tool.Info().Name
+		if knownBuiltIns[name] && planAllowlist[name] {
+			toolNames = append(toolNames, name)
+		}
+	}
+	return toolNames
+}
+
+func stopAfterPlanTools(mode database.NullChatPlanMode) map[string]struct{} {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return nil
+	}
+	return map[string]struct{}{
+		"propose_plan":      {},
+		"ask_user_question": {},
+	}
+}
+
+// buildSystemPrompt applies system-level prompt injections in the
+// canonical order. It is used by both the initial prompt assembly
+// and the ReloadMessages callback to keep them in sync.
+func buildSystemPrompt(
+	prompt []fantasy.Message,
+	subagentInstruction string,
+	instruction string,
+	skills []chattool.SkillMeta,
+	userPrompt string,
+	planModeInstructions string,
+	mode database.NullChatPlanMode,
+) []fantasy.Message {
+	if subagentInstruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
+	}
+	if instruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if userPrompt != "" {
+		prompt = chatprompt.InsertSystem(prompt, userPrompt)
+	}
+	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
+	if isPlanModeTurn {
+		prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+		if planModeInstructions != "" {
+			prompt = chatprompt.InsertSystem(prompt, planModeInstructions)
+		}
+	}
+	return prompt
+}
+
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -4358,6 +4480,7 @@ func (p *Server) runChat(
 		providerKeys chatprovider.ProviderAPIKeys
 		callConfig   codersdk.ChatModelCallConfig
 		messages     []database.ChatMessage
+		err          error
 	)
 
 	// Load MCP server configs and user tokens in parallel with
@@ -4425,6 +4548,23 @@ func (p *Server) runChat(
 	if err := g.Wait(); err != nil {
 		return result, err
 	}
+
+	// Capture the current turn's mode from the chat plan mode so prompt
+	// and tool behavior can be resolved consistently for the rest of the
+	// turn.
+	currentPlanMode := chat.PlanMode
+	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
+	var planModeInstructions string
+	if isPlanModeTurn {
+		fetched, err := p.db.GetChatPlanModeInstructions(ctx)
+		switch {
+		case err == nil:
+			planModeInstructions = fetched
+		case errors.Is(err, sql.ErrNoRows):
+			planModeInstructions = ""
+		}
+	}
+
 	chainInfo := resolveChainMode(messages)
 	result.PushSummaryModel = model
 	result.ProviderKeys = providerKeys
@@ -4693,9 +4833,19 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
+	subagentInstruction := ""
 	if chat.ParentChatID.Valid {
-		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
+		subagentInstruction = defaultSubagentInstruction
 	}
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		skills,
+		resolvedUserPrompt,
+		planModeInstructions,
+		currentPlanMode,
+	)
 	if mcpCleanup != nil {
 		defer mcpCleanup()
 	}
@@ -4710,17 +4860,7 @@ func (p *Server) runChat(
 		}
 	}
 
-	if instruction != "" {
-		prompt = chatprompt.InsertSystem(prompt, instruction)
-	}
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
-	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
-		prompt = chatprompt.InsertSystem(prompt, skillIndex)
-	}
-	if resolvedUserPrompt != "" {
-		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
-	}
-
 	// Use the model config's context_limit as a fallback when the LLM
 	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
@@ -5027,10 +5167,12 @@ func (p *Server) runChat(
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
+			IsPlanTurn:       isPlanModeTurn,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
+			IsPlanTurn:       isPlanModeTurn,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5044,6 +5186,9 @@ func (p *Server) runChat(
 		chattool.ProcessSignal(chattool.ProcessToolOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
+	}
+	if isPlanModeTurn {
+		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
@@ -5094,6 +5239,7 @@ func (p *Server) runChat(
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
+			IsPlanTurn:       isPlanModeTurn,
 			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
 				workspaceCtx.chatStateMu.Lock()
 				chatSnapshot := *workspaceCtx.currentChat
@@ -5165,50 +5311,55 @@ func (p *Server) runChat(
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
-	tools = append(tools, mcpTools...)
-	tools = append(tools, workspaceMCPTools...)
+	if !isPlanModeTurn {
+		tools = append(tools, mcpTools...)
+		tools = append(tools, workspaceMCPTools...)
+	}
 
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop — the client handles
 	// execution via POST /tool-results.
-	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
-	if err != nil {
-		return result, xerrors.Errorf("parse dynamic tool names: %w", err)
-	}
-	// Unmarshal the full definitions separately so we can
-	// build the filtered list below. parseDynamicToolNames
-	// already validated the JSON, so this cannot fail.
-	var dynamicToolDefs []codersdk.DynamicTool
-	if chat.DynamicTools.Valid {
-		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
-			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+	var dynamicToolNames map[string]bool
+	if !isPlanModeTurn {
+		dynamicToolNames, err = parseDynamicToolNames(chat.DynamicTools)
+		if err != nil {
+			return result, xerrors.Errorf("parse dynamic tool names: %w", err)
 		}
-	}
-	for _, t := range tools {
-		info := t.Info()
-		if dynamicToolNames[info.Name] {
-			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
-				slog.F("tool_name", info.Name))
-			delete(dynamicToolNames, info.Name)
+		// Unmarshal the full definitions separately so we can
+		// build the filtered list below. parseDynamicToolNames
+		// already validated the JSON, so this cannot fail.
+		var dynamicToolDefs []codersdk.DynamicTool
+		if chat.DynamicTools.Valid {
+			if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
+				return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+			}
 		}
-	}
+		for _, t := range tools {
+			info := t.Info()
+			if dynamicToolNames[info.Name] {
+				logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+					slog.F("tool_name", info.Name))
+				delete(dynamicToolNames, info.Name)
+			}
+		}
 
-	var filteredDefs []codersdk.DynamicTool
-	for _, dt := range dynamicToolDefs {
-		if dynamicToolNames[dt.Name] {
-			filteredDefs = append(filteredDefs, dt)
+		var filteredDefs []codersdk.DynamicTool
+		for _, dt := range dynamicToolDefs {
+			if dynamicToolNames[dt.Name] {
+				filteredDefs = append(filteredDefs, dt)
+			}
 		}
+		tools = append(tools, dynamicToolsFromSDK(p.logger, filteredDefs)...)
 	}
-	tools = append(tools, dynamicToolsFromSDK(p.logger, filteredDefs)...)
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
-	if callConfig.ProviderOptions != nil {
+	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 	}
 
-	if isComputerUse {
+	if !isPlanModeTurn && isComputerUse {
 		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
 		providerTools = append(providerTools, chatloop.ProviderTool{
 			Definition: chattool.ComputerUseProviderTool(
@@ -5236,7 +5387,8 @@ func (p *Server) runChat(
 	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
 		chainInfo.contributingTrailingUserCount > 0 &&
-		chainInfo.modelConfigID == modelConfig.ID
+		chainInfo.modelConfigID == modelConfig.ID &&
+		!isPlanModeTurn
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
@@ -5245,9 +5397,12 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:    model,
-		Messages: prompt,
-		Tools:    tools, MaxSteps: maxChatSteps,
+		Model:          model,
+		Messages:       prompt,
+		Tools:          tools,
+		ActiveTools:    allowedPlanToolNames(tools, currentPlanMode),
+		StopAfterTools: stopAfterPlanTools(currentPlanMode),
+		MaxSteps:       maxChatSteps,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: providerOptions,
@@ -5280,20 +5435,17 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
-			if chat.ParentChatID.Valid {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
-			}
-			if instruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
-			}
-			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
-			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
-			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
-			if reloadUserPrompt != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
-			}
+			reloadedPrompt = buildSystemPrompt(
+				reloadedPrompt,
+				subagentInstruction,
+				instruction,
+				skills,
+				reloadUserPrompt,
+				planModeInstructions,
+				currentPlanMode,
+			)
+			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
@@ -5333,6 +5485,9 @@ func (p *Server) runChat(
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},
 	})
+	if errors.Is(err, chatloop.ErrStopAfterTool) {
+		err = nil
+	}
 	if errors.Is(err, chatloop.ErrDynamicToolCall) {
 		// The stream event is published in processChat's
 		// defer after the DB status transitions to

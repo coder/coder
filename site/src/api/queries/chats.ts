@@ -207,6 +207,19 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+const nilUUID = "00000000-0000-0000-0000-000000000000";
+
+type UpdateChatWorkspaceVariables = {
+	chatId: string;
+	workspaceId: string | null;
+};
+
+type UpdateChatPlanModeVariables = {
+	chatId: string;
+	planMode?: TypesGen.ChatPlanMode;
+};
+
+const clearPlanMode = "" as TypesGen.ChatPlanMode;
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
@@ -376,6 +389,136 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
+	},
+});
+
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: planMode ?? clearPlanMode,
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				plan_mode: planMode,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		const previousChat = context?.previousChat;
+		if (!previousChat) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
+			),
+		);
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+	},
+});
+
+export const updateChatWorkspace = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
+		API.experimental.updateChat(chatId, {
+			workspace_id: workspaceId ?? nilUUID,
+		}),
+	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? { ...chat, workspace_id: workspaceId ?? undefined }
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				workspace_id: workspaceId ?? undefined,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? {
+								...chat,
+								workspace_id: previousChat.workspace_id,
+							}
+						: chat,
+				),
+			);
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+	) => {
 		await invalidateChatListQueries(queryClient);
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
@@ -744,6 +887,23 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatPlanModeInstructionsKey = ["chat-plan-mode-instructions"] as const;
+
+export const chatPlanModeInstructions = () => ({
+	queryKey: chatPlanModeInstructionsKey,
+	queryFn: () => API.experimental.getChatPlanModeInstructions(),
+});
+
+export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateChatPlanModeInstructionsRequest) =>
+		API.experimental.updateChatPlanModeInstructions(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPlanModeInstructionsKey,
 		});
 	},
 });

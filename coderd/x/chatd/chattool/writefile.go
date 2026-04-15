@@ -12,6 +12,7 @@ import (
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
+	IsPlanTurn       bool
 }
 
 type WriteFileArgs struct {
@@ -24,6 +25,16 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 		"write_file",
 		"Write a file to the workspace.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if options.IsPlanTurn {
+				args.Path = strings.TrimSpace(args.Path)
+				planPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				if args.Path != planPath {
+					return fantasy.NewTextErrorResponse("during plan turns, write_file is restricted to " + planPath), nil
+				}
+			}
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}

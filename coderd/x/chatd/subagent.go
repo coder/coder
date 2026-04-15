@@ -97,26 +97,36 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 }
 
 func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
+	var planMode database.NullChatPlanMode
+	if currentChat != nil {
+		planMode = currentChat().PlanMode
+	}
+
+	spawnAgentDescription := "Spawn a delegated child agent to work on a clearly scoped, " +
+		"independent task in parallel. Use this when the task is " +
+		"self-contained and would benefit from a separate agent " +
+		"(e.g. fixing a specific bug, writing a single module, " +
+		"running a migration). Do NOT use for simple or quick " +
+		"operations you can handle directly with execute, " +
+		"read_file, or write_file - for example, reading a group " +
+		"of files and outputting them verbatim does not need a " +
+		"subagent. Reserve subagents for tasks that require " +
+		"intellectual work such as code analysis, writing new " +
+		"code, or complex refactoring. Be careful when running " +
+		"parallel subagents: if two subagents modify the same " +
+		"files they will conflict with each other, so ensure " +
+		"parallel subagent tasks are independent. " +
+		"The child agent receives the same workspace tools but " +
+		"cannot spawn its own subagents. After spawning, use " +
+		"wait_agent to collect the result."
+	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
+		spawnAgentDescription += " During plan mode, spawned agents must only perform read-only investigation (exploring code, reading files, analyzing architecture). Do not delegate code writing, refactoring, or file mutations."
+	}
+
 	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"spawn_agent",
-			"Spawn a delegated child agent to work on a clearly scoped, "+
-				"independent task in parallel. Use this when the task is "+
-				"self-contained and would benefit from a separate agent "+
-				"(e.g. fixing a specific bug, writing a single module, "+
-				"running a migration). Do NOT use for simple or quick "+
-				"operations you can handle directly with execute, "+
-				"read_file, or write_file - for example, reading a group "+
-				"of files and outputting them verbatim does not need a "+
-				"subagent. Reserve subagents for tasks that require "+
-				"intellectual work such as code analysis, writing new "+
-				"code, or complex refactoring. Be careful when running "+
-				"parallel subagents: if two subagents modify the same "+
-				"files they will conflict with each other, so ensure "+
-				"parallel subagent tasks are independent. "+
-				"The child agent receives the same workspace tools but "+
-				"cannot spawn its own subagents. After spawning, use "+
-				"wait_agent to collect the result.",
+			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -131,11 +141,12 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				childChat, err := p.createChildSubagentChat(
+				childChat, err := p.createChildSubagentChatWithOptions(
 					ctx,
 					parent,
 					args.Prompt,
 					args.Title,
+					childSubagentChatOptions{},
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -470,6 +481,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			LastModelConfigID: parent.LastModelConfigID,
 			Title:             title,
 			Mode:              opts.chatMode,
+			PlanMode:          database.NullChatPlanMode{},
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
 			Labels: pqtype.NullRawMessage{

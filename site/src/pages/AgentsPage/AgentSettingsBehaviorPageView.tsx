@@ -2,6 +2,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
+import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
@@ -19,6 +20,9 @@ interface AgentSettingsBehaviorPageViewProps {
 
 	// Raw query data
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
+	planModeInstructionsData:
+		| TypesGen.ChatPlanModeInstructionsResponse
+		| undefined;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
@@ -48,6 +52,13 @@ interface AgentSettingsBehaviorPageViewProps {
 	) => void;
 	isSavingSystemPrompt: boolean;
 	isSaveSystemPromptError: boolean;
+
+	onSavePlanModeInstructions: (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingPlanModeInstructions: boolean;
+	isSavePlanModeInstructionsError: boolean;
 
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
@@ -83,6 +94,7 @@ export const AgentSettingsBehaviorPageView: FC<
 > = ({
 	canSetSystemPrompt,
 	systemPromptData,
+	planModeInstructionsData,
 	userPromptData,
 	desktopEnabledData,
 	workspaceTTLData,
@@ -102,6 +114,9 @@ export const AgentSettingsBehaviorPageView: FC<
 	onSaveSystemPrompt,
 	isSavingSystemPrompt,
 	isSaveSystemPromptError,
+	onSavePlanModeInstructions,
+	isSavingPlanModeInstructions,
+	isSavePlanModeInstructionsError,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -115,7 +130,8 @@ export const AgentSettingsBehaviorPageView: FC<
 	isSavingRetentionDays,
 	isSaveRetentionDaysError,
 }) => {
-	const isAnyPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isAnyPromptSaving =
+		isSavingSystemPrompt || isSavingUserPrompt || isSavingPlanModeInstructions;
 
 	return (
 		<>
@@ -155,6 +171,13 @@ export const AgentSettingsBehaviorPageView: FC<
 						systemPromptData={systemPromptData}
 						onSaveSystemPrompt={onSaveSystemPrompt}
 						isSaveSystemPromptError={isSaveSystemPromptError}
+						isAnyPromptSaving={isAnyPromptSaving}
+					/>
+					<hr className="my-5 border-0 border-t border-solid border-border" />
+					<PlanModeInstructionsSettings
+						planModeInstructionsData={planModeInstructionsData}
+						onSavePlanModeInstructions={onSavePlanModeInstructions}
+						isSavePlanModeInstructionsError={isSavePlanModeInstructionsError}
 						isAnyPromptSaving={isAnyPromptSaving}
 					/>
 					<hr className="my-5 border-0 border-t border-solid border-border" />
