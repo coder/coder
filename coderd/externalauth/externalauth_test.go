@@ -435,7 +435,7 @@ func TestRefreshToken(t *testing.T) {
 		// Expire the token to force a refresh.
 		link.OAuthExpiry = expired
 
-		// --- First call: refresh succeeds, validation fails (403). ---
+		// First call: refresh succeeds, validation fails (403).
 		_, err := config.RefreshToken(ctx, db, link)
 		require.Error(t, err, "expected error because validation returned 403")
 		require.True(t, externalauth.IsInvalidTokenError(err))
@@ -453,7 +453,7 @@ func TestRefreshToken(t *testing.T) {
 		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
 			"DB should have the new refresh token (old one was rotated by the IDP)")
 
-		// --- Second call: uses the saved token from DB, no re-refresh. ---
+		// Second call: uses the saved token from DB, no re-refresh.
 		// The saved token has a future expiry, so TokenSource should return
 		// it without contacting the IDP. Validation should succeed now.
 		simulateRateLimit.Store(false)
