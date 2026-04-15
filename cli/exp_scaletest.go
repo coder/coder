@@ -519,6 +519,121 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
+// prebuildTemplateCleanupRunner deletes all workspaces belonging to a
+// scaletest prebuilds template and then deletes the template itself.
+// Workspaces must be gone before the template can be deleted.
+type prebuildTemplateCleanupRunner struct {
+	client   *codersdk.Client
+	template codersdk.Template
+}
+
+var _ harness.Runnable = &prebuildTemplateCleanupRunner{}
+
+// Run implements Runnable.
+func (r *prebuildTemplateCleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+
+	// Collect all workspaces for this template so they can be deleted before
+	// the template itself. Template deletion fails while workspaces exist.
+	const pageSize = 100
+	var workspaces []codersdk.Workspace
+	for page := 0; ; page++ {
+		resp, err := r.client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Template: r.template.Name,
+			Offset:   page * pageSize,
+			Limit:    pageSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("list workspaces for template %q page %d: %w", r.template.Name, page, err)
+		}
+		workspaces = append(workspaces, resp.Workspaces...)
+		if len(resp.Workspaces) < pageSize {
+			break
+		}
+	}
+
+	logger.Info(ctx, "deleting workspaces for template",
+		slog.F("count", len(workspaces)),
+		slog.F("template_name", r.template.Name),
+	)
+
+	// Retry failed workspace deletions up to maxDeletionAttempts times to
+	// handle transient errors (e.g. a delete build that fails due to a
+	// provisioner hiccup).
+	const maxDeletionAttempts = 3
+	remaining := workspaces
+	for attempt := range maxDeletionAttempts {
+		if len(remaining) == 0 {
+			break
+		}
+		if attempt > 0 {
+			logger.Info(ctx, "retrying workspace deletions",
+				slog.F("attempt", attempt+1),
+				slog.F("remaining", len(remaining)),
+				slog.F("template_name", r.template.Name),
+			)
+		}
+		var failed []codersdk.Workspace
+		for _, ws := range remaining {
+			cr := workspacebuild.NewCleanupRunner(r.client, ws.ID)
+			if err := cr.Run(ctx, ws.ID.String(), logs); err != nil {
+				logger.Warn(ctx, "failed to delete workspace",
+					slog.F("workspace_id", ws.ID),
+					slog.F("workspace_name", ws.Name),
+					slog.Error(err),
+				)
+				failed = append(failed, ws)
+			}
+		}
+		remaining = failed
+	}
+
+	if len(remaining) > 0 {
+		ids := make([]string, len(remaining))
+		for i, ws := range remaining {
+			ids[i] = ws.ID.String()
+		}
+		logger.Error(ctx, "CLEANUP INCOMPLETE: could not delete all workspaces after retries; template deletion will likely fail",
+			slog.F("template_name", r.template.Name),
+			slog.F("remaining_count", len(remaining)),
+			slog.F("remaining_workspace_ids", ids),
+		)
+	}
+
+	// Always attempt template deletion even if some workspaces could not be
+	// removed. The delete call will fail with a 400 if workspaces remain, but
+	// the error — combined with the log above — makes the state clear to the
+	// operator.
+	if err := r.client.DeleteTemplate(ctx, r.template.ID); err != nil {
+		return xerrors.Errorf("delete template %q: %w", r.template.Name, err)
+	}
+
+	return nil
+}
+
+// getScaletestPrebuildsTemplates returns all templates that look like they were
+// created by the scaletest prebuilds command: they must have the scaletest
+// prefix and contain "prebuild" anywhere in the name.
+func getScaletestPrebuildsTemplates(ctx context.Context, client *codersdk.Client) ([]codersdk.Template, error) {
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		FuzzyName: "prebuild",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list templates: %w", err)
+	}
+
+	var result []codersdk.Template
+	for _, t := range templates {
+		if strings.HasPrefix(t.Name, loadtestutil.ScaleTestPrefix+"-") && strings.Contains(t.Name, "prebuild") {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
 func (r *RootCmd) scaletestCleanup() *serpent.Command {
 	var template string
 	cleanupStrategy := newScaletestCleanupStrategy()
@@ -552,6 +667,40 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
 				if err != nil {
 					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
+			cliui.Infof(inv.Stdout, "Fetching scaletest prebuilds templates...")
+			prebuildTemplates, err := getScaletestPrebuildsTemplates(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			cliui.Errorf(inv.Stderr, "Found %d scaletest prebuilds templates\n", len(prebuildTemplates))
+			if len(prebuildTemplates) != 0 {
+				cliui.Infof(inv.Stdout, "Deleting scaletest prebuilds templates and their workspaces...")
+				prebuildHarness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, t := range prebuildTemplates {
+					const testName = "cleanup-prebuilds-template"
+					prebuildHarness.AddRun(testName, strconv.Itoa(i), &prebuildTemplateCleanupRunner{
+						client:   client,
+						template: t,
+					})
+				}
+
+				prebuildCtx, prebuildCancel := cleanupStrategy.toContext(ctx)
+				defer prebuildCancel()
+				if err := prebuildHarness.Run(prebuildCtx); err != nil {
+					return xerrors.Errorf("run test harness to delete prebuilds templates (harness failure, not a test failure): %w", err)
+				}
+
+				cliui.Infof(inv.Stdout, "Done deleting scaletest prebuilds templates:")
+				prebuildRes := prebuildHarness.Results()
+				prebuildRes.PrintText(inv.Stderr)
+
+				if prebuildRes.TotalFail > 0 {
+					return xerrors.Errorf("%d/%d scaletest prebuilds template(s) could not be fully cleaned up; check logs above for remaining workspace IDs", prebuildRes.TotalFail, prebuildRes.TotalRuns)
 				}
 			}
 
