@@ -934,6 +934,16 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: GetChatDiffStatusSummary :one
+-- Returns aggregate PR counts across all agent chats for telemetry.
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM chat_diff_statuses
+WHERE pull_request_state IS NOT NULL;
+
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
 -- Only counts assistant-role messages.

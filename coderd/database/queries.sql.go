@@ -5809,6 +5809,36 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 	return i, err
 }
 
+const getChatDiffStatusSummary = `-- name: GetChatDiffStatusSummary :one
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM chat_diff_statuses
+WHERE pull_request_state IS NOT NULL
+`
+
+type GetChatDiffStatusSummaryRow struct {
+	Total  int64 `db:"total" json:"total"`
+	Open   int64 `db:"open" json:"open"`
+	Merged int64 `db:"merged" json:"merged"`
+	Closed int64 `db:"closed" json:"closed"`
+}
+
+// Returns aggregate PR counts across all agent chats for telemetry.
+func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatDiffStatusSummary)
+	var i GetChatDiffStatusSummaryRow
+	err := row.Scan(
+		&i.Total,
+		&i.Open,
+		&i.Merged,
+		&i.Closed,
+	)
+	return i, err
+}
+
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch

@@ -2658,6 +2658,14 @@ func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUI
 	return q.db.GetChatDiffStatusByChatID(ctx, chatID)
 }
 
+func (q *querier) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
+	// Telemetry queries are called from system contexts only.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetChatDiffStatusSummaryRow{}, err
+	}
+	return q.db.GetChatDiffStatusSummary(ctx)
+}
+
 func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
 	if len(chatIDs) == 0 {
 		return []database.ChatDiffStatus{}, nil

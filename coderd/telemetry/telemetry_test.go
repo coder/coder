@@ -1853,3 +1853,96 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.True(t, cfg2.Enabled)
 	assert.False(t, cfg2.IsDefault)
 }
+
+func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	// Verify zero counts when no chat_diff_statuses exist.
+	_, emptySnapshot := collectSnapshot(ctx, t, db, nil)
+	require.NotNil(t, emptySnapshot.ChatDiffStatusSummary)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Closed)
+
+	// Set up minimal FK chain: provider → model config → chat.
+	user := dbgen.User(t, db, database.User{})
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "anthropic",
+		DisplayName:          "Anthropic",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "anthropic",
+		Model:                "claude-sonnet-4-20250514",
+		DisplayName:          "Claude Sonnet",
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         200000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+
+	// Helper to create a chat and upsert its diff status.
+	insertChatWithPRState := func(state string) {
+		t.Helper()
+		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "Chat " + state,
+			Status:            database.ChatStatusCompleted,
+		})
+		require.NoError(t, chatErr)
+		now := dbtime.Now()
+		_, chatErr = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+			ChatID:           chat.ID,
+			PullRequestState: sql.NullString{String: state, Valid: true},
+			RefreshedAt:      now,
+			StaleAt:          now,
+		})
+		require.NoError(t, chatErr)
+	}
+
+	// Insert: 2 merged, 1 open, 1 closed.
+	insertChatWithPRState("merged")
+	insertChatWithPRState("merged")
+	insertChatWithPRState("open")
+	insertChatWithPRState("closed")
+
+	// Insert a chat with NULL pull_request_state (no PR yet).
+	// This should be excluded from all counts.
+	noPRChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "Chat no PR",
+		Status:            database.ChatStatusRunning,
+	})
+	require.NoError(t, err)
+	now := dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:      noPRChat.ID,
+		RefreshedAt: now,
+		StaleAt:     now,
+	})
+	require.NoError(t, err)
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	require.NotNil(t, snapshot.ChatDiffStatusSummary)
+	assert.Equal(t, int64(4), snapshot.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(2), snapshot.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Closed)
+}
