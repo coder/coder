@@ -1,5 +1,9 @@
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import { type FC, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import TextareaAutosize, {
@@ -8,12 +12,14 @@ import TextareaAutosize, {
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { templateVersionPresets } from "#/api/queries/templates";
+import { richParameters, templateVersionPresets } from "#/api/queries/templates";
 import type {
 	Preset,
 	Task,
 	Template,
+	TemplateVersionParameter,
 	TemplateVersionExternalAuth,
+	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
@@ -34,10 +40,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
 import { docs } from "#/utils/docs";
 import { getOSKey } from "#/utils/platform";
+import { getInitialRichParameterValues } from "#/utils/richParameters";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -147,6 +155,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	const { user, permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const [prompt, setPrompt] = useState("");
+	const [isParametersDialogOpen, setIsParametersDialogOpen] = useState(false);
+	const [taskParameterValues, setTaskParameterValues] = useState<
+		WorkspaceBuildParameter[]
+	>([]);
+	const [parameterErrors, setParameterErrors] = useState<Record<string, string>>(
+		{},
+	);
 
 	// Template
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
@@ -173,6 +188,43 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		const defaultPreset = presets?.find((p) => p.Default);
 		setSelectedPresetId(defaultPreset?.ID ?? presets?.[0]?.ID);
 	}, [presets]);
+	const selectedPreset = presets?.find((preset) => preset.ID === selectedPresetId);
+	const selectedPresetParameters: WorkspaceBuildParameter[] = useMemo(
+		() =>
+			selectedPreset?.Parameters.map((parameter) => ({
+				name: parameter.Name,
+				value: parameter.Value,
+			})) ?? [],
+		[selectedPreset],
+	);
+
+	const { data: templateParameters, isLoading: isLoadingTemplateParameters } =
+		useQuery(richParameters(selectedVersionId));
+	const hasTemplateParameters = (templateParameters?.length ?? 0) > 0;
+
+	useEffect(() => {
+		if (!templateParameters) {
+			setTaskParameterValues([]);
+			setParameterErrors({});
+			return;
+		}
+
+		setTaskParameterValues(
+			getMergedTaskParameterValues(templateParameters, selectedPresetParameters),
+		);
+		setParameterErrors({});
+	}, [templateParameters, selectedPresetParameters]);
+
+	const missingRequiredParameterCount = useMemo(() => {
+		if (!templateParameters) {
+			return 0;
+		}
+
+		return getMissingRequiredParameterNames(
+			templateParameters,
+			taskParameterValues,
+		).length;
+	}, [templateParameters, taskParameterValues]);
 	// External Auth
 	const {
 		externalAuth,
@@ -189,10 +241,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) => {
+			const parameterValues = taskParameterValues;
+
 			// Users with updateTemplates permission can select the version to use.
 			if (permissions.updateTemplates) {
 				return API.createTask(user.id, {
 					input: prompt,
+					rich_parameter_values: parameterValues,
 					template_version_id: selectedVersionId,
 					template_version_preset_id: selectedPresetId,
 				});
@@ -205,6 +260,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				prompt,
 				user.id,
 				selectedTemplate.id,
+				parameterValues,
 				selectedPresetId,
 			);
 		},
@@ -216,6 +272,22 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	const onSubmit = async (e: React.SyntheticEvent) => {
 		e.preventDefault();
+
+		if (
+			templateParameters &&
+			!validateRequiredTemplateParameters(
+				templateParameters,
+				taskParameterValues,
+				setParameterErrors,
+			)
+		) {
+			setIsParametersDialogOpen(true);
+			toast.error("Missing required task parameters", {
+				description:
+					"Fill in the required template parameters before running this task.",
+			});
+			return;
+		}
 
 		try {
 			await createTaskMutation.mutateAsync({
@@ -385,6 +457,21 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					</div>
 
 					<div className="flex items-center gap-2">
+						{hasTemplateParameters && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setIsParametersDialogOpen(true)}
+								disabled={isLoadingTemplateParameters}
+							>
+								Parameters
+								{missingRequiredParameterCount > 0
+									? ` (${missingRequiredParameterCount} required)`
+									: ""}
+							</Button>
+						)}
+
 						{missedExternalAuth && (
 							<ExternalAuthButtons
 								versionId={selectedVersionId}
@@ -423,7 +510,98 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					</div>
 				</div>
 			</fieldset>
+
+			<TaskParametersDialog
+				open={isParametersDialogOpen}
+				onClose={() => setIsParametersDialogOpen(false)}
+				onApply={() => {
+					if (!templateParameters) {
+						setIsParametersDialogOpen(false);
+						return;
+					}
+
+					if (
+						validateRequiredTemplateParameters(
+							templateParameters,
+							taskParameterValues,
+							setParameterErrors,
+						)
+					) {
+						setIsParametersDialogOpen(false);
+					}
+				}}
+				parameters={templateParameters ?? []}
+				values={taskParameterValues}
+				errors={parameterErrors}
+				onChange={(name, value) => {
+					setTaskParameterValues((previous) =>
+						updateTaskParameterValue(previous, name, value),
+					);
+					setParameterErrors((previous) => {
+						if (!(name in previous)) {
+							return previous;
+						}
+
+						const next = { ...previous };
+						delete next[name];
+						return next;
+					});
+				}}
+			/>
 		</form>
+	);
+};
+
+type TaskParametersDialogProps = {
+	open: boolean;
+	onClose: () => void;
+	onApply: () => void;
+	parameters: readonly TemplateVersionParameter[];
+	values: WorkspaceBuildParameter[];
+	errors: Record<string, string>;
+	onChange: (name: string, value: string) => void;
+};
+
+const TaskParametersDialog: FC<TaskParametersDialogProps> = ({
+	open,
+	onClose,
+	onApply,
+	parameters,
+	values,
+	errors,
+	onChange,
+}) => {
+	return (
+		<Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+			<DialogTitle>Task parameters</DialogTitle>
+			<DialogContent>
+				<p className="text-content-secondary text-sm mt-0 mb-4">
+					Set template parameters for this task run. Preset values are pre-filled
+					and can be overridden.
+				</p>
+
+				<div className="flex flex-col gap-4">
+					{parameters.map((parameter) => (
+						<RichParameterInput
+							key={parameter.name}
+							parameter={parameter}
+							value={getTaskParameterValue(values, parameter.name)}
+							onChange={(value) => onChange(parameter.name, value)}
+							error={parameter.name in errors}
+							helperText={errors[parameter.name]}
+						/>
+					))}
+				</div>
+			</DialogContent>
+			<DialogActions>
+				<Button variant="outline" type="button" onClick={onClose}>
+					Cancel
+				</Button>
+				<Button type="button" onClick={onApply}>
+					Apply parameters
+				</Button>
+			</DialogActions>
+		</Dialog>
 	);
 };
 
@@ -495,6 +673,75 @@ function sortByDefault(a: Preset, b: Preset) {
 	return a.Name.localeCompare(b.Name);
 }
 
+const getMergedTaskParameterValues = (
+	templateParameters: readonly TemplateVersionParameter[],
+	presetParameters: WorkspaceBuildParameter[],
+): WorkspaceBuildParameter[] => {
+	const initialValues = getInitialRichParameterValues([...templateParameters]);
+	const presetValues = new Map(
+		presetParameters.map((parameter) => [parameter.name, parameter.value]),
+	);
+
+	return initialValues.map((parameter) => ({
+		...parameter,
+		value: presetValues.get(parameter.name) ?? parameter.value,
+	}));
+};
+
+const getTaskParameterValue = (
+	values: WorkspaceBuildParameter[],
+	parameterName: string,
+): string => {
+	return values.find((parameter) => parameter.name === parameterName)?.value ?? "";
+};
+
+const updateTaskParameterValue = (
+	values: WorkspaceBuildParameter[],
+	parameterName: string,
+	value: string,
+): WorkspaceBuildParameter[] => {
+	const index = values.findIndex((parameter) => parameter.name === parameterName);
+	if (index < 0) {
+		return [...values, { name: parameterName, value }];
+	}
+
+	const next = [...values];
+	next[index] = { name: parameterName, value };
+	return next;
+};
+
+const getMissingRequiredParameterNames = (
+	templateParameters: readonly TemplateVersionParameter[],
+	values: WorkspaceBuildParameter[],
+): string[] => {
+	return templateParameters
+		.filter((parameter) => parameter.required)
+		.filter((parameter) => getTaskParameterValue(values, parameter.name).trim() === "")
+		.map((parameter) => parameter.name);
+};
+
+const validateRequiredTemplateParameters = (
+	templateParameters: readonly TemplateVersionParameter[],
+	values: WorkspaceBuildParameter[],
+	setErrors: (errors: Record<string, string>) => void,
+): boolean => {
+	const requiredMissing = getMissingRequiredParameterNames(
+		templateParameters,
+		values,
+	);
+
+	if (requiredMissing.length === 0) {
+		setErrors({});
+		return true;
+	}
+
+	const errors = Object.fromEntries(
+		requiredMissing.map((name) => [name, "This parameter is required."]),
+	);
+	setErrors(errors);
+	return false;
+};
+
 // TODO: Enforce task creation to always use the latest active template version.
 // During task creation, the active version might change between template load
 // and user action. Since handling this in the FE cannot guarantee correctness,
@@ -503,11 +750,13 @@ async function createTaskWithLatestTemplateVersion(
 	input: string,
 	userId: string,
 	templateId: string,
+	buildParameters: WorkspaceBuildParameter[],
 	presetId: string | undefined,
 ): Promise<Task> {
 	const template = await API.getTemplate(templateId);
 	return API.createTask(userId, {
 		input,
+		rich_parameter_values: buildParameters,
 		template_version_id: template.active_version_id,
 		template_version_preset_id: presetId,
 	});
