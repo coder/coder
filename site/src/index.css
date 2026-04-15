@@ -22,7 +22,13 @@
 		--content-secondary: 240 5% 34%;
 		--content-link: 221 83% 53%;
 		--content-invert: 0 0% 98%;
-		--content-disabled: 240 5% 65%;
+		/*
+		 * Disabled text must remain readable since disabled parameters
+		 * display informational values. WCAG 2.1 SC 1.4.3 exempts
+		 * inactive components, but we target 4.5:1 anyway for usability.
+		 * 46% lightness ≈ 4.96:1 contrast against white (#fff).
+		 */
+		--content-disabled: 240 5% 46%;
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
 		--content-destructive: 0 84% 60%;
@@ -95,7 +101,11 @@
 		--content-secondary: 240 5% 65%;
 		--content-link: 213 94% 68%;
 		--content-invert: 240 10% 4%;
-		--content-disabled: 240 5% 26%;
+		/*
+		 * 50% lightness ≈ 4.63:1 contrast against the dark surface
+		 * (hsl 240 10% 4%). See light-mode comment for rationale.
+		 */
+		--content-disabled: 240 5% 50%;
 		--content-success: 142 76% 36%;
 		--content-warning: 31 97% 72%;
 		--content-destructive: 0 91% 71%;

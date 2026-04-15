@@ -31,7 +31,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
 			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
 			ring-offset-background text-content-secondary placeholder:text-content-secondary
-			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
+			disabled:cursor-not-allowed disabled:text-content-disabled [&>span]:line-clamp-1
 			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group`,
 			className,
 		)}

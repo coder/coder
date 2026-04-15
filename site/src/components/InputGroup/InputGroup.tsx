@@ -18,7 +18,7 @@ export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 				// Invalid state
 				"has-[input[aria-invalid=true]]:border-border-destructive",
 				// Disabled state
-				"has-[input:disabled]:opacity-50 has-[input:disabled]:cursor-not-allowed",
+				"has-[input:disabled]:text-content-disabled has-[input:disabled]:cursor-not-allowed",
 				className,
 			)}
 			{...props}
@@ -27,7 +27,7 @@ export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 };
 
 const inputGroupAddonVariants = cva(
-	"text-content-secondary h-auto gap-2 text-sm font-medium flex cursor-text items-center justify-center select-none group-has-[input:disabled]/input-group:opacity-50 [&>svg:not([class*='size-'])]:size-4",
+	"text-content-secondary h-auto gap-2 text-sm font-medium flex cursor-text items-center justify-center select-none group-has-[input:disabled]/input-group:text-content-disabled [&>svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
 			align: {
