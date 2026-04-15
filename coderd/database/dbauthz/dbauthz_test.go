@@ -846,6 +846,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatWorkspaceTTL(gomock.Any()).Return("1h", nil).AnyTimes()
 		check.Args().Asserts()
 	}))
+	s.Run("GetEnabledChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
+		dbm.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		check.Args(config.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
+	}))
 	s.Run("GetEnabledChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		configB := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
