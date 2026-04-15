@@ -149,13 +149,14 @@ workspace connection. Platform and orchestration tools are only available to
 root chats — sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
-| Tool               | What it does                                                                            |
-|--------------------|-----------------------------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.                            |
-| `read_template`    | Gets template details and configurable parameters.                                      |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                       |
-| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
-| `propose_plan`     | Presents a Markdown plan file from the workspace for user review before implementation. |
+| Tool                | What it does                                                                            |
+|---------------------|-----------------------------------------------------------------------------------------|
+| `list_templates`    | Browses available workspace templates, sorted by popularity.                            |
+| `read_template`     | Gets template details and configurable parameters.                                      |
+| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                       |
+| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
+| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation. |
+| `ask_user_question` | Asks the user structured clarification questions during plan mode.                      |
 
 ### Orchestration tools
 

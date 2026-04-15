@@ -236,6 +236,7 @@ tasks:
 | `create_workspace`         | Create a workspace from a template                                       |
 | `start_workspace`          | Start a stopped workspace for the current chat                           |
 | `propose_plan`             | Present a Markdown plan file for user review                             |
+| `ask_user_question`        | Ask the user structured clarification questions during plan mode         |
 | `read_file`                | Read file contents from the workspace                                    |
 | `write_file`               | Write a file to the workspace                                            |
 | `edit_files`               | Perform search-and-replace edits across files                            |
