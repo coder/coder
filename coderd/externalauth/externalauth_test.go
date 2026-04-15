@@ -2,7 +2,6 @@ package externalauth_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -456,13 +455,47 @@ func TestRefreshToken(t *testing.T) {
 			"returned token should match what was saved in the DB")
 	})
 
-	// ConcurrentRefreshOptimisticLock verifies that when caller A saves
-	// a successfully refreshed token (early save), caller B's subsequent
-	// attempt to destroy the refresh token via
-	// UpdateExternalAuthLinkRefreshToken is a no-op. The optimistic lock
-	// (WHERE oauth_refresh_token = @old) prevents B from overwriting
-	// A's valid token.
-	t.Run("ConcurrentRefreshOptimisticLock", func(t *testing.T) {
+	// SaveBeforeValidate_DBError tests that when the early DB save
+	// fails after a successful IDP refresh, the error is surfaced
+	// as a non-InvalidTokenError. This is a degraded state (token
+	// issued by IDP but not persisted), and callers should see a
+	// real error, not a "please re-authenticate" prompt.
+	t.Run("SaveBeforeValidate_DBError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = expired
+
+		mDB.EXPECT().
+			UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, xerrors.New("db connection lost"))
+
+		_, err := config.RefreshToken(ctx, mDB, link)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "persist refreshed token")
+		require.False(t, externalauth.IsInvalidTokenError(err),
+			"DB errors should not be treated as invalid token")
+	})
+
+	// OptimisticLockPreventsStaleOverwrite verifies that the
+	// UpdateExternalAuthLinkRefreshToken WHERE clause prevents a
+	// stale caller from overwriting a valid refresh token saved
+	// by a concurrent winner.
+	t.Run("OptimisticLockPreventsStaleOverwrite", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -503,7 +536,7 @@ func TestRefreshToken(t *testing.T) {
 		err = db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
 			OauthRefreshFailureReason: "simulated failure from stale caller B",
 			OAuthRefreshToken:         "",
-			OAuthRefreshTokenKeyID:    sql.NullString{}.String,
+			OAuthRefreshTokenKeyID:    "",
 			UpdatedAt:                 dbtime.Now(),
 			ProviderID:                link.ProviderID,
 			UserID:                    link.UserID,

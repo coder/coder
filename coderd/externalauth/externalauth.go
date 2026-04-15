@@ -267,7 +267,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// validation endpoint was unavailable (e.g. rate-limited 403), the
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
-	if db != nil && token.AccessToken != externalAuthLink.OAuthAccessToken {
+	originalAccessToken := externalAuthLink.OAuthAccessToken
+	// db may be nil in unit tests that don't exercise persistence.
+	if db != nil && token.AccessToken != originalAccessToken {
 		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
@@ -280,7 +282,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			OAuthExtra:             extra,
 		})
 		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
+			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
 		}
 		externalAuthLink = updatedAuthLink
 	}
@@ -309,27 +311,9 @@ validate:
 		return externalAuthLink, InvalidTokenError("token failed to validate")
 	}
 
-	if token.AccessToken != externalAuthLink.OAuthAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             c.ID,
-			UserID:                 externalAuthLink.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             extra,
-		})
-		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
-		}
-		externalAuthLink = updatedAuthLink
-	}
-
-	// Update the associated users github.com username if the token
+	// Update the associated user's github.com user ID if the token
 	// is for github.com and validation returned user info.
-	if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+	if originalAccessToken != token.AccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
 		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
 			ID: externalAuthLink.UserID,
 			GithubComUserID: sql.NullInt64{
