@@ -12783,6 +12783,41 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaces/{workspace}/agent-connection-watch": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Workspace Agent Connection Watch",
+                "operationId": "workspace-agent-connection-watch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "$ref": "#/definitions/workspacesdk.ConnectionWatchEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
                 "consumes": [
@@ -27963,6 +27998,93 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "workspacesdk.AgentUpdate": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "lifecycle": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "workspacesdk.BuildUpdate": {
+            "type": "object",
+            "properties": {
+                "job_status": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                },
+                "transition": {
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                }
+            }
+        },
+        "workspacesdk.ConnectionWatchEvent": {
+            "type": "object",
+            "properties": {
+                "agent_update": {
+                    "$ref": "#/definitions/workspacesdk.AgentUpdate"
+                },
+                "build_update": {
+                    "$ref": "#/definitions/workspacesdk.BuildUpdate"
+                },
+                "error": {
+                    "$ref": "#/definitions/workspacesdk.WatchError"
+                }
+            }
+        },
+        "workspacesdk.WatchError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/workspacesdk.WatchErrorCode"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "workspacesdk.WatchErrorCode": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+            ],
+            "x-enum-comments": {
+                "_": "Ensure that zero value is not a valid code"
+            },
+            "x-enum-descriptions": [
+                "Ensure that zero value is not a valid code",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "x-enum-varnames": [
+                "_",
+                "WatchErrorTooManyAgents",
+                "WatchErrorNameNotFound",
+                "WatchErrorNoAgents",
+                "WatchErrorServerShutdown",
+                "WatchErrorDatabase",
+                "WatchErrorInternal"
+            ]
         },
         "wsproxysdk.CryptoKeysResponse": {
             "type": "object",
