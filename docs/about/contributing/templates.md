@@ -15,10 +15,7 @@ Coder templates are complete Terraform configurations that define entire workspa
 Templates appear on the Coder Registry and can be deployed directly by users.
 
 > [!TIP]
-> If you use an AI coding assistant, the
-> [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md)
-> agent skill from the Coder Registry can guide you through creating and
-> updating templates with best practices built in.
+> If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill from the Coder Registry can guide you through creating and updating templates with best practices built in.
 
 ## Prerequisites
 
