@@ -26,12 +26,12 @@ const (
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
 	ActiveSessions               *prometheus.GaugeVec
-	MessageCount                 prometheus.Histogram
-	PromptSizeBytes              prometheus.Histogram
+	MessageCount                 *prometheus.HistogramVec
+	PromptSizeBytes              *prometheus.HistogramVec
 	ToolResultSizeBytes          *prometheus.HistogramVec
-	SerializationDurationSeconds prometheus.Histogram
+	SerializationDurationSeconds *prometheus.HistogramVec
 	CompactionTotal              *prometheus.CounterVec
-	StepsTotal                   prometheus.Counter
+	StepsTotal                   *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -45,46 +45,46 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "active_sessions",
 			Help:      "Number of active chat sessions by status.",
 		}, []string{"status"}),
-		MessageCount: factory.NewHistogram(prometheus.HistogramOpts{
+		MessageCount: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "message_count",
 			Help:      "Number of messages in the prompt at each Model.Stream call.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 8), // 1, 2, 4, 8, 16, 32, 64, 128
-		}),
-		PromptSizeBytes: factory.NewHistogram(prometheus.HistogramOpts{
+		}, []string{"provider"}),
+		PromptSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "prompt_size_bytes",
 			Help:      "Estimated byte size of the prompt at each Model.Stream call.",
 			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
-		}),
+		}, []string{"provider"}),
 		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "tool_result_size_bytes",
 			Help:      "Size in bytes of each tool result returned from executeSingleTool.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
-		}, []string{"tool_name"}),
-		SerializationDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
+		}, []string{"provider", "tool_name"}),
+		SerializationDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "serialization_duration_seconds",
 			Help:      "Wall time from Model.Stream call to first streamed chunk (time-to-first-token).",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
-		}),
+		}, []string{"provider"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "compaction_total",
 			Help:      "Total compaction attempts by result.",
-		}, []string{"result"}),
-		StepsTotal: factory.NewCounter(prometheus.CounterOpts{
+		}, []string{"provider", "result"}),
+		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "steps_total",
 			Help:      "Total agentic loop steps across all chats.",
-		}),
+		}, []string{"provider"}),
 	}
 }
 
@@ -96,17 +96,17 @@ func NopMetrics() *Metrics {
 
 // RecordCompaction classifies and records a compaction attempt.
 // It is a no-op when m is nil.
-func (m *Metrics) RecordCompaction(compacted bool, err error) {
+func (m *Metrics) RecordCompaction(provider string, compacted bool, err error) {
 	if m == nil {
 		return
 	}
 	switch {
 	case err != nil && errors.Is(err, context.DeadlineExceeded):
-		m.CompactionTotal.WithLabelValues(CompactionResultTimeout).Inc()
+		m.CompactionTotal.WithLabelValues(provider, CompactionResultTimeout).Inc()
 	case err != nil:
-		m.CompactionTotal.WithLabelValues(CompactionResultError).Inc()
+		m.CompactionTotal.WithLabelValues(provider, CompactionResultError).Inc()
 	case compacted:
-		m.CompactionTotal.WithLabelValues(CompactionResultSuccess).Inc()
+		m.CompactionTotal.WithLabelValues(provider, CompactionResultSuccess).Inc()
 		// !compacted && err == nil means threshold not reached — not
 		// recorded.
 	}

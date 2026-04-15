@@ -228,22 +228,22 @@ coderd_authz_prepare_authorize_duration_seconds 0
 coderd_chatd_active_sessions{status=""} 0
 # HELP coderd_chatd_compaction_total Total compaction attempts by result.
 # TYPE coderd_chatd_compaction_total counter
-coderd_chatd_compaction_total{result=""} 0
+coderd_chatd_compaction_total{provider="",result=""} 0
 # HELP coderd_chatd_message_count Number of messages in the prompt at each Model.Stream call.
 # TYPE coderd_chatd_message_count histogram
-coderd_chatd_message_count 0
+coderd_chatd_message_count{provider=""} 0
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt at each Model.Stream call.
 # TYPE coderd_chatd_prompt_size_bytes histogram
-coderd_chatd_prompt_size_bytes 0
+coderd_chatd_prompt_size_bytes{provider=""} 0
 # HELP coderd_chatd_serialization_duration_seconds Wall time from Model.Stream call to first streamed chunk (time-to-first-token).
 # TYPE coderd_chatd_serialization_duration_seconds histogram
-coderd_chatd_serialization_duration_seconds 0
+coderd_chatd_serialization_duration_seconds{provider=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
-coderd_chatd_steps_total 0
+coderd_chatd_steps_total{provider=""} 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool result returned from executeSingleTool.
 # TYPE coderd_chatd_tool_result_size_bytes histogram
-coderd_chatd_tool_result_size_bytes{tool_name=""} 0
+coderd_chatd_tool_result_size_bytes{provider="",tool_name=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0

@@ -20,8 +20,12 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 
 	// Initialize vector metrics so they appear in Gather output.
 	m.ActiveSessions.WithLabelValues(chatloop.StatusStreaming)
-	m.CompactionTotal.WithLabelValues(chatloop.CompactionResultSuccess)
-	m.ToolResultSizeBytes.WithLabelValues("test")
+	m.CompactionTotal.WithLabelValues("anthropic", chatloop.CompactionResultSuccess)
+	m.ToolResultSizeBytes.WithLabelValues("anthropic", "test")
+	m.MessageCount.WithLabelValues("anthropic")
+	m.PromptSizeBytes.WithLabelValues("anthropic")
+	m.SerializationDurationSeconds.WithLabelValues("anthropic")
+	m.StepsTotal.WithLabelValues("anthropic")
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -60,14 +64,14 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.ActiveSessions.WithLabelValues("streaming").Dec()
 	m.ActiveSessions.WithLabelValues("waiting").Inc()
 	m.ActiveSessions.WithLabelValues("waiting").Dec()
-	m.MessageCount.Observe(10)
-	m.PromptSizeBytes.Observe(4096)
-	m.ToolResultSizeBytes.WithLabelValues("execute").Observe(512)
-	m.SerializationDurationSeconds.Observe(0.5)
-	m.CompactionTotal.WithLabelValues("success").Inc()
-	m.CompactionTotal.WithLabelValues("error").Inc()
-	m.CompactionTotal.WithLabelValues("timeout").Inc()
-	m.StepsTotal.Inc()
+	m.MessageCount.WithLabelValues("anthropic").Observe(10)
+	m.PromptSizeBytes.WithLabelValues("openai").Observe(4096)
+	m.ToolResultSizeBytes.WithLabelValues("anthropic", "execute").Observe(512)
+	m.SerializationDurationSeconds.WithLabelValues("anthropic").Observe(0.5)
+	m.CompactionTotal.WithLabelValues("anthropic", "success").Inc()
+	m.CompactionTotal.WithLabelValues("openai", "error").Inc()
+	m.CompactionTotal.WithLabelValues("google", "timeout").Inc()
+	m.StepsTotal.WithLabelValues("anthropic").Inc()
 }
 
 func TestEstimatePromptSize(t *testing.T) {
@@ -148,6 +152,6 @@ func TestRecordCompaction(t *testing.T) {
 	t.Run("nil metrics does not panic", func(t *testing.T) {
 		t.Parallel()
 		var m *chatloop.Metrics
-		m.RecordCompaction(true, nil) // should not panic
+		m.RecordCompaction("anthropic", true, nil) // should not panic
 	})
 }

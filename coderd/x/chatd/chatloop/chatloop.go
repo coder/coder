@@ -348,10 +348,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
 			if opts.Metrics != nil {
-				opts.Metrics.StepsTotal.Inc()
+				opts.Metrics.StepsTotal.WithLabelValues(opts.Model.Provider()).Inc()
 			}
-			stepStart := time.Now()
-			// Copy messages so that provider-specific caching
+			stepStart := time.Now() // Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
@@ -362,10 +361,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 				addAnthropicPromptCaching(prepared)
 			}
 			if opts.Metrics != nil {
-				opts.Metrics.MessageCount.Observe(float64(len(prepared)))
-				opts.Metrics.PromptSizeBytes.Observe(float64(EstimatePromptSize(prepared)))
+				provider := opts.Model.Provider()
+				opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
+				opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
 			}
-
 			call := fantasy.Call{
 				Prompt:           prepared,
 				Tools:            tools,
@@ -456,7 +455,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Model.Provider(), func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -594,7 +593,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
-				opts.Metrics.RecordCompaction(did, compactErr)
+				opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
@@ -636,7 +635,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				lastProviderMetadata,
 				messages,
 			)
-			opts.Metrics.RecordCompaction(did, err)
+			opts.Metrics.RecordCompaction(opts.Model.Provider(), did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)
@@ -763,7 +762,7 @@ func guardedStream(
 				guard.Disarm()
 				ttftOnce.Do(func() {
 					if metrics != nil {
-						metrics.SerializationDurationSeconds.Observe(
+						metrics.SerializationDurationSeconds.WithLabelValues(provider).Observe(
 							clock.Since(streamStart).Seconds(),
 						)
 					}
@@ -1011,6 +1010,7 @@ func executeTools(
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
+	provider string,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1065,7 +1065,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider)
 		}()
 	}
 	wg.Wait()
@@ -1087,6 +1087,7 @@ func executeSingleTool(
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
+	provider string,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1133,7 +1134,7 @@ func executeSingleTool(
 		}
 	}
 	if metrics != nil {
-		metrics.ToolResultSizeBytes.WithLabelValues(tc.ToolName).Observe(
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, tc.ToolName).Observe(
 			float64(ToolResultSize(result)),
 		)
 	}
@@ -1297,7 +1298,7 @@ func tryCompactOnExit(
 		metadata,
 		reloaded,
 	)
-	opts.Metrics.RecordCompaction(did, compactErr)
+	opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}
