@@ -13,9 +13,9 @@ const (
 	metricsNamespace = "coderd"
 	metricsSubsystem = "chatd"
 
-	// Label values for ActiveSessions.
-	StatusStreaming = "streaming"
-	StatusWaiting   = "waiting"
+	// Label values for Stats.
+	StateStreaming = "streaming"
+	StateWaiting   = "waiting"
 
 	// Label values for CompactionTotal.
 	CompactionResultSuccess = "success"
@@ -25,7 +25,7 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	ActiveSessions               *prometheus.GaugeVec
+	Stats                        *prometheus.GaugeVec
 	MessageCount                 *prometheus.HistogramVec
 	PromptSizeBytes              *prometheus.HistogramVec
 	ToolResultSizeBytes          *prometheus.HistogramVec
@@ -39,12 +39,12 @@ type Metrics struct {
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	factory := promauto.With(reg)
 	return &Metrics{
-		ActiveSessions: factory.NewGaugeVec(prometheus.GaugeOpts{
+		Stats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "active_sessions",
-			Help:      "Number of active chat sessions by status.",
-		}, []string{"status"}),
+			Name:      "stats",
+			Help:      "Number of chats being processed, by state.",
+		}, []string{"state"}),
 		MessageCount: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
