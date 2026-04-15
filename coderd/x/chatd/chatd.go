@@ -5889,8 +5889,7 @@ func (p *Server) persistInstructionFiles(
 	hasContent := false
 	hasContextFilePart := false
 	for _, part := range agentParts {
-		switch part.Type {
-		case codersdk.ChatMessagePartTypeContextFile:
+		if part.Type == codersdk.ChatMessagePartTypeContextFile {
 			hasContextFilePart = true
 			if part.ContextFileContent != "" {
 				hasContent = true
