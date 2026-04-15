@@ -48,11 +48,9 @@ type Server struct {
 	cancelFn func()
 
 	shutdownOnce sync.Once
-
-	allowBYOK bool
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, allowBYOK bool) (*Server, error) {
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -68,7 +66,6 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		initConnectionCh: make(chan struct{}),
 
 		requestBridgePool: pool,
-		allowBYOK:         allowBYOK,
 	}
 
 	daemon.wg.Add(1)
