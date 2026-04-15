@@ -17,7 +17,7 @@ import (
 const (
 	// MaxMessageSize is the maximum payload size that can be
 	// transported without error.
-	MaxMessageSize = 4 << 20
+	MaxMessageSize = 16 << 20
 )
 
 func DefaultDRPCOptions(options *drpcmanager.Options) drpcmanager.Options {
