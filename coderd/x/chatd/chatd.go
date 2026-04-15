@@ -4730,8 +4730,10 @@ func (p *Server) runChat(
 		}
 	}
 
+	var instructionInjected bool
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
+		instructionInjected = true
 	}
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
@@ -5372,10 +5374,20 @@ func (p *Server) runChat(
 			}
 			return reloadedPrompt, nil
 		},
-		DisableChainMode: func() {
-			chainModeActive = false
-		},
-
+			DisableChainMode: func() {
+				chainModeActive = false
+			},
+			PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+				if instructionInjected || instruction == "" {
+					return nil
+				}
+				instructionInjected = true
+				result := chatprompt.InsertSystem(msgs, instruction)
+				if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+					result = chatprompt.InsertSystem(result, skillIndex)
+				}
+				return result
+			},
 		OnRetry: func(
 			attempt int,
 			retryErr error,
