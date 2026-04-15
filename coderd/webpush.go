@@ -97,7 +97,7 @@ func validateWebpushEndpoint(rawEndpoint string) error {
 		return xerrors.New("endpoint hostname is required")
 	}
 	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
-		return xerrors.New("endpoint hostname must not resolve to localhost")
+		return xerrors.New("endpoint hostname must not be localhost")
 	}
 
 	if ip, err := netip.ParseAddr(hostname); err == nil &&

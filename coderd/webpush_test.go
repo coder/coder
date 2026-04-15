@@ -2,8 +2,8 @@ package coderd_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -44,7 +44,7 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	// subscription immediately.
 	err := memberClient.PostTestWebpushMessage(ctx)
 	require.NoError(t, err, "test webpush message without a subscription")
-	require.Equal(t, int32(1), dispatcher.dispatchCalls.Load(), "test notifications should be dispatched")
+	require.Equal(t, int32(1), dispatcher.dispatchCalls.Load(), "dispatch should be called even with no subscriptions")
 
 	err = memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
 		Endpoint:  endpoint,
@@ -53,19 +53,21 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	})
 	require.NoError(t, err, "create webpush subscription")
 	require.Equal(t, int32(1), dispatcher.testCalls.Load(), "subscription validation should call dispatcher test once")
+	require.Equal(t, 1, dispatcher.invalidateCount(), "subscribing should invalidate the user's cached subscriptions")
 
 	err = memberClient.PostTestWebpushMessage(ctx)
 	require.NoError(t, err, "test webpush message after subscribing")
-	require.Equal(t, int32(2), dispatcher.dispatchCalls.Load(), "test notifications should be dispatched")
+	require.Equal(t, int32(2), dispatcher.dispatchCalls.Load(), "dispatch should be called after subscribing")
 
 	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
 		Endpoint: endpoint,
 	})
 	require.NoError(t, err, "delete webpush subscription")
+	require.Equal(t, 2, dispatcher.invalidateCount(), "unsubscribing should invalidate the user's cached subscriptions")
 
 	err = memberClient.PostTestWebpushMessage(ctx)
 	require.NoError(t, err, "test webpush message after unsubscribing")
-	require.Equal(t, int32(3), dispatcher.dispatchCalls.Load(), "test notifications should be dispatched")
+	require.Equal(t, int32(3), dispatcher.dispatchCalls.Load(), "dispatch should be called after unsubscribing")
 
 	// Deleting the subscription for a non-existent endpoint should return a 404.
 	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
@@ -108,7 +110,7 @@ func TestWebpushSubscribeRejectsInvalidEndpoint(t *testing.T) {
 	})
 	var sdkError *codersdk.Error
 	require.Error(t, err)
-	require.True(t, errors.As(err, &sdkError))
+	require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 	require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 	require.Contains(t, sdkError.Error(), "endpoint URL scheme must be https")
 }
@@ -121,22 +123,38 @@ type testWebpushErrorStore struct {
 }
 
 type testWebpushDispatcher struct {
-	testCalls     atomic.Int32
-	dispatchCalls atomic.Int32
+	testCalls          atomic.Int32
+	dispatchCalls      atomic.Int32
+	invalidateUserIDs  []uuid.UUID
+	invalidateUserLock sync.Mutex
 }
 
-func (d *testWebpushDispatcher) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMessage) error {
+func (d *testWebpushDispatcher) Dispatch(_ context.Context, _ uuid.UUID, _ codersdk.WebpushMessage) error {
 	d.dispatchCalls.Add(1)
 	return nil
 }
 
-func (d *testWebpushDispatcher) Test(context.Context, codersdk.WebpushSubscription) error {
+func (d *testWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
 	d.testCalls.Add(1)
 	return nil
 }
 
 func (*testWebpushDispatcher) PublicKey() string {
 	return ""
+}
+
+// InvalidateUser implements webpush.SubscriptionCacheInvalidator so the
+// handler exercises the cache-invalidation path on subscribe/unsubscribe.
+func (d *testWebpushDispatcher) InvalidateUser(userID uuid.UUID) {
+	d.invalidateUserLock.Lock()
+	defer d.invalidateUserLock.Unlock()
+	d.invalidateUserIDs = append(d.invalidateUserIDs, userID)
+}
+
+func (d *testWebpushDispatcher) invalidateCount() int {
+	d.invalidateUserLock.Lock()
+	defer d.invalidateUserLock.Unlock()
+	return len(d.invalidateUserIDs)
 }
 
 func (s *testWebpushErrorStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
