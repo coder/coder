@@ -179,7 +179,7 @@ func (s Subject) SafeRoleNames() []RoleIdentifier {
 func (s Subject) HasOrganizationMembership(organizationID uuid.UUID) (bool, error) {
 	roles, err := s.Roles.Expand()
 	if err != nil {
-		return false, err
+		return false, xerrors.Errorf("expand user authorization roles: %w", err)
 	}
 
 	organizationIDString := organizationID.String()

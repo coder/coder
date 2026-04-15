@@ -409,7 +409,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate organization membership.",
-			Detail:  xerrors.Errorf("expand user authorization roles: %w", err).Error(),
+			Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
 		})
 		return
 	}

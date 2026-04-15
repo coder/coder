@@ -376,7 +376,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		workspaceOrgID := dbReq.Workspace.OrganizationID
 		isMember, err := roles.HasOrganizationMembership(workspaceOrgID)
 		if err != nil {
-			return false, warnings, xerrors.Errorf("expand roles: %w", err)
+			return false, warnings, xerrors.Errorf("check organization membership: %w", err)
 		}
 		if isMember {
 			return true, []string{}, nil
