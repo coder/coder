@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/google/uuid"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -143,7 +144,7 @@ func (c *rptyConn) Close() (err error) {
 }
 
 //nolint:revive // Ignore requestPTY control flag.
-func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool, blockEndpoints bool) (rwc *countReadWriteCloser, err error) {
+func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool, blockEndpoints bool, logger slog.Logger) (rwc *countReadWriteCloser, err error) {
 	var closers []func() error
 	defer func() {
 		if err != nil {
@@ -157,6 +158,7 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 	}()
 
 	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+		Logger:         logger,
 		BlockEndpoints: blockEndpoints,
 	})
 	if err != nil {
