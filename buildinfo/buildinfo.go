@@ -147,9 +147,14 @@ func Time() (time.Time, bool) {
 	return parsed, true
 }
 
+// Revision returns the full Git hash of the build.
+func Revision() (string, bool) {
+	return find("vcs.revision")
+}
+
 // revision returns the Git hash of the build.
 func revision() (string, bool) {
-	return find("vcs.revision")
+	return Revision()
 }
 
 // find panics if a setting with the specific key was not

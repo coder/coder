@@ -1014,7 +1014,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
 
-				if err = prometheusmetrics.BuildInfo(options.PrometheusRegistry, buildinfo.Version()); err != nil {
+				revision, _ := buildinfo.Revision()
+				if err = prometheusmetrics.BuildInfo(options.PrometheusRegistry, buildinfo.Version(), revision); err != nil {
 					return xerrors.Errorf("register build info metric: %w", err)
 				}
 			}

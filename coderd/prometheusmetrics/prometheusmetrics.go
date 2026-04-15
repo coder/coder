@@ -713,17 +713,17 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 // BuildInfo registers a gauge which is always set to 1, with labels
 // describing the running server version. This follows the common
 // pattern used by Prometheus itself and many Go services.
-func BuildInfo(registerer prometheus.Registerer, version string) error {
+func BuildInfo(registerer prometheus.Registerer, version, revision string) error {
 	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "build_info",
 		Help:      "Describes the current build/version of the Coder server. Value is always 1.",
-	}, []string{"version"})
+	}, []string{"version", "revision"})
 	if err := registerer.Register(gauge); err != nil {
 		return err
 	}
 
-	gauge.WithLabelValues(version).Set(1)
+	gauge.WithLabelValues(version, revision).Set(1)
 
 	return nil
 }

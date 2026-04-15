@@ -911,8 +911,9 @@ func TestBuildInfo(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	version := "v2.15.0+abc1234"
+	revision := "abc1234def5678"
 
-	require.NoError(t, prometheusmetrics.BuildInfo(reg, version))
+	require.NoError(t, prometheusmetrics.BuildInfo(reg, version, revision))
 
 	out, err := reg.Gather()
 	require.NoError(t, err)
@@ -922,10 +923,13 @@ func TestBuildInfo(t *testing.T) {
 	metrics := out[0].GetMetric()
 	require.Len(t, metrics, 1)
 
+	// Labels are sorted alphabetically by Prometheus.
 	labels := metrics[0].GetLabel()
-	require.Len(t, labels, 1)
-	require.Equal(t, "version", labels[0].GetName())
-	require.Equal(t, version, labels[0].GetValue())
+	require.Len(t, labels, 2)
+	require.Equal(t, "revision", labels[0].GetName())
+	require.Equal(t, revision, labels[0].GetValue())
+	require.Equal(t, "version", labels[1].GetName())
+	require.Equal(t, version, labels[1].GetValue())
 	require.Equal(t, float64(1), metrics[0].GetGauge().GetValue())
 }
 
