@@ -18,6 +18,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -145,6 +146,7 @@ type Server struct {
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
+	metrics      *chatloop.Metrics
 	recordingSem chan struct{}
 
 	// Configuration
@@ -2697,6 +2699,7 @@ type Config struct {
 	WebpushDispatcher              webpush.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
+	PrometheusRegistry             prometheus.Registerer
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -2764,6 +2767,11 @@ func New(cfg Config) *Server {
 		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
 		heartbeatRegistry:              make(map[uuid.UUID]*heartbeatEntry),
+	}
+	if cfg.PrometheusRegistry != nil {
+		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+	} else {
+		p.metrics = chatloop.NopMetrics()
 	}
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
@@ -4033,6 +4041,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
 
+	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Inc()
+	defer p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Dec()
+
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -4243,7 +4254,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
+	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Dec()
+	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusStreaming).Inc()
 	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
+	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusStreaming).Dec()
+	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Inc()
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
@@ -5248,6 +5263,7 @@ func (p *Server) runChat(
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
+		Metrics: p.metrics,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: providerOptions,

@@ -1,0 +1,170 @@
+package chatloop
+
+import (
+	"context"
+	"errors"
+
+	"charm.land/fantasy"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+const (
+	metricsNamespace = "coderd"
+	metricsSubsystem = "chatd"
+
+	// Label values for ActiveSessions.
+	StatusStreaming = "streaming"
+	StatusWaiting   = "waiting"
+
+	// Label values for CompactionTotal.
+	CompactionResultSuccess = "success"
+	CompactionResultError   = "error"
+	CompactionResultTimeout = "timeout"
+)
+
+// Metrics holds Prometheus metrics for the chatd subsystem.
+type Metrics struct {
+	ActiveSessions               *prometheus.GaugeVec
+	MessageCount                 prometheus.Histogram
+	PromptSizeBytes              prometheus.Histogram
+	ToolResultSizeBytes          *prometheus.HistogramVec
+	SerializationDurationSeconds prometheus.Histogram
+	CompactionTotal              *prometheus.CounterVec
+	StepsTotal                   prometheus.Counter
+}
+
+// NewMetrics creates a new Metrics instance registered with the
+// given registerer.
+func NewMetrics(reg prometheus.Registerer) *Metrics {
+	factory := promauto.With(reg)
+	return &Metrics{
+		ActiveSessions: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "active_sessions",
+			Help:      "Number of active chat sessions by status.",
+		}, []string{"status"}),
+		MessageCount: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "message_count",
+			Help:      "Number of messages in the prompt at each Model.Stream call.",
+			Buckets:   prometheus.ExponentialBuckets(1, 2, 8), // 1, 2, 4, 8, 16, 32, 64, 128
+		}),
+		PromptSizeBytes: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "prompt_size_bytes",
+			Help:      "Estimated byte size of the prompt at each Model.Stream call.",
+			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
+		}),
+		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "tool_result_size_bytes",
+			Help:      "Size in bytes of each tool result returned from executeSingleTool.",
+			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
+		}, []string{"tool_name"}),
+		SerializationDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "serialization_duration_seconds",
+			Help:      "Wall time from Model.Stream call to first streamed chunk (time-to-first-token).",
+			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		}),
+		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "compaction_total",
+			Help:      "Total compaction attempts by result.",
+		}, []string{"result"}),
+		StepsTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "steps_total",
+			Help:      "Total agentic loop steps across all chats.",
+		}),
+	}
+}
+
+// NopMetrics returns a Metrics instance that discards all data.
+// Useful for tests and when metrics collection is not desired.
+func NopMetrics() *Metrics {
+	return NewMetrics(prometheus.NewRegistry())
+}
+
+// RecordCompaction classifies and records a compaction attempt.
+// It is a no-op when m is nil.
+func (m *Metrics) RecordCompaction(compacted bool, err error) {
+	if m == nil {
+		return
+	}
+	switch {
+	case err != nil && errors.Is(err, context.DeadlineExceeded):
+		m.CompactionTotal.WithLabelValues(CompactionResultTimeout).Inc()
+	case err != nil:
+		m.CompactionTotal.WithLabelValues(CompactionResultError).Inc()
+	case compacted:
+		m.CompactionTotal.WithLabelValues(CompactionResultSuccess).Inc()
+		// !compacted && err == nil means threshold not reached — not
+		// recorded.
+	}
+}
+
+// EstimatePromptSize returns a cheap byte-size estimate of a
+// fantasy prompt by summing the text content lengths of all
+// message parts. This avoids JSON marshaling overhead.
+func EstimatePromptSize(messages []fantasy.Message) int {
+	var size int
+	for _, msg := range messages {
+		for _, part := range msg.Content {
+			size += ContentPartSize(part)
+		}
+	}
+	return size
+}
+
+// ContentPartSize returns the byte length of a MessagePart's
+// primary text or data field.
+func ContentPartSize(part fantasy.MessagePart) int {
+	switch p := part.(type) {
+	case fantasy.TextPart:
+		return len(p.Text)
+	case fantasy.ReasoningPart:
+		return len(p.Text)
+	case fantasy.FilePart:
+		return len(p.Data)
+	case fantasy.ToolCallPart:
+		return len(p.Input)
+	case fantasy.ToolResultPart:
+		return toolResultOutputSize(p.Output)
+	default:
+		return 0
+	}
+}
+
+// ToolResultSize returns the byte length of a
+// ToolResultContent's primary text or data field.
+func ToolResultSize(r fantasy.ToolResultContent) int {
+	return toolResultOutputSize(r.Result)
+}
+
+func toolResultOutputSize(output fantasy.ToolResultOutputContent) int {
+	if output == nil {
+		return 0
+	}
+	switch v := output.(type) {
+	case fantasy.ToolResultOutputContentText:
+		return len(v.Text)
+	case fantasy.ToolResultOutputContentError:
+		if v.Error != nil {
+			return len(v.Error.Error())
+		}
+		return 0
+	case fantasy.ToolResultOutputContentMedia:
+		return len(v.Data)
+	default:
+		return 0
+	}
+}

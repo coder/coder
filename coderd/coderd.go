@@ -792,6 +792,7 @@ func New(options *Options) *API {
 			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
+			PrometheusRegistry:             options.PrometheusRegistry,
 		})
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
