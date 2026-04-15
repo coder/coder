@@ -6,13 +6,6 @@ cdroot
 
 echo "--- check for emdash/endash characters"
 
-# Verify grep -P (PCRE) is available. GNU grep supports it;
-# BSD grep (macOS default) does not.
-if ! printf '\xe2\x80\x94' | grep -Pq '\xE2\x80\x94' 2>/dev/null; then
-	echo "ERROR: grep -P (PCRE) not available. Install GNU grep."
-	exit 1
-fi
-
 mode="changed"
 for arg in "$@"; do
 	if [[ "$arg" == "--all" ]]; then
@@ -20,15 +13,16 @@ for arg in "$@"; do
 	fi
 done
 
-# Raw UTF-8 byte sequences for emdash (U+2014) and endash (U+2013).
-# Using byte patterns with grep -P avoids locale-dependent character
-# class issues where a bare character class can false-positive on
-# other multi-byte characters sharing the 0xE2 leading byte.
-pattern='\xE2\x80\x94|\xE2\x80\x93'
+# Build the pattern from raw bytes so the script itself does not
+# contain literal emdash/endash characters (which would trigger
+# the check when the script is in the diff).
+emdash=$'\xE2\x80\x94'
+endash=$'\xE2\x80\x93'
+pattern="${emdash}|${endash}"
 
 scan_all_files() {
 	local output
-	output=$(git ls-files -z | xargs -0 grep -IPn "$pattern" 2>/dev/null || true)
+	output=$(git ls-files -z | xargs -0 grep -IEn "$pattern" 2>/dev/null || true)
 	if [[ -n "$output" ]]; then
 		echo "$output"
 		found=1
@@ -89,7 +83,7 @@ else
 				continue
 			fi
 			if [[ "$diff_line" =~ ^\+ ]] && [[ ! "$diff_line" =~ ^\+\+\+\ [ab/] ]]; then
-				if echo "$diff_line" | grep -Pq "$pattern"; then
+				if echo "$diff_line" | grep -Eq "$pattern"; then
 					echo "${current_file}:${current_line}:${diff_line:1}"
 					found=1
 				fi
