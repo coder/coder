@@ -148,9 +148,10 @@ func createParentChatWithInheritedContext(
 ) database.Chat {
 	t.Helper()
 
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-with-context",
 		ModelConfigID:      model.ID,
@@ -328,9 +329,10 @@ func createParentChatWithRotatedInheritedContext(
 ) database.Chat {
 	t.Helper()
 
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-with-rotated-context",
 		ModelConfigID:      model.ID,

@@ -124,12 +124,46 @@ module.exports = {
 					"30%": { left: "0%", width: "40%" },
 					"100%": { left: "100%", width: "0%" },
 				},
+				// Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
+				// staggered bars are required so one is visible while the other resets.
+				"bar-indeterminate": {
+					"0%": {
+						left: "-35%",
+						right: "100%",
+					},
+					"60%": {
+						left: "100%",
+						right: "-90%",
+					},
+					"100%": {
+						left: "100%",
+						right: "-90%",
+					},
+				},
+				"bar-indeterminate-2": {
+					"0%": {
+						left: "-200%",
+						right: "100%",
+					},
+					"60%": {
+						left: "107%",
+						right: "-8%",
+					},
+					"100%": {
+						left: "107%",
+						right: "-8%",
+					},
+				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
 				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
+				"bar-indeterminate":
+					"bar-indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite",
+				"bar-indeterminate-2":
+					"bar-indeterminate-2 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite",
 			},
 		},
 	},

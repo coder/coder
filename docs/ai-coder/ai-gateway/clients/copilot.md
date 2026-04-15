@@ -12,6 +12,33 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
+## Provider configuration
+
+Configure a `copilot` provider using the
+[indexed provider format](../setup.md#multiple-instances-of-the-same-provider).
+Copilot providers use OAuth app installations for authentication rather than
+static API keys.
+
+```sh
+# GitHub Copilot (Individual)
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
+
+# GitHub Copilot Business
+export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
+export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
+
+# GitHub Copilot Enterprise
+export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
+export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
+```
+
+The default base URL targets the individual Copilot API
+(`api.individual.githubcopilot.com`). Override `BASE_URL` for Business or
+Enterprise tiers as shown above.
+
 ## Copilot CLI
 
 For installation instructions, see [GitHub Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/install-copilot-cli).
@@ -21,7 +48,7 @@ For installation instructions, see [GitHub Copilot CLI documentation](https://do
 Set the `HTTPS_PROXY` environment variable:
 
 ```shell
-export HTTPS_PROXY="https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
+export HTTPS_PROXY="https://coder:${CODER_API_TOKEN}@<proxy-host>:8888"
 ```
 
 Replace `<proxy-host>` with your AI Gateway Proxy hostname.
@@ -62,20 +89,20 @@ Alternatively, you can configure the proxy directly in VS Code settings:
 
 1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
 1. Search for `HTTP: Proxy`
-1. Set the proxy URL using the format `https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+1. Set the proxy URL using the format `https://coder:<CODER_API_TOKEN>@<proxy-host>:8888`
 
 Or add directly to your `settings.json`:
 
 ```json
 {
-    "http.proxy": "https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888"
+    "http.proxy": "https://coder:<CODER_API_TOKEN>@<proxy-host>:8888"
 }
 ```
 
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
 The `http.proxy` setting is used for both HTTP and HTTPS requests.
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 Restart VS Code for changes to take effect.
 
@@ -105,11 +132,11 @@ Configure the proxy in VS Code's remote settings:
 1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
 1. Select the **Remote** tab
 1. Search for `HTTP: Proxy`
-1. Set the proxy URL using the format `https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+1. Set the proxy URL using the format `https://coder:<CODER_API_TOKEN>@<proxy-host>:8888`
 
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 #### CA certificate trust
 
@@ -132,7 +159,7 @@ Configure the proxy directly in JetBrains IDE settings:
 1. Enter the proxy hostname and port (default: 8888)
 1. Select `Proxy authentication` and enter:
    1. Login: `coder` (this value is ignored)
-   1. Password: Your Coder session token
+   1. Password: Your Coder API token
    1. Check `Remember` to save the password
 1. Restart the IDE for changes to take effect
 

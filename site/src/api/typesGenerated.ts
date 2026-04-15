@@ -41,9 +41,23 @@ export interface AIBridgeBedrockConfig {
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly openai: AIBridgeOpenAIConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly bedrock: AIBridgeBedrockConfig;
+	/**
+	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	 */
+	readonly providers?: readonly AIBridgeProviderConfig[];
 	/**
 	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -108,6 +122,31 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * AIBridgeProviderConfig represents a single AI Bridge provider instance,
+ * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * This follows the same indexed pattern as ExternalAuthConfig.
+ */
+export interface AIBridgeProviderConfig {
+	/**
+	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 */
+	readonly type: string;
+	/**
+	 * Name is the unique instance identifier used for routing.
+	 * Defaults to Type if not provided.
+	 */
+	readonly name: string;
+	/**
+	 * BaseURL is the base URL of the upstream provider API.
+	 */
+	readonly base_url: string;
+	readonly bedrock_region?: string;
+	readonly bedrock_model?: string;
+	readonly bedrock_small_fast_model?: string;
 }
 
 // From codersdk/deployment.go
@@ -1187,6 +1226,7 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  */
 export interface Chat {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
@@ -1237,6 +1277,7 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
+	readonly debug_logging_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -1363,6 +1404,127 @@ export interface ChatCostUsersResponse {
 	readonly count: number;
 	readonly users: readonly ChatCostUserRollup[];
 }
+
+// From codersdk/chats.go
+/**
+ * ChatDebugLoggingAdminSettings describes the runtime admin setting
+ * that allows users to opt into chat debug logging.
+ */
+export interface ChatDebugLoggingAdminSettings {
+	readonly allow_users: boolean;
+	readonly forced_by_deployment: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRun is the detailed run response including steps.
+ * This type is consumed by the run-detail handler added in a later
+ * PR in this stack; it is forward-declared here so that all SDK
+ * types live in the same schema-layer commit.
+ */
+export interface ChatDebugRun {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly root_chat_id?: string;
+	readonly parent_chat_id?: string;
+	readonly model_config_id?: string;
+	readonly trigger_message_id?: number;
+	readonly history_tip_message_id?: number;
+	readonly kind: ChatDebugRunKind;
+	readonly status: ChatDebugStatus;
+	readonly provider?: string;
+	readonly model?: string;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+	readonly steps: readonly ChatDebugStep[];
+}
+
+// From codersdk/chats.go
+export type ChatDebugRunKind =
+	| "chat_turn"
+	| "compaction"
+	| "quickgen"
+	| "title_generation";
+
+export const ChatDebugRunKinds: ChatDebugRunKind[] = [
+	"chat_turn",
+	"compaction",
+	"quickgen",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRunSummary is a lightweight run entry for list endpoints.
+ */
+export interface ChatDebugRunSummary {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly kind: ChatDebugRunKind;
+	readonly status: ChatDebugStatus;
+	readonly provider?: string;
+	readonly model?: string;
+	// empty interface{} type, falling back to unknown
+	readonly summary: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+export type ChatDebugStatus =
+	| "completed"
+	| "error"
+	| "in_progress"
+	| "interrupted";
+
+export const ChatDebugStatuses: ChatDebugStatus[] = [
+	"completed",
+	"error",
+	"in_progress",
+	"interrupted",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatDebugStep is a single step within a debug run.
+ */
+export interface ChatDebugStep {
+	readonly id: string;
+	readonly run_id: string;
+	readonly chat_id: string;
+	readonly step_number: number;
+	readonly operation: ChatDebugStepOperation;
+	readonly status: ChatDebugStatus;
+	readonly history_tip_message_id?: number;
+	readonly assistant_message_id?: number;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_request: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly normalized_response?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly usage?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly attempts: readonly Record<string, unknown>[];
+	// empty interface{} type, falling back to unknown
+	readonly error?: Record<string, unknown>;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+export type ChatDebugStepOperation = "generate" | "stream";
+
+export const ChatDebugStepOperations: ChatDebugStepOperation[] = [
+	"generate",
+	"stream",
+];
 
 // From codersdk/chats.go
 /**
@@ -2489,6 +2651,7 @@ export interface CreateChatProviderConfigRequest {
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
+	readonly organization_id: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -3427,7 +3590,6 @@ export type Experiment =
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
-	| "web-push"
 	| "workspace-build-updates"
 	| "workspace-usage";
 
@@ -3438,7 +3600,6 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"notifications",
 	"oauth2",
-	"web-push",
 	"workspace-build-updates",
 	"workspace-usage",
 ];
@@ -4292,6 +4453,20 @@ export interface MatchedProvisioners {
  * this limit than to lower it.
  */
 export const MaxChatFileIDs = 20;
+
+// From codersdk/usersecretvalidation.go
+/**
+ * MaxSecretValueSize is the maximum size of a user secret value
+ * in bytes. This limit applies uniformly to both env var and
+ * file-destined secrets because the value field is shared and
+ * the destination can change after creation. 32KB is generous
+ * for env vars (most are under 1KB) but necessary for file
+ * content like SSH keys, TLS certificate chains, and JSON
+ * configs. We are not trying to be overly restrictive here;
+ * users can use the full 32KB for env var values even though
+ * it would be unusual.
+ */
+export const MaxSecretValueSize = 32768; // 32KB
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -7363,6 +7538,15 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
+ * toggle whether users may opt into chat debug logging.
+ */
+export interface UpdateChatDebugLoggingAllowUsersRequest {
+	readonly allow_users: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
  */
 export interface UpdateChatDesktopEnabledRequest {
@@ -7662,6 +7846,15 @@ export interface UpdateUserAppearanceSettingsRequest {
  */
 export interface UpdateUserChatCompactionThresholdRequest {
 	readonly threshold_percent: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateUserChatDebugLoggingRequest is the per-user request to
+ * opt into or out of chat debug logging.
+ */
+export interface UpdateUserChatDebugLoggingRequest {
+	readonly debug_logging_enabled: boolean;
 }
 
 // From codersdk/notifications.go
@@ -7965,6 +8158,17 @@ export interface UserChatCustomPrompt {
 
 // From codersdk/chats.go
 /**
+ * UserChatDebugLoggingSettings describes whether debug logging is
+ * active for the current user and whether the user may control it.
+ */
+export interface UserChatDebugLoggingSettings {
+	readonly debug_logging_enabled: boolean;
+	readonly user_toggle_allowed: boolean;
+	readonly forced_by_deployment: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UserChatProviderConfig is a summary of a provider that allows
  * user-supplied keys, as seen from the current user's perspective.
  */
@@ -8083,20 +8287,6 @@ export interface UserSecret {
 	readonly file_path: string;
 	readonly created_at: string;
 	readonly updated_at: string;
-}
-
-// From codersdk/usersecretvalidation.go
-/**
- * UserSecretEnvValidationOptions controls deployment-aware behavior
- * in environment variable name validation.
- */
-export interface UserSecretEnvValidationOptions {
-	/**
-	 * AIGatewayEnabled indicates that the deployment has AI Gateway
-	 * configured. When true, AI Gateway environment variables
-	 * (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
-	 */
-	readonly AIGatewayEnabled: boolean;
 }
 
 // From codersdk/users.go

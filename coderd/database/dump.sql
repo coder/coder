@@ -1255,6 +1255,44 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_debug_runs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_id uuid NOT NULL,
+    root_chat_id uuid,
+    parent_chat_id uuid,
+    model_config_id uuid,
+    trigger_message_id bigint,
+    history_tip_message_id bigint,
+    kind text NOT NULL,
+    status text NOT NULL,
+    provider text,
+    model text,
+    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone
+);
+
+CREATE TABLE chat_debug_steps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    step_number integer NOT NULL,
+    operation text NOT NULL,
+    status text NOT NULL,
+    history_tip_message_id bigint,
+    assistant_message_id bigint,
+    normalized_request jsonb NOT NULL,
+    normalized_response jsonb,
+    usage jsonb,
+    attempts jsonb DEFAULT '[]'::jsonb NOT NULL,
+    error jsonb,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone
+);
+
 CREATE TABLE chat_diff_statuses (
     chat_id uuid NOT NULL,
     url text,
@@ -1431,7 +1469,8 @@ CREATE TABLE chats (
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
     last_injected_context jsonb,
-    dynamic_tools jsonb
+    dynamic_tools jsonb,
+    organization_id uuid NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -3359,6 +3398,12 @@ ALTER TABLE ONLY audit_logs
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_debug_runs
+    ADD CONSTRAINT chat_debug_runs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_debug_steps
+    ADD CONSTRAINT chat_debug_steps_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
@@ -3753,6 +3798,20 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
+
+CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
+
+CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
+
+CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
+
+CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
+
+CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);
+
+CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
@@ -3788,6 +3847,8 @@ CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
+
+CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
@@ -4056,6 +4117,12 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_debug_runs
+    ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_debug_steps
+    ADD CONSTRAINT chat_debug_steps_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4105,6 +4172,9 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
 
 ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
@@ -4127,6 +4197,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_debug_steps
+    ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

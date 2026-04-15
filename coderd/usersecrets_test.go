@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -188,6 +189,36 @@ func TestPostUserSecret(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
+
+	t.Run("NullByteInValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "null-byte-secret",
+			Value: "before\x00after",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Invalid secret value")
+	})
+
+	t.Run("OversizedValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "oversized-secret",
+			Value: strings.Repeat("a", codersdk.MaxSecretValueSize+1),
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Invalid secret value")
+	})
 }
 
 func TestGetUserSecrets(t *testing.T) {
@@ -371,6 +402,27 @@ func TestPatchUserSecret(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	t.Run("InvalidValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "patch-invalid-val",
+			Value: "good-value",
+		})
+		require.NoError(t, err)
+
+		badVal := "before\x00after"
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "patch-invalid-val", codersdk.UpdateUserSecretRequest{
+			Value: &badVal,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Invalid secret value")
 	})
 }
 

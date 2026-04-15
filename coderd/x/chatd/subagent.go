@@ -452,14 +452,19 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	// Resolve the deployment prompt before opening the transaction so
+	// child chat creation does not hold one DB connection while waiting
+	// for another pool checkout.
+	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	var child database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    parent.OrganizationID,
 			OwnerID:           parent.OwnerID,
 			WorkspaceID:       parent.WorkspaceID,
 			BuildID:           parent.BuildID,
@@ -481,7 +486,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("insert child chat: %w", err)
 		}
 
-		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
 		if insertedChat.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
