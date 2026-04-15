@@ -325,4 +325,4 @@ appear in the `files` field on subsequent
 | `pending`         | Queued for processing.                                       |
 | `running`         | Agent is actively working.                                   |
 | `error`           | Agent encountered an error.                                  |
-| `requires_action` | Agent is waiting for dynamic tool results from the client.   |
+| `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
