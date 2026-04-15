@@ -251,14 +251,6 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 				}
 			}
 
-			// The agent is now online — re-fire so callers can
-			// load instruction files from the running agent.
-			if options.OnChatUpdated != nil {
-				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
-					options.OnChatUpdated(latest)
-				}
-			}
-
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
@@ -288,6 +280,19 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 				agentStatus := waitForAgentReady(ctx, db, workspaceAgentID, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
+				}
+			}
+
+			// Re-fire after the agent is fully ready so callers
+			// can load instruction files (AGENTS.md) from the
+			// running agent. This must happen after
+			// waitForAgentReady — firing earlier (e.g. right
+			// after waitForBuild) races with the agent startup
+			// and the connection usually times out before the
+			// agent is reachable.
+			if options.OnChatUpdated != nil {
+				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
 				}
 			}
 
