@@ -1,7 +1,6 @@
 import {
 	ChevronDownIcon,
 	CopyIcon,
-	ExternalLinkIcon,
 	LayoutGridIcon,
 	MonitorIcon,
 	SquareTerminalIcon,
@@ -26,6 +25,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import {
 	Tooltip,
 	TooltipContent,
@@ -220,7 +221,11 @@ const VSCodeMenuItem: FC<{
 			onSelect={handleClick}
 			disabled={isGeneratingKey || !isRunning}
 		>
-			<ExternalLinkIcon className="size-3.5" />
+			{variant === "vscode" ? (
+				<VSCodeIcon className="size-3.5" />
+			) : (
+				<VSCodeInsidersIcon className="size-3.5" />
+			)}
 			{label}
 		</DropdownMenuItem>
 	);
