@@ -1,5 +1,6 @@
 import { LoaderIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { Button } from "#/components/Button/Button";
@@ -20,7 +21,7 @@ export const ProposePlanTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-	onImplementPlan?: () => void;
+	onImplementPlan?: () => Promise<void> | void;
 }> = ({
 	content: inlineContent,
 	fileID,
@@ -58,12 +59,26 @@ export const ProposePlanTool: React.FC<{
 	const effectiveError = isError || Boolean(fetchError);
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const canImplementPlan =
 		status === "completed" &&
 		!effectiveError &&
 		!fetchLoading &&
 		hasDisplayContent &&
 		Boolean(onImplementPlan);
+
+	const handleImplementPlanClick = async () => {
+		if (!onImplementPlan || isSubmitting) {
+			return;
+		}
+		setIsSubmitting(true);
+		try {
+			await onImplementPlan();
+			setIsSubmitting(false);
+		} catch {
+			setIsSubmitting(false);
+		}
+	};
 
 	return (
 		<div className="w-full">
@@ -100,11 +115,18 @@ export const ProposePlanTool: React.FC<{
 										type="button"
 										variant="subtle"
 										size="sm"
-										onClick={onImplementPlan}
+										onClick={() => {
+											void handleImplementPlanClick();
+										}}
+										disabled={isSubmitting}
 										aria-label="Implement plan"
 									>
-										<PlayIcon />
-										Implement
+										{isSubmitting ? (
+											<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+										) : (
+											<PlayIcon />
+										)}
+										{isSubmitting ? "Implementing..." : "Implement"}
 									</Button>
 								</TooltipTrigger>
 								<TooltipContent>Implement plan</TooltipContent>

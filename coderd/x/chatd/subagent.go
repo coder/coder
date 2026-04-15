@@ -485,7 +485,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			LastModelConfigID: parent.LastModelConfigID,
 			Title:             title,
 			Mode:              opts.chatMode,
-			PlanMode:          database.NullChatPlanMode{},
+			PlanMode:          parent.PlanMode,
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
 			Labels: pqtype.NullRawMessage{

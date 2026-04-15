@@ -3052,6 +3052,13 @@ export type CreateTaskFeedbackRequest = {
 
 export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
 
+export type CreateChatMessageRequestWithClearablePlanMode = Omit<
+	TypesGen.CreateChatMessageRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
 type UpdateChatRequestWithClearablePlanMode = Omit<
 	TypesGen.UpdateChatRequest,
 	"plan_mode"
@@ -3166,7 +3173,7 @@ class ExperimentalApiMethods {
 
 	createChatMessage = async (
 		chatId: string,
-		req: TypesGen.CreateChatMessageRequest,
+		req: CreateChatMessageRequestWithClearablePlanMode,
 	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
 			`/api/experimental/chats/${chatId}/messages`,

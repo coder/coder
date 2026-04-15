@@ -101,6 +101,31 @@ func TestProposePlan(t *testing.T) {
 		assert.Equal(t, "# Plan", string(*stored))
 	})
 
+	t.Run("PlanTurnRejectsWrongPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-chat.md"
+
+		storeFile, _ := fakeStoreFile(t)
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				return chatPlanPath, "/home/coder", nil
+			},
+			true,
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/README.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "during plan turns, propose_plan path must be "+chatPlanPath, resp.Content)
+	})
 	t.Run("RejectsReadFileErrors", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

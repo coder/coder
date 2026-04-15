@@ -212,6 +212,13 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		});
 	};
 
+	const handleBack = () => {
+		setCurrentQuestionIndex((currentIndex) => {
+			return Math.max(currentIndex - 1, 0);
+		});
+		setSubmitError(undefined);
+	};
+
 	const handleNext = () => {
 		if (!canAdvanceToNextQuestion) {
 			return;
@@ -499,6 +506,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 
 			{isInteractive && (
 				<div className="mt-4 flex items-center gap-2">
+					{filteredQuestions.length > 1 && (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={handleBack}
+							disabled={activeQuestionIndex === 0 || isSubmitting}
+						>
+							Back
+						</Button>
+					)}
 					{filteredQuestions.length > 1 &&
 					activeQuestionIndex < filteredQuestions.length - 1 ? (
 						<Button

@@ -3636,6 +3636,27 @@ func TestPatchChat(t *testing.T) {
 		return chat
 	}
 
+	createStoredChat := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		orgID uuid.UUID,
+		modelConfigID uuid.UUID,
+		title string,
+	) codersdk.Chat {
+		t.Helper()
+
+		dbChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    orgID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return db2sdk.Chat(dbChat, nil, nil)
+	}
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
@@ -3707,13 +3728,21 @@ func TestPatchChat(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			client, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModelConfig(t, client)
+			modelConfig := createChatModelConfig(t, client)
 
 			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: firstUser.OrganizationID,
 				OwnerID:        firstUser.UserID,
 			}).WithAgent().Do()
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "bind workspace")
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"bind workspace",
+			)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				WorkspaceID: &workspaceBuild.Workspace.ID,
@@ -3729,11 +3758,19 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModelConfig(t, client)
+			modelConfig := createChatModelConfig(t, client)
 
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "missing workspace")
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"missing workspace",
+			)
 			workspaceID := uuid.New()
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				WorkspaceID: &workspaceID,
@@ -3742,19 +3779,61 @@ func TestPatchChat(t *testing.T) {
 			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
 		})
 
+		t.Run("RejectsCrossOrgWorkspaceBinding", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModelConfig(t, client)
+
+			secondOrg := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				OrganizationID: secondOrg.ID,
+				UserID:         firstUser.UserID,
+			})
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: secondOrg.ID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"cross org workspace binding",
+			)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Workspace does not belong to this chat's organization.", sdkErr.Message)
+		})
+
 		t.Run("ClearWorkspaceBinding", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			client, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModelConfig(t, client)
+			modelConfig := createChatModelConfig(t, client)
 
 			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: firstUser.OrganizationID,
 				OwnerID:        firstUser.UserID,
 			}).WithAgent().Do()
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "clear workspace binding")
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"clear workspace binding",
+			)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				WorkspaceID: &workspaceBuild.Workspace.ID,

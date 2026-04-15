@@ -158,6 +158,11 @@ and cannot create workspaces or spawn further sub-agents.
 | `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation. |
 | `ask_user_question` | Asks the user structured clarification questions during plan mode.                      |
 
+`propose_plan` and `ask_user_question` are only exposed while plan mode is
+active. In that mode, the chat-specific plan file is the only writable
+artifact. Execution, process, MCP, dynamic, and provider-native tools are not
+available.
+
 ### Orchestration tools
 
 These tools manage sub-agents — child chats that work on independent tasks in

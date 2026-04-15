@@ -4384,14 +4384,14 @@ type runChatResult struct {
 
 func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPlanMode) []string {
 	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
-	knownBuiltIns := map[string]bool{
+	builtinPlanPolicy := map[string]bool{
 		"read_file":                true,
 		"write_file":               true,
 		"edit_files":               true,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             true,
-		"process_signal":           true,
+		"execute":                  false,
+		"process_output":           false,
+		"process_list":             false,
+		"process_signal":           false,
 		"list_templates":           true,
 		"read_template":            true,
 		"create_workspace":         true,
@@ -4399,9 +4399,9 @@ func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPl
 		"propose_plan":             true,
 		"spawn_agent":              true,
 		"wait_agent":               true,
-		"message_agent":            true,
-		"close_agent":              true,
-		"spawn_computer_use_agent": true,
+		"message_agent":            false,
+		"close_agent":              false,
+		"spawn_computer_use_agent": false,
 		"read_skill":               true,
 		"read_skill_file":          true,
 		"ask_user_question":        true,
@@ -4418,25 +4418,10 @@ func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPl
 		return toolNames
 	}
 
-	planAllowlist := map[string]bool{
-		"read_file":         true,
-		"write_file":        true,
-		"edit_files":        true,
-		"list_templates":    true,
-		"read_template":     true,
-		"create_workspace":  true,
-		"start_workspace":   true,
-		"propose_plan":      true,
-		"spawn_agent":       true,
-		"wait_agent":        true,
-		"read_skill":        true,
-		"read_skill_file":   true,
-		"ask_user_question": true,
-	}
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
 		name := tool.Info().Name
-		if knownBuiltIns[name] && planAllowlist[name] {
+		if builtinPlanPolicy[name] {
 			toolNames = append(toolNames, name)
 		}
 	}

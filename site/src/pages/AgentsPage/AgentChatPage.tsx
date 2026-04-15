@@ -9,7 +9,11 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { watchWorkspace } from "#/api/api";
+import {
+	type ChatPlanModeOrClear,
+	type CreateChatMessageRequestWithClearablePlanMode,
+	watchWorkspace,
+} from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -92,7 +96,7 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
-const clearChatPlanMode = "" as TypesGen.ChatPlanMode;
+const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
@@ -1166,7 +1170,7 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: TypesGen.CreateChatMessageRequest = {
+		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
 			mcp_server_ids:

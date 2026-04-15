@@ -258,7 +258,7 @@ web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`, `propose_plan`) and orchestration tools (`spawn_agent`,
+`start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
 `wait_agent`, `message_agent`, `close_agent`, `spawn_computer_use_agent`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
@@ -267,6 +267,38 @@ tools and cannot create workspaces or spawn further sub-agents.
 the virtual desktop feature to be enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
+
+`propose_plan` and `ask_user_question` are only available while plan mode is
+active. In plan mode, the agent can still inspect the workspace and template
+metadata, but execution, process management, MCP, dynamic, and provider-native
+tools are blocked. `write_file` and `edit_files` remain available only for the
+chat-specific plan file under `.coder/plans/`.
+
+## Plan mode
+
+Plan mode lets you ask the agent to investigate first and present a plan before
+implementation. Open the chat input menu and choose **Plan first** to enable it
+for the current chat. After you enable it, later turns in that chat stay in
+plan mode until you turn it off or click **Implement plan** after a proposed
+plan. Because the mode is stored on the chat, reloading the page preserves the
+current setting.
+
+While plan mode is active:
+
+- the agent can inspect repository files, workspace state, and available
+  templates
+- `write_file` and `edit_files` can only modify the chat-specific plan file
+  under `.coder/plans/`
+- `ask_user_question` can gather structured clarification from the user before
+  a plan is proposed
+- `propose_plan` snapshots the current plan file into the transcript so you can
+  review it before implementation starts
+- execution, process management, MCP tools, dynamic tools, provider-native
+  tools, and computer-use tools are not available
+
+This keeps planning turns focused on analysis and plan authoring rather than
+implementation. Once you click **Implement plan**, the next turn runs in normal
+mode again.
 
 ## Comparison to Coder Tasks
 

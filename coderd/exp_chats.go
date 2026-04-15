@@ -1901,12 +1901,19 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	if req.WorkspaceID != nil {
 		workspaceID := uuid.NullUUID{}
+		workspace := database.Workspace{}
 		if *req.WorkspaceID != uuid.Nil {
 			var status int
 			var resp *codersdk.Response
-			workspaceID, _, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
 			if resp != nil {
 				httpapi.Write(ctx, rw, status, *resp)
+				return
+			}
+			if workspace.OrganizationID != chat.OrganizationID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Workspace does not belong to this chat's organization.",
+				})
 				return
 			}
 		}

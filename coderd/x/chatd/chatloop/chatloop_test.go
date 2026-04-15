@@ -989,6 +989,76 @@ func TestStopAfterTool_Success(t *testing.T) {
 	require.True(t, foundToolResult, "persisted step should include the successful tool result before stopping")
 }
 
+func TestStopAfterTool_IgnoresErrorResults(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			if streamCalls == 1 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-plan",
+						ToolCallName:  "propose_plan",
+						ToolCallInput: `{"path":"/tmp/plan.md"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "tool failed, continue"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("plan failed"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+
+	var foundToolError bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		_, foundToolError = toolResult.Result.(fantasy.ToolResultOutputContentError)
+	}
+	require.True(t, foundToolError, "first step should persist the failed tool result")
+}
+
 func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
 	t.Parallel()
 

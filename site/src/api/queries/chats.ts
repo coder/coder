@@ -3,7 +3,11 @@ import type {
 	QueryClient,
 	UseInfiniteQueryOptions,
 } from "react-query";
-import { API, type ChatPlanModeOrClear } from "#/api/api";
+import {
+	API,
+	type ChatPlanModeOrClear,
+	type CreateChatMessageRequestWithClearablePlanMode,
+} from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
@@ -740,7 +744,7 @@ export const createChatMessage = (
 	_queryClient: QueryClient,
 	chatId: string,
 ) => ({
-	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
+	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
 	// No onSuccess invalidation needed: the per-chat WebSocket delivers
 	// the response message via upsertDurableMessage, and the global
