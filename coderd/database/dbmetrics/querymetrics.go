@@ -1552,6 +1552,14 @@ func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledChatModelConfigByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetEnabledChatModelConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatModelConfigByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEnabledChatModelConfigs(ctx)
