@@ -346,13 +346,11 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 		if len(remaining) == 0 {
 			break
 		}
-		if attempt > 0 {
-			logger.Info(ctx, "retrying workspace deletions",
-				slog.F("attempt", attempt+1),
-				slog.F("remaining", len(remaining)),
-				slog.F("template_name", r.template.Name),
-			)
-		}
+		logger.Info(ctx, "trying to delete workspaces",
+			slog.F("attempt", attempt+1),
+			slog.F("remaining", len(remaining)),
+			slog.F("template_name", r.template.Name),
+		)
 		var failed []codersdk.Workspace
 		for _, ws := range remaining {
 			cr := workspacebuild.NewCleanupRunner(r.client, ws.ID)
@@ -373,17 +371,9 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 		for i, ws := range remaining {
 			ids[i] = ws.ID.String()
 		}
-		logger.Error(ctx, "CLEANUP INCOMPLETE: could not delete all workspaces after retries; template deletion will likely fail",
-			slog.F("template_name", r.template.Name),
-			slog.F("remaining_count", len(remaining)),
-			slog.F("remaining_workspace_ids", ids),
-		)
+		return xerrors.Errorf("could not delete all workspaces after %d attempts; remaining: %v", maxDeletionAttempts, ids)
 	}
 
-	// Always attempt template deletion even if some workspaces could not be
-	// removed. The delete call will fail with a 400 if workspaces remain, but
-	// the error — combined with the log above — makes the state clear to the
-	// operator.
 	logger.Info(ctx, "deleting template", slog.F("template_name", r.template.Name))
 	if err := r.client.DeleteTemplate(ctx, r.template.ID); err != nil {
 		return xerrors.Errorf("delete template: %w", err)
