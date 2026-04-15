@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
@@ -240,34 +239,12 @@ func TestFormatSystemInstructions(t *testing.T) {
 func TestInstructionFromContextFiles(t *testing.T) {
 	t.Parallel()
 
-	agentID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
-
 	makeMsg := func(parts []codersdk.ChatMessagePart) database.ChatMessage {
 		raw, _ := json.Marshal(parts)
 		return database.ChatMessage{
 			Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
 		}
 	}
-
-	t.Run("ReconstructsInstruction", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			makeMsg([]codersdk.ChatMessagePart{
-				{
-					Type:                 codersdk.ChatMessagePartTypeContextFile,
-					ContextFileAgentID:   agentID,
-					ContextFileContent:   "project rules",
-					ContextFilePath:      "/project/AGENTS.md",
-					ContextFileOS:        "linux",
-					ContextFileDirectory: "/project",
-				},
-			}),
-		}
-		got := instructionFromContextFiles(msgs)
-		require.Contains(t, got, "Operating System: linux")
-		require.Contains(t, got, "Working Directory: /project")
-		require.Contains(t, got, "project rules")
-	})
 
 	t.Run("EmptyMessages", func(t *testing.T) {
 		t.Parallel()

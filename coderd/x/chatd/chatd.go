@@ -4553,7 +4553,6 @@ func (p *Server) runChat(
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
-
 	// the workspace agent has changed (e.g. workspace rebuilt).
 	needsInstructionPersist := false
 	hasContextFiles := false
@@ -5353,12 +5352,12 @@ func (p *Server) runChat(
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
-			effectiveSkills := skillsFromParts(reloadedMsgs)
-			if len(effectiveSkills) == 0 {
-				effectiveSkills = skills
+			reloadedSkills := skillsFromParts(reloadedMsgs)
+			if len(reloadedSkills) == 0 {
+				reloadedSkills = skills
 			}
 
-			if skillIndex := chattool.FormatSkillIndex(effectiveSkills); skillIndex != "" {
+			if skillIndex := chattool.FormatSkillIndex(reloadedSkills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
