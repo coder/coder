@@ -45,6 +45,7 @@ const meta: Meta<typeof TasksPage> = {
 				name: "v1.0.0",
 			},
 		]);
+		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
 		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(null);
 	},
 	args: {
@@ -116,7 +117,7 @@ export const Submitting: Story = {
 		spyOn(API, "createTask").mockImplementation(
 			() =>
 				// Never resolve to keep the component in the submitting state for visual testing.
-				new Promise(() => {}),
+				new Promise(() => { }),
 		);
 	},
 	play: async ({ canvasElement }) => {
