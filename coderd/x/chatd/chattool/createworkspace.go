@@ -74,7 +74,7 @@ type CreateWorkspaceOptions struct {
 }
 
 type createWorkspaceArgs struct {
-	TemplateID string            `json:"template_id" description:"The ID of the template to create the workspace from. Obtain this from list_templates."`
+	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
 	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
 }
