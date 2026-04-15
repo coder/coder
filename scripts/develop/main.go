@@ -528,6 +528,12 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if cfg.prometheusPort != 0 && isPortBusy(ctx, cfg.prometheusPort) {
 		return xerrors.Errorf("port %d is already in use (prometheus)", cfg.prometheusPort)
 	}
+	if cfg.prometheusServer {
+		promServerPort, _ := strconv.ParseInt(defaultPrometheusServerPort, 10, 64)
+		if isPortBusy(ctx, promServerPort) {
+			return xerrors.Errorf("port %d is already in use (prometheus server UI)", promServerPort)
+		}
+	}
 	return nil
 }
 
