@@ -4562,17 +4562,13 @@ func (p *Server) runChat(
 	var planModeInstructions string
 	if isPlanModeTurn {
 		fetched, err := p.db.GetChatPlanModeInstructions(ctx)
-		switch {
-		case err == nil:
+		if err == nil {
 			planModeInstructions = fetched
-		case errors.Is(err, sql.ErrNoRows):
-			planModeInstructions = ""
-		default:
+		} else {
 			logger.Warn(ctx,
 				"failed to fetch plan mode instructions",
 				slog.Error(err),
 			)
-			planModeInstructions = ""
 		}
 	}
 

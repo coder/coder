@@ -469,7 +469,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -1025,6 +1025,7 @@ func processStepStream(
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
+	activeTools []string,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
@@ -1084,7 +1085,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames, activeTools)
 		}()
 	}
 	wg.Wait()
@@ -1108,6 +1109,7 @@ func executeSingleTool(
 	metrics *Metrics,
 	provider string,
 	builtinToolNames map[string]bool,
+	activeTools []string,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1123,6 +1125,13 @@ func executeSingleTool(
 			float64(ToolResultSize(result)),
 		)
 	}()
+
+	if !isToolActive(tc.ToolName, activeTools) {
+		result.Result = fantasy.ToolResultOutputContentError{
+			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
+		}
+		return result
+	}
 
 	tool, exists := toolMap[tc.ToolName]
 	if !exists {
@@ -1328,6 +1337,10 @@ func tryCompactOnExit(
 	}
 }
 
+func isToolActive(name string, activeTools []string) bool {
+	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
 // is non-empty, only function tools whose name appears in the
@@ -1337,7 +1350,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
 	for _, tool := range tools {
 		info := tool.Info()
-		if len(activeTools) > 0 && !slices.Contains(activeTools, info.Name) {
+		if !isToolActive(info.Name, activeTools) {
 			continue
 		}
 

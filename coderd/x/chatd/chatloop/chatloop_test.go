@@ -101,6 +101,72 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
 }
 
+func TestRun_ActiveToolsRejectsDisallowedExecution(t *testing.T) {
+	t.Parallel()
+
+	var blockedCalls atomic.Int32
+	blockedToolName := "write_file"
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-blocked", ToolCallName: blockedToolName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-blocked", Delta: `{"path":"/tmp/nope"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-blocked"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-blocked",
+					ToolCallName:  blockedToolName,
+					ToolCallInput: `{"path":"/tmp/nope"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	blockedTool := fantasy.NewAgentTool(
+		blockedToolName,
+		"blocked tool",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			blockedCalls.Add(1)
+			return fantasy.NewTextResponse("should not run"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "try the blocked tool"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool(activeToolName),
+			blockedTool,
+		},
+		ActiveTools: []string{activeToolName},
+		MaxSteps:    1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Zero(t, blockedCalls.Load(), "disallowed tool must not execute")
+
+	var foundToolError bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != blockedToolName {
+			continue
+		}
+		errResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok)
+		assert.EqualError(t, errResult.Error, "Tool not active in this turn: "+blockedToolName)
+		foundToolError = true
+	}
+	require.True(t, foundToolError, "persisted step should include the rejected tool result")
+}
+
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	t.Parallel()
 
