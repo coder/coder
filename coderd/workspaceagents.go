@@ -1367,6 +1367,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	defer cancel()
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
+	api.Logger.Debug(ctx, "serving coordinate client",
+		slog.F("peer_id", peerID),
+		slog.F("agent_id", waws.WorkspaceAgent.ID),
+	)
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
