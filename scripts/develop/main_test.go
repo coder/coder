@@ -351,6 +351,24 @@ func TestDevConfigValidate(t *testing.T) {
 		cfg.prometheusPort = 3010
 		assert.NoError(t, cfg.validate())
 	})
+
+	t.Run("PrometheusServerRequiresMetrics", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.prometheusPort = 0
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-server requires prometheus to be enabled")
+	})
+
+	t.Run("PrometheusServerValid", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.prometheusPort = 2114
+		assert.NoError(t, cfg.validate())
+	})
 }
 
 func TestDevConfigResolveEnv(t *testing.T) {

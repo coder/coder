@@ -39,12 +39,14 @@ import (
 )
 
 const (
-	defaultAPIPort   = "3000"
-	defaultWebPort   = "8080"
-	defaultProxyPort = "3010"
+	defaultAPIPort              = "3000"
+	defaultWebPort              = "8080"
+	defaultProxyPort            = "3010"
+	defaultPrometheusServerPort = "9090"
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
 	defaultPrometheusPort  = "2114"
+	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
 	defaultStarterTemplate = "docker"
@@ -86,6 +88,12 @@ func main() {
 				Default:     defaultPrometheusPort,
 				Description: "Prometheus metrics port. Set to 0 to disable.",
 				Value:       serpent.Int64Of(&cfg.prometheusPort),
+			},
+			{
+				Flag:        "prometheus-server",
+				Env:         "CODER_DEV_PROMETHEUS_SERVER",
+				Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker.",
+				Value:       serpent.BoolOf(&cfg.prometheusServer),
 			},
 			{
 				Flag:        "agpl",
@@ -170,24 +178,25 @@ func main() {
 }
 
 type devConfig struct {
-	apiPort         int64
-	webPort         int64
-	proxyPort       int64
-	prometheusPort  int64
-	agpl            bool
-	accessURL       string
-	password        string
-	useProxy        bool
-	multiOrg        bool
-	debug           bool
-	starterTemplate string
-	dbRollback      bool
-	dbReset         bool
-	dbContinue      bool
-	projectRoot     string
-	binaryPath      string
-	configDir       string
-	childEnv        []string
+	apiPort          int64
+	webPort          int64
+	proxyPort        int64
+	prometheusPort   int64
+	prometheusServer bool
+	agpl             bool
+	accessURL        string
+	password         string
+	useProxy         bool
+	multiOrg         bool
+	debug            bool
+	starterTemplate  string
+	dbRollback       bool
+	dbReset          bool
+	dbContinue       bool
+	projectRoot      string
+	binaryPath       string
+	configDir        string
+	childEnv         []string
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
 }
@@ -239,6 +248,9 @@ func (c *devConfig) validate() error {
 		if c.useProxy && c.prometheusPort == c.proxyPort {
 			return xerrors.Errorf("--prometheus-port %d conflicts with workspace proxy", c.prometheusPort)
 		}
+	}
+	if c.prometheusServer && c.prometheusPort == 0 {
+		return xerrors.New("--prometheus-server requires prometheus to be enabled (--prometheus-port != 0)")
 	}
 	return nil
 }
@@ -458,6 +470,13 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if cfg.useProxy {
 		if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
 			logger.Warn(ctx, "proxy setup failed, continuing",
+				slog.Error(err))
+		}
+	}
+
+	if cfg.prometheusServer {
+		if err := startPrometheusServer(ctx, logger, cfg, group); err != nil {
+			logger.Warn(ctx, "prometheus server setup failed, continuing",
 				slog.Error(err))
 		}
 	}
@@ -896,6 +915,65 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 	return nil
 }
 
+// startPrometheusServer runs the official Prometheus Docker image
+// with a generated config that scrapes the local Coder metrics
+// endpoint. It uses --net=host so the container can reach the
+// host-bound metrics port directly.
+func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig, group *procGroup) error {
+	// Remove any leftover container from a previous run.
+	// Failure is fine — it just means the container doesn't exist.
+	rmCmd := exec.CommandContext(ctx, "docker", "rm", "-f", "coder-prometheus")
+	rmCmd.Stdout = nil
+	rmCmd.Stderr = nil
+	_ = rmCmd.Run()
+
+	// Write a minimal scrape config to a temp file.
+	promCfg := fmt.Sprintf(`global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: coder
+    scheme: http
+    static_configs:
+      - targets: ["127.0.0.1:%d"]
+`, cfg.prometheusPort)
+
+	tmpFile, err := os.CreateTemp("", "coder-prometheus-*.yml")
+	if err != nil {
+		return xerrors.Errorf("creating prometheus config: %w", err)
+	}
+	if _, err := tmpFile.WriteString(promCfg); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
+		return xerrors.Errorf("writing prometheus config: %w", err)
+	}
+	_ = tmpFile.Close()
+
+	// Clean up the temp file when the context is done.
+	go func() {
+		<-ctx.Done()
+		_ = os.Remove(tmpFile.Name())
+	}()
+
+	cmd := exec.CommandContext(ctx, "docker", "run", //nolint:gosec // args are all controlled constants or our own temp file path
+		"--rm",
+		"--name", "coder-prometheus",
+		"--net=host",
+		"-v", tmpFile.Name()+":/etc/prometheus/prometheus.yml:ro",
+		prometheusImage,
+		"--config.file=/etc/prometheus/prometheus.yml",
+		"--web.listen-address=0.0.0.0:"+defaultPrometheusServerPort,
+	)
+
+	logger.Info(ctx, "starting prometheus server",
+		slog.F("image", prometheusImage),
+		slog.F("scrape_target", fmt.Sprintf("127.0.0.1:%d", cfg.prometheusPort)),
+		slog.F("ui", "http://localhost:"+defaultPrometheusServerPort),
+	)
+
+	return group.Start("prometheus", cmd)
+}
+
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
 	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
 	cmd.Env = append(cmd.Env,
@@ -967,6 +1045,15 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 		)
 		for _, h := range ifaces {
 			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.prometheusPort)))
+		}
+	}
+	if cfg.prometheusServer {
+		line(
+			"",
+			"Prometheus UI:",
+		)
+		for _, h := range ifaces {
+			line(indent(fmt.Sprintf("http://%s:%s", h, defaultPrometheusServerPort)))
 		}
 	}
 	line(
