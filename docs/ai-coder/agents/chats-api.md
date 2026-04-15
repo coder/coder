@@ -319,10 +319,10 @@ appear in the `files` field on subsequent
 
 ## Chat statuses
 
-| Status            | Meaning                                                      |
-|-------------------|--------------------------------------------------------------|
-| `waiting`         | No pending work (newly created, finished, or interrupted).   |
-| `pending`         | Queued for processing.                                       |
-| `running`         | Agent is actively working.                                   |
-| `error`           | Agent encountered an error.                                  |
+| Status            | Meaning                                                                      |
+|-------------------|------------------------------------------------------------------------------|
+| `waiting`         | No pending work (newly created, finished, or interrupted).                   |
+| `pending`         | Queued for processing.                                                       |
+| `running`         | Agent is actively working.                                                   |
+| `error`           | Agent encountered an error.                                                  |
 | `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
