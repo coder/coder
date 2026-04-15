@@ -4549,9 +4549,7 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
-		skills             []chattool.SkillMeta
-		instructionCleared bool
-	)
+			skills             []chattool.SkillMeta	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
 	// the workspace agent has changed (e.g. workspace rebuilt).
@@ -4622,51 +4620,12 @@ func (p *Server) runChat(
 			return nil
 		})
 	} else if hasContextFiles {
-		// On subsequent turns, re-fetch context files from the
-		// workspace so that any changes (e.g. AGENTS.md edits)
-		// are picked up without requiring a new chat. Falls back
-		// to persisted parts if the workspace dial fails.
-		g2.Go(func() error {
-			_, freshParts, fetchedSkills, workspaceConnOK := p.fetchWorkspaceContext(
-				ctx,
-				chat,
-				workspaceCtx.getWorkspaceAgent,
-				func(instructionCtx context.Context) (workspacesdk.AgentConn, error) {
-					if _, _, err := workspaceCtx.workspaceAgentIDForConn(instructionCtx); err != nil {
-						return nil, xerrors.Errorf("resolve workspace agent for conn: %w", err)
-					}
-					return workspaceCtx.getWorkspaceConn(instructionCtx)
-				},
-			)
-			switch {
-			case len(freshParts) > 0:
-				// Workspace returned fresh context files.
-				instruction = formatSystemInstructionsFromParts(freshParts)
-				skills = selectSkillMetasForInstructionRefresh(
-					persistedSkills,
-					fetchedSkills,
-					uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
-					uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
-				)
-			case workspaceConnOK:
-				// Workspace reachable but returned no context
-				// files (e.g. AGENTS.md was deleted). Honor the
-				// removal by clearing the instruction.
-				instruction = ""
-				instructionCleared = true
-				skills = fetchedSkills
-			default:
-				// Workspace unreachable — e.g. the workspace was
-				// deleted or the agent is no longer running.
-				// getWorkspaceAgent returns an error which causes
-				// fetchWorkspaceContext to return a nil agent with
-				// workspaceConnOK=false, landing here. The
-				// persisted context is the best available data.
-				instruction = instructionFromContextFiles(messages)
-				skills = persistedSkills
-			}
-			return nil
-		})
+		// On subsequent turns, extract the instruction text and
+		// skill index from persisted parts so they can be
+		// re-injected via InsertSystem after compaction drops
+		// those messages. No workspace dial needed.
+		instruction = instructionFromContextFiles(messages)
+		skills = persistedSkills
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -5351,21 +5310,17 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-			// Re-derive instruction and skills from the reloaded
-			// messages so that any context added during the
-			// chatloop (e.g. via agent-added context or new
-			// persisted instruction files) is picked up after
-			// compaction. The captured instruction (set at turn
-			// start from the workspace) takes priority because
-			// it may be fresher than the persisted DB content.
-			reloadedInstruction := instruction
-			if reloadedInstruction == "" && !instructionCleared {
-				// No fresh instruction was captured at turn start.
-				// Try to recover from persisted context-file parts
-				// in the reloaded messages.
-				reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
-			}
-			if reloadedInstruction != "" {
+				// Re-derive instruction and skills from the reloaded
+				// messages so that any context added during the
+				// chatloop (e.g. via persistInstructionFiles when
+				// the agent changes) is picked up after compaction.
+				// The captured instruction takes priority; fall
+				// back to persisted DB content otherwise.
+				reloadedInstruction := instruction
+				if reloadedInstruction == "" {
+					reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
+				}
+				if reloadedInstruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
