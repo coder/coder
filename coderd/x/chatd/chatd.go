@@ -4550,6 +4550,7 @@ func (p *Server) runChat(
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
+		instructionCleared bool
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -4626,37 +4627,41 @@ func (p *Server) runChat(
 		// are picked up without requiring a new chat. Falls back
 		// to persisted parts if the workspace dial fails.
 		g2.Go(func() error {
-			_, freshParts, discoveredSkills, workspaceConnOK, fetchErr := p.fetchWorkspaceContext(
+			_, freshParts, fetchedSkills, workspaceConnOK := p.fetchWorkspaceContext(
 				ctx,
 				chat,
 				workspaceCtx.getWorkspaceAgent,
 				func(instructionCtx context.Context) (workspacesdk.AgentConn, error) {
 					if _, _, err := workspaceCtx.workspaceAgentIDForConn(instructionCtx); err != nil {
-						return nil, err
+						return nil, xerrors.Errorf("resolve workspace agent for conn: %w", err)
 					}
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
 			switch {
-			case fetchErr == nil && len(freshParts) > 0:
+			case len(freshParts) > 0:
 				// Workspace returned fresh context files.
 				instruction = formatSystemInstructionsFromParts(freshParts)
 				skills = selectSkillMetasForInstructionRefresh(
 					persistedSkills,
-					discoveredSkills,
+					fetchedSkills,
 					uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
 					uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
 				)
-			case fetchErr == nil && workspaceConnOK:
+			case workspaceConnOK:
 				// Workspace reachable but returned no context
 				// files (e.g. AGENTS.md was deleted). Honor the
 				// removal by clearing the instruction.
 				instruction = ""
-				skills = discoveredSkills
+				instructionCleared = true
+				skills = fetchedSkills
 			default:
-				// Workspace unreachable or fetch failed: fall
-				// back to persisted context-file parts from the
-				// message history.
+				// Workspace unreachable — e.g. the workspace was
+				// deleted or the agent is no longer running.
+				// getWorkspaceAgent returns an error which causes
+				// fetchWorkspaceContext to return a nil agent with
+				// workspaceConnOK=false, landing here. The
+				// persisted context is the best available data.
 				instruction = instructionFromContextFiles(messages)
 				skills = persistedSkills
 			}
@@ -5354,7 +5359,7 @@ func (p *Server) runChat(
 			// start from the workspace) takes priority because
 			// it may be fresher than the persisted DB content.
 			reloadedInstruction := instruction
-			if reloadedInstruction == "" {
+			if reloadedInstruction == "" && !instructionCleared {
 				// No fresh instruction was captured at turn start.
 				// Try to recover from persisted context-file parts
 				// in the reloaded messages.
@@ -5364,12 +5369,12 @@ func (p *Server) runChat(
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
-			reloadedSkills := skillsFromParts(reloadedMsgs)
+			effectiveSkills := skillsFromParts(reloadedMsgs)
 
-			if len(reloadedSkills) == 0 {
-				reloadedSkills = skills
+			if len(effectiveSkills) == 0 {
+				effectiveSkills = skills
 			}
-			if skillIndex := chattool.FormatSkillIndex(reloadedSkills); skillIndex != "" {
+			if skillIndex := chattool.FormatSkillIndex(effectiveSkills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
@@ -5783,23 +5788,24 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 // fetchWorkspaceContext retrieves fresh instruction files and
 // skills from the workspace agent without persisting. It handles
 // agent connection, context configuration fetching, content
-// sanitization, and metadata stamping. Returns the workspace agent,
-// the stamped parts, discovered skills, and whether the workspace
-// connection succeeded. A nil agent means the workspace is not
-// valid or the agent is not reachable.
+// sanitization, and metadata stamping. Returns the workspace
+// agent, the stamped parts, discovered skills, and whether the
+// workspace connection succeeded. A nil agent means the chat has
+// no valid workspace or the agent lookup failed;
+// workspaceConnOK is false in that case.
 func (p *Server) fetchWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool, err error) {
+) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return nil, nil, nil, false, nil
+		return nil, nil, nil, false
 	}
 
 	loadedAgent, agentErr := getWorkspaceAgent(ctx)
 	if agentErr != nil {
-		return nil, nil, nil, false, nil
+		return nil, nil, nil, false
 	}
 
 	directory := loadedAgent.ExpandedDirectory
@@ -5859,7 +5865,7 @@ func (p *Server) fetchWorkspaceContext(
 		}
 	}
 
-	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK, nil
+	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
 }
 
 // persistInstructionFiles fetches AGENTS.md instruction files and
@@ -5875,12 +5881,13 @@ func (p *Server) persistInstructionFiles(
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) (instruction string, skills []chattool.SkillMeta, err error) {
-	agent, agentParts, discoveredSkills, workspaceConnOK, err := p.fetchWorkspaceContext(
+	agent, agentParts, discoveredSkills, workspaceConnOK := p.fetchWorkspaceContext(
 		ctx, chat, getWorkspaceAgent, getWorkspaceConn,
 	)
-	if err != nil {
-		return "", nil, err
-	}
+	// Defensive guard: fetchWorkspaceContext returns nil when the
+	// chat has no valid workspace or the agent lookup fails. It's
+	// cheaper to guard here than push the precondition up to all
+	// callers.
 	if agent == nil {
 		return "", nil, nil
 	}

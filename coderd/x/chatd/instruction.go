@@ -67,19 +67,19 @@ func formatSystemInstructions(
 func formatSystemInstructionsFromParts(
 	parts []codersdk.ChatMessagePart,
 ) string {
-	var os, dir string
+	var operatingSystem, dir string
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeContextFile {
 			continue
 		}
 		if part.ContextFileOS != "" {
-			os = part.ContextFileOS
+			operatingSystem = part.ContextFileOS
 		}
 		if part.ContextFileDirectory != "" {
 			dir = part.ContextFileDirectory
 		}
 	}
-	return formatSystemInstructions(os, dir, parts)
+	return formatSystemInstructions(operatingSystem, dir, parts)
 }
 
 // latestContextAgentID returns the most recent workspace-agent ID seen
