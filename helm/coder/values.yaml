@@ -21,6 +21,10 @@ coder:
   #   (e.g., 127.0.0.1:6060 for localhost only). This is recommended for security
   #   as pprof can expose sensitive runtime information.
   #   Profiling must still be enabled by setting CODER_PPROF_ENABLE.
+  # - GOMEMLIMIT: defaults to the container's memory limit via the Kubernetes
+  #   Downward API (resourceFieldRef). This helps the Go runtime make better
+  #   garbage collection decisions when running in a memory-limited container.
+  #   Override to set a custom soft memory limit for the Go runtime.
   #
   # We will additionally set CODER_ACCESS_URL if unset to the cluster service
   # URL, unless coder.envUseClusterAccessURL is set to false.

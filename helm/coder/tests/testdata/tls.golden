@@ -177,6 +177,10 @@ spec:
           value: /etc/ssl/certs/coder/coder-tls/tls.crt
         - name: CODER_TLS_KEY_FILE
           value: /etc/ssl/certs/coder/coder-tls/tls.key
+        - name: GOMEMLIMIT
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.memory
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}

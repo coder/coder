@@ -52,12 +52,16 @@ env:
   value: "0.0.0.0:8080"
 {{- $hasPrometheusAddress := false }}
 {{- $hasPprofAddress := false }}
+{{- $hasGomemlimit := false }}
 {{- range .Values.coder.env }}
 {{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
 {{- $hasPrometheusAddress = true }}
 {{- end }}
 {{- if eq .name "CODER_PPROF_ADDRESS" }}
 {{- $hasPprofAddress = true }}
+{{- end }}
+{{- if eq .name "GOMEMLIMIT" }}
+{{- $hasGomemlimit = true }}
 {{- end }}
 {{- end }}
 {{- if not $hasPrometheusAddress }}
@@ -95,6 +99,12 @@ env:
 - name: CODER_DERP_SERVER_RELAY_URL
   value: "http://$(KUBE_POD_IP):8080"
 {{- include "coder.tlsEnv" . }}
+{{- if not $hasGomemlimit }}
+- name: GOMEMLIMIT
+  valueFrom:
+    resourceFieldRef:
+      resource: limits.memory
+{{- end }}
 {{- with .Values.coder.env }}
 {{ toYaml . }}
 {{- end }}

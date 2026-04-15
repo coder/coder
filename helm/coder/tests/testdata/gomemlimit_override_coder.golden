@@ -154,6 +154,8 @@ spec:
           value: 0.0.0.0:8080
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
+        - name: CODER_PPROF_ADDRESS
+          value: 0.0.0.0:6060
         - name: CODER_ACCESS_URL
           value: http://coder.coder.svc.cluster.local
         - name: KUBE_POD_IP
@@ -163,13 +165,7 @@ spec:
         - name: CODER_DERP_SERVER_RELAY_URL
           value: http://$(KUBE_POD_IP):8080
         - name: GOMEMLIMIT
-          valueFrom:
-            resourceFieldRef:
-              resource: limits.memory
-        - name: CODER_PPROF_ADDRESS
-          value: 127.0.0.1:6060
-        - name: CODER_PPROF_ENABLE
-          value: "true"
+          value: 1GiB
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
