@@ -121,6 +121,11 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("ValidateServerError", func(t *testing.T) {
 		t.Parallel()
 
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, nil).AnyTimes()
+
 		const staticError = "static error"
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
@@ -137,7 +142,7 @@ func TestRefreshToken(t *testing.T) {
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
 
-		_, err := config.RefreshToken(ctx, nil, link)
+		_, err := config.RefreshToken(ctx, mDB, link)
 		require.ErrorContains(t, err, staticError)
 		// Unsure if this should be the correct behavior. It's an invalid token because
 		// 'ValidateToken()' failed with a runtime error. This was the previous behavior,
@@ -224,6 +229,11 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("ValidateFailure", func(t *testing.T) {
 		t.Parallel()
 
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, nil).AnyTimes()
+
 		const staticError = "static error"
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
@@ -240,7 +250,7 @@ func TestRefreshToken(t *testing.T) {
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
 
-		_, err := config.RefreshToken(ctx, nil, link)
+		_, err := config.RefreshToken(ctx, mDB, link)
 		require.ErrorContains(t, err, "token failed to validate")
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")

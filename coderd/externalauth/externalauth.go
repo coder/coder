@@ -268,8 +268,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
 	originalAccessToken := externalAuthLink.OAuthAccessToken
-	// db may be nil in unit tests that don't exercise persistence.
-	if db != nil && token.AccessToken != originalAccessToken {
+	if token.AccessToken != originalAccessToken {
 		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
@@ -313,7 +312,7 @@ validate:
 
 	// Update the associated user's github.com user ID if the token
 	// is for github.com and validation returned user info.
-	if db != nil && token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+	if token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
 		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
 			ID: externalAuthLink.UserID,
 			GithubComUserID: sql.NullInt64{
