@@ -8,14 +8,14 @@ VS Code's native chat can be configured to use AI Gateway with the GitHub Copilo
 > You need the **Pre-release** version of the [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) and [VS Code Insiders](https://code.visualstudio.com/insiders/).
 
 1. Open command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac) and search for _Chat: Open Language Models (JSON)_.
-1. Paste the following JSON configuration, replacing `<your-coder-session-token>` with your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**:
+1. Paste the following JSON configuration, replacing `<your-coder-api-token>` with your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**:
 
 ```json
 [
     {
         "name": "Coder",
         "vendor": "customoai",
-        "apiKey": "your-coder-session-token>",
+        "apiKey": "<your-coder-api-token>",
         "models": [
             {
                 "name": "GPT 5.2",

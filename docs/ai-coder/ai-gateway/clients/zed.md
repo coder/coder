@@ -41,7 +41,7 @@ You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 
 ## Authentication
 
-Zed requires an API key for these providers. For AI Gateway, this key is your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+Zed requires an API key for these providers. For AI Gateway, this key is your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 You can set this in two ways:
 
@@ -52,11 +52,11 @@ You can set this in two ways:
 1. Open the **Assistant Panel** (right sidebar).
 1. Click **Configuration** or the settings icon.
 1. Select your provider ("Anthropic" or "OpenAI").
-1. Paste your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for the API Key.
+1. Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for the API Key.
 
 ### Environment Variables
 
-1. Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** in the environment where you launch Zed.
+1. Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** in the environment where you launch Zed.
 
 </div>
 

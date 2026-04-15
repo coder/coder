@@ -56,6 +56,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -841,6 +842,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					slog.F("id", c.ID),
 				)
 			}
+
+			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(logger, os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read aibridge providers from env: %w", err)
+			}
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aibridgeProviders...)
 
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
@@ -2899,6 +2906,122 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		providers[providerNum] = provider
 	}
 	return providers, nil
+}
+
+// ReadAIBridgeProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// environment variables into a slice of AIBridgeProviderConfig.
+// This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
+func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	var providers []codersdk.AIBridgeProviderConfig
+	for _, v := range parsed {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.AIBridgeProviderConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum: // First observation of this index, create a new provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1: // Provider already exists at this index, update it.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "TYPE":
+			provider.Type = v.Value
+		case "NAME":
+			provider.Name = v.Value
+		case "KEY": // Alias for a single key.
+			provider.Key = v.Value
+		case "KEYS":
+			provider.Key = v.Value
+		case "BASE_URL":
+			provider.BaseURL = v.Value
+		case "BEDROCK_BASE_URL":
+			provider.BedrockBaseURL = v.Value
+		case "BEDROCK_REGION":
+			provider.BedrockRegion = v.Value
+		case "BEDROCK_ACCESS_KEY": // Alias for a single key.
+			provider.BedrockAccessKey = v.Value
+		case "BEDROCK_ACCESS_KEYS":
+			provider.BedrockAccessKey = v.Value
+		case "BEDROCK_ACCESS_KEY_SECRET": // Alias for a single key secret.
+			provider.BedrockAccessKeySecret = v.Value
+		case "BEDROCK_ACCESS_KEY_SECRETS":
+			provider.BedrockAccessKeySecret = v.Value
+		case "BEDROCK_MODEL":
+			provider.BedrockModel = v.Value
+		case "BEDROCK_SMALL_FAST_MODEL":
+			provider.BedrockSmallFastModel = v.Value
+		default:
+			logger.Warn(context.Background(), "ignoring unknown aibridge provider field (check for typos)",
+				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
+			)
+		}
+		providers[providerNum] = provider
+	}
+
+	// Post-parse validation.
+	names := make(map[string]int, len(providers))
+	for i := range providers {
+		p := &providers[i]
+		if p.Type == "" {
+			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
+		}
+
+		switch p.Type {
+		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		default:
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
+				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		}
+
+		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
+				i, p.Type, aibridge.ProviderAnthropic)
+		}
+
+		if p.Name == "" {
+			p.Name = p.Type
+		}
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
+		}
+		names[p.Name] = i
+	}
+
+	return providers, nil
+}
+
+func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
+	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
+		p.BedrockAccessKey != "" || p.BedrockAccessKeySecret != "" ||
+		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
