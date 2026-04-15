@@ -4428,14 +4428,17 @@ func allowedPlanToolNames(allTools []fantasy.AgentTool, mode database.NullChatPl
 	return toolNames
 }
 
-func stopAfterPlanTools(mode database.NullChatPlanMode) map[string]struct{} {
+func stopAfterPlanTools(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) map[string]struct{} {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
 	}
-	return map[string]struct{}{
-		"propose_plan":      {},
-		"ask_user_question": {},
+	stopTools := map[string]struct{}{
+		"propose_plan": {},
 	}
+	if !parentChatID.Valid {
+		stopTools["ask_user_question"] = struct{}{}
+	}
+	return stopTools
 }
 
 // buildSystemPrompt applies system-level prompt injections in the
@@ -4840,8 +4843,9 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
+	isRootChat := !chat.ParentChatID.Valid
 	subagentInstruction := ""
-	if chat.ParentChatID.Valid {
+	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
 	}
 	prompt = buildSystemPrompt(
@@ -5167,6 +5171,7 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
+	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5194,14 +5199,14 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
-	if isPlanModeTurn {
+	if allowAskUserQuestion {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
-	// create workspaces or spawn further subagents — they should
+	// create workspaces or spawn further subagents. They should
 	// focus on completing their delegated task.
-	if !chat.ParentChatID.Valid {
+	if isRootChat {
 		// Workspace provisioning tools.
 		onChatUpdated := func(updatedChat database.Chat) {
 			workspaceCtx.selectWorkspace(updatedChat)
@@ -5414,7 +5419,7 @@ func (p *Server) runChat(
 		Messages:         prompt,
 		Tools:            tools,
 		ActiveTools:      allowedPlanToolNames(tools, currentPlanMode),
-		StopAfterTools:   stopAfterPlanTools(currentPlanMode),
+		StopAfterTools:   stopAfterPlanTools(currentPlanMode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
 		BuiltinToolNames: builtinToolNames,

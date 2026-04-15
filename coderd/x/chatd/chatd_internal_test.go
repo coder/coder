@@ -172,6 +172,35 @@ func TestAllowedPlanToolNames(t *testing.T) {
 	})
 }
 
+func TestStopAfterPlanTools(t *testing.T) {
+	t.Parallel()
+
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+
+	t.Run("NormalModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterPlanTools(database.NullChatPlanMode{}, uuid.NullUUID{}))
+	})
+
+	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan":      {},
+			"ask_user_question": {},
+		}, stopAfterPlanTools(planMode, uuid.NullUUID{}))
+	})
+
+	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan": {},
+		}, stopAfterPlanTools(planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+	})
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
