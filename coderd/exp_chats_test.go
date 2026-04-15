@@ -3609,6 +3609,172 @@ func TestGetChat(t *testing.T) {
 	})
 }
 
+func TestPatchChat(t *testing.T) {
+	t.Parallel()
+
+	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID, text string) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: text,
+				},
+			},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	getChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.GetChat(ctx, chatID)
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("PlanMode", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SetToPlan", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "set plan mode")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.PlanMode)
+		})
+
+		t.Run("Clear", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "clear plan mode")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+			})
+			require.NoError(t, err)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanMode("")),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Empty(t, updated.PlanMode)
+		})
+
+		t.Run("RejectsInvalidValue", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid plan mode")
+			invalidPlanMode := codersdk.ChatPlanMode("invalid")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: &invalidPlanMode,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid plan_mode value.", sdkErr.Message)
+		})
+	})
+
+	t.Run("WorkspaceBinding", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("BindValidWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "bind workspace")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.NotNil(t, updated.WorkspaceID)
+			require.Equal(t, workspaceBuild.Workspace.ID, *updated.WorkspaceID)
+		})
+
+		t.Run("WorkspaceNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "missing workspace")
+			workspaceID := uuid.New()
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceID,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
+		})
+
+		t.Run("ClearWorkspaceBinding", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "clear workspace binding")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			require.NoError(t, err)
+
+			workspaceID := uuid.Nil
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceID,
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Nil(t, updated.WorkspaceID)
+			require.Nil(t, updated.BuildID)
+			require.Nil(t, updated.AgentID)
+		})
+	})
+}
+
 func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 

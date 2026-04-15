@@ -33,6 +33,145 @@ import (
 	"github.com/coder/quartz"
 )
 
+type testAgentTool struct {
+	info            fantasy.ToolInfo
+	providerOptions fantasy.ProviderOptions
+}
+
+func newTestAgentTool(name string) fantasy.AgentTool {
+	return &testAgentTool{info: fantasy.ToolInfo{Name: name}}
+}
+
+func (t *testAgentTool) Info() fantasy.ToolInfo {
+	return t.info
+}
+
+func (t *testAgentTool) Run(context.Context, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	_ = t
+	return fantasy.ToolResponse{}, nil
+}
+
+func (t *testAgentTool) ProviderOptions() fantasy.ProviderOptions {
+	return t.providerOptions
+}
+
+func (t *testAgentTool) SetProviderOptions(opts fantasy.ProviderOptions) {
+	t.providerOptions = opts
+}
+
+func TestAllowedPlanToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+
+	t.Run("NormalModeExcludesProposePlan", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"propose_plan",
+			"custom_tool",
+			"execute",
+		), database.NullChatPlanMode{})
+
+		require.Equal(t, []string{
+			"read_file",
+			"custom_tool",
+			"execute",
+		}, got)
+	})
+
+	t.Run("PlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"process_list",
+			"process_signal",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"wait_agent",
+			"message_agent",
+			"close_agent",
+			"spawn_computer_use_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), planMode)
+
+		require.Equal(t, []string{
+			"read_file",
+			"write_file",
+			"edit_files",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		}, got)
+	})
+
+	t.Run("PlanModeExcludesDangerousTools", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"execute",
+			"process_output",
+			"message_agent",
+			"spawn_computer_use_agent",
+			"propose_plan",
+		), planMode)
+
+		require.Equal(t, []string{"propose_plan"}, got)
+		require.NotContains(t, got, "execute")
+		require.NotContains(t, got, "process_output")
+		require.NotContains(t, got, "message_agent")
+		require.NotContains(t, got, "spawn_computer_use_agent")
+	})
+
+	t.Run("PlanModeExcludesUnknownTools", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"custom_tool",
+			"another_custom_tool",
+			"propose_plan",
+		), planMode)
+
+		require.Equal(t, []string{
+			"read_file",
+			"propose_plan",
+		}, got)
+		require.NotContains(t, got, "custom_tool")
+		require.NotContains(t, got, "another_custom_tool")
+	})
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
