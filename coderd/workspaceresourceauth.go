@@ -134,85 +134,45 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// these lookups must use a restricted system context.
 	//nolint:gocritic // Instance identity auth happens before agent auth.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	var agent database.WorkspaceAgent
-
 	agentName = strings.TrimSpace(agentName)
-	if agentName != "" {
-		var err error
-		agent, err = api.Database.GetWorkspaceAgentByInstanceIDAndName(systemCtx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
-			AuthInstanceID: instanceID,
-			Name:           agentName,
+
+	agents, err := api.Database.GetWorkspaceAgentsByInstanceID(systemCtx, instanceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job agent.",
+			Detail:  err.Error(),
 		})
-		if httpapi.Is404Error(err) {
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
+		})
+		return
+	}
+
+	var agent database.WorkspaceAgent
+	if agentName != "" {
+		for _, candidate := range agents {
+			if candidate.Name == agentName {
+				agent = candidate
+				break
+			}
+		}
+		if agent.ID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
 			return
 		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job agent.",
-				Detail:  err.Error(),
-			})
-			return
-		}
 	} else {
-		// When no agent name is provided, use the existing singular lookup to
-		// anchor to a specific agent, then check its resource siblings for
-		// ambiguity. This resource-scoped approach is intentional: using a
-		// global instance-ID query would include template-version agents that
-		// share the same instance ID, causing false 409 ambiguity errors. By
-		// scoping to the selected agent's resource, we only detect ambiguity
-		// among agents in the same workspace build resource.
-		selectedAgent, err := api.Database.GetWorkspaceAgentByInstanceID(systemCtx, instanceID)
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
-			})
-			return
-		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job agent.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(systemCtx, []uuid.UUID{selectedAgent.ResourceID})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job agent.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		matchingAgents := make([]database.WorkspaceAgent, 0, len(resourceAgents))
-		for _, candidate := range resourceAgents {
-			if candidate.ParentID.Valid {
-				continue
-			}
-			if !candidate.AuthInstanceID.Valid || candidate.AuthInstanceID.String != instanceID {
-				continue
-			}
-			matchingAgents = append(matchingAgents, candidate)
-		}
-
-		if len(matchingAgents) == 0 {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
-			})
-			return
-		}
-
-		if len(matchingAgents) > 1 {
+		if len(agents) != 1 {
 			// Include agent names in the error message to help operators
 			// configure CODER_AGENT_NAME. The caller has already proven
 			// cloud instance identity, so agent names are not sensitive
 			// here.
-			names := make([]string, len(matchingAgents))
-			for i, candidate := range matchingAgents {
+			names := make([]string, len(agents))
+			for i, candidate := range agents {
 				names[i] = candidate.Name
 			}
 			sort.Strings(names)
@@ -225,7 +185,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		agent = selectedAgent
+		agent = agents[0]
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, agent.ResourceID)
 	if err != nil {

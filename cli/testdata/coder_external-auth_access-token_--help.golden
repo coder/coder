@@ -29,7 +29,8 @@ OPTIONS:
           Specify the authentication type to use for the agent.
 
       --agent-name string, $CODER_AGENT_NAME
-          The name of the agent to authenticate as.
+          The name of the agent to authenticate as (only applicable for instance
+          identity).
 
       --agent-token string, $CODER_AGENT_TOKEN
           An agent authentication token.

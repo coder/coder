@@ -85,4 +85,4 @@ Specify the authentication type to use for the agent.
 | Type        | <code>string</code>            |
 | Environment | <code>$CODER_AGENT_NAME</code> |
 
-The name of the agent to authenticate as.
+The name of the agent to authenticate as (only applicable for instance identity).

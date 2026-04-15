@@ -823,7 +823,7 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Hidden:      hidden,
 	}, serpent.Option{
 		Name:        "Agent Name",
-		Description: "The name of the agent to authenticate as.",
+		Description: "The name of the agent to authenticate as (only applicable for instance identity).",
 		Flag:        "agent-name",
 		Env:         envAgentName,
 		Value:       serpent.StringOf(&a.agentName),
