@@ -9774,7 +9774,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 
 const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 FROM
 	gitsshkeys
 WHERE
@@ -9790,6 +9790,7 @@ func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSH
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -9801,18 +9802,20 @@ INSERT INTO
 		created_at,
 		updated_at,
 		private_key,
-		public_key
+		public_key,
+		private_key_key_id
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING user_id, created_at, updated_at, private_key, public_key
+	($1, $2, $3, $4, $5, $6) RETURNING user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type InsertGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
@@ -9822,6 +9825,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		arg.UpdatedAt,
 		arg.PrivateKey,
 		arg.PublicKey,
+		arg.PrivateKeyKeyID,
 	)
 	var i GitSSHKey
 	err := row.Scan(
@@ -9830,6 +9834,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -9840,18 +9845,20 @@ UPDATE
 SET
 	updated_at = $2,
 	private_key = $3,
-	public_key = $4
+	public_key = $4,
+	private_key_key_id = $5
 WHERE
 	user_id = $1
 RETURNING
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type UpdateGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error) {
@@ -9860,6 +9867,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		arg.UpdatedAt,
 		arg.PrivateKey,
 		arg.PublicKey,
+		arg.PrivateKeyKeyID,
 	)
 	var i GitSSHKey
 	err := row.Scan(
@@ -9868,6 +9876,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }

@@ -192,6 +192,45 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	return link, nil
 }
 
+func (db *dbCrypt) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	key, err := db.Store.GetGitSSHKey(ctx, userID)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) InsertGitSSHKey(ctx context.Context, params database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
+	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	key, err := db.Store.InsertGitSSHKey(ctx, params)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	key, err := db.Store.UpdateGitSSHKey(ctx, params)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
 func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err

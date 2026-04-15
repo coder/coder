@@ -4500,11 +4500,12 @@ type File struct {
 }
 
 type GitSSHKey struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 type Group struct {

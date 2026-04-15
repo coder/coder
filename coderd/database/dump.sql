@@ -1595,7 +1595,8 @@ CREATE TABLE gitsshkeys (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     private_key text NOT NULL,
-    public_key text NOT NULL
+    public_key text NOT NULL,
+    private_key_key_id text
 );
 
 CREATE TABLE group_members (
@@ -4209,6 +4210,9 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY gitsshkeys
+    ADD CONSTRAINT gitsshkeys_private_key_key_id_fkey FOREIGN KEY (private_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

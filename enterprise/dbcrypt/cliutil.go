@@ -124,6 +124,24 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				log.Debug(ctx, "rotated user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			}
 
+			gitSSHKey, err := cryptTx.GetGitSSHKey(ctx, uid)
+			if err == nil {
+				if !gitSSHKey.PrivateKeyKeyID.Valid || gitSSHKey.PrivateKeyKeyID.String != ciphers[0].HexDigest() {
+					if _, err := cryptTx.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+						UserID:          uid,
+						UpdatedAt:       gitSSHKey.UpdatedAt,
+						PrivateKey:      gitSSHKey.PrivateKey,
+						PublicKey:       gitSSHKey.PublicKey,
+						PrivateKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+					}); err != nil {
+						return xerrors.Errorf("update git ssh key user_id=%s: %w", uid, err)
+					}
+					log.Debug(ctx, "encrypted git ssh key", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				}
+			} else if !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get git ssh key for user %s: %w", uid, err)
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -291,6 +309,24 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
 			}
 
+			gitSSHKey, err := tx.GetGitSSHKey(ctx, uid)
+			if err == nil {
+				if gitSSHKey.PrivateKeyKeyID.Valid {
+					if _, err := tx.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+						UserID:          uid,
+						UpdatedAt:       gitSSHKey.UpdatedAt,
+						PrivateKey:      gitSSHKey.PrivateKey,
+						PublicKey:       gitSSHKey.PublicKey,
+						PrivateKeyKeyID: sql.NullString{}, // we explicitly want to clear the key id
+					}); err != nil {
+						return xerrors.Errorf("update git ssh key user_id=%s: %w", uid, err)
+					}
+					log.Debug(ctx, "decrypted git ssh key", slog.F("user_id", uid), slog.F("current", idx+1))
+				}
+			} else if !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get git ssh key for user %s: %w", uid, err)
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -354,6 +390,10 @@ UPDATE chat_providers
 	SET api_key = '',
 		api_key_key_id = NULL
 	WHERE api_key_key_id IS NOT NULL;
+UPDATE gitsshkeys
+	SET private_key = '',
+		private_key_key_id = NULL
+	WHERE private_key_key_id IS NOT NULL;
 COMMIT;
 `
 

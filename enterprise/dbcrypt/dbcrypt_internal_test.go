@@ -1482,3 +1482,85 @@ func TestUserSecrets(t *testing.T) {
 		require.ErrorAs(t, err, &derr)
 	})
 }
+
+func TestGitSSHKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("InsertGitSSHKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, crypt, database.User{})
+		key := dbgen.GitSSHKey(t, crypt, database.GitSSHKey{
+			UserID:     user.ID,
+			PrivateKey: "my-private-key",
+			PublicKey:  "my-public-key",
+		})
+		require.Equal(t, "my-private-key", key.PrivateKey)
+		require.Equal(t, "my-public-key", key.PublicKey)
+		require.Equal(t, ciphers[0].HexDigest(), key.PrivateKeyKeyID.String)
+
+		// Verify the raw database value is encrypted.
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, "my-private-key")
+		// Public key should not be encrypted.
+		require.Equal(t, "my-public-key", rawKey.PublicKey)
+	})
+
+	t.Run("GetGitSSHKey", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, _ := setup(t)
+		user := dbgen.User(t, crypt, database.User{})
+		_ = dbgen.GitSSHKey(t, crypt, database.GitSSHKey{
+			UserID:     user.ID,
+			PrivateKey: "my-private-key",
+			PublicKey:  "my-public-key",
+		})
+
+		got, err := crypt.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, "my-private-key", got.PrivateKey)
+		require.Equal(t, "my-public-key", got.PublicKey)
+	})
+
+	t.Run("UpdateGitSSHKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, crypt, database.User{})
+		_ = dbgen.GitSSHKey(t, crypt, database.GitSSHKey{
+			UserID:     user.ID,
+			PrivateKey: "old-private-key",
+			PublicKey:  "old-public-key",
+		})
+
+		updated, err := crypt.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+			UserID:     user.ID,
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: "new-private-key",
+			PublicKey:  "new-public-key",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-private-key", updated.PrivateKey)
+		require.Equal(t, "new-public-key", updated.PublicKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.PrivateKeyKeyID.String)
+
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, "new-private-key")
+	})
+
+	t.Run("NoCiphers", func(t *testing.T) {
+		t.Parallel()
+		_, crypt := setupNoCiphers(t)
+		user := dbgen.User(t, crypt, database.User{})
+		key := dbgen.GitSSHKey(t, crypt, database.GitSSHKey{
+			UserID:     user.ID,
+			PrivateKey: "my-private-key",
+			PublicKey:  "my-public-key",
+		})
+		// Without ciphers, private key should be stored as-is.
+		require.Equal(t, "my-private-key", key.PrivateKey)
+		require.False(t, key.PrivateKeyKeyID.Valid)
+	})
+}

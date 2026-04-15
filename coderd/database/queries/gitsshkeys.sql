@@ -5,10 +5,11 @@ INSERT INTO
 		created_at,
 		updated_at,
 		private_key,
-		public_key
+		public_key,
+		private_key_key_id
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: GetGitSSHKey :one
 SELECT
@@ -24,7 +25,8 @@ UPDATE
 SET
 	updated_at = $2,
 	private_key = $3,
-	public_key = $4
+	public_key = $4,
+	private_key_key_id = $5
 WHERE
 	user_id = $1
 RETURNING

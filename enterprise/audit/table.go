@@ -77,11 +77,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at": ActionIgnore,
 	},
 	&database.GitSSHKey{}: {
-		"user_id":     ActionTrack,
-		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
-		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
+		"user_id":            ActionTrack,
+		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"private_key":        ActionSecret, // We don't want to expose private keys in diffs.
+		"public_key":         ActionTrack,  // Public keys are ok to expose in a diff.
+		"private_key_key_id": ActionIgnore, // dbcrypt internal field.
 	},
 	&database.Template{}: {
 		"id":                                ActionTrack,
