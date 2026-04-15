@@ -238,6 +238,51 @@ func chatdTestContext(t *testing.T) context.Context {
 	return dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
 }
 
+func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspace.ID,
+			Valid: true,
+		},
+		BuildID: uuid.NullUUID{
+			UUID:  build.ID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agent.ID,
+			Valid: true,
+		},
+		Title:              "bound-parent",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, parentChat.OrganizationID, childChat.OrganizationID)
+	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
+	require.Equal(t, parentChat.BuildID, childChat.BuildID)
+	require.Equal(t, parentChat.AgentID, childChat.AgentID)
+}
+
 func createInternalParentChat(
 	ctx context.Context,
 	t *testing.T,
@@ -304,51 +349,6 @@ func requireSpawnAgentChildChatID(t *testing.T, resp fantasy.ToolResponse) uuid.
 	childID, err := uuid.Parse(result.ChatID)
 	require.NoError(t, err)
 	return childID
-}
-
-func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
-
-	parent, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		WorkspaceID: uuid.NullUUID{
-			UUID:  workspace.ID,
-			Valid: true,
-		},
-		BuildID: uuid.NullUUID{
-			UUID:  build.ID,
-			Valid: true,
-		},
-		AgentID: uuid.NullUUID{
-			UUID:  agent.ID,
-			Valid: true,
-		},
-		Title:              "bound-parent",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	parentChat, err := db.GetChatByID(ctx, parent.ID)
-	require.NoError(t, err)
-
-	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
-	require.NoError(t, err)
-
-	childChat, err := db.GetChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	require.Equal(t, parentChat.OrganizationID, childChat.OrganizationID)
-	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
-	require.Equal(t, parentChat.BuildID, childChat.BuildID)
-	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 }
 
 func TestCreateChildSubagentChatCopiesPlanMode(t *testing.T) {
@@ -441,7 +441,6 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
 }
-
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	t.Parallel()
 
