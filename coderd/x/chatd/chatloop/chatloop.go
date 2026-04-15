@@ -139,6 +139,12 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
+	// PrepareMessages is called before each LLM step with the
+	// current message history. If it returns non-nil, the returned
+	// slice replaces messages for this and all subsequent steps.
+	// Used to inject system context that becomes available mid-loop
+	// (e.g. AGENTS.md after create_workspace).
+	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -150,6 +156,15 @@ type RunOptions struct {
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
+
+	// Metrics records Prometheus metrics for the chatd subsystem.
+	// When nil, no metrics are recorded.
+	Metrics *Metrics
+
+	// BuiltinToolNames lists tool names that are built into chatd.
+	// Tool results from tools not in this set are recorded under
+	// the "mcp" label to bound cardinality.
+	BuiltinToolNames map[string]bool
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -297,6 +312,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
+	if opts.Metrics == nil {
+		opts.Metrics = NopMetrics()
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -343,17 +361,26 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
+			provider := opts.Model.Provider()
+			opts.Metrics.StepsTotal.WithLabelValues(provider).Inc()
 			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
 			// affect the prepared slice.
+			if opts.PrepareMessages != nil {
+				if updated := opts.PrepareMessages(messages); updated != nil {
+					messages = updated
+				}
+			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
+			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
 
 			call := fantasy.Call{
 				Prompt:           prepared,
@@ -371,12 +398,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
-					opts.Model.Provider(),
+					provider,
 					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
+					opts.Metrics,
 				)
 				if streamErr != nil {
 					return streamErr
@@ -444,7 +472,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -582,9 +610,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
+				opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
+
 				if did {
 					alreadyCompacted = true
 					compactedOnFinalStep = true
@@ -622,6 +652,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				lastProviderMetadata,
 				messages,
 			)
+			opts.Metrics.RecordCompaction(opts.Model.Provider(), did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)
@@ -720,6 +751,7 @@ func guardedStream(
 	clock quartz.Clock,
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
+	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	guard := newStartupGuard(clock, timeout, cancelAttempt)
@@ -731,6 +763,7 @@ func guardedStream(
 		})
 	}
 
+	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStartupTimeout(attemptCtx, provider, err)
@@ -738,11 +771,17 @@ func guardedStream(
 		return guardedAttempt{}, err
 	}
 
+	recordTTFT := sync.OnceFunc(func() {
+		metrics.TTFTSeconds.WithLabelValues(provider).Observe(
+			clock.Since(streamStart).Seconds(),
+		)
+	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Disarm()
+				recordTTFT()
 				if !yield(part) {
 					return
 				}
@@ -985,6 +1024,9 @@ func executeTools(
 	allTools []fantasy.AgentTool,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
+	metrics *Metrics,
+	provider string,
+	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1039,7 +1081,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames)
 		}()
 	}
 	wg.Wait()
@@ -1060,12 +1102,24 @@ func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
+	metrics *Metrics,
+	provider string,
+	builtinToolNames map[string]bool,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
 		ToolName:         tc.ToolName,
 		ProviderExecuted: false,
 	}
+	defer func() {
+		toolLabel := tc.ToolName
+		if !builtinToolNames[tc.ToolName] {
+			toolLabel = "mcp"
+		}
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, toolLabel).Observe(
+			float64(ToolResultSize(result)),
+		)
+	}()
 
 	tool, exists := toolMap[tc.ToolName]
 	if !exists {
@@ -1256,7 +1310,7 @@ func tryCompactOnExit(
 	if err != nil {
 		return
 	}
-	_, compactErr := tryCompact(
+	did, compactErr := tryCompact(
 		ctx,
 		opts.Model,
 		opts.Compaction,
@@ -1265,6 +1319,7 @@ func tryCompactOnExit(
 		metadata,
 		reloaded,
 	)
+	opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}

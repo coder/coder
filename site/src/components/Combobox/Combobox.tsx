@@ -127,6 +127,7 @@ export const ComboboxContent = ({
 };
 
 export const ComboboxInput = CommandInput;
+
 export const ComboboxList = CommandList;
 
 export const ComboboxItem = ({

@@ -397,9 +397,9 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					)}
 				</BracketConnector>
 			) : (
-				// if no agentic loop, we need a little spacing element to create
-				// the visual gap between threads
-				<div className="h-4" />
+				// Spacer to create visual gap between threads. Hidden on the
+				// last thread via the wrapper div's :last-child selector.
+				<div className="h-4 thread-gap" />
 			)}
 		</>
 	);
@@ -525,9 +525,15 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
 					{/* threads */}
-					{threads.map((thread) => (
-						<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
-					))}
+					<div className="[&>.thread-gap:last-child]:hidden">
+						{threads.map((thread) => (
+							<ThreadItem
+								key={thread.id}
+								thread={thread}
+								initiator={initiator}
+							/>
+						))}
+					</div>
 					{/* infinite scroll sentinel — sits 200px below the last thread */}
 					<div ref={sentinelRef} />
 					{isFetchingNextPage && (

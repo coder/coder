@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { WorkspaceAlert } from "./WorkspaceAlert";
+import { AgentAlert } from "./AgentAlert";
 
-const meta: Meta<typeof WorkspaceAlert> = {
-	title: "pages/WorkspacePage/WorkspaceAlert",
-	component: WorkspaceAlert,
+const meta: Meta<typeof AgentAlert> = {
+	title: "pages/WorkspacePage/AgentAlert",
+	component: AgentAlert,
 	args: {
 		title: "Something went wrong",
 		detail:
@@ -13,7 +13,7 @@ const meta: Meta<typeof WorkspaceAlert> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkspaceAlert>;
+type Story = StoryObj<typeof AgentAlert>;
 
 export const WarningProminent: Story = {
 	args: {

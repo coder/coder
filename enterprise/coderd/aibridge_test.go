@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	aiblib "github.com/coder/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1836,10 +1837,12 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		now := dbtime.Now()
 		endedAt := now.Add(time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "openai",
-			Model:       "gpt-4",
-			StartedAt:   now,
+			InitiatorID:    firstUser.UserID,
+			Provider:       "openai",
+			Model:          "gpt-4",
+			StartedAt:      now,
+			CredentialKind: database.CredentialKindByok,
+			CredentialHint: "sk-a...efgh",
 		}, &endedAt)
 
 		// When no client session ID is set, the interception ID becomes the session identifier.
@@ -1847,6 +1850,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, i1.ID.String(), res.ID)
 		require.Len(t, res.Threads, 1)
+		require.Equal(t, "byok", res.Threads[0].CredentialKind)
+		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
@@ -2282,4 +2287,99 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+}
+
+func TestAIBridgeAllowBYOK(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		allowBYOK      bool
+		reqHeaders     map[string]string
+		expectedStatus int
+	}{
+		{
+			name:      "byok_enabled/centralized_request",
+			allowBYOK: true,
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_enabled/byok_request",
+			allowBYOK: true,
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer user-llm-key",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_disabled/centralized_request",
+			allowBYOK: false,
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "byok_disabled/byok_request",
+			allowBYOK: false,
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer user-llm-key",
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := coderdtest.DeploymentValues(t)
+			dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+			dv.AI.BridgeConfig.AllowBYOK = serpent.Bool(tc.allowBYOK)
+
+			client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureAIBridge: 1,
+					},
+				},
+			})
+			t.Cleanup(func() {
+				_ = closer.Close()
+			})
+
+			testHandler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			})
+			api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			reqURL := client.URL.String() + "/api/v2/aibridge/test"
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			for k, v := range tc.reqHeaders {
+				req.Header.Set(k, v)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, tc.expectedStatus, resp.StatusCode)
+
+			if tc.expectedStatus == http.StatusForbidden {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Contains(t, string(body), "Bring Your Own Key (BYOK) mode is not enabled.")
+			}
+		})
+	}
 }

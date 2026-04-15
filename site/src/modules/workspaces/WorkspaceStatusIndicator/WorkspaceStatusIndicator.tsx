@@ -11,7 +11,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getAgentHealthIssue } from "#/modules/workspaces/health";
 import {
 	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
@@ -68,7 +67,10 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 					{children}
 				</StatusIndicator>
 			</TooltipTrigger>
-			<TooltipContent>{getAgentHealthIssue(workspace).detail}</TooltipContent>
+			<TooltipContent>
+				One or more workspace agents need attention. Expand an agent's logs for
+				details.
+			</TooltipContent>
 		</Tooltip>
 	);
 };

@@ -42,7 +42,6 @@ site/.swc
 .gen-golden
 
 # Build
-bin/
 build/
 dist/
 out/
@@ -103,6 +102,6 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
--e 
+
 # Agent planning documents (local working files).
 docs/plans/

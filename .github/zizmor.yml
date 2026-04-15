@@ -1,4 +1,12 @@
 rules:
   cache-poisoning:
     ignore:
-      - "ci.yaml:184"
+      - "ci.yaml:187"
+  dangerous-triggers:
+    ignore:
+      # Both workflows use pull_request_target intentionally: they need
+      # write access to create backport/cherry-pick branches and PRs.
+      # They only run after merge (merged == true) and do not check out
+      # or execute untrusted PR code.
+      - "backport.yaml"
+      - "cherry-pick.yaml"

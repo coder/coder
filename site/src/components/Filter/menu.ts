@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
+import { useDebouncedValue } from "#/hooks/debounce";
+
+const FILTER_DEBOUNCE_MS = 300;
 
 export type UseFilterMenuOptions = {
 	id: string;
@@ -25,6 +28,7 @@ export const useFilterMenu = ({
 		{},
 	);
 	const [query, setQuery] = useState("");
+	const debouncedQuery = useDebouncedValue(query, FILTER_DEBOUNCE_MS);
 	const selectedOptionQuery = useQuery({
 		queryKey: [id, "autocomplete", "selected", value],
 		queryFn: () => {
@@ -44,11 +48,15 @@ export const useFilterMenu = ({
 	});
 	const selectedOption = selectedOptionQuery.data;
 	const searchOptionsQuery = useQuery({
-		queryKey: [id, "autocomplete", "search", query],
-		queryFn: () => getOptions(query),
+		queryKey: [id, "autocomplete", "search", debouncedQuery],
+		queryFn: () => getOptions(debouncedQuery),
 		enabled,
 	});
 	const searchOptions = useMemo(() => {
+		if (searchOptionsQuery.isFetching) {
+			return undefined;
+		}
+
 		const isDataLoaded =
 			searchOptionsQuery.isFetched && selectedOptionQuery.isFetched;
 
@@ -77,6 +85,7 @@ export const useFilterMenu = ({
 		query,
 		searchOptionsQuery.data,
 		searchOptionsQuery.isFetched,
+		searchOptionsQuery.isFetching,
 		selectedOption,
 	]);
 

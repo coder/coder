@@ -431,6 +431,7 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
@@ -455,6 +456,16 @@
     "base_url": "string",
     "key": "string"
   },
+  "providers": [
+    {
+      "base_url": "string",
+      "bedrock_model": "string",
+      "bedrock_region": "string",
+      "bedrock_small_fast_model": "string",
+      "name": "string",
+      "type": "string"
+    }
+  ],
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
@@ -464,23 +475,25 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                          |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
+| Name                                | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                 |
+|-------------------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).                                                       |
+| `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_max_requests`      | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_timeout`           | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `enabled`                           | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `inject_coder_mcp_tools`            | boolean                                                                     | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
+| `max_concurrency`                   | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)              | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIBridgeProviderConfig](#codersdkaibridgeproviderconfig) | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `retention`                         | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `send_actor_headers`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `structured_logging`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
 
 ## codersdk.AIBridgeInterception
 
@@ -731,6 +744,30 @@
 |------------|--------|----------|--------------|-------------|
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeProviderConfig
+
+```json
+{
+  "base_url": "string",
+  "bedrock_model": "string",
+  "bedrock_region": "string",
+  "bedrock_small_fast_model": "string",
+  "name": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type   | Required | Restrictions | Description                                                                                |
+|----------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                     |
+| `bedrock_model`            | string | false    |              |                                                                                            |
+| `bedrock_region`           | string | false    |              |                                                                                            |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                            |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
+| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -1210,6 +1247,7 @@
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
@@ -1234,13 +1272,24 @@
       "base_url": "string",
       "key": "string"
     },
+    "providers": [
+      {
+        "base_url": "string",
+        "bedrock_model": "string",
+        "bedrock_region": "string",
+        "bedrock_small_fast_model": "string",
+        "name": "string",
+        "type": "string"
+      }
+    ],
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
     "structured_logging": true
   },
   "chat": {
-    "acquire_batch_size": 0
+    "acquire_batch_size": 0,
+    "debug_logging_enabled": true
   }
 }
 ```
@@ -2021,15 +2070,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "acquire_batch_size": 0
+  "acquire_batch_size": 0,
+  "debug_logging_enabled": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size` | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer | false    |              |             |
+| `debug_logging_enabled` | boolean | false    |              |             |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -3231,6 +3282,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -3255,13 +3307,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "providers": [
+          {
+            "base_url": "string",
+            "bedrock_model": "string",
+            "bedrock_region": "string",
+            "bedrock_small_fast_model": "string",
+            "name": "string",
+            "type": "string"
+          }
+        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
       },
       "chat": {
-        "acquire_batch_size": 0
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -3809,6 +3872,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"
@@ -3833,13 +3897,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "providers": [
+        {
+          "base_url": "string",
+          "bedrock_model": "string",
+          "bedrock_region": "string",
+          "bedrock_small_fast_model": "string",
+          "name": "string",
+          "type": "string"
+        }
+      ],
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
       "structured_logging": true
     },
     "chat": {
-      "acquire_batch_size": 0
+      "acquire_batch_size": 0,
+      "debug_logging_enabled": true
     }
   },
   "allow_workspace_renames": true,
@@ -4553,9 +4628,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                            |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                |
+|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

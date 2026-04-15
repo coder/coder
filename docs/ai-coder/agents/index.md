@@ -118,9 +118,6 @@ workspace is stopped, deleted, or rebuilt, the full conversation history
 survives. The agent can resume work by creating a new workspace with the same
 template and continuing from the last known state, such as a git branch.
 
-Users can also fork a chat at any point to explore a different direction while
-preserving the original conversation.
-
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working. Messages

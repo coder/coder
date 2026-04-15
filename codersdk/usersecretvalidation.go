@@ -7,14 +7,26 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// UserSecretEnvValidationOptions controls deployment-aware behavior
-// in environment variable name validation.
-type UserSecretEnvValidationOptions struct {
-	// AIGatewayEnabled indicates that the deployment has AI Gateway
-	// configured. When true, AI Gateway environment variables
-	// (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
-	AIGatewayEnabled bool
-}
+const (
+	// MaxSecretValueSize is the maximum size of a user secret value
+	// in bytes. This limit applies uniformly to both env var and
+	// file-destined secrets because the value field is shared and
+	// the destination can change after creation. 32KB is generous
+	// for env vars (most are under 1KB) but necessary for file
+	// content like SSH keys, TLS certificate chains, and JSON
+	// configs. We are not trying to be overly restrictive here;
+	// users can use the full 32KB for env var values even though
+	// it would be unusual.
+	MaxSecretValueSize = 32 * 1024 // 32KB
+
+	// maxFilePathLength is the maximum length of a file path for
+	// a user secret. Matches Linux PATH_MAX, which is the common
+	// case since workspace agents almost always run on Linux.
+	// This does not catch all Windows path length edge cases
+	// (legacy MAX_PATH is 260), but the agent will surface a
+	// runtime error if the write fails.
+	maxFilePathLength = 4096
+)
 
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
@@ -93,23 +105,6 @@ var (
 		"XDG_DATA_HOME":   {},
 		"XDG_CACHE_HOME":  {},
 		"XDG_STATE_HOME":  {},
-
-		// OIDC token. The Coder agent injects a short-lived
-		// OIDC token for cloud auth flows (e.g. GCP workload
-		// identity). Overriding it could break provisioner and
-		// agent authentication.
-		"OIDC_TOKEN": {},
-	}
-
-	// aiGatewayReservedEnvNames are reserved only when AI Gateway
-	// is enabled on the deployment. When AI Gateway is disabled,
-	// users may legitimately want to inject their own API keys
-	// via secrets.
-	aiGatewayReservedEnvNames = map[string]struct{}{
-		"OPENAI_API_KEY":       {},
-		"OPENAI_BASE_URL":      {},
-		"ANTHROPIC_AUTH_TOKEN": {},
-		"ANTHROPIC_BASE_URL":   {},
 	}
 
 	// reservedEnvPrefixes are namespace prefixes where every
@@ -139,9 +134,7 @@ var (
 
 // UserSecretEnvNameValid validates an environment variable name for
 // a user secret. Empty string is allowed (means no env injection).
-// The opts parameter controls deployment-aware checks such as AI
-// bridge variable reservation.
-func UserSecretEnvNameValid(s string, opts UserSecretEnvValidationOptions) error {
+func UserSecretEnvNameValid(s string) error {
 	if s == "" {
 		return nil
 	}
@@ -166,26 +159,43 @@ func UserSecretEnvNameValid(s string, opts UserSecretEnvValidationOptions) error
 		}
 	}
 
-	if opts.AIGatewayEnabled {
-		if _, ok := aiGatewayReservedEnvNames[upper]; ok {
-			return xerrors.Errorf("%s is reserved when AI Gateway is enabled", upper)
-		}
-	}
-
 	return nil
 }
 
 // UserSecretFilePathValid validates a file path for a user secret.
 // Empty string is allowed (means no file injection). Non-empty paths
-// must start with ~/ or /.
+// must start with ~/ or /, must not contain null bytes, and must not
+// exceed 4096 bytes.
 func UserSecretFilePathValid(s string) error {
 	if s == "" {
 		return nil
 	}
 
-	if strings.HasPrefix(s, "~/") || strings.HasPrefix(s, "/") {
-		return nil
+	if !strings.HasPrefix(s, "~/") && !strings.HasPrefix(s, "/") {
+		return xerrors.New("file path must start with ~/ or /")
 	}
 
-	return xerrors.New("file path must start with ~/ or /")
+	if strings.Contains(s, "\x00") {
+		return xerrors.New("file path must not contain null bytes")
+	}
+
+	if len(s) > maxFilePathLength {
+		return xerrors.Errorf("file path must not exceed %d bytes", maxFilePathLength)
+	}
+
+	return nil
+}
+
+// UserSecretValueValid validates a user secret value. The value must
+// not contain null bytes and must not exceed MaxSecretValueSize.
+func UserSecretValueValid(value string) error {
+	if strings.Contains(value, "\x00") {
+		return xerrors.New("secret value must not contain null bytes")
+	}
+
+	if len(value) > MaxSecretValueSize {
+		return xerrors.Errorf("secret value must not exceed %d bytes", MaxSecretValueSize)
+	}
+
+	return nil
 }
