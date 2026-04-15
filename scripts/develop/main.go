@@ -544,7 +544,7 @@ func startServer(cfg *devConfig, group *procGroup) error {
 	if cfg.prometheusPort != 0 {
 		serverArgs = append(serverArgs,
 			"--prometheus-enable",
-			"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", cfg.prometheusPort),
+			"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", cfg.prometheusPort),
 			"--prometheus-collect-agent-stats",
 			"--prometheus-collect-db-metrics",
 		)
