@@ -51,7 +51,7 @@ data "coder_workspace_preset" "pittsburgh" {
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -68,7 +68,7 @@ data "coder_workspace_preset" "cpt" {
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -85,7 +85,7 @@ data "coder_workspace_preset" "falkenstein" {
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -102,7 +102,7 @@ data "coder_workspace_preset" "sydney" {
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
