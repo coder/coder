@@ -59,6 +59,29 @@ func formatSystemInstructions(
 	return b.String()
 }
 
+// formatSystemInstructionsFromParts builds the <workspace-context>
+// block from already-stamped agent parts. It extracts OS, directory,
+// and context-file content from the parts slice. This is used on
+// subsequent turns when fresh parts are fetched from the workspace
+// but don't need to be persisted.
+func formatSystemInstructionsFromParts(
+	parts []codersdk.ChatMessagePart,
+) string {
+	var os, dir string
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeContextFile {
+			continue
+		}
+		if part.ContextFileOS != "" {
+			os = part.ContextFileOS
+		}
+		if part.ContextFileDirectory != "" {
+			dir = part.ContextFileDirectory
+		}
+	}
+	return formatSystemInstructions(os, dir, parts)
+}
+
 // latestContextAgentID returns the most recent workspace-agent ID seen
 // on any persisted context-file part, including the skill-only sentinel.
 // Returns uuid.Nil, false when no stamped context-file parts exist.

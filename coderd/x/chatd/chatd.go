@@ -4621,12 +4621,38 @@ func (p *Server) runChat(
 			return nil
 		})
 	} else if hasContextFiles {
-		// On subsequent turns, extract the instruction text and
-		// skill index from persisted parts so they can be
-		// re-injected via InsertSystem after compaction drops
-		// those messages. No workspace dial needed.
-		instruction = instructionFromContextFiles(messages)
-		skills = persistedSkills
+		// On subsequent turns, re-fetch context files from the
+		// workspace so that any changes (e.g. AGENTS.md edits)
+		// are picked up without requiring a new chat. Falls back
+		// to persisted parts if the workspace dial fails.
+		g2.Go(func() error {
+			_, freshParts, discoveredSkills, _, fetchErr := p.fetchWorkspaceContext(
+				ctx,
+				chat,
+				workspaceCtx.getWorkspaceAgent,
+				func(instructionCtx context.Context) (workspacesdk.AgentConn, error) {
+					if _, _, err := workspaceCtx.workspaceAgentIDForConn(instructionCtx); err != nil {
+						return nil, err
+					}
+					return workspaceCtx.getWorkspaceConn(instructionCtx)
+				},
+			)
+			if fetchErr == nil && len(freshParts) > 0 {
+				instruction = formatSystemInstructionsFromParts(freshParts)
+				skills = selectSkillMetasForInstructionRefresh(
+					persistedSkills,
+					discoveredSkills,
+					uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
+					uuid.NullUUID{UUID: latestInjectedAgentID, Valid: hasLatestInjectedAgent},
+				)
+			} else {
+				// Workspace unreachable: fall back to persisted
+				// context-file parts from the message history.
+				instruction = instructionFromContextFiles(messages)
+				skills = persistedSkills
+			}
+			return nil
+		})
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -5311,11 +5337,27 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-			if instruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			// Re-derive instruction and skills from the reloaded
+			// messages so that any context added during the
+			// chatloop (e.g. via agent-added context or new
+			// persisted instruction files) is picked up after
+			// compaction.
+			reloadedInstruction := instructionFromContextFiles(reloadedMsgs)
+			if reloadedInstruction == "" {
+				// Fall back to the captured instruction if the
+				// reloaded messages don't contain context files
+				// (e.g. they were compacted away).
+				reloadedInstruction = instruction
+			}
+			if reloadedInstruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadedInstruction)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
-			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+			reloadedSkills := skillsFromParts(reloadedMsgs)
+			if len(reloadedSkills) == 0 {
+				reloadedSkills = skills
+			}
+			if skillIndex := chattool.FormatSkillIndex(reloadedSkills); skillIndex != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
@@ -5329,8 +5371,7 @@ func (p *Server) runChat(
 				)
 			}
 			return reloadedPrompt, nil
-		},
-		DisableChainMode: func() {
+		}, DisableChainMode: func() {
 			chainModeActive = false
 		},
 
@@ -5727,38 +5768,36 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 }
 
 // persistInstructionFiles reads instruction files and discovers
-// skills from the workspace agent, persisting both as message
-// parts. This is called once when a workspace is first attached
-// to a chat (or when the agent changes). Returns the formatted
-// instruction string and skill index for injection into the
-// current turn's prompt.
-func (p *Server) persistInstructionFiles(
+// fetchWorkspaceContext retrieves fresh instruction files and
+// skills from the workspace agent without persisting. It handles
+// agent connection, context configuration fetching, content
+// sanitization, and metadata stamping. Returns the workspace agent,
+// the stamped parts, discovered skills, and whether the workspace
+// connection succeeded. A nil agent means the workspace is not
+// valid or the agent is not reachable.
+func (p *Server) fetchWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
-	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (instruction string, skills []chattool.SkillMeta, err error) {
+) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool, err error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, nil
+		return nil, nil, nil, false, nil
 	}
 
-	agent, err := getWorkspaceAgent(ctx)
-	if err != nil {
-		return "", nil, nil
+	loadedAgent, agentErr := getWorkspaceAgent(ctx)
+	if agentErr != nil {
+		return nil, nil, nil, false, nil
 	}
 
-	directory := agent.ExpandedDirectory
+	directory := loadedAgent.ExpandedDirectory
 	if directory == "" {
-		directory = agent.Directory
+		directory = loadedAgent.Directory
 	}
 
 	// Fetch context configuration from the agent. Parts
 	// arrive pre-populated with context-file and skill entries
 	// so we don't need additional round-trips.
-	var workspaceConnOK bool
-	var agentParts []codersdk.ChatMessagePart
-
 	if getWorkspaceConn != nil {
 		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
 		defer cancel()
@@ -5789,21 +5828,15 @@ func (p *Server) persistInstructionFiles(
 	// Stamp server-side fields and sanitize content. The
 	// agent cannot know its own UUID, OS metadata, or
 	// directory — those are added here at the trust boundary.
-	var discoveredSkills []chattool.SkillMeta
-	var hasContent, hasContextFilePart bool
-	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
+	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
 
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
 		switch agentParts[i].Type {
 		case codersdk.ChatMessagePartTypeContextFile:
-			hasContextFilePart = true
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
-			agentParts[i].ContextFileOS = agent.OperatingSystem
+			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
-			if agentParts[i].ContextFileContent != "" {
-				hasContent = true
-			}
 		case codersdk.ChatMessagePartTypeSkill:
 			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
 				Name:        agentParts[i].SkillName,
@@ -5812,6 +5845,51 @@ func (p *Server) persistInstructionFiles(
 				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
 			})
 		}
+	}
+
+	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK, nil
+}
+
+// persistInstructionFiles fetches AGENTS.md instruction files and
+// skills from the workspace agent, persisting both as message
+// parts. This is called once when a workspace is first attached
+// to a chat (or when the agent changes). Returns the formatted
+// instruction string and skill index for injection into the
+// current turn's prompt.
+func (p *Server) persistInstructionFiles(
+	ctx context.Context,
+	chat database.Chat,
+	modelConfigID uuid.UUID,
+	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
+) (instruction string, skills []chattool.SkillMeta, err error) {
+	agent, agentParts, discoveredSkills, workspaceConnOK, err := p.fetchWorkspaceContext(
+		ctx, chat, getWorkspaceAgent, getWorkspaceConn,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	if agent == nil {
+		return "", nil, nil
+	}
+
+	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
+	hasContent := false
+	hasContextFilePart := false
+	for _, part := range agentParts {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeContextFile:
+			hasContextFilePart = true
+			if part.ContextFileContent != "" {
+				hasContent = true
+			}
+		default:
+		}
+	}
+
+	directory := agent.ExpandedDirectory
+	if directory == "" {
+		directory = agent.Directory
 	}
 
 	if !hasContent {
