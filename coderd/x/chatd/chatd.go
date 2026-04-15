@@ -4543,14 +4543,14 @@ func (p *Server) runChat(
 	// Connect to MCP servers in parallel with instruction
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
-	var (
-		instruction        string
-		resolvedUserPrompt string
-		mcpTools           []fantasy.AgentTool
-		mcpCleanup         func()
-		workspaceMCPTools  []fantasy.AgentTool
-			skills             []chattool.SkillMeta	)
-	// Check if instruction files need to be (re-)persisted.
+		var (
+			instruction        string
+			resolvedUserPrompt string
+			mcpTools           []fantasy.AgentTool
+			mcpCleanup         func()
+			workspaceMCPTools  []fantasy.AgentTool
+			skills             []chattool.SkillMeta
+		)	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
 	// the workspace agent has changed (e.g. workspace rebuilt).
 	needsInstructionPersist := false
@@ -5070,33 +5070,61 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		// Workspace provisioning tools.
-		onChatUpdated := func(updatedChat database.Chat) {
-			workspaceCtx.selectWorkspace(updatedChat)
-			// Notify the frontend immediately so it can
-			// start streaming build logs before the tool
-			// completes.
-			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
-		}
-		tools = append(tools,
-			chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
-				OwnerID:                        chat.OwnerID,
-				ChatID:                         chat.ID,
-				CreateFn:                       p.createWorkspaceFn,
-				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  onChatUpdated,
-				Logger:                         p.logger,
-				AllowedTemplateIDs:             p.chatTemplateAllowlist,
-			}),
+			onChatUpdated := func(updatedChat database.Chat) {
+				workspaceCtx.selectWorkspace(updatedChat)
+				// Notify the frontend immediately so it can
+				// start streaming build logs before the tool
+				// completes.
+				p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+
+				// When a workspace is first attached mid-turn
+				// (e.g. via create_workspace), fetch and persist
+				// instruction files immediately so the LLM has
+				// AGENTS.md context for the remainder of this
+				// turn. The persisted marker prevents redundant
+				// fetches on subsequent turns.
+				if instruction == "" && updatedChat.WorkspaceID.Valid {
+					newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
+						ctx,
+						updatedChat,
+						modelConfig.ID,
+						workspaceCtx.getWorkspaceAgent,
+						workspaceCtx.getWorkspaceConn,
+					)
+					if persistErr != nil {
+						p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
+							slog.F("chat_id", updatedChat.ID),
+							slog.Error(persistErr),
+						)
+					} else {
+						instruction = newInstruction
+						if len(discoveredSkills) > 0 {
+							skills = discoveredSkills
+						}
+					}
+				}
+			}
+			tools = append(tools,
+				chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+					OwnerID:            chat.OwnerID,
+					AllowedTemplateIDs: p.chatTemplateAllowlist,
+				}),
+				chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+					OwnerID:            chat.OwnerID,
+					AllowedTemplateIDs: p.chatTemplateAllowlist,
+				}),
+				chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+					OwnerID:                        chat.OwnerID,
+					ChatID:                         chat.ID,
+					CreateFn:                       p.createWorkspaceFn,
+					AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+					AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+					WorkspaceMu:                    &workspaceMu,
+					OnChatUpdated:                  onChatUpdated,
+					Logger:                         p.logger,
+					AllowedTemplateIDs:             p.chatTemplateAllowlist,
+				}),
+
 
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:            p.db,
