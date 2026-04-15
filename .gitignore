@@ -42,7 +42,6 @@ site/.swc
 .gen-golden
 
 # Build
-bin/
 build/
 dist/
 out/

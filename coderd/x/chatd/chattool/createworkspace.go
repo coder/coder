@@ -250,6 +250,15 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 					)), nil
 				}
 			}
+
+			// The agent is now online — re-fire so callers can
+			// load instruction files from the running agent.
+			if options.OnChatUpdated != nil {
+				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
+				}
+			}
+
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),

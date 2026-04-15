@@ -22,6 +22,11 @@ permissions:
 
 jobs:
   build_image:
+    strategy:
+      fail-fast: false
+      matrix:
+        image-version: ["22.04", "26.04", "nix"]
+
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
@@ -41,6 +46,7 @@ jobs:
           # Pinning to 2.28 here, as Nix gets a "error: [json.exception.type_error.302] type must be array, but is string"
           # on version 2.29 and above.
           nix_version: "2.28.5"
+        if: matrix.image-version == 'nix'
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
@@ -60,10 +66,12 @@ jobs:
           purge-created: 0
           # except the version with the `primary-key`, if it exists
           purge-primary-key: never
+        if: matrix.image-version == 'nix'
 
       - name: Get branch name
         id: branch-name
         uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9.0.2
+        if: matrix.image-version != 'nix'
 
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
@@ -73,12 +81,15 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
         env:
           BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
+        if: matrix.image-version != 'nix'
 
       - name: Set up Depot CLI
         uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
+        if: matrix.image-version != 'nix'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        if: matrix.image-version != 'nix'
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
@@ -87,23 +98,41 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push Non-Nix image
+      - name: Build and push Ubuntu 22.04 image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder"
+          context: "{{defaultContext}}:dogfood/coder/ubuntu-22.04"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
+          # TODO: move the `latest` tag to 26.04 soon. we don't want to transition
+          # it immediately because that would make workspaces switch to it
+          # automatically without any grace period.
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:22.04,codercom/oss-dogfood:latest"
+        if: matrix.image-version == '22.04'
+
+      - name: Build and push Ubuntu 26.04 image
+        uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
+        with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
+          context: "{{defaultContext}}:dogfood/coder/ubuntu-26.04"
+          pull: true
+          save: true
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:26.04"
+        if: matrix.image-version == '26.04'
 
       - name: Build Nix image
         run: nix build .#dev_image
+        if: matrix.image-version == 'nix'
 
       - name: Push Nix image
-        if: github.ref == 'refs/heads/main'
+        if: matrix.image-version == 'nix' && github.ref == 'refs/heads/main'
         run: |
           docker load -i result
 

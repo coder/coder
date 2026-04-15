@@ -718,7 +718,7 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go

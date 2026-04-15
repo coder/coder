@@ -124,12 +124,17 @@ data "coder_parameter" "repo_base_dir" {
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
-  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
+  default     = "codercom/oss-dogfood:26.04"
+  description = "The Docker image used to run your workspace."
   option {
     icon  = "/icon/coder.svg"
-    name  = "Dogfood (Default)"
-    value = "codercom/oss-dogfood:latest"
+    name  = "Ubuntu 26.04"
+    value = "codercom/oss-dogfood:26.04"
+  }
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Ubuntu 22.04"
+    value = "codercom/oss-dogfood:22.04"
   }
   option {
     icon  = "/icon/nix.svg"
@@ -770,7 +775,8 @@ resource "docker_image" "dogfood" {
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("Dockerfile"),
+    filesha1("ubuntu-22.04/Dockerfile"),
+    filesha1("ubuntu-26.04/Dockerfile"),
     filesha1("nix.hash"),
   ]
   keep_locally = true
