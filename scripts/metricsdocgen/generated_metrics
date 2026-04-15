@@ -223,6 +223,9 @@ coderd_authz_authorize_duration_seconds{allowed=""} 0
 # HELP coderd_authz_prepare_authorize_duration_seconds Duration of the 'PrepareAuthorize' call in seconds.
 # TYPE coderd_authz_prepare_authorize_duration_seconds histogram
 coderd_authz_prepare_authorize_duration_seconds 0
+# HELP coderd_build_info Describes the current build/version of the Coder server. Value is always 1.
+# TYPE coderd_build_info gauge
+coderd_build_info{version="",revision=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0
