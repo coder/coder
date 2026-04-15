@@ -856,6 +856,374 @@ func TestAcquireJob(t *testing.T) {
 			require.NoError(t, err)
 			require.JSONEq(t, string(want), string(got))
 		})
+		t.Run(tc.name+"_UserSecrets", func(t *testing.T) {
+			t.Parallel()
+			srv, db, ps, pd := setup(t, false, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
+
+			// Create secrets: 3 valid + 1 that should be filtered out. We call
+			// CreateUserSecret directly because dbgen.UserSecret fills in
+			// defaults for empty strings.
+			authCtx := dbauthz.AsSystemRestricted(ctx)
+			_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+				ID:      uuid.New(),
+				UserID:  user.ID,
+				Name:    "github-token",
+				EnvName: "GITHUB_TOKEN",
+				Value:   "ghp_xxxx",
+			})
+			require.NoError(t, err)
+			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+				ID:       uuid.New(),
+				UserID:   user.ID,
+				Name:     "ssh-key",
+				FilePath: "~/.ssh/id_rsa",
+				Value:    "private-key",
+			})
+			require.NoError(t, err)
+			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+				ID:       uuid.New(),
+				UserID:   user.ID,
+				Name:     "both",
+				EnvName:  "BOTH",
+				FilePath: "/etc/both",
+				Value:    "both-val",
+			})
+			require.NoError(t, err)
+			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+				ID:     uuid.New(),
+				UserID: user.ID,
+				Name:   "no-injection",
+				Value:  "no-injection",
+			})
+			require.NoError(t, err)
+
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
+			})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			})
+			// Import version job
+			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				ID:             version.JobID,
+				InitiatorID:    user.ID,
+				FileID:         file.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+					TemplateVersionID: version.ID,
+				})),
+			})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			buildID := uuid.New()
+			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         file.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				})),
+				Tags: pd.Tags,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				BuildNumber:       1,
+				JobID:             dbJob.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
+			})
+
+			startPublished := make(chan struct{})
+			var closed bool
+			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				wspubsub.HandleWorkspaceEvent(
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+							if !closed {
+								close(startPublished)
+								closed = true
+							}
+						}
+					}))
+			require.NoError(t, err)
+			defer closeStartSubscribe()
+
+			var job *proto.AcquiredJob
+			for {
+				// Grab jobs until we find the workspace build job.
+				job, err = tc.acquire(ctx, srv)
+				require.NoError(t, err)
+				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					break
+				}
+			}
+
+			select {
+			case <-startPublished:
+			case <-time.After(testutil.WaitShort):
+				t.Fatalf("timed out waiting for workspace build job to start")
+			}
+
+			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
+			require.Len(t, wb.UserSecrets, 3, "expected 3 secrets (the one with empty env_name and file_path should be filtered)")
+
+			// Re-sort by (env_name+file_path) before asserting field values.
+			// The terraform-provider-coder contract does not require a
+			// specific secret order, so this test intentionally does not
+			// assert the order produced by ListUserSecretsWithValues.
+			slices.SortFunc(wb.UserSecrets, func(a, b *sdkproto.UserSecretValue) int {
+				return strings.Compare(a.EnvName+a.FilePath, b.EnvName+b.FilePath)
+			})
+
+			// After sorting: ("BOTH" "/etc/both"),
+			// ("GITHUB_TOKEN" ""), ("" "~/.ssh/id_rsa")
+			require.Equal(t, "BOTH", wb.UserSecrets[0].EnvName)
+			require.Equal(t, "/etc/both", wb.UserSecrets[0].FilePath)
+			require.Equal(t, []byte("both-val"), wb.UserSecrets[0].Value)
+
+			require.Equal(t, "GITHUB_TOKEN", wb.UserSecrets[1].EnvName)
+			require.Equal(t, "", wb.UserSecrets[1].FilePath)
+			require.Equal(t, []byte("ghp_xxxx"), wb.UserSecrets[1].Value)
+
+			require.Equal(t, "", wb.UserSecrets[2].EnvName)
+			require.Equal(t, "~/.ssh/id_rsa", wb.UserSecrets[2].FilePath)
+			require.Equal(t, []byte("private-key"), wb.UserSecrets[2].Value)
+		})
+
+		t.Run(tc.name+"_UserSecretsStopTransition", func(t *testing.T) {
+			// Secrets must never be populated on non-start transitions. The
+			// terraform-provider-coder data source intentionally returns empty
+			// values on stop/delete so that workspaces with revoked or deleted
+			// secrets can still be torn down.
+			t.Parallel()
+			srv, db, ps, pd := setup(t, false, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
+
+			// Give the owner a secret so we can prove it is not forwarded on a
+			// stop transition.
+			authCtx := dbauthz.AsSystemRestricted(ctx)
+			_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+				ID:      uuid.New(),
+				UserID:  user.ID,
+				Name:    "github-token",
+				EnvName: "GITHUB_TOKEN",
+				Value:   "must-not-leak",
+			})
+			require.NoError(t, err)
+
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
+			})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			})
+			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				ID:             version.JobID,
+				InitiatorID:    user.ID,
+				FileID:         file.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+					TemplateVersionID: version.ID,
+				})),
+			})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			buildID := uuid.New()
+			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         file.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				})),
+				Tags: pd.Tags,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				BuildNumber:       1,
+				JobID:             dbJob.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStop,
+				Reason:            database.BuildReasonInitiator,
+			})
+
+			var job *proto.AcquiredJob
+			for {
+				job, err = tc.acquire(ctx, srv)
+				require.NoError(t, err)
+				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					break
+				}
+			}
+
+			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
+			require.Empty(t, wb.UserSecrets,
+				"stop-transition jobs must not carry user secrets")
+		})
+
+		t.Run(tc.name+"_UserSecretsDBError", func(t *testing.T) {
+			// A DB failure fetching user secrets must surface as a provisioner
+			// job failure rather than being silently treated as "no secrets".
+			// Silent treatment would let a transient DB error cause a
+			// workspace to build without the secrets it needs, producing a
+			// confusing downstream terraform error about missing secrets that
+			// the user actually owns.
+			t.Parallel()
+			srv, db, ps, pd := setup(t, true, &overrides{
+				wrapDB: func(inner database.Store) database.Store {
+					return &errOnListUserSecretsWithValues{Store: inner}
+				},
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
+
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
+			})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			})
+			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				ID:             version.JobID,
+				InitiatorID:    user.ID,
+				FileID:         file.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+					TemplateVersionID: version.ID,
+				})),
+			})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			buildID := uuid.New()
+			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         file.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				})),
+				Tags: pd.Tags,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				BuildNumber:       1,
+				JobID:             dbJob.ID,
+				TemplateVersionID: version.ID,
+				// Only start transitions fetch secrets.
+				Transition: database.WorkspaceTransitionStart,
+				Reason:     database.BuildReasonInitiator,
+			})
+
+			var acquireErr error
+			for {
+				// Keep acquiring until we either get our build back (possible
+				// for the Deprecated path to return an empty AcquiredJob once
+				// its long-poll window elapses on unrelated jobs) or propagate
+				// an error.
+				job, err := tc.acquire(ctx, srv)
+				if err != nil {
+					acquireErr = err
+					break
+				}
+				if job != nil && job.JobId != "" {
+					t.Fatalf("expected acquire to error, got job %s", job.JobId)
+				}
+			}
+			require.ErrorContains(t, acquireErr, "request job was invalidated",
+				"DB error should surface as a job invalidation")
+			require.ErrorContains(t, acquireErr, "get user secrets",
+				"error should identify the failing operation")
+			require.ErrorContains(t, acquireErr, "ListUserSecretsWithValues query failed",
+				"underlying DB error message should be preserved")
+
+			// Confirm the provisioner job itself was marked as failed so the
+			// workspace build does not remain stuck in-progress.
+			authCtx := dbauthz.AsSystemRestricted(ctx)
+			gotJob, err := db.GetProvisionerJobByID(authCtx, dbJob.ID)
+			require.NoError(t, err)
+			require.True(t, gotJob.Error.Valid, "job should be marked with an error")
+			require.Contains(t, gotJob.Error.String, "get user secrets")
+			require.True(t, gotJob.CompletedAt.Valid, "job should be marked complete")
+		})
 	}
 }
 
@@ -4795,6 +5163,9 @@ type overrides struct {
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
+	// wrapDB wraps the raw DB before dbauthz.New. Use this to inject
+	// errors or observe calls on specific queries for a single test.
+	wrapDB func(database.Store) database.Store
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -4895,6 +5266,9 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	// Use an authz wrapped database for the server to ensure permission checks
 	// work.
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	if ov.wrapDB != nil {
+		db = ov.wrapDB(db)
+	}
 	serverDB := dbauthz.New(db, authorizer, logger, coderdtest.AccessControlStorePointer())
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
@@ -5038,4 +5412,33 @@ func newFakeUsageInserter() (*coderdtest.UsageInserter, *atomic.Pointer[usage.In
 	var inserter usage.Inserter = fake
 	poitr.Store(&inserter)
 	return fake, poitr
+}
+
+// errListUserSecretsWithValues is the sentinel returned by the test wrapper
+// below. Its message is matched by assertions that verify the underlying DB
+// error propagated through failJob's formatting. The chain is not preserved
+// via errors.Is because failJob uses fmt.Sprintf, not %w.
+var errListUserSecretsWithValues = xerrors.New("ListUserSecretsWithValues query failed")
+
+// errOnListUserSecretsWithValues is a database.Store wrapper that errors only
+// on ListUserSecretsWithValues. All other methods pass through to the
+// underlying store. Used to simulate a transient DB failure on the secret
+// fetch without breaking the rest of the acquire flow (user lookup, job
+// update, etc.).
+type errOnListUserSecretsWithValues struct {
+	database.Store
+}
+
+func (*errOnListUserSecretsWithValues) ListUserSecretsWithValues(context.Context, uuid.UUID) ([]database.UserSecret, error) {
+	return nil, errListUserSecretsWithValues
+}
+
+// InTx must be overridden to keep the wrapped store visible inside a
+// transaction. Without this override, InTx would pass the raw inner store to
+// its closure and tests would see the unwrapped behavior from anywhere that
+// runs inside a transaction.
+func (e *errOnListUserSecretsWithValues) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return e.Store.InTx(func(tx database.Store) error {
+		return fn(&errOnListUserSecretsWithValues{Store: tx})
+	}, opts)
 }
