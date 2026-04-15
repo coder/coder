@@ -194,6 +194,33 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ConflictKeyAndKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-single",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-multi",
+			},
+			errContains: "KEY and KEYS are mutually exclusive",
+		},
+		{
+			name: "ConflictBedrockAccessKeyAndKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY=AKID1",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID2",
+			},
+			errContains: "BEDROCK_ACCESS_KEY and BEDROCK_ACCESS_KEYS are mutually exclusive",
+		},
+		{
+			name: "ConflictBedrockSecretAndSecrets",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=s1",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=s2",
+			},
+			errContains: "BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive",
+		},
 	}
 
 	for _, tt := range tests {
