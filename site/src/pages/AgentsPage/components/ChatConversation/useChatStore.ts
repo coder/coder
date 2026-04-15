@@ -357,9 +357,9 @@ export const useChatStore = (
 
 		// Discard buffered parts without applying them. Used when
 		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
-		const clearPartsBuf = () => {
+		// retry) because flushing would re-populate the state
+		// that the event is about to clear.
+		const clearBufferedParts = () => {
 			partsBuf.length = 0;
 		};
 
@@ -411,7 +411,7 @@ export const useChatStore = (
 					// commit durable state that must include all
 					// stream parts. `error` events should surface
 					// partial output. Other events (status, retry,
-					// queue_update) must NOT flush — status changes
+					// queue_update) must NOT flush because status changes
 					// need to be visible before parts so the
 					// "Thinking..." indicator can render, and retry
 					// clears stream state which a flush would
@@ -469,7 +469,7 @@ export const useChatStore = (
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
-								clearPartsBuf();
+								clearBufferedParts();
 								store.clearStreamState();
 								store.clearRetryState();
 							}
@@ -506,7 +506,7 @@ export const useChatStore = (
 							}
 							const retry = streamEvent.retry;
 							if (retry) {
-								clearPartsBuf();
+								clearBufferedParts();
 								store.clearStreamState();
 								store.setRetryState(normalizeRetryState(retry));
 							}
@@ -521,7 +521,7 @@ export const useChatStore = (
 				// unless a stream reset is pending. When
 				// needsStreamReset is true, clearStreamState()
 				// will wipe stream state anyway, and any parts
-				// still in the buffer belong to the next turn —
+				// still in the buffer belong to the next turn and
 				// they must survive until after the reset.
 				if (
 					!needsStreamReset &&
@@ -577,7 +577,7 @@ export const useChatStore = (
 				// Drain any message parts buffered from the
 				// previous socket so stale parts from the old
 				// connection don't leak into the fresh stream.
-				clearPartsBuf();
+				clearBufferedParts();
 			},
 			onDisconnect(
 				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,

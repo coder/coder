@@ -1168,7 +1168,7 @@ describe("useChatStore", () => {
 
 		// The old WebSocket was closed during effect cleanup.
 		expect(mockSocket1.close).toHaveBeenCalled();
-		// Stream state was reset — no stale stream data from chat-1.
+		// Stream state was reset so no stale stream data from chat-1.
 		expect(result.current.streamState).toBeNull();
 	});
 
@@ -1306,7 +1306,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Stream state should still be present — the mismatched event
+		// Stream state should still be present because the mismatched event
 		// was filtered and did not trigger a stream reset.
 		await waitFor(() => {
 			expect(result.current.streamState?.blocks).toEqual([
@@ -1390,10 +1390,10 @@ describe("useChatStore", () => {
 		});
 
 		// Emit a durable message followed by a message_part in the
-		// same batch. The message handler calls scheduleStreamReset
-		// (via rAF), and the subsequent message_part handler calls
-		// cancelScheduledStreamReset to prevent a flash. The final
-		// flushMessageParts re-populates stream state.
+		// same batch. The needsStreamReset flag clears stream state
+		// after the durable commit, but parts arriving after the
+		// message event in the same batch survive the reset and
+		// re-populate stream state for the next turn.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -1583,7 +1583,7 @@ describe("useChatStore", () => {
 		});
 
 		// After the switch, queued messages from chat-1 should NOT be
-		// visible — the store resets them on chatID change.
+		// visible since the store resets them on chatID change.
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
@@ -1652,7 +1652,7 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be null — the status change cleared it,
+		// Stream state should be null because the status change cleared it,
 		// and the deferred applyMessageParts should not have
 		// re-populated it.
 		await waitFor(() => {
@@ -1929,7 +1929,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Transition to running — should clear retry state.
+		// Transition to running which should clear retry state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -2089,7 +2089,7 @@ describe("useChatStore", () => {
 			);
 		});
 		// Main chat status should remain "running" from the initial
-		// chatRecord — the subagent status event must not change it.
+		// chatRecord so the subagent status event must not change it.
 		expect(result.current.chatStatus).toBe("running");
 	});
 
@@ -2423,7 +2423,7 @@ describe("useChatStore", () => {
 			timeout: 3_000,
 		});
 
-		// Second disconnect — reconnect after 2s.
+		// Second disconnect triggers reconnect after 2s.
 		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
@@ -2661,7 +2661,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
-		// Transition to running — should call clearChatErrorReason.
+		// Transition to running which should call clearChatErrorReason.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -2737,7 +2737,7 @@ describe("useChatStore", () => {
 			},
 		});
 
-		// Messages 2 and 3 should be removed — replaceMessages should
+		// Messages 2 and 3 should be removed since replaceMessages should
 		// have been used instead of upsert because the store contained
 		// IDs not present in the fetched set.
 		await waitFor(() => {
@@ -3098,7 +3098,7 @@ describe("thinking indicator event ordering", () => {
 		});
 
 		// Status is running and stream state is populated in the
-		// same batch — no deferred timer needed.
+		// same batch with no deferred timer needed.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 			expect(result.current.streamState).not.toBeNull();
@@ -3168,7 +3168,7 @@ describe("thinking indicator event ordering", () => {
 		});
 
 		// Status is running and stream state is populated in the
-		// same batch — no deferred timer needed.
+		// same batch with no deferred timer needed.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 			expect(result.current.streamState).not.toBeNull();
@@ -3382,7 +3382,7 @@ describe("updateSidebarChat via stream events", () => {
 			});
 		});
 
-		// The per-chat WebSocket does not write updated_at — only the
+		// The per-chat WebSocket does not write updated_at so only the
 		// global chat-list WebSocket delivers the authoritative server
 		// timestamp. Verify it stays at the original value.
 		await waitFor(() => {
@@ -3914,6 +3914,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 
 			const chatID = "chat-b1-cross-msg";
 			const userMsg = makeMessage(chatID, 1, "user", "hey");
+			const turn1Msg = makeMessage(chatID, 2, "assistant", "turn1-done");
 			const mockSocket = createMockSocket();
 			mockWatchChatReturn(mockSocket);
 
@@ -3926,7 +3927,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 
 			const snapshots: Array<{
 				hasStream: boolean;
-				hasDurableAssistant: boolean;
+				hasTurn2Durable: boolean;
 			}> = [];
 
 			const { result } = renderHook(
@@ -3946,13 +3947,10 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					});
 					const streamState = useChatSelector(store, selectStreamState);
 					const messagesByID = useChatSelector(store, selectMessagesByID);
-					const hasDurableAssistant = Array.from(messagesByID.values()).some(
-						(m) => m.role === "assistant",
-					);
 
 					snapshots.push({
 						hasStream: streamState !== null,
-						hasDurableAssistant,
+						hasTurn2Durable: messagesByID.has(3),
 					});
 
 					return { streamState, messagesByID };
@@ -3964,14 +3962,30 @@ describe("stream-to-durable transition (Bug 1)", () => {
 				expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 			});
 
-			// WS message 1: streaming part arrives.
+			// Commit turn 1 as a durable message so it is fully settled.
+			act(() => {
+				mockSocket.emitData({
+					type: "message",
+					chat_id: chatID,
+					message: turn1Msg,
+				});
+			});
+
+			await waitFor(() => {
+				expect(result.current.messagesByID.has(2)).toBe(true);
+			});
+
+			// Clear snapshot history before the critical transition.
+			snapshots.length = 0;
+
+			// WS message 1: turn 2 streaming parts arrive.
 			act(() => {
 				mockSocket.emitData({
 					type: "message_part",
 					chat_id: chatID,
 					message_part: {
 						role: "assistant",
-						part: { type: "text", text: "cross-msg" },
+						part: { type: "text", text: "turn2-stream" },
 					},
 				});
 			});
@@ -3980,35 +3994,114 @@ describe("stream-to-durable transition (Bug 1)", () => {
 				expect(result.current.streamState).not.toBeNull();
 			});
 
-			// Clear history before the critical transition.
-			snapshots.length = 0;
-
-			// Advance timer to flush any deferred work from old code.
+			// Regression guard: advance timers to prove no deferred macrotask changes the outcome.
 			await act(async () => {
 				vi.advanceTimersByTime(0);
 			});
 
-			// WS message 2: durable assistant commit arrives as a
+			// WS message 2: durable commit for turn 2 arrives as a
 			// separate WebSocket message.
 			act(() => {
 				mockSocket.emitData({
 					type: "message",
 					chat_id: chatID,
-					message: makeMessage(chatID, 2, "assistant", "cross-msg"),
+					message: makeMessage(chatID, 3, "assistant", "turn2-stream"),
 				});
 			});
 
 			await waitFor(() => {
-				expect(result.current.messagesByID.has(2)).toBe(true);
+				expect(result.current.messagesByID.has(3)).toBe(true);
 			});
 
+			// With the old setTimeout(0) code, stream state from turn 2
+			// could coexist with the durable turn 2 message. Verify that
+			// no snapshot ever has both simultaneously.
 			const overlapping = snapshots.filter(
-				(s) => s.hasStream && s.hasDurableAssistant,
+				(s) => s.hasStream && s.hasTurn2Durable,
 			);
 			expect(overlapping).toEqual([]);
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("applies buffered parts before an error event in the same batch", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b1-error-batch";
+		const userMsg = makeMessage(chatID, 1, "user", "prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Emit status=running, then a batch containing a message_part
+		// followed by an error. The part must be applied before the
+		// error so partial output is visible.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "partial output" },
+					},
+				},
+				{
+					type: "error",
+					chat_id: chatID,
+					error: { message: "provider failed", retryable: false },
+				},
+			]);
+		});
+
+		// Parts were applied before the error event.
+		expect(result.current.streamState).not.toBeNull();
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "partial output" },
+		]);
+
+		// The error event set chat status.
+		expect(result.current.chatStatus).toBe("error");
 	});
 
 	it("parts are applied synchronously within the batch, not deferred", async () => {
@@ -4069,7 +4162,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			});
 		});
 
-		// No timer advancement — parts should already be visible.
+		// No timer advancement needed; parts should already be visible.
 		expect(result.current.streamState?.blocks).toEqual([
 			{ type: "response", text: "sync-check" },
 		]);
@@ -4117,7 +4210,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		});
 
 		// Single WS message containing turn 1 part, turn 1 commit,
-		// and start of turn 2 — all in one batch.
+		// and start of turn 2, all in one batch.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -4218,7 +4311,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					});
 				});
 
-				// Flush deferred work between WS messages.
+				// Regression guard: advance timers to prove no deferred macrotask changes the outcome.
 				await act(async () => {
 					vi.advanceTimersByTime(0);
 				});
@@ -4353,7 +4446,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 
 describe("store/cache desync protection", () => {
 	it("does not wipe a message added via upsertDurableMessage when a genuine refetch follows", async () => {
-		// RED TEST: Simulates what handleSend does today — it calls
+		// RED TEST: Simulates what handleSend does today: it calls
 		// store.upsertDurableMessage without writing to the React
 		// Query cache. A subsequent rerender with new message refs
 		// (genuine refetch) should NOT wipe the store-only message.
@@ -4440,7 +4533,7 @@ describe("store/cache desync protection", () => {
 		});
 
 		// msg3 was added to the store AFTER the last sync. It
-		// should NOT be classified as stale — it's new, not
+		// should NOT be classified as stale because it's new, not
 		// something the server removed.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
@@ -4518,7 +4611,7 @@ describe("store/cache desync protection", () => {
 		});
 
 		// msg2 and msg3 WERE in the previous sync data and are
-		// now absent — they are genuinely stale (edit truncation)
+		// now absent so they are genuinely stale (edit truncation)
 		// and should be removed.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1]);
