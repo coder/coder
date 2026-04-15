@@ -74,8 +74,8 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
 - Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
-  in code, comments, or string literals. Use commas, semicolons, or
-  periods instead. Restructure the sentence if needed.
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
 
 ## TypeScript Type Safety
 

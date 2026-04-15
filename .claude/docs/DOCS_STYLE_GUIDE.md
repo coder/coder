@@ -152,9 +152,10 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
 
 ### Punctuation
 
-- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation.
-  Use commas, semicolons, or periods instead. Restructure the sentence
-  if needed. For numeric ranges, use a plain hyphen (e.g., `0-100`).
+- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
+  For numeric ranges, use a plain hyphen (e.g., `0-100`).
 
 ### Instructions
 
