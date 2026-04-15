@@ -42,6 +42,7 @@ const (
 	defaultAPIPort         = "3000"
 	defaultWebPort         = "8080"
 	defaultProxyPort       = "3010"
+	defaultPrometheusPort  = "2114"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
 	defaultStarterTemplate = "docker"
@@ -76,6 +77,13 @@ func main() {
 				Default:     defaultProxyPort,
 				Description: "Workspace proxy port.",
 				Value:       serpent.Int64Of(&cfg.proxyPort),
+			},
+			{
+				Flag:        "prometheus-port",
+				Env:         "CODER_DEV_PROMETHEUS_PORT",
+				Default:     defaultPrometheusPort,
+				Description: "Prometheus metrics port. Set to 0 to disable.",
+				Value:       serpent.Int64Of(&cfg.prometheusPort),
 			},
 			{
 				Flag:        "agpl",
@@ -163,6 +171,7 @@ type devConfig struct {
 	apiPort         int64
 	webPort         int64
 	proxyPort       int64
+	prometheusPort  int64
 	agpl            bool
 	accessURL       string
 	password        string
@@ -206,6 +215,9 @@ func (c *devConfig) validate() error {
 			return xerrors.Errorf("%s must be between 1 and 65535", p.name)
 		}
 	}
+	if c.prometheusPort != 0 && (c.prometheusPort < 1 || c.prometheusPort > 65535) {
+		return xerrors.Errorf("--prometheus-port must be between 1 and 65535")
+	}
 	if c.apiPort == c.webPort {
 		return xerrors.Errorf("--port %d conflicts with frontend dev server", c.webPort)
 	}
@@ -214,6 +226,17 @@ func (c *devConfig) validate() error {
 	}
 	if c.useProxy && c.webPort == c.proxyPort {
 		return xerrors.Errorf("--web-port %d conflicts with --proxy-port", c.webPort)
+	}
+	if c.prometheusPort != 0 {
+		if c.prometheusPort == c.apiPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with API server", c.prometheusPort)
+		}
+		if c.prometheusPort == c.webPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with frontend dev server", c.prometheusPort)
+		}
+		if c.useProxy && c.prometheusPort == c.proxyPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with workspace proxy", c.prometheusPort)
+		}
 	}
 	return nil
 }
@@ -481,6 +504,9 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if cfg.useProxy && isPortBusy(ctx, cfg.proxyPort) {
 		return xerrors.Errorf("port %d is already in use (proxy)", cfg.proxyPort)
 	}
+	if cfg.prometheusPort != 0 && isPortBusy(ctx, cfg.prometheusPort) {
+		return xerrors.Errorf("port %d is already in use (prometheus)", cfg.prometheusPort)
+	}
 	return nil
 }
 
@@ -512,6 +538,14 @@ func startServer(cfg *devConfig, group *procGroup) error {
 		"--access-url", cfg.accessURL,
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+	}
+	if cfg.prometheusPort != 0 {
+		serverArgs = append(serverArgs,
+			"--prometheus-enable",
+			"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", cfg.prometheusPort),
+			"--prometheus-collect-agent-stats",
+			"--prometheus-collect-db-metrics",
+		)
 	}
 	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
 
@@ -901,6 +935,9 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 		line(fmt.Sprintf("Web UI: http://%s:%d", h, cfg.webPort))
 		if cfg.useProxy {
 			line(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort))
+		}
+		if cfg.prometheusPort != 0 {
+			line(fmt.Sprintf("Prom:   http://%s:%d", h, cfg.prometheusPort))
 		}
 	}
 	line("")
