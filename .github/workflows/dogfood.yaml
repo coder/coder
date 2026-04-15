@@ -71,7 +71,6 @@ jobs:
       - name: Get branch name
         id: branch-name
         uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9.0.2
-        if: matrix.image-version != 'nix'
 
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
@@ -81,7 +80,6 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
         env:
           BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
-        if: matrix.image-version != 'nix'
 
       - name: Set up Depot CLI
         uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
