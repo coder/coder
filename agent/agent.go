@@ -29,6 +29,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	googleproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -1234,12 +1235,20 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		a.logger.Info(ctx, "fetched manifest")
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
-			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
-			return xerrors.Errorf("convert manifest: %w", err)
-		}
+				// Log the manifest without secrets to avoid leaking
+				// sensitive values into logs.
+				mpSafe, ok := googleproto.Clone(mp).(*proto.Manifest)
+				if ok && mpSafe != nil {
+					mpSafe.Secrets = nil
+				}
+				a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mpSafe), slog.Error(err))
+				return xerrors.Errorf("convert manifest: %w", err)
+			}
+
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
 		}
+
 		if manifest.ParentID != uuid.Nil {
 			// This is a sub agent, disable all the features that should not
 			// be used by sub agents.
@@ -1282,6 +1291,28 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+			// Write secret files after signaling manifest
+			// readiness so that network initialization
+			// (which depends on manifestOK) starts as soon
+			// as possible. This creates a theoretical race
+			// where an SSH session that connects and reads
+			// a secret file before writes finish would see
+			// stale or missing content, but in practice SSH
+			// requires network init + coordination before
+			// any connection arrives, which should take far
+			// longer than file writes. Startup scripts
+			// still wait because they run sequentially
+			// below. Env var injection is unaffected because
+			// it happens lazily per-command in
+			// updateCommandEnv.
+
+			homeDir, err := os.UserHomeDir()
+
+		if err != nil {
+			a.logger.Warn(ctx, "failed to resolve home directory for secret files", slog.Error(err))
+		}
+		WriteSecretFiles(ctx, a.logger, a.filesystem, homeDir, manifest.Secrets)
 
 		// The startup script should only execute on the first run!
 		if oldManifest == nil {
@@ -1550,6 +1581,17 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		envs[k] = os.ExpandEnv(v)
 	}
 
+	// User secrets override manifest env vars so that secrets
+	// take precedence over template-defined values, but are
+	// still overridden by agent-level bootstrap vars below.
+	// Values are assigned raw without os.ExpandEnv because
+	// secret values may contain dollar signs (e.g. passwords)
+	// that must not be interpreted as variable references.
+	for _, secret := range manifest.Secrets {
+		if secret.EnvName != "" {
+			envs[secret.EnvName] = string(secret.Value)
+		}
+	}
 	// Agent-level environment variables should take over all. This is
 	// used for setting agent-specific variables like CODER_AGENT_TOKEN
 	// and GIT_ASKPASS.
@@ -1568,6 +1610,75 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}
 	return updated, nil
+}
+
+// WriteSecretFiles writes user secrets with file_path set to disk.
+// Errors are logged but do not block workspace startup.
+func WriteSecretFiles(ctx context.Context, logger slog.Logger, fs afero.Fs, homeDir string, secrets []agentsdk.WorkspaceSecret) {
+	// Track resolved paths to detect collisions after ~/ expansion.
+	// Two secrets with different file_path values can resolve to
+	// the same absolute path (e.g. ~/x and /home/coder/x). The API
+	// layer prevents duplicates on the raw file_path but cannot see
+	// post-resolution collisions. We still write both, with the
+	// later one winning, but log a warning so the conflict is
+	// visible.
+	seen := make(map[string]string, len(secrets))
+
+	for _, secret := range secrets {
+		if secret.FilePath == "" {
+			continue
+		}
+
+		filePath := secret.FilePath
+		if strings.HasPrefix(filePath, "~/") {
+			if homeDir == "" {
+				logger.Warn(ctx, "skipping secret file with ~/ path: home directory unknown",
+					slog.F("file_path", filePath),
+				)
+				continue
+			}
+			filePath = filepath.Join(homeDir, filePath[2:])
+		}
+		filePath = filepath.Clean(filePath)
+
+		if original, ok := seen[filePath]; ok {
+			// Known shortcoming: the winning secret is determined
+			// by the order of secrets in the manifest, which is
+			// currently alphabetical by secret name from
+			// ListUserSecretsWithValues. This ordering is not
+			// user-controllable and has no semantic meaning; users
+			// should avoid path collisions rather than rely on
+			// which secret wins.
+			logger.Warn(ctx, "multiple secrets resolve to the same file path; later secret in manifest order will win (not user-controllable)",
+				slog.F("resolved_path", filePath),
+				slog.F("first_file_path", original),
+				slog.F("conflicting_file_path", secret.FilePath),
+			)
+		}
+		seen[filePath] = secret.FilePath
+
+		dir := filepath.Dir(filePath)
+		if err := fs.MkdirAll(dir, 0o700); err != nil {
+			logger.Warn(ctx, "failed to create directory for secret file",
+				slog.F("file_path", filePath),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		// The 0o600 perm only applies when the file is created.
+		// If the file already exists, its permissions are
+		// preserved. We only update the content.
+		if err := afero.WriteFile(fs, filePath, secret.Value, 0o600); err != nil {
+			logger.Warn(ctx, "failed to write secret file",
+				slog.F("file_path", filePath),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		logger.Debug(ctx, "wrote secret file", slog.F("file_path", filePath))
+	}
 }
 
 func (*agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
@@ -1986,8 +2097,13 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Strip secrets so they are not exposed via the debug
+	// endpoint.
+	safe := *sdkManifest
+	safe.Secrets = nil
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+	if err := json.NewEncoder(w).Encode(safe); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
 	}
 }

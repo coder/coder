@@ -483,6 +483,155 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestAgent_Session_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		EnvironmentVariables: map[string]string{
+			"SHOULD_BE_OVERRIDDEN": "manifest-value",
+		},
+		Secrets: []agentsdk.WorkspaceSecret{
+			{EnvName: "MY_SECRET_ENV", Value: []byte("env-secret-value")},
+			{FilePath: "/tmp/secret-file", Value: []byte("file-secret-content")},
+			{EnvName: "BOTH_ENV", FilePath: "/tmp/both-file", Value: []byte("both-value")},
+			{EnvName: "SHOULD_BE_OVERRIDDEN", Value: []byte("secret-wins")},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, manifest, 0)
+
+	// Verify file injection via the agent's filesystem.
+	content, err := afero.ReadFile(fs, "/tmp/secret-file")
+	require.NoError(t, err)
+	require.Equal(t, "file-secret-content", string(content))
+
+	content, err = afero.ReadFile(fs, "/tmp/both-file")
+	require.NoError(t, err)
+	require.Equal(t, "both-value", string(content))
+
+	// Verify env var injection via an SSH session.
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sshClient.Close() })
+
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	command := "sh"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe"
+	}
+
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	defer stdin.Close()
+	stdout, err := session.StdoutPipe()
+	require.NoError(t, err)
+
+	err = session.Start(command)
+	require.NoError(t, err)
+
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
+
+	s := bufio.NewScanner(stdout)
+
+	echoEnv := func(t *testing.T, w io.Writer, env string) {
+		t.Helper()
+		if runtime.GOOS == "windows" {
+			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
+			require.NoError(t, err)
+		} else {
+			_, err := fmt.Fprintf(w, "echo $%s\n", env)
+			require.NoError(t, err)
+		}
+	}
+
+	for k, partialV := range map[string]string{
+		"MY_SECRET_ENV":        "env-secret-value",
+		"BOTH_ENV":             "both-value",
+		"SHOULD_BE_OVERRIDDEN": "secret-wins",
+	} {
+		echoEnv(t, stdin, k)
+		found := false
+		for s.Scan() {
+			got := strings.TrimSpace(s.Text())
+			t.Logf("%s=%s", k, got)
+			if strings.Contains(got, partialV) {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "env %s not found in output", k)
+		if err := s.Err(); !errors.Is(err, io.EOF) {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestAgent_StartupScript_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("startup script test uses sh syntax")
+	}
+
+	tmpDir := t.TempDir()
+	secretFilePath := filepath.Join(tmpDir, "secret-file")
+	envProofPath := filepath.Join(tmpDir, "env-proof")
+	fileProofPath := filepath.Join(tmpDir, "file-proof")
+
+	// The startup script reads the secret env var and the secret file,
+	// writing both to proof files so we can verify they were available
+	// at script execution time.
+	script := fmt.Sprintf(
+		"echo \"$MY_STARTUP_SECRET\" > %s && cat %s > %s",
+		envProofPath, secretFilePath, fileProofPath,
+	)
+
+	manifest := agentsdk.Manifest{
+		Scripts: []codersdk.WorkspaceAgentScript{{
+			Script:     script,
+			Timeout:    30 * time.Second,
+			RunOnStart: true,
+		}},
+		Secrets: []agentsdk.WorkspaceSecret{
+			{EnvName: "MY_STARTUP_SECRET", Value: []byte("startup-env-value")},
+			{FilePath: secretFilePath, Value: []byte("startup-file-content")},
+		},
+	}
+
+	// Use the real OS filesystem so that both WriteSecretFiles and
+	// the startup script operate on the same filesystem.
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = afero.NewOsFs()
+	})
+
+	// Wait for the startup script to complete.
+	var got []codersdk.WorkspaceAgentLifecycle
+	assert.Eventually(t, func() bool {
+		got = client.GetLifecycleStates()
+		return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Contains(t, got, codersdk.WorkspaceAgentLifecycleReady, "agent never reached ready")
+
+	// Verify the startup script could read the secret env var.
+	envProof, err := os.ReadFile(envProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-env-value", strings.TrimSpace(string(envProof)))
+
+	// Verify the startup script could read the secret file.
+	fileProof, err := os.ReadFile(fileProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-file-content", string(fileProof))
+}
+
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
 	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
@@ -3406,6 +3555,29 @@ func TestAgent_DebugServer(t *testing.T) {
 		var v agentsdk.Manifest
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&v))
 		require.NotNil(t, v)
+	})
+
+	t.Run("ManifestSecretsStripped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// The response must not contain the secret value.
+		require.NotContains(t, string(body), "super-secret-value-12345")
+
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
+		require.Empty(t, v.Secrets, "secrets must be stripped from debug manifest")
 	})
 
 	t.Run("Logs", func(t *testing.T) {

@@ -126,6 +126,14 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	Secrets                  []WorkspaceSecret                            `json:"secrets"`
+}
+
+// WorkspaceSecret is a user secret for injection into a workspace.
+type WorkspaceSecret struct {
+	EnvName  string `json:"env_name"`
+	FilePath string `json:"file_path"`
+	Value    []byte `json:"value"`
 }
 
 type LogSource struct {
