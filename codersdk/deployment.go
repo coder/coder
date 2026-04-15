@@ -3803,7 +3803,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Gateway Allow BYOK",
-			Description: "Allow users to bring their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+			Description: "Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
 			Flag:        "ai-gateway-allow-byok",
 			Env:         "CODER_AI_GATEWAY_ALLOW_BYOK",
 			Value:       &c.AI.BridgeConfig.AllowBYOK,
