@@ -20,6 +20,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -522,7 +523,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		}
 	}
 
-	status := dbAgent.Status(agentInactiveDisconnectTimeout)
+	status := dbAgent.Status(dbtime.Now(), agentInactiveDisconnectTimeout)
 	workspaceAgent.Status = codersdk.WorkspaceAgentStatus(status.Status)
 	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
 	workspaceAgent.LastConnectedAt = status.LastConnectedAt
