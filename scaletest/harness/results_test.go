@@ -85,14 +85,12 @@ func Test_Results(t *testing.T) {
 
 	wantText := `
 == FAIL: test-0/0
-
 	Error: test-0/0 error
 
 	Log:
 		test-0/0 log line 1
 
 == FAIL: test-0/2
-
 	Error: test-0/2 error
 
 	Log:
