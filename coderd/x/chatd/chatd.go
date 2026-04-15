@@ -4562,6 +4562,12 @@ func (p *Server) runChat(
 			planModeInstructions = fetched
 		case errors.Is(err, sql.ErrNoRows):
 			planModeInstructions = ""
+		default:
+			logger.Warn(ctx,
+				"failed to fetch plan mode instructions",
+				slog.Error(err),
+			)
+			planModeInstructions = ""
 		}
 	}
 

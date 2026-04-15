@@ -7965,7 +7965,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		},
 	}
 	for _, tt := range roundTripTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 

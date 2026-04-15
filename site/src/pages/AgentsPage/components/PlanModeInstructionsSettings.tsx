@@ -59,6 +59,7 @@ export const PlanModeInstructionsSettings: FC<
 	const planModeInvisibleCharCount = countInvisibleCharacters(
 		form.values.plan_mode_instructions,
 	);
+	const planModeInvisibleCharWarning = `This text contains ${planModeInvisibleCharCount} invisible Unicode ${planModeInvisibleCharCount !== 1 ? "characters" : "character"} that could hide content. These will be stripped on save.`;
 	const isPlanModeInstructionsDisabled =
 		isAnyPromptSaving || !hasLoadedPlanModeInstructions;
 
@@ -93,11 +94,7 @@ export const PlanModeInstructionsSettings: FC<
 			/>
 			{planModeInvisibleCharCount > 0 && (
 				<Alert severity="warning">
-					<AlertDescription>
-						This text contains {planModeInvisibleCharCount} invisible Unicode{" "}
-						{planModeInvisibleCharCount !== 1 ? "characters" : "character"} that
-						could hide content. These will be stripped on save.
-					</AlertDescription>
+					<AlertDescription>{planModeInvisibleCharWarning}</AlertDescription>
 				</Alert>
 			)}
 			<div className="flex justify-end gap-2">
