@@ -4288,6 +4288,8 @@ WHERE
     AND cp.enabled = TRUE
 `
 
+// Providers can be disabled independently of their model configs.
+// Check both to ensure the selected config is actually usable.
 func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
 	row := q.db.QueryRowContext(ctx, getEnabledChatModelConfigByID, id)
 	var i ChatModelConfig

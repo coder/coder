@@ -456,7 +456,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		modelConfigID = *opts.modelConfigIDOverride
 	}
 	if modelConfigID == uuid.Nil {
-		return database.Chat{}, xerrors.New("model config is required: parent chat has none and no override was provided")
+		return database.Chat{}, xerrors.New("model config is required")
 	}
 
 	mcpServerIDs := parent.MCPServerIDs
