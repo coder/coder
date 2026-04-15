@@ -91,6 +91,19 @@ define atomic_write
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 endef
 
+# CLI doc generation reflects over the assembled CLI tree. Track command
+# definitions plus the top-level SDK types they expose in help text and flag
+# values, without pulling in unrelated generated sources.
+CLIDOC_SRC_FILES := \
+	$(shell find ./cli ./enterprise/cli -type f -name '*.go' -not -name '*_test.go') \
+	$(wildcard codersdk/*.go) \
+	$(wildcard buildinfo/*.go)
+
+CLIDOCGEN_INPUTS := \
+	$(wildcard scripts/clidocgen/*.go) \
+	scripts/clidocgen/command.tpl \
+	$(CLIDOC_SRC_FILES)
+
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
 # target so parallel -j builds serialize correctly instead of
@@ -108,7 +121,9 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
-_gen/bin/clidocgen: $(wildcard scripts/clidocgen/*.go) | _gen
+# clidocgen reflects over the full CLI tree, so it must rebuild when its
+# command definitions, flag types, or embedded template change.
+_gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
@@ -1190,7 +1205,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | _gen _gen/bin/clidocgen
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \

@@ -49,8 +49,8 @@ jobs:
           # token is scoped to members: read only and used via a
           # separate Octokit client for the membership check.
           script: |
-            const { Octokit } = require("@octokit/rest")
-            const orgClient = new Octokit({ auth: process.env.APP_TOKEN })
+            const { getOctokit } = require("@actions/github")
+            const orgClient = getOctokit(process.env.APP_TOKEN)
 
             const params = {
               issue_number: context.issue.number,
@@ -71,7 +71,7 @@ jobs:
             // See: https://github.com/actions/github-script/issues/643
             const author = context.payload.pull_request.user.login
             try {
-              await orgClient.orgs.checkMembershipForUser({
+              await orgClient.rest.orgs.checkMembershipForUser({
                 org: context.repo.owner,
                 username: author,
               })

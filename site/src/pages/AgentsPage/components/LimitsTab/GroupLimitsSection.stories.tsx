@@ -72,6 +72,11 @@ const meta: Meta<typeof GroupLimitsSection> = {
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,
+		groupOrganizationNames: {
+			"group-1": "acme",
+			"group-2": "acme",
+			"group-4": "acme",
+		},
 		showGroupForm: false,
 		onShowGroupFormChange: fn(),
 		selectedGroup: null,

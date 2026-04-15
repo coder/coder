@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -442,7 +443,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				)
 				selected = agents[0]
 			}
-			status := selected.Status(agentInactiveDisconnectTimeout)
+			status := selected.Status(dbtime.Now(), agentInactiveDisconnectTimeout)
 			result := map[string]any{
 				"created":        false,
 				"workspace_name": ws.Name,
