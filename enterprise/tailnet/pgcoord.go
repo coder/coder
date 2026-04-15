@@ -12,8 +12,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"golang.org/x/sync/singleflight"
+	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
@@ -333,11 +333,15 @@ func (t *tunneler) worker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, t.ctx)
 	for {
+		waitStart := time.Now()
 		tk, err := t.workQ.acquire()
 		if err != nil {
 			// context expired
 			return
 		}
+		t.logger.Debug(t.ctx, "tunneler worker acquired item",
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		err = backoff.Retry(func() error {
 			tun := t.retrieve(tk)
 			return t.writeOne(tun)
@@ -407,6 +411,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.Error(err),
 		)
 	case tun.active:
+		upsertStart := time.Now()
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
 			SrcID:         tun.src,
@@ -415,6 +420,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		t.logger.Debug(t.ctx, "upserted tunnel",
 			slog.F("src_id", tun.src),
 			slog.F("dst_id", tun.dst),
+			slog.F("upsert_ms", time.Since(upsertStart).Milliseconds()),
 			slog.Error(err),
 		)
 	case !tun.active:
@@ -690,7 +696,9 @@ func (m *mapper) run() {
 		case <-m.ctx.Done():
 			return
 		case mappings := <-m.mappings:
-			m.logger.Debug(m.ctx, "got new mappings")
+			m.logger.Debug(m.ctx, "got new mappings",
+				slog.F("num_mappings", len(mappings)),
+			)
 			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
 		case <-m.update:
@@ -706,15 +714,19 @@ func (m *mapper) run() {
 			}
 			best = m.bestMappings(m.c.getLatestMapping())
 		}
-		update := m.bestToUpdate(best)
-		if update == nil {
+		su := m.bestToUpdate(best)
+		if su == nil {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
-			// lots of reasons this could happen, most usually, the peer has disconnected.
+		if err := m.c.Enqueue(su.resp); err != nil {
+			// lots of reasons this could happen, most usually, the peer has disconnected
+			// or the send buffer is full. Do NOT commit the sent cache so the update
+			// is retried on the next mapper cycle.
 			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
+			continue
 		}
+		m.commitSent(su)
 	}
 }
 
@@ -745,20 +757,44 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	return best
 }
 
-func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
-	resp := new(proto.CoordinateResponse)
+// sentUpdate holds the response to enqueue along with the deferred
+// modifications to m.sent.  The caller must invoke commitSent only
+// after a successful Enqueue so that dropped messages are retried on
+// the next mapper cycle.
+type sentUpdate struct {
+	resp    *proto.CoordinateResponse
+	upserts map[uuid.UUID]mapping
+	deletes []uuid.UUID
+}
 
+func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
+	su := &sentUpdate{
+		resp:    new(proto.CoordinateResponse),
+		upserts: make(map[uuid.UUID]mapping),
+	}
+
+	skipped := 0
 	for k, mpng := range best {
 		var reason string
 		sm, ok := m.sent[k]
 		switch {
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// we don't need to send a "lost" update if we've never sent an update about this peer
+			m.logger.Debug(m.ctx, "skipping peer update",
+				slog.F("peer_id", k),
+				slog.F("reason", "new_lost_skip"),
+			)
+			skipped++
 			continue
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "new"
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// was lost and remains lost, no update needed
+			m.logger.Debug(m.ctx, "skipping peer update",
+				slog.F("peer_id", k),
+				slog.F("reason", "still_lost_skip"),
+			)
+			skipped++
 			continue
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "found"
@@ -768,37 +804,62 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			eq, err := sm.node.Equal(mpng.node)
 			if err != nil {
 				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.node))
+				skipped++
 				continue
 			}
 			if eq {
+				m.logger.Debug(m.ctx, "skipping peer update",
+					slog.F("peer_id", k),
+					slog.F("reason", "node_unchanged_skip"),
+				)
+				skipped++
 				continue
 			}
 			reason = "update"
 		}
-		resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+		su.resp.PeerUpdates = append(su.resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 			Id:     agpl.UUIDToByteSlice(k),
 			Node:   mpng.node,
 			Kind:   mpng.kind,
 			Reason: reason,
 		})
-		m.sent[k] = mpng
+		su.upserts[k] = mpng
 	}
+	m.logger.Debug(m.ctx, "bestToUpdate summary",
+		slog.F("total_best", len(best)),
+		slog.F("updates_sent", len(su.resp.PeerUpdates)),
+		slog.F("skipped", skipped),
+	)
 
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
-			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
+			m.logger.Debug(m.ctx, "peer no longer in best mappings, sending DISCONNECTED",
+				slog.F("peer_id", k),
+			)
+			su.resp.PeerUpdates = append(su.resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})
-			delete(m.sent, k)
+			su.deletes = append(su.deletes, k)
 		}
 	}
 
-	if len(resp.PeerUpdates) == 0 {
+	if len(su.resp.PeerUpdates) == 0 {
 		return nil
 	}
-	return resp
+	return su
+}
+
+// commitSent applies the deferred sent-cache mutations from a
+// successful Enqueue call.
+func (m *mapper) commitSent(su *sentUpdate) {
+	for k, mpng := range su.upserts {
+		m.sent[k] = mpng
+	}
+	for _, k := range su.deletes {
+		delete(m.sent, k)
+	}
 }
 
 // querier is responsible for monitoring pubsub notifications and querying the database for the
@@ -901,11 +962,16 @@ func (q *querier) wait() {
 func (q *querier) periodicRefresh() {
 	defer q.wg.Done()
 	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
+		q.logger.Debug(q.ctx, "periodic refresh starting")
 		q.mu.Lock()
 		defer q.mu.Unlock()
+		numMappers := 0
 		for mk := range q.mappers {
 			q.mappingQ.enqueue(mk)
+			numMappers++
 		}
+		q.logger.Debug(q.ctx, "periodic refresh enqueued mappers",
+			slog.F("num_mappers", numMappers))
 		return nil
 	}, "querier", "periodicRefresh")
 	err := tkr.Wait()
@@ -936,7 +1002,10 @@ func (q *querier) newConn(c *connIO) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if !q.healthy {
-		_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
+		if err := c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy}); err != nil {
+			q.logger.Warn(q.ctx, "enqueue unhealthy close response failed",
+				slog.F("peer_id", c.UniqueID()), slog.Error(err))
+		}
 		err := c.Close()
 		// This can only happen during a narrow window where we were healthy
 		// when pgCoord checked before accepting the connection, but now are
@@ -1006,15 +1075,36 @@ func (q *querier) peerUpdateWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
+		waitStart := time.Now()
 		allKeys, err := q.peerUpdateQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
+		q.logger.Debug(q.ctx, "peer update worker acquired batch",
+			slog.F("batch_size", len(allKeys)),
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		peers := make([]uuid.UUID, 0, len(allKeys))
 		peers = append(peers, allKeys...)
+		retryStart := time.Now()
+		attempt := 0
 		err = backoff.Retry(func() error {
-			return q.peerUpdate(peers)
+			attempt++
+			retErr := q.peerUpdate(peers)
+			if retErr != nil {
+				q.logger.Warn(q.ctx, "peer update query failed, will retry",
+					slog.Error(retErr),
+					slog.F("batch_size", len(peers)),
+					slog.F("attempt", attempt),
+				)
+			}
+			return retErr
 		}, bkoff)
+		q.logger.Debug(q.ctx, "peer update worker completed query",
+			slog.F("batch_size", len(peers)),
+			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
+			slog.F("errored", err != nil),
+		)
 		if err != nil {
 			bkoff.Reset()
 		}
@@ -1030,15 +1120,36 @@ func (q *querier) mappingWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
+		waitStart := time.Now()
 		allKeys, err := q.mappingQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
+		q.logger.Debug(q.ctx, "mapping worker acquired batch",
+			slog.F("batch_size", len(allKeys)),
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		mkeys := make([]mKey, 0, len(allKeys))
 		mkeys = append(mkeys, allKeys...)
+		retryStart := time.Now()
+		attempt := 0
 		err = backoff.Retry(func() error {
-			return q.mappingQuery(mkeys)
+			attempt++
+			retErr := q.mappingQuery(mkeys)
+			if retErr != nil {
+				q.logger.Warn(q.ctx, "mapping query failed, will retry",
+					slog.Error(retErr),
+					slog.F("batch_size", len(mkeys)),
+					slog.F("attempt", attempt),
+				)
+			}
+			return retErr
 		}, bkoff)
+		q.logger.Debug(q.ctx, "mapping worker completed query",
+			slog.F("batch_size", len(mkeys)),
+			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
+			slog.F("errored", err != nil),
+		)
 		if err != nil {
 			bkoff.Reset()
 		}
@@ -1092,12 +1203,15 @@ func (q *querier) mappingQuery(peers []mKey) error {
 
 	q.logger.Debug(q.ctx, "batch querying mappings",
 		slog.F("num_peers", len(active)))
+	queryStart := time.Now()
 	bindings, err := q.store.GetTailnetTunnelPeerBindingsBatch(q.ctx, active)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("get tunnel peer bindings batch: %w", err)
 	}
 	q.logger.Debug(q.ctx, "batch queried mappings",
-		slog.F("num_bindings", len(bindings)))
+		slog.F("num_bindings", len(bindings)),
+		slog.F("query_ms", time.Since(queryStart).Milliseconds()),
+	)
 
 	// Group bindings by lookup_id (the peer that needs the mapping).
 	grouped := make(map[uuid.UUID][]database.GetTailnetTunnelPeerBindingsBatchRow)
@@ -1245,8 +1359,13 @@ func (q *querier) subscribe() {
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
-		// we need to schedule a full resync of peer mappings
-		q.resyncPeerMappings()
+		// Schedule a full resync asynchronously so we don't block the
+		// pubsub drain goroutine. Singleflight coalesces concurrent
+		// resync requests.
+		go q.resyncGroup.Do("resync", func() (any, error) {
+			q.resyncPeerMappings()
+			return nil, nil
+		})
 		return
 	}
 	if err != nil {
@@ -1270,10 +1389,16 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
+	receivedAt := time.Now()
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
-		// we need to schedule a full resync of peer mappings
-		q.resyncPeerMappings()
+		// Schedule a full resync asynchronously so we don't block the
+		// pubsub drain goroutine. Singleflight coalesces concurrent
+		// resync requests.
+		go q.resyncGroup.Do("resync", func() (any, error) {
+			q.resyncPeerMappings()
+			return nil, nil
+		})
 		return
 	}
 	if err != nil {
@@ -1285,7 +1410,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		q.logger.Error(q.ctx, "failed to parse tunnel update", slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers))
+	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers), slog.F("received_at", receivedAt))
 	for _, peer := range peers {
 		mk := mKey(peer)
 		q.mu.Lock()
@@ -1297,6 +1422,9 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 			continue
 		}
 		q.mappingQ.enqueue(mk)
+		q.logger.Debug(q.ctx, "tunnel update received, enqueueing mapping",
+			slog.F("peer_id", peer),
+		)
 	}
 }
 
@@ -1326,12 +1454,15 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 		return
 	}
 
-	_ = mpr.c.Enqueue(&proto.CoordinateResponse{
+	if err := mpr.c.Enqueue(&proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
 			Id:   from[:],
 			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
 		}},
-	})
+	}); err != nil {
+		q.logger.Warn(q.ctx, "enqueue ready for handshake failed",
+			slog.F("peer_id", to), slog.F("from_peer_id", from), slog.Error(err))
+	}
 }
 
 func (q *querier) resyncPeerMappings() {
@@ -1411,7 +1542,10 @@ func (q *querier) unhealthyCloseAll() {
 	for _, mpr := range q.mappers {
 		// close connections async so that we don't block the querier routine that responds to updates
 		go func(c *connIO) {
-			_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
+			if err := c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy}); err != nil {
+				q.logger.Warn(q.ctx, "enqueue unhealthy close response failed",
+					slog.F("peer_id", c.UniqueID()), slog.Error(err))
+			}
 			err := c.Close()
 			if err != nil {
 				q.logger.Debug(q.ctx, "error closing conn while unhealthy", slog.Error(err))
@@ -1669,6 +1803,10 @@ func (h *heartbeats) filter(mappings []mapping) []mapping {
 				// the only mapping available for it. Newer mappings will take
 				// precedence.
 				m.kind = proto.CoordinateResponse_PeerUpdate_LOST
+				h.logger.Debug(h.ctx, "mapping rewritten to LOST due to missed heartbeats",
+					slog.F("peer_id", m.peer),
+					slog.F("coordinator_id", m.coordinator),
+				)
 			}
 		}
 
@@ -1778,13 +1916,6 @@ func (h *heartbeats) checkExpiry() {
 		return
 	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
-
-	// Query the database BEFORE acquiring the lock to avoid blocking
-	// heartbeat processing during the DB round-trip. The snapshot may
-	// be slightly stale by the time we apply it under lock, but the
-	// existing logic handles stale data gracefully.
-	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
-
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	now := h.clock.Now()
@@ -1800,12 +1931,13 @@ func (h *heartbeats) checkExpiry() {
 		}
 	}
 
-	// Use the pre-fetched database result. This serves two purposes:
+	// Query the database for fresh heartbeats. This serves two purposes:
 	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
 	//    were delayed (the original DB fallback logic).
 	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
 	//    pubsub notifications can be permanently lost, leaving coordinators
 	//    invisible to other pods.
+	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
 		// Fall through — expire based on pubsub data only, no discovery.
