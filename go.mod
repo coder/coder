@@ -81,7 +81,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
-// 5) (anthropic-sdk-go) DirectEncoder to eliminated nested MarshalJSON allocation chain
+// 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // See: https://github.com/coder/fantasy/commits/190272ce52f0
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260415162245-190272ce52f0
 
