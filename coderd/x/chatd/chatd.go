@@ -4041,10 +4041,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
 
-	if p.metrics == nil {
-		p.metrics = chatloop.NopMetrics()
-	}
-
 	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Inc()
 	defer p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Dec()
 
@@ -4260,9 +4256,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Dec()
 	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusStreaming).Inc()
+	defer func() {
+		p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusStreaming).Dec()
+		p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Inc()
+	}()
 	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
-	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusStreaming).Dec()
-	p.metrics.ActiveSessions.WithLabelValues(chatloop.StatusWaiting).Inc()
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")

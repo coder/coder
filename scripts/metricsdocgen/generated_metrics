@@ -229,7 +229,7 @@ coderd_build_info{version="",revision=""} 0
 # HELP coderd_chatd_active_sessions Number of active chat sessions by status.
 # TYPE coderd_chatd_active_sessions gauge
 coderd_chatd_active_sessions{status=""} 0
-# HELP coderd_chatd_compaction_total Total compaction attempts by result.
+# HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",result=""} 0
 # HELP coderd_chatd_message_count Number of messages in the prompt at each Model.Stream call.

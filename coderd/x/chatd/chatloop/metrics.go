@@ -77,7 +77,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "compaction_total",
-			Help:      "Total compaction attempts by result.",
+			Help:      "Total compaction outcomes (only recorded when compaction was triggered or failed).",
 		}, []string{"provider", "result"}),
 		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
