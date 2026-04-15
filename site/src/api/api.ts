@@ -3050,6 +3050,15 @@ export type CreateTaskFeedbackRequest = {
 	comment?: string;
 };
 
+export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
+
+type UpdateChatRequestWithClearablePlanMode = Omit<
+	TypesGen.UpdateChatRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
 //
@@ -3143,7 +3152,7 @@ class ExperimentalApiMethods {
 
 	updateChat = async (
 		chatId: string,
-		req: TypesGen.UpdateChatRequest,
+		req: UpdateChatRequestWithClearablePlanMode,
 	): Promise<void> => {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};

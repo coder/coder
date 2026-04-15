@@ -3,7 +3,7 @@ import type {
 	QueryClient,
 	UseInfiniteQueryOptions,
 } from "react-query";
-import { API } from "#/api/api";
+import { API, type ChatPlanModeOrClear } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
@@ -216,10 +216,10 @@ type UpdateChatWorkspaceVariables = {
 
 type UpdateChatPlanModeVariables = {
 	chatId: string;
-	planMode?: TypesGen.ChatPlanMode;
+	planMode?: ChatPlanModeOrClear;
 };
 
-const clearPlanMode = "" as TypesGen.ChatPlanMode;
+const clearPlanMode = "" satisfies ChatPlanModeOrClear;
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
@@ -417,15 +417,16 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		const nextPlanMode = planMode === clearPlanMode ? undefined : planMode;
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: nextPlanMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				plan_mode: planMode,
+				plan_mode: nextPlanMode,
 			});
 		}
 		return { previousChat };
