@@ -875,6 +875,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
+	// Resolve the deployment prompt before opening the transaction so
+	// chat creation does not hold one DB connection while waiting for
+	// another pool checkout.
+	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -915,7 +919,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 		userPrompt := SanitizePromptText(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
