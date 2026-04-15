@@ -975,11 +975,16 @@ func (q *querier) wait() {
 func (q *querier) periodicRefresh() {
 	defer q.wg.Done()
 	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
+		q.logger.Debug(q.ctx, "periodic refresh starting")
 		q.mu.Lock()
 		defer q.mu.Unlock()
+		numMappers := 0
 		for mk := range q.mappers {
 			q.mappingQ.enqueue(mk)
+			numMappers++
 		}
+		q.logger.Debug(q.ctx, "periodic refresh enqueued mappers",
+			slog.F("num_mappers", numMappers))
 		return nil
 	}, "querier", "periodicRefresh")
 	err := tkr.Wait()
@@ -1083,15 +1088,36 @@ func (q *querier) peerUpdateWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
+		waitStart := time.Now()
 		allKeys, err := q.peerUpdateQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
+		q.logger.Debug(q.ctx, "peer update worker acquired batch",
+			slog.F("batch_size", len(allKeys)),
+			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
+		)
 		peers := make([]uuid.UUID, 0, len(allKeys))
 		peers = append(peers, allKeys...)
+		retryStart := time.Now()
+		attempt := 0
 		err = backoff.Retry(func() error {
-			return q.peerUpdate(peers)
+			attempt++
+			retErr := q.peerUpdate(peers)
+			if retErr != nil {
+				q.logger.Warn(q.ctx, "peer update query failed, will retry",
+					slog.Error(retErr),
+					slog.F("batch_size", len(peers)),
+					slog.F("attempt", attempt),
+				)
+			}
+			return retErr
 		}, bkoff)
+		q.logger.Debug(q.ctx, "peer update worker completed query",
+			slog.F("batch_size", len(peers)),
+			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
+			slog.F("errored", err != nil),
+		)
 		if err != nil {
 			bkoff.Reset()
 		}
@@ -1118,9 +1144,25 @@ func (q *querier) mappingWorker() {
 		)
 		mkeys := make([]mKey, 0, len(allKeys))
 		mkeys = append(mkeys, allKeys...)
+		retryStart := time.Now()
+		attempt := 0
 		err = backoff.Retry(func() error {
-			return q.mappingQuery(mkeys)
+			attempt++
+			retErr := q.mappingQuery(mkeys)
+			if retErr != nil {
+				q.logger.Warn(q.ctx, "mapping query failed, will retry",
+					slog.Error(retErr),
+					slog.F("batch_size", len(mkeys)),
+					slog.F("attempt", attempt),
+				)
+			}
+			return retErr
 		}, bkoff)
+		q.logger.Debug(q.ctx, "mapping worker completed query",
+			slog.F("batch_size", len(mkeys)),
+			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
+			slog.F("errored", err != nil),
+		)
 		if err != nil {
 			bkoff.Reset()
 		}
