@@ -323,7 +323,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortValid", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 2114
+		cfg.prometheusPort = 9090
 		assert.NoError(t, cfg.validate())
 	})
 
@@ -333,7 +333,16 @@ func TestDevConfigValidate(t *testing.T) {
 		cfg.prometheusPort = 70000
 		err := cfg.validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--prometheus-port must be between 1 and 65535")
+		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
+	})
+
+	t.Run("PrometheusPortNegative", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = -1
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
 	})
 
 	t.Run("PrometheusProxyConflictIgnoredNoProxy", func(t *testing.T) {

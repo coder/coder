@@ -39,9 +39,11 @@ import (
 )
 
 const (
-	defaultAPIPort         = "3000"
-	defaultWebPort         = "8080"
-	defaultProxyPort       = "3010"
+	defaultAPIPort   = "3000"
+	defaultWebPort   = "8080"
+	defaultProxyPort = "3010"
+	// defaultPrometheusPort avoids 2112 (agent prometheus) and
+	// 2113 (agent debug) already bound inside Coder workspaces.
 	defaultPrometheusPort  = "2114"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
@@ -215,8 +217,8 @@ func (c *devConfig) validate() error {
 			return xerrors.Errorf("%s must be between 1 and 65535", p.name)
 		}
 	}
-	if c.prometheusPort != 0 && (c.prometheusPort < 1 || c.prometheusPort > 65535) {
-		return xerrors.Errorf("--prometheus-port must be between 1 and 65535")
+	if c.prometheusPort < 0 || c.prometheusPort > 65535 {
+		return xerrors.Errorf("--prometheus-port must be 0 (disabled) or between 1 and 65535")
 	}
 	if c.apiPort == c.webPort {
 		return xerrors.Errorf("--port %d conflicts with frontend dev server", c.webPort)
@@ -936,9 +938,9 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 		if cfg.useProxy {
 			line(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort))
 		}
-		if cfg.prometheusPort != 0 {
-			line(fmt.Sprintf("Prom:   http://%s:%d", h, cfg.prometheusPort))
-		}
+	}
+	if cfg.prometheusPort != 0 {
+		line(fmt.Sprintf("Metrics: http://127.0.0.1:%d", cfg.prometheusPort))
 	}
 	line("")
 	line("Use ./scripts/coder-dev.sh to talk to this instance!")
