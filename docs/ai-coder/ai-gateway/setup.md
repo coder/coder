@@ -116,8 +116,8 @@ export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.c
 ```
 
 The default base URL targets the individual Copilot API
-(`api.individual.githubcopilot.com`). Override `BASE_URL` for Business or
-Enterprise tiers as shown above.
+(`api.individual.githubcopilot.com`). Override `CODER_AIBRIDGE_PROVIDER_<N>_BASE_URL`
+for Business or Enterprise tiers as shown above.
 
 For client-side setup (proxy, certificates, IDE configuration), see
 [GitHub Copilot client configuration](./clients/copilot.md).
