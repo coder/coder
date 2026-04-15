@@ -1631,9 +1631,9 @@ describe("useChatStore", () => {
 		});
 
 		// Emit a batch with message_parts followed by a status change
-		// to "waiting". The status handler clears stream state
-		// synchronously, and the startTransition guard should prevent
-		// the deferred applyMessageParts from re-populating it.
+		// to "waiting". The status handler calls clearBufferedParts()
+		// which empties the buffer, so the synchronous end-of-batch
+		// application finds nothing to apply.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -1652,9 +1652,9 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be null because the status change cleared it,
-		// and the deferred applyMessageParts should not have
-		// re-populated it.
+		// Stream state should be null because the status change
+		// called clearBufferedParts() and clearStreamState(), and
+		// the synchronous end-of-batch flush found an empty buffer.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
 		});
@@ -3249,6 +3249,81 @@ describe("thinking indicator event ordering", () => {
 		});
 
 		expect(result.current.streamState).toBeNull();
+	});
+
+	it("discards buffered parts when a retry event arrives", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-discard-retry";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					retryState: useChatSelector(store, selectRetryState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends a message_part then immediately retries.
+		// The retry handler calls clearBufferedParts() and
+		// clearStreamState(), so the buffered parts must not
+		// leak through the end-of-batch synchronous flush.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "partial before retry" },
+					},
+				},
+				{
+					type: "retry",
+					chat_id: chatID,
+					retry: {
+						attempt: 1,
+						error: "rate limited",
+						delay_ms: 5000,
+						retrying_at: "2026-01-01T00:00:05Z",
+					},
+				},
+			]);
+		});
+
+		// Stream state should be null (retry cleared it) and
+		// retry state should be populated.
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.retryState).not.toBeNull();
+			expect(result.current.retryState?.attempt).toBe(1);
+		});
 	});
 });
 

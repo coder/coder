@@ -333,7 +333,8 @@ export const useChatStore = (
 
 		// Parts buffer accumulates message_part events during
 		// the for-loop so they can be applied (or discarded)
-		// as a group at the end of the batch.
+		// as a group when the next consuming event arrives or
+		// at the end of the batch.
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 
 		const shouldApplyMessagePart = (): boolean => {
