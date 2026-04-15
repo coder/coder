@@ -405,20 +405,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	orgMembers, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: req.OrganizationID,
-		UserID:         apiKey.UserID,
-		IncludeSystem:  false,
-		GithubUserID:   0,
-	})
+	isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate organization membership.",
-			Detail:  err.Error(),
+			Detail:  xerrors.Errorf("expand user authorization roles: %w", err).Error(),
 		})
 		return
 	}
-	if len(orgMembers) == 0 {
+	if !isMember {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not a member of the specified organization.",
 		})
