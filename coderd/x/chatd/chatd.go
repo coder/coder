@@ -4041,8 +4041,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
 
-	p.metrics.Stats.WithLabelValues(chatloop.StateWaiting).Inc()
-	defer p.metrics.Stats.WithLabelValues(chatloop.StateWaiting).Dec()
+	p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Inc()
+	defer p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Dec()
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -4254,11 +4254,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	p.metrics.Stats.WithLabelValues(chatloop.StateWaiting).Dec()
-	p.metrics.Stats.WithLabelValues(chatloop.StateStreaming).Inc()
+	p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Dec()
+	p.metrics.Chats.WithLabelValues(chatloop.StateStreaming).Inc()
 	defer func() {
-		p.metrics.Stats.WithLabelValues(chatloop.StateStreaming).Dec()
-		p.metrics.Stats.WithLabelValues(chatloop.StateWaiting).Inc()
+		p.metrics.Chats.WithLabelValues(chatloop.StateStreaming).Dec()
+		p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Inc()
 	}()
 	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {

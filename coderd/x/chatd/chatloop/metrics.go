@@ -13,7 +13,7 @@ const (
 	metricsNamespace = "coderd"
 	metricsSubsystem = "chatd"
 
-	// Label values for Stats.
+	// Label values for Chats.
 	StateStreaming = "streaming"
 	StateWaiting   = "waiting"
 
@@ -25,7 +25,7 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	Stats                        *prometheus.GaugeVec
+	Chats                        *prometheus.GaugeVec
 	MessageCount                 *prometheus.HistogramVec
 	PromptSizeBytes              *prometheus.HistogramVec
 	ToolResultSizeBytes          *prometheus.HistogramVec
@@ -39,10 +39,10 @@ type Metrics struct {
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	factory := promauto.With(reg)
 	return &Metrics{
-		Stats: factory.NewGaugeVec(prometheus.GaugeOpts{
+		Chats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "stats",
+			Name:      "chats",
 			Help:      "Number of chats being processed, by state.",
 		}, []string{"state"}),
 		MessageCount: factory.NewHistogramVec(prometheus.HistogramOpts{

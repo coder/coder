@@ -226,6 +226,9 @@ coderd_authz_prepare_authorize_duration_seconds 0
 # HELP coderd_build_info Describes the current build/version of the Coder server. Value is always 1.
 # TYPE coderd_build_info gauge
 coderd_build_info{version="",revision=""} 0
+# HELP coderd_chatd_chats Number of chats being processed, by state.
+# TYPE coderd_chatd_chats gauge
+coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",result=""} 0
@@ -238,9 +241,6 @@ coderd_chatd_prompt_size_bytes{provider=""} 0
 # HELP coderd_chatd_serialization_duration_seconds Wall time from Model.Stream call to first streamed chunk (time-to-first-token).
 # TYPE coderd_chatd_serialization_duration_seconds histogram
 coderd_chatd_serialization_duration_seconds{provider=""} 0
-# HELP coderd_chatd_stats Number of chats being processed, by state.
-# TYPE coderd_chatd_stats gauge
-coderd_chatd_stats{state=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider=""} 0

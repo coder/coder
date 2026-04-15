@@ -19,7 +19,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m := chatloop.NewMetrics(reg)
 
 	// Initialize vector metrics so they appear in Gather output.
-	m.Stats.WithLabelValues(chatloop.StateStreaming)
+	m.Chats.WithLabelValues(chatloop.StateStreaming)
 	m.CompactionTotal.WithLabelValues("anthropic", chatloop.CompactionResultSuccess)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "test")
 	m.MessageCount.WithLabelValues("anthropic")
@@ -31,7 +31,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := map[string]dto.MetricType{
-		"coderd_chatd_stats":                          dto.MetricType_GAUGE,
+		"coderd_chatd_chats":                          dto.MetricType_GAUGE,
 		"coderd_chatd_message_count":                  dto.MetricType_HISTOGRAM,
 		"coderd_chatd_prompt_size_bytes":              dto.MetricType_HISTOGRAM,
 		"coderd_chatd_tool_result_size_bytes":         dto.MetricType_HISTOGRAM,
@@ -60,10 +60,10 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m := chatloop.NopMetrics()
 
 	// Exercise every metric to confirm no nil-pointer panics.
-	m.Stats.WithLabelValues("streaming").Inc()
-	m.Stats.WithLabelValues("streaming").Dec()
-	m.Stats.WithLabelValues("waiting").Inc()
-	m.Stats.WithLabelValues("waiting").Dec()
+	m.Chats.WithLabelValues("streaming").Inc()
+	m.Chats.WithLabelValues("streaming").Dec()
+	m.Chats.WithLabelValues("waiting").Inc()
+	m.Chats.WithLabelValues("waiting").Dec()
 	m.MessageCount.WithLabelValues("anthropic").Observe(10)
 	m.PromptSizeBytes.WithLabelValues("openai").Observe(4096)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "execute").Observe(512)
