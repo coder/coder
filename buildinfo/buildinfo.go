@@ -48,7 +48,7 @@ const (
 // Use golang.org/x/mod/semver to compare versions.
 func Version() string {
 	readVersion.Do(func() {
-		revision, valid := revision()
+		revision, valid := Revision()
 		if valid {
 			revision = "+" + revision[:7]
 		}
@@ -124,7 +124,7 @@ func IsBoringCrypto() bool {
 func ExternalURL() string {
 	readExternalURL.Do(func() {
 		repo := "https://github.com/coder/coder"
-		revision, valid := revision()
+		revision, valid := Revision()
 		if !valid {
 			externalURL = repo
 			return
@@ -150,11 +150,6 @@ func Time() (time.Time, bool) {
 // Revision returns the full Git hash of the build.
 func Revision() (string, bool) {
 	return find("vcs.revision")
-}
-
-// revision returns the Git hash of the build.
-func revision() (string, bool) {
-	return Revision()
 }
 
 // find panics if a setting with the specific key was not
