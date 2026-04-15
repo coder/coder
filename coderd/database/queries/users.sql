@@ -78,6 +78,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
 	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
