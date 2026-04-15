@@ -1909,7 +1909,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		if *req.WorkspaceID != uuid.Nil {
 			var status int
 			var resp *codersdk.Response
-			workspaceID, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+			workspaceID, _, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
 			if resp != nil {
 				httpapi.Write(ctx, rw, status, *resp)
 				return
@@ -3046,21 +3046,22 @@ func (api *API) validateChatWorkspaceSelection(
 	workspaceID *uuid.UUID,
 ) (
 	uuid.NullUUID,
+	database.Workspace,
 	int,
 	*codersdk.Response,
 ) {
 	if workspaceID == nil {
-		return uuid.NullUUID{}, 0, nil
+		return uuid.NullUUID{}, database.Workspace{}, 0, nil
 	}
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, *workspaceID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			return uuid.NullUUID{}, http.StatusBadRequest, &codersdk.Response{
+			return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
 				Message: "Workspace not found or you do not have access to this resource",
 			}
 		}
-		return uuid.NullUUID{}, http.StatusInternalServerError, &codersdk.Response{
+		return uuid.NullUUID{}, database.Workspace{}, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
 		}
@@ -3071,12 +3072,12 @@ func (api *API) validateChatWorkspaceSelection(
 		Valid: true,
 	}
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
-		return uuid.NullUUID{}, http.StatusBadRequest, &codersdk.Response{
+		return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Workspace not found or you do not have access to this resource",
 		}
 	}
 
-	return selection, 0, nil
+	return selection, workspace, 0, nil
 }
 
 func (api *API) validateCreateChatWorkspaceSelection(
@@ -3089,26 +3090,13 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	*codersdk.Response,
 ) {
 	selection := createChatWorkspaceSelection{}
-	workspaceID, status, resp := api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
 	if resp != nil {
 		return selection, status, resp
 	}
 	selection.WorkspaceID = workspaceID
 	if !workspaceID.Valid {
 		return selection, 0, nil
-	}
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID.UUID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			return selection, http.StatusBadRequest, &codersdk.Response{
-				Message: "Workspace not found or you do not have access to this resource",
-			}
-		}
-		return selection, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to get workspace.",
-			Detail:  err.Error(),
-		}
 	}
 	if workspace.OrganizationID != req.OrganizationID {
 		return selection, http.StatusBadRequest, &codersdk.Response{
