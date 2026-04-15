@@ -331,45 +331,22 @@ export const useChatStore = (
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
 
-		// Parts buffer lives at the effect scope so it persists
-		// across WebSocket messages. A rAF-based flush coalesces
-		// parts from multiple WS messages into a single render,
-		// capping stream renders to once per animation frame.
+		// Parts buffer accumulates message_part events during
+		// the for-loop so they can be applied (or discarded)
+		// as a group at the end of the batch.
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
-		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 		const shouldApplyMessagePart = (): boolean => {
 			const currentStatus = store.getSnapshot().chatStatus;
 			return currentStatus !== "pending" && currentStatus !== "waiting";
 		};
 
-		const schedulePartsFlush = () => {
-			if (partsFlushTimer !== null || partsBuf.length === 0) {
-				return;
-			}
-			partsFlushTimer = setTimeout(() => {
-				partsFlushTimer = null;
-				if (disposed || activeChatIDRef.current !== chatID) {
-					return;
-				}
-				const parts = partsBuf.splice(0);
-				if (parts.length === 0 || !shouldApplyMessagePart()) {
-					return;
-				}
-				store.applyMessageParts(parts);
-			}, 0);
-		};
-
-		// Immediate flush for non-message_part events that need
-		// the parts applied before they execute (e.g. a durable
-		// message commit right after the last part).
-		const flushMessageParts = () => {
+		// Apply buffered parts to the store immediately. Used
+		// before events that need stream state up-to-date (e.g.
+		// a durable message commit right after the last part).
+		const applyBufferedParts = () => {
 			if (partsBuf.length === 0) {
 				return;
-			}
-			if (partsFlushTimer !== null) {
-				clearTimeout(partsFlushTimer);
-				partsFlushTimer = null;
 			}
 			const parts = partsBuf.splice(0);
 			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
@@ -382,12 +359,8 @@ export const useChatStore = (
 		// stream state is about to be cleared (pending, waiting,
 		// retry) — flushing would re-populate the state that the
 		// event is about to clear.
-		const discardBufferedParts = () => {
+		const clearPartsBuf = () => {
 			partsBuf.length = 0;
-			if (partsFlushTimer !== null) {
-				clearTimeout(partsFlushTimer);
-				partsFlushTimer = null;
-			}
 		};
 
 		const handleMessage = (
@@ -444,7 +417,7 @@ export const useChatStore = (
 					// clears stream state which a flush would
 					// re-populate.
 					if (streamEvent.type === "message" || streamEvent.type === "error") {
-						flushMessageParts();
+						applyBufferedParts();
 					}
 
 					switch (streamEvent.type) {
@@ -496,7 +469,7 @@ export const useChatStore = (
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
-								discardBufferedParts();
+								clearPartsBuf();
 								store.clearStreamState();
 								store.clearRetryState();
 							}
@@ -533,7 +506,7 @@ export const useChatStore = (
 							}
 							const retry = streamEvent.retry;
 							if (retry) {
-								discardBufferedParts();
+								clearPartsBuf();
 								store.clearStreamState();
 								store.setRetryState(normalizeRetryState(retry));
 							}
@@ -544,10 +517,20 @@ export const useChatStore = (
 					}
 				}
 
-				// Schedule a coalesced flush for any remaining
-				// parts. If parts were already flushed by a
-				// non-message_part event above, this is a no-op.
-				schedulePartsFlush();
+				// Apply any remaining buffered parts synchronously,
+				// unless a stream reset is pending. When
+				// needsStreamReset is true, clearStreamState()
+				// will wipe stream state anyway, and any parts
+				// still in the buffer belong to the next turn —
+				// they must survive until after the reset.
+				if (
+					!needsStreamReset &&
+					partsBuf.length > 0 &&
+					shouldApplyMessagePart()
+				) {
+					const parts = partsBuf.splice(0);
+					store.applyMessageParts(parts);
+				}
 
 				// Bulk-upsert all collected durable messages in one
 				// pass: one Map copy + one sort instead of N each.
@@ -559,10 +542,7 @@ export const useChatStore = (
 				// Clear stream state atomically with the durable
 				// message commit so subscribers never see a
 				// snapshot where both the committed message and
-				// the streaming output coexist. Previously this
-				// was deferred to a requestAnimationFrame, which
-				// left a window where ConversationTimeline and
-				// LiveStreamTail rendered the same content.
+				// the streaming output coexist.
 				if (needsStreamReset) {
 					store.clearStreamState();
 					// If more message_part events arrived in this
@@ -571,10 +551,6 @@ export const useChatStore = (
 					// the stream transitions from the old turn to
 					// the new one without a flash.
 					if (partsBuf.length > 0) {
-						if (partsFlushTimer !== null) {
-							clearTimeout(partsFlushTimer);
-							partsFlushTimer = null;
-						}
 						const nextParts = partsBuf.splice(0);
 						if (shouldApplyMessagePart()) {
 							store.applyMessageParts(nextParts);
@@ -599,11 +575,9 @@ export const useChatStore = (
 				// stream.
 				store.resetTransportReplayState();
 				// Drain any message parts buffered from the
-				// previous socket. Without this, a pending
-				// flush timer could fire after reconnect and
-				// apply stale parts from the old connection
-				// into the fresh stream state.
-				discardBufferedParts();
+				// previous socket so stale parts from the old
+				// connection don't leak into the fresh stream.
+				clearPartsBuf();
 			},
 			onDisconnect(
 				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,
@@ -621,9 +595,6 @@ export const useChatStore = (
 		return () => {
 			disposed = true;
 			disposeSocket();
-			if (partsFlushTimer !== null) {
-				clearTimeout(partsFlushTimer);
-			}
 			activeChatIDRef.current = null;
 		};
 	}, [chatID, initialDataLoaded, queryClient, store]);

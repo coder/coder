@@ -3034,8 +3034,7 @@ describe("useChatStore", () => {
 });
 
 describe("thinking indicator event ordering", () => {
-	it("shows starting phase when message_part arrives before status:running in same batch", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
+	it("applies message_part synchronously even when it arrives before status:running in same batch", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-thinking-parts-before-status";
@@ -3079,8 +3078,8 @@ describe("thinking indicator event ordering", () => {
 		});
 
 		// Server sends message_part BEFORE status:running in the same
-		// WebSocket frame. This is the event ordering that previously
-		// caused the "Thinking..." indicator to be skipped.
+		// WebSocket frame. Parts are now applied synchronously at the
+		// end of the batch, so stream state is populated immediately.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3098,29 +3097,15 @@ describe("thinking indicator event ordering", () => {
 			]);
 		});
 
-		// After the batch, the status should be "running" but stream
-		// parts should NOT have been applied yet (deferred to
-		// setTimeout). This is the window where "Thinking..." shows.
+		// Status is running and stream state is populated in the
+		// same batch — no deferred timer needed.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
-			expect(result.current.streamState).toBeNull();
-			expect(result.current.isAwaiting).toBe(true);
-		});
-
-		// Let the deferred parts flush fire (setTimeout 0).
-		await act(async () => {
-			vi.advanceTimersByTime(1);
-		});
-
-		// Now stream state should be populated.
-		await waitFor(() => {
 			expect(result.current.streamState).not.toBeNull();
 			expect(result.current.isAwaiting).toBe(false);
 		});
 	});
-
-	it("shows starting phase when status:running arrives before message_part in same batch", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
+	it("applies message_part synchronously even when status:running arrives before it in same batch", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-thinking-status-before-parts";
@@ -3163,7 +3148,8 @@ describe("thinking indicator event ordering", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Server sends status:running BEFORE message_part (the "good" order).
+		// Server sends status:running BEFORE message_part. Parts are
+		// now applied synchronously at the end of the batch.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3181,24 +3167,14 @@ describe("thinking indicator event ordering", () => {
 			]);
 		});
 
-		// Same contract: status set, parts deferred.
+		// Status is running and stream state is populated in the
+		// same batch — no deferred timer needed.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
-			expect(result.current.streamState).toBeNull();
-			expect(result.current.isAwaiting).toBe(true);
-		});
-
-		// Let the deferred parts flush fire.
-		await act(async () => {
-			vi.advanceTimersByTime(1);
-		});
-
-		await waitFor(() => {
 			expect(result.current.streamState).not.toBeNull();
 			expect(result.current.isAwaiting).toBe(false);
 		});
 	});
-
 	it("discards buffered parts when status transitions to pending", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
@@ -3929,6 +3905,340 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			(s) => s.hasStream && s.hasDurableAssistant,
 		);
 		expect(overlapping).toEqual([]);
+	});
+
+	it("cross-message race: no overlap when parts arrive in a separate WS message from the durable commit", async () => {
+		try {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			immediateAnimationFrame();
+
+			const chatID = "chat-b1-cross-msg";
+			const userMsg = makeMessage(chatID, 1, "user", "hey");
+			const mockSocket = createMockSocket();
+			mockWatchChatReturn(mockSocket);
+
+			const queryClient = createTestQueryClient();
+			const wrapper = ({ children }: PropsWithChildren) => (
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			);
+
+			const snapshots: Array<{
+				hasStream: boolean;
+				hasDurableAssistant: boolean;
+			}> = [];
+
+			const { result } = renderHook(
+				() => {
+					const { store } = useChatStore({
+						chatID,
+						chatMessages: [userMsg],
+						chatRecord: makeChat(chatID),
+						chatMessagesData: {
+							messages: [userMsg],
+							queued_messages: [],
+							has_more: false,
+						},
+						chatQueuedMessages: [],
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					const streamState = useChatSelector(store, selectStreamState);
+					const messagesByID = useChatSelector(store, selectMessagesByID);
+					const hasDurableAssistant = Array.from(messagesByID.values()).some(
+						(m) => m.role === "assistant",
+					);
+
+					snapshots.push({
+						hasStream: streamState !== null,
+						hasDurableAssistant,
+					});
+
+					return { streamState, messagesByID };
+				},
+				{ wrapper },
+			);
+
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+			});
+
+			// WS message 1: streaming part arrives.
+			act(() => {
+				mockSocket.emitData({
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "cross-msg" },
+					},
+				});
+			});
+
+			await waitFor(() => {
+				expect(result.current.streamState).not.toBeNull();
+			});
+
+			// Clear history before the critical transition.
+			snapshots.length = 0;
+
+			// Advance timer to flush any deferred work from old code.
+			await act(async () => {
+				vi.advanceTimersByTime(0);
+			});
+
+			// WS message 2: durable assistant commit arrives as a
+			// separate WebSocket message.
+			act(() => {
+				mockSocket.emitData({
+					type: "message",
+					chat_id: chatID,
+					message: makeMessage(chatID, 2, "assistant", "cross-msg"),
+				});
+			});
+
+			await waitFor(() => {
+				expect(result.current.messagesByID.has(2)).toBe(true);
+			});
+
+			const overlapping = snapshots.filter(
+				(s) => s.hasStream && s.hasDurableAssistant,
+			);
+			expect(overlapping).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("parts are applied synchronously within the batch, not deferred", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b1-sync-apply";
+		const userMsg = makeMessage(chatID, 1, "user", "prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Emit status=running then a message_part. The stream state
+		// should be available immediately after act() completes
+		// without needing any timer advancement.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "sync-check" },
+				},
+			});
+		});
+
+		// No timer advancement — parts should already be visible.
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "sync-check" },
+		]);
+	});
+
+	it("parts buffer is drained synchronously before stream reset in multi-turn", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-b1-multi-turn-batch";
+		const userMsg = makeMessage(chatID, 1, "user", "go");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Single WS message containing turn 1 part, turn 1 commit,
+		// and start of turn 2 — all in one batch.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "turn1" },
+					},
+				},
+				{
+					type: "message",
+					chat_id: chatID,
+					message: makeMessage(chatID, 2, "assistant", "turn1"),
+				},
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "turn2" },
+					},
+				},
+			]);
+		});
+
+		// Turn 1 must be committed as a durable message.
+		await waitFor(() => {
+			expect(result.current.orderedIDs).toContain(2);
+			expect(result.current.messagesByID.get(2)?.role).toBe("assistant");
+		});
+
+		// Stream state should contain only the turn 2 part.
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "turn2" },
+		]);
+	});
+
+	it("rapid multi-turn cycles across separate WS messages produce no overlap", async () => {
+		try {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			immediateAnimationFrame();
+
+			const chatID = "chat-b1-rapid-turns";
+			const userMsg = makeMessage(chatID, 1, "user", "start");
+			const mockSocket = createMockSocket();
+			mockWatchChatReturn(mockSocket);
+
+			const queryClient = createTestQueryClient();
+			const wrapper = ({ children }: PropsWithChildren) => (
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			);
+
+			const { result } = renderHook(
+				() => {
+					const { store } = useChatStore({
+						chatID,
+						chatMessages: [userMsg],
+						chatRecord: makeChat(chatID),
+						chatMessagesData: {
+							messages: [userMsg],
+							queued_messages: [],
+							has_more: false,
+						},
+						chatQueuedMessages: [],
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					const streamState = useChatSelector(store, selectStreamState);
+					const messagesByID = useChatSelector(store, selectMessagesByID);
+					return { streamState, messagesByID };
+				},
+				{ wrapper },
+			);
+
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+			});
+
+			// Simulate 3 rapid turns: each turn streams a part in one
+			// WS message, then commits the durable message in the next.
+			// After each commit, stream state must be cleared for that
+			// turn so the committed content does not also appear in
+			// the streaming output.
+			for (let turn = 0; turn < 3; turn++) {
+				const msgID = 2 + turn;
+
+				act(() => {
+					mockSocket.emitData({
+						type: "message_part",
+						chat_id: chatID,
+						message_part: {
+							role: "assistant",
+							part: { type: "text", text: `turn-${turn}` },
+						},
+					});
+				});
+
+				// Flush deferred work between WS messages.
+				await act(async () => {
+					vi.advanceTimersByTime(0);
+				});
+
+				act(() => {
+					mockSocket.emitData({
+						type: "message",
+						chat_id: chatID,
+						message: makeMessage(chatID, msgID, "assistant", `turn-${turn}`),
+					});
+				});
+
+				await waitFor(() => {
+					expect(result.current.messagesByID.has(msgID)).toBe(true);
+					expect(result.current.streamState).toBeNull();
+				});
+			}
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
