@@ -4569,7 +4569,11 @@ func (p *Server) runChat(
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	var planModeInstructions string
 	if isPlanModeTurn {
-		fetched, err := p.db.GetChatPlanModeInstructions(ctx)
+		// Plan-mode instructions live in deployment config, but chat workers do
+		// not carry a deployment-config actor during background execution.
+		//nolint:gocritic // Required to read deployment config during background chat processing.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
 		if err == nil {
 			planModeInstructions = fetched
 		} else {

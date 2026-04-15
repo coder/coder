@@ -819,6 +819,9 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	planModeInstructions := "Ask about deployment sequencing before finalizing the plan."
+	err := db.UpsertChatPlanModeInstructions(dbauthz.AsSystemRestricted(ctx), planModeInstructions)
+	require.NoError(t, err)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n")
 
@@ -845,6 +848,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(recorded[0], "You are in Plan Mode."))
 	require.True(t, requestHasSystemSubstring(recorded[0], "The only writable artifact is the plan file"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
+	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {
 		if msg.Role != "system" {
 			continue
