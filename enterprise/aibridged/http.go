@@ -21,7 +21,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
-	ErrBYOKNotAllowed        = xerrors.New("Bring Your Own Key (BYOK) mode is not enabled. Contact your administrator to enable it with --ai-gateway-allow-byok")
+	ErrBYOKNotAllowed        = xerrors.New("Bring Your Own Key (BYOK) mode is not enabled. Contact your administrator to enable it with --aibridge-allow-byok")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.

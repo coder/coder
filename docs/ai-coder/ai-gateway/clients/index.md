@@ -68,10 +68,10 @@ See individual client pages for configuration details.
 
 ### Enabling or disabling BYOK
 
-BYOK is enabled by default. Administrators can disable it using `--ai-gateway-allow-byok=false` or `CODER_AI_GATEWAY_ALLOW_BYOK=false`:
+BYOK is enabled by default. Administrators can disable it using `--aibridge-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
 
 ```sh
-coder server --ai-gateway-allow-byok=false
+coder server --aibridge-allow-byok=false
 ```
 
 When disabled, BYOK requests are rejected with a `403 Forbidden` response and only centralized key authentication is permitted.
