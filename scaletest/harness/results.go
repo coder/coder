@@ -103,11 +103,17 @@ func (h *TestHarness) Results() Results {
 	return results
 }
 
+// maxDetailedFailureLogs is the maximum number of failed runs for which
+// full logs are printed in text output. All failures still get a one-line
+// summary (test ID + error message).
+const maxDetailedFailureLogs = 10
+
 // PrintText prints the results as human-readable text to the given writer.
 func (r *Results) PrintText(w io.Writer) {
 	var totalDuration time.Duration
 	keys := maps.Keys(r.Runs)
 	slices.Sort(keys)
+	detailedCount := 0
 	for _, key := range keys {
 		run := r.Runs[key]
 		totalDuration += time.Duration(run.Duration)
@@ -115,23 +121,30 @@ func (r *Results) PrintText(w io.Writer) {
 			continue
 		}
 
-		_, _ = fmt.Fprintf(w, "\n== FAIL: %s\n\n", run.FullID)
-		_, _ = fmt.Fprintf(w, "\tError: %s\n\n", run.Error)
+		_, _ = fmt.Fprintf(w, "\n== FAIL: %s\n", run.FullID)
+		_, _ = fmt.Fprintf(w, "\tError: %s\n", run.Error)
 
-		// Print log lines indented.
-		_, _ = fmt.Fprintf(w, "\tLog:\n")
-		rd := bufio.NewReader(strings.NewReader(run.Logs))
-		for {
-			line, err := rd.ReadBytes('\n')
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				_, _ = fmt.Fprintf(w, "\n\tLOG PRINT ERROR: %+v\n", err)
-			}
+		detailedCount++
+		if detailedCount <= maxDetailedFailureLogs {
+			// Print full log lines indented.
+			_, _ = fmt.Fprintf(w, "\n\tLog:\n")
+			rd := bufio.NewReader(strings.NewReader(run.Logs))
+			for {
+				line, err := rd.ReadBytes('\n')
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					_, _ = fmt.Fprintf(w, "\n\tLOG PRINT ERROR: %+v\n", err)
+				}
 
-			_, _ = fmt.Fprintf(w, "\t\t%s", line)
+				_, _ = fmt.Fprintf(w, "\t\t%s", line)
+			}
 		}
+	}
+
+	if omitted := detailedCount - maxDetailedFailureLogs; omitted > 0 {
+		_, _ = fmt.Fprintf(w, "\n... and %d more failures (logs omitted, use --output json to see all)\n", omitted)
 	}
 
 	_, _ = fmt.Fprintln(w, "\n\nTest results:")
