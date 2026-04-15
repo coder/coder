@@ -139,6 +139,25 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
+/** @internal Exported for testing. */
+export const waitForPendingChatSettingsSyncs = async (
+	pendingSyncs: readonly (Promise<unknown> | null | undefined)[],
+): Promise<boolean> => {
+	const activeSyncs = pendingSyncs.filter(
+		(pendingSync): pendingSync is Promise<unknown> =>
+			pendingSync !== null && pendingSync !== undefined,
+	);
+	if (activeSyncs.length === 0) {
+		return true;
+	}
+	try {
+		await Promise.all(activeSyncs);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -760,7 +779,10 @@ const AgentChatPage: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
-	const updateChatWorkspaceMutation = useMutation({
+	const {
+		isPending: isUpdateChatWorkspacePending,
+		mutateAsync: updateChatWorkspaceAsync,
+	} = useMutation({
 		...updateChatWorkspaceBase,
 		onError: (error, variables, context) => {
 			updateChatWorkspaceBase.onError(error, variables, context);
@@ -769,7 +791,10 @@ const AgentChatPage: FC = () => {
 	});
 
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
-	const updateChatPlanModeMutation = useMutation({
+	const {
+		isPending: isUpdateChatPlanModePending,
+		mutateAsync: updateChatPlanModeAsync,
+	} = useMutation({
 		...updateChatPlanModeBase,
 		onError: (error, variables, context) => {
 			updateChatPlanModeBase.onError(error, variables, context);
@@ -788,6 +813,22 @@ const AgentChatPage: FC = () => {
 		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
+	};
+
+	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
+	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
+	const trackPendingChatSettingSync = (
+		syncPromise: Promise<unknown>,
+		syncRef: { current: Promise<unknown> | null },
+	) => {
+		let trackedSync: Promise<unknown>;
+		trackedSync = syncPromise.finally(() => {
+			if (syncRef.current === trackedSync) {
+				syncRef.current = null;
+			}
+		});
+		syncRef.current = trackedSync;
+		void trackedSync.catch(() => undefined);
 	};
 
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
@@ -885,19 +926,25 @@ const AgentChatPage: FC = () => {
 	});
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
-	const isInputDisabled = !hasModelOptions || isArchived;
+	const isChatSettingsPending =
+		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+	const isInputDisabled =
+		!hasModelOptions || isArchived || isChatSettingsPending;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
-		workspacesQuery.isLoading || updateChatWorkspaceMutation.isPending;
+		workspacesQuery.isLoading || isUpdateChatWorkspacePending;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (!agentId || enabled === planModeEnabled) {
 			return;
 		}
-		updateChatPlanModeMutation.mutate({
-			chatId: agentId,
-			planMode: enabled ? "plan" : undefined,
-		});
+		trackPendingChatSettingSync(
+			updateChatPlanModeAsync({
+				chatId: agentId,
+				planMode: enabled ? "plan" : undefined,
+			}),
+			pendingPlanModeSyncRef,
+		);
 	};
 
 	const handleUsageLimitError = (error: unknown): void => {
@@ -936,10 +983,13 @@ const AgentChatPage: FC = () => {
 		if (!agentId || nextWorkspaceId === selectedWorkspaceId) {
 			return;
 		}
-		updateChatWorkspaceMutation.mutate({
-			chatId: agentId,
-			workspaceId: nextWorkspaceId,
-		});
+		trackPendingChatSettingSync(
+			updateChatWorkspaceAsync({
+				chatId: agentId,
+				workspaceId: nextWorkspaceId,
+			}),
+			pendingWorkspaceSyncRef,
+		);
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -1131,6 +1181,16 @@ const AgentChatPage: FC = () => {
 			useComposerContent,
 		});
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
+			return;
+		}
+		// Wait for chat-setting mutations to settle before sending so the
+		// message observes the workspace and plan-mode choices the user just made.
+		if (
+			!(await waitForPendingChatSettingsSyncs([
+				pendingPlanModeSyncRef.current,
+				pendingWorkspaceSyncRef.current,
+			]))
+		) {
 			return;
 		}
 
