@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func runCmd(args ...string) error {
 	inv := rootCmd().Invoke(args...)
 	inv.Stdout = os.Stdout
@@ -390,7 +394,9 @@ func TestBuildReview_CommentAppendsCorrectly(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	runCmd("build-review", "init", "--output", output, "--body", "Summary")
+	if err := runCmd("build-review", "init", "--output", output, "--body", "Summary"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
 	err := runCmd("build-review", "comment", "--output", output,
 		"--path", "handler.go", "--line", "42",
 		"--body", "**P2** Missing nil check *(Test Auditor)*")
@@ -416,7 +422,9 @@ func TestBuildReview_MultipleCommentsAccumulate(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	runCmd("build-review", "init", "--output", output, "--body", "Summary")
+	if err := runCmd("build-review", "init", "--output", output, "--body", "Summary"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
 	for i := 1; i <= 3; i++ {
 		runCmd("build-review", "comment", "--output", output,
 			"--path", "f.go", "--line", "10",
@@ -436,7 +444,9 @@ func TestBuildReview_ReplyAndResolve(t *testing.T) {
 	dir := t.TempDir()
 	output := filepath.Join(dir, "review.json")
 
-	runCmd("build-review", "init", "--output", output, "--body", "Summary")
+	if err := runCmd("build-review", "init", "--output", output, "--body", "Summary"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
 
 	err := runCmd("build-review", "reply", "--output", output,
 		"--in-reply-to", "456", "--body", "Acknowledged.")
@@ -475,6 +485,7 @@ func TestBuildReview_CommentOnUninitializedFileErrors(t *testing.T) {
 }
 
 func TestPostReview_DryRunPayload(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	reviewFile := filepath.Join(dir, "review.json")
@@ -532,6 +543,7 @@ func TestPostReview_ValidationErrors(t *testing.T) {
 }
 
 func TestPostReview_FileLevelComment(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	reviewFile := filepath.Join(dir, "review.json")

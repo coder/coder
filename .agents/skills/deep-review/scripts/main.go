@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -288,12 +289,17 @@ func cmdCompileFindings() *serpent.Command {
 					continue
 				}
 				path := filepath.Join(dir, e.Name())
+				// Skip the output file to avoid reading our
+				// own previous output on re-runs.
+				if output != "" && filepath.Clean(path) == filepath.Clean(output) {
+					continue
+				}
 				data, err := os.ReadFile(path)
 				if err != nil {
 					fmt.Fprintf(inv.Stderr, "Warning: could not read %s: %v\n", path, err)
 					continue
 				}
-				data = trimLeft(data)
+				data = bytes.TrimLeft(data, " \t\n\r")
 				if len(data) == 0 || data[0] != '[' {
 					fmt.Fprintf(inv.Stderr, "Skipping non-array JSON file: %s\n", path)
 					continue
@@ -724,7 +730,7 @@ func cmdBuildReviewInit() *serpent.Command {
 				Description: "Review event type.",
 				Flag:        "event",
 				Default:     "COMMENT",
-				Value:       serpent.StringOf(&event),
+				Value:       serpent.EnumOf(&event, "COMMENT"),
 			},
 		},
 		Handler: func(_ *serpent.Invocation) error {
@@ -889,7 +895,7 @@ func buildCompiledFinding(findings []Finding) CompiledFinding {
 	maxSev := Nit
 	bestSummary := ""
 
-	for _, f := range findings {
+	for i, f := range findings {
 		reviewers = append(reviewers, ReviewerFinding{
 			Role:     f.Reviewer,
 			Severity: f.Severity,
@@ -897,7 +903,9 @@ func buildCompiledFinding(findings []Finding) CompiledFinding {
 			Evidence: f.Evidence,
 		})
 		reviewerNames[f.Reviewer] = true
-		if f.Severity.Rank() < maxSev.Rank() {
+		// Use first finding as default summary, then upgrade when
+		// a more severe finding is seen.
+		if i == 0 || f.Severity.Rank() < maxSev.Rank() {
 			maxSev = f.Severity
 			bestSummary = f.Summary
 		}
@@ -926,11 +934,11 @@ func countFileLines(path string) (int, error) {
 }
 
 func splitRepo(repo string) (string, string) {
-	parts := strings.SplitN(repo, "/", 2)
-	if len(parts) != 2 {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok {
 		return repo, ""
 	}
-	return parts[0], parts[1]
+	return owner, name
 }
 
 func fetchReviewThreads(owner, repoName, pr string) (json.RawMessage, error) {
@@ -1035,12 +1043,12 @@ func filterResolvedThreads(commentsRaw, threadsRaw json.RawMessage) (json.RawMes
 		}
 	}
 
-	var comments []map[string]interface{}
+	var comments []map[string]any
 	if err := json.Unmarshal(commentsRaw, &comments); err != nil {
 		return nil, fmt.Errorf("parsing comments: %w", err)
 	}
 
-	var filtered []map[string]interface{}
+	var filtered []map[string]any
 	for _, c := range comments {
 		commentID := jsonInt(c, "id")
 		inReplyTo := jsonInt(c, "in_reply_to_id")
@@ -1062,7 +1070,7 @@ func filterResolvedThreads(commentsRaw, threadsRaw json.RawMessage) (json.RawMes
 	}
 
 	if filtered == nil {
-		filtered = []map[string]interface{}{}
+		filtered = []map[string]any{}
 	}
 	return json.Marshal(filtered)
 }
@@ -1091,6 +1099,9 @@ func writeJSONFile(path string, v any) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating parent directory: %w", err)
+	}
 	return os.WriteFile(path, data, 0o644)
 }
 
@@ -1100,6 +1111,9 @@ func writeOutputTo(w io.Writer, path string, v any) error {
 		return err
 	}
 	if path != "" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fmt.Errorf("creating parent directory: %w", err)
+		}
 		return os.WriteFile(path, data, 0o644)
 	}
 	_, err = w.Write(data)
@@ -1117,7 +1131,7 @@ func extractField(raw json.RawMessage, field string) json.RawMessage {
 	return json.RawMessage("[]")
 }
 
-func jsonInt(m map[string]interface{}, key string) int {
+func jsonInt(m map[string]any, key string) int {
 	v, ok := m[key]
 	if !ok {
 		return 0
@@ -1130,17 +1144,4 @@ func jsonInt(m map[string]interface{}, key string) int {
 	default:
 		return 0
 	}
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
-// trimLeft trims leading whitespace from a byte slice.
-// Used instead of bytes.TrimSpace so trailing content is preserved.
-func trimLeft(b []byte) []byte {
-	for len(b) > 0 && (b[0] == ' ' || b[0] == '\t' || b[0] == '\n' || b[0] == '\r') {
-		b = b[1:]
-	}
-	return b
 }
