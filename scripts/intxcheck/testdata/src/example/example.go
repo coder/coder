@@ -121,7 +121,7 @@ func (s *Server) immediateFuncLiteralMisuse(ctx context.Context) error {
 
 func (s *Server) suppressedCase(ctx context.Context) error {
 	return s.db.InTx(func(tx Store) error {
-		_, _ = s.db.GetUser(ctx) //nolint:intxcheck
+		_, _ = s.db.GetUser(ctx) // intxcheck:ignore
 		return nil
 	}, nil)
 }

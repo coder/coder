@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"reflect"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -15,6 +16,10 @@ var Analyzer = &analysis.Analyzer{
 	Name: "intxcheck",
 	Doc:  "report unsafe outer-store usage inside database.Store.InTx closures",
 	Run:  run,
+	// ResultType must be set so run can return a typed nil instead
+	// of nil, nil — which the nilnil linter forbids. No downstream
+	// analyzer depends on this result.
+	ResultType: reflect.TypeOf((*struct{})(nil)),
 }
 
 type txContext struct {
@@ -87,7 +92,7 @@ func run(pass *analysis.Pass) (any, error) {
 		})
 	}
 
-	return nil, nil
+	return (*struct{})(nil), nil
 }
 
 func inspectInTxBody(pass *analysis.Pass, body *ast.BlockStmt, ctx txContext, decls map[types.Object]*ast.FuncDecl, suppressed map[int]bool) {
@@ -555,7 +560,7 @@ func suppressedLines(fset *token.FileSet, file *ast.File) map[int]bool {
 	lines := make(map[int]bool)
 	for _, group := range file.Comments {
 		for _, comment := range group.List {
-			if strings.Contains(comment.Text, "nolint:intxcheck") {
+			if strings.Contains(comment.Text, "intxcheck:ignore") {
 				lines[fset.Position(comment.Pos()).Line] = true
 			}
 		}
