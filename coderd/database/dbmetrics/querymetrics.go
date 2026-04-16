@@ -4600,6 +4600,14 @@ func (m queryMetricsStore) UpdateOrganization(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateOrganizationChatSharingSettings(ctx context.Context, arg database.UpdateOrganizationChatSharingSettingsParams) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationChatSharingSettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationChatSharingSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationChatSharingSettings").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateOrganizationDeletedByID(ctx, arg)

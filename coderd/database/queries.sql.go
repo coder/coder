@@ -16136,6 +16136,45 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 	return i, err
 }
 
+const updateOrganizationChatSharingSettings = `-- name: UpdateOrganizationChatSharingSettings :one
+UPDATE
+    organizations
+SET
+    shareable_chat_owners = $1,
+    updated_at = $2
+WHERE
+    id = $3
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, shareable_chat_owners
+`
+
+type UpdateOrganizationChatSharingSettingsParams struct {
+	ShareableChatOwners ShareableChatOwners `db:"shareable_chat_owners" json:"shareable_chat_owners"`
+	UpdatedAt           time.Time           `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID           `db:"id" json:"id"`
+}
+
+// Mirrors UpdateOrganizationWorkspaceSharingSettings for the new
+// shareable_chat_owners column. Called from the enterprise chat-
+// sharing settings handler and audited at the organization row.
+func (q *sqlQuerier) UpdateOrganizationChatSharingSettings(ctx context.Context, arg UpdateOrganizationChatSharingSettingsParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationChatSharingSettings, arg.ShareableChatOwners, arg.UpdatedAt, arg.ID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Deleted,
+		&i.ShareableWorkspaceOwners,
+		&i.ShareableChatOwners,
+	)
+	return i, err
+}
+
 const updateOrganizationDeletedByID = `-- name: UpdateOrganizationDeletedByID :exec
 UPDATE organizations
 SET

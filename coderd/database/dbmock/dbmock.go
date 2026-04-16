@@ -8696,6 +8696,21 @@ func (mr *MockStoreMockRecorder) UpdateOrganization(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganization", reflect.TypeOf((*MockStore)(nil).UpdateOrganization), ctx, arg)
 }
 
+// UpdateOrganizationChatSharingSettings mocks base method.
+func (m *MockStore) UpdateOrganizationChatSharingSettings(ctx context.Context, arg database.UpdateOrganizationChatSharingSettingsParams) (database.Organization, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationChatSharingSettings", ctx, arg)
+	ret0, _ := ret[0].(database.Organization)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationChatSharingSettings indicates an expected call of UpdateOrganizationChatSharingSettings.
+func (mr *MockStoreMockRecorder) UpdateOrganizationChatSharingSettings(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationChatSharingSettings", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationChatSharingSettings), ctx, arg)
+}
+
 // UpdateOrganizationDeletedByID mocks base method.
 func (m *MockStore) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
 	m.ctrl.T.Helper()

@@ -629,6 +629,7 @@ type DeploymentValues struct {
 	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
+	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
@@ -3068,6 +3069,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 
 			Value: &c.DisableWorkspaceSharing,
 			YAML:  "disableWorkspaceSharing",
+		},
+		{
+			Name:        "Disable Chat Sharing",
+			Description: `Disable agent chat sharing. When set, owners cannot share chats read-only with other users or groups, and any ACLs already set are ignored for authorization. Mirrors --disable-workspace-sharing for agent chats.`,
+			Flag:        "disable-chat-sharing",
+			Env:         "CODER_DISABLE_CHAT_SHARING",
+
+			Value: &c.DisableChatSharing,
+			YAML:  "disableChatSharing",
 		},
 		{
 			Name:        "Session Duration",

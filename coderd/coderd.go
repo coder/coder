@@ -338,14 +338,22 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
+	if options.DeploymentValues.DisableOwnerWorkspaceExec ||
+		options.DeploymentValues.DisableWorkspaceSharing ||
+		options.DeploymentValues.DisableChatSharing {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
 			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
 		})
 	}
 
-	if options.DeploymentValues.DisableWorkspaceSharing {
+	// WorkspaceACLDisabled is a misnomer now that chats also honour it.
+	// Setting it disables ACL evaluation for both workspaces and chats
+	// so the existing atomic is reused rather than introducing a second
+	// one. Renaming is plan §2.2 / §10 deferred work.
+	if options.DeploymentValues.DisableWorkspaceSharing ||
+		options.DeploymentValues.DisableChatSharing {
 		rbac.SetWorkspaceACLDisabled(true)
 	}
 

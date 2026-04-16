@@ -324,8 +324,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"is_default":                 ActionTrack,
 		"display_name":               ActionTrack,
 		"icon":                       ActionTrack,
-		"shareable_workspace_owners": ActionTrack,
-	},
+			"shareable_workspace_owners": ActionTrack,
+			"shareable_chat_owners":      ActionTrack,	},
 	&database.NotificationTemplate{}: {
 		"id":                 ActionIgnore,
 		"name":               ActionTrack,
