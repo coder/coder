@@ -441,6 +441,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
 }
+
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	t.Parallel()
 
