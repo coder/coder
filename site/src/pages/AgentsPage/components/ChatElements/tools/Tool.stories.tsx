@@ -892,8 +892,8 @@ export const EditFilesEdScript: Story = {
 		},
 		result: {
 			output: [
-				"--- a//home/coder/project/main.go",
-				"+++ b//home/coder/project/main.go",
+				"--- /home/coder/project/main.go",
+				"+++ /home/coder/project/main.go",
 				"@@ -1,5 +1,5 @@",
 				" package main",
 				" ",

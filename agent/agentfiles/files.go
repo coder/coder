@@ -640,7 +640,7 @@ func (api *API) applyEdScript(ctx context.Context, path, origPath, script string
 	// Use --label with the full path to produce headers that
 	// the frontend can match to files unambiguously.
 	diffCmd := api.execer.CommandContext(ctx, "diff", "-u",
-		"--label", "a/"+origPath, "--label", "b/"+origPath,
+		"--label", origPath, "--label", origPath,
 		path, tmpPath)
 	diffOut, diffErr := diffCmd.CombinedOutput()
 	// diff exits 0 = identical, 1 = different (expected),
