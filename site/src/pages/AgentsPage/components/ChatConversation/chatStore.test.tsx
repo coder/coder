@@ -798,6 +798,11 @@ describe("useChatStore", () => {
 			queuedMessage.id,
 		]);
 
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
 		act(() => {
 			mockSocket.emitData({
 				type: "queue_update",
@@ -953,6 +958,10 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
+		});
 		act(() => {
 			mockSocket.emitData({
 				type: "queue_update",
@@ -971,7 +980,7 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
-	it("writes WebSocket message events into the chat query cache", async () => {
+	it("does not write WS messages into RQ cache per-message (snapshots on teardown)", async () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
@@ -1025,6 +1034,11 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
 		const newMessage = makeMessage(chatID, 2, "assistant", "hi there");
 		act(() => {
 			mockSocket.emitData({
@@ -1038,43 +1052,14 @@ describe("useChatStore", () => {
 			expect(result.current.orderedIDs).toContain(2);
 		});
 
-		// The React Query cache should also contain the new message.
+		// The React Query cache should NOT be updated per-message.
+		// Continuous writeback has been removed.
 		const cachedData = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: unknown[];
 		}>(chatMessagesKey(chatID));
 		const cachedMessages = cachedData?.pages[0]?.messages ?? [];
-		// Verifies insertion, preservation, and DESC order.
-		expect(cachedMessages.map((m) => m.id)).toEqual([2, 1]);
-		// Emitting the same message again should not change the
-		// cache reference (reference stability).
-		const refBefore = queryClient.getQueryData(chatMessagesKey(chatID));
-		act(() => {
-			mockSocket.emitData({
-				type: "message",
-				chat_id: chatID,
-				message: newMessage,
-			});
-		});
-		const refAfter = queryClient.getQueryData(chatMessagesKey(chatID));
-		expect(refAfter).toBe(refBefore);
-
-		// Emitting the same message ID with different content should
-		// update the cached entry (content-update path).
-		const revised = makeMessage(chatID, 2, "assistant", "revised");
-		act(() => {
-			mockSocket.emitData({
-				type: "message",
-				chat_id: chatID,
-				message: revised,
-			});
-		});
-		const updatedCache = queryClient.getQueryData<{
-			pages: TypesGen.ChatMessagesResponse[];
-			pageParams: unknown[];
-		}>(chatMessagesKey(chatID));
-		const updatedFirst = updatedCache?.pages[0]?.messages[0];
-		expect(updatedFirst?.content).toEqual([{ type: "text", text: "revised" }]);
+		expect(cachedMessages.map((m) => m.id)).toEqual([existingMessage.id]);
 	});
 
 	it("closes old WebSocket and resets state when chatID changes", async () => {
@@ -3007,6 +2992,11 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
 		// Deliver a status event over WS so wsStatusReceivedRef is set.
 		act(() => {
 			mockSocket.emitData({
@@ -3799,6 +3789,11 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
 		// Build up streaming content.
 		act(() => {
 			mockSocket.emitData({
@@ -3891,6 +3886,11 @@ describe("stream-to-durable transition (Bug 1)", () => {
 
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Open the socket so the WS becomes authoritative.
+		act(() => {
+			mockSocket.emitOpen();
 		});
 
 		act(() => {
@@ -4137,7 +4137,7 @@ describe("store/cache desync protection", () => {
 		});
 	});
 
-	it("still removes messages that were in the previous sync but are absent from a refetch (edit truncation)", async () => {
+	it("ignores REST prop changes while WS is connected (edit truncation goes through store directly)", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-edit-truncation";
@@ -4207,15 +4207,15 @@ describe("store/cache desync protection", () => {
 			},
 		});
 
-		// msg2 and msg3 WERE in the previous sync data and are
-		// now absent — they are genuinely stale (edit truncation)
-		// and should be removed.
+		// Once the WS is connected, REST prop changes are ignored.
+		// The store retains all messages. Edit truncation with a
+		// connected WS must go through store.replaceMessages directly.
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1]);
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
 		});
 	});
 
-	it("reflects optimistic and authoritative history-edit cache updates through the normal sync effect", async () => {
+	it("ignores optimistic and authoritative edit cache updates while WS is connected", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-local-edit-sync";
@@ -4279,11 +4279,11 @@ describe("store/cache desync protection", () => {
 			},
 		});
 
+		// WS is connected — REST prop changes are ignored.
+		// The store keeps original msg3 content.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
-			expect(result.current.messagesByID.get(3)?.content).toEqual(
-				optimisticReplacement.content,
-			);
+			expect(result.current.messagesByID.get(3)?.content).toEqual(msg3.content);
 		});
 
 		rerender({
@@ -4296,12 +4296,10 @@ describe("store/cache desync protection", () => {
 			},
 		});
 
+		// Same: the authoritative replacement is also ignored.
 		await waitFor(() => {
-			expect(result.current.orderedMessageIDs).toEqual([1, 2, 9]);
-			expect(result.current.messagesByID.has(3)).toBe(false);
-			expect(result.current.messagesByID.get(9)?.content).toEqual(
-				authoritativeReplacement.content,
-			);
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.messagesByID.has(3)).toBe(true);
 		});
 	});
 });

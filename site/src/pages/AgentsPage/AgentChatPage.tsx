@@ -843,7 +843,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
+	const { store, clearStreamError } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
@@ -1034,7 +1034,6 @@ const AgentChatPage: FC = () => {
 			// immediately so it appears in the timeline without
 			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
-			upsertCacheMessages([promotedMessage]);
 		} catch (error) {
 			restoreOptimisticRequestSnapshot(store, previousSnapshot);
 			handleUsageLimitError(error);
@@ -1284,7 +1283,6 @@ const AgentChatPage: FC = () => {
 			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
 			}
 		}
 		if (selectedModelConfigID) {

@@ -286,6 +286,13 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+	// The per-chat WebSocket is the authoritative source for new
+	// messages once connected. Disable background refetches so
+	// stale REST data cannot race with WebSocket-delivered state.
+	// Manual pagination (fetchNextPage) is unaffected.
+	refetchOnWindowFocus: false as const,
+	refetchOnReconnect: false as const,
+	staleTime: 30_000,
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
