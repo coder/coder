@@ -1,0 +1,6 @@
+before
+line A
+line B
+line C
+line D
+after

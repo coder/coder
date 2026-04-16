@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-config
+  namespace: default
+data:
+  key1: value1
+  key2: value2
+  nested:
+    inner1: val1
+    inner2: val2

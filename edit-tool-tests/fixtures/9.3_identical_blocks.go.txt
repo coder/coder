@@ -1,0 +1,20 @@
+// Section A
+func processA() {
+	log.Println("processing")
+	doWork()
+	log.Println("done")
+}
+
+// Section B
+func processB() {
+	log.Println("processing")
+	doWork()
+	log.Println("done")
+}
+
+// Section C
+func processC() {
+	log.Println("processing")
+	doWork()
+	log.Println("done")
+}

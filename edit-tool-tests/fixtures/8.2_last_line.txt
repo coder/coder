@@ -1,0 +1,3 @@
+FIRST LINE
+middle
+LAST LINE

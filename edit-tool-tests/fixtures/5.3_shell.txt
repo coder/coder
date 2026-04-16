@@ -1,0 +1,1 @@
+This has: $PATH ${HOME} `backticks` "quotes" 'single'

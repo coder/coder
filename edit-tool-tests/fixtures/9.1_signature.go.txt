@@ -1,0 +1,6 @@
+func NewOverlayFS(baseFS fs.FS, overlays []Overlay) fs.FS {
+	return overlayFS{
+		baseFS:   baseFS,
+		overlays: overlays,
+	}
+}

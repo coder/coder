@@ -1,0 +1,12 @@
+if a {
+	if b {
+		if c {
+			doC()
+		}
+	}
+	if d {
+		if e {
+			doE()
+		}
+	}
+}

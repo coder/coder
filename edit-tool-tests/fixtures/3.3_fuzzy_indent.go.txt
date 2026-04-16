@@ -1,0 +1,6 @@
+func outer() {
+	func inner() {
+		deeply := "nested"
+		fmt.Println(deeply)
+	}
+}

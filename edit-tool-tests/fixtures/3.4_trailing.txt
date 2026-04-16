@@ -1,0 +1,2 @@
+line with trailing spaces   
+line without trailing spaces
