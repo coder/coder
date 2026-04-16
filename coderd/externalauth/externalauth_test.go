@@ -465,6 +465,59 @@ func TestRefreshToken(t *testing.T) {
 			"returned token should match what was saved in the DB")
 	})
 
+	// SaveBeforeValidate_ContextCanceled verifies the early DB save
+	// uses a detached context. The parent context is canceled inside
+	// the refresh hook (after TokenSource.Token() but before the DB
+	// write), and the test asserts the new token is still persisted.
+	t.Run("SaveBeforeValidate_ContextCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		var refreshCalls atomic.Int64
+		cancelOnRefresh, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					// Cancel the parent context after refresh succeeds
+					// but before the DB save and validation.
+					cancel()
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(cancelOnRefresh, fake.HTTPClient(nil))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+		link.OAuthExpiry = expired
+
+		_, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), refreshCalls.Load())
+
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token despite context cancellation")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token despite context cancellation")
+	})
+
 	// SaveBeforeValidate_DBError tests that when the early DB save
 	// fails after a successful IDP refresh, the error is surfaced
 	// as a non-InvalidTokenError. This is a degraded state (token

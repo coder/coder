@@ -267,9 +267,15 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// validation endpoint was unavailable (e.g. rate-limited 403), the
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
+	// Use a detached context for the DB write only. The IDP already
+	// consumed the old refresh token, so if the caller's request
+	// context is canceled mid-save, the new token would be lost.
+	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer persistCancel()
+
 	originalAccessToken := externalAuthLink.OAuthAccessToken
 	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
 			UpdatedAt:              dbtime.Now(),
