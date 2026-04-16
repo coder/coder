@@ -260,6 +260,13 @@ export const useChatStore = (
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
 
+		// True for the first handleMessage call after onOpen.
+		// The initial snapshot batch may contain message_part
+		// events for already-committed messages (the server
+		// buffer accumulates across the entire processChat run).
+		// We use this flag to filter stale parts from the
+		// snapshot.
+		let isSnapshotBatch = false;
 		// Parts buffer lives at the effect scope so it persists
 		// across WebSocket messages. A rAF-based flush coalesces
 		// parts from multiple WS messages into a single render,
@@ -337,21 +344,104 @@ export const useChatStore = (
 			if (streamEvents.length === 0) {
 				return;
 			}
+
+			// On the first batch after connect (the snapshot),
+			// filter out stale message_part events. The server
+			// buffer accumulates parts for the entire
+			// processChat run, including parts for
+			// already-committed messages. Find the position of
+			// the last durable assistant message in the batch.
+			// Parts before it are stale. If there are no durable
+			// messages, all parts may be stale — skip them and
+			// let the live stream deliver fresh parts.
+			let snapshotStalePartCutoff = -1;
+			if (isSnapshotBatch) {
+				isSnapshotBatch = false;
+				const storeSnap = store.getSnapshot();
+				// Find the last durable message in the batch
+				// that the store already has (from REST).
+				for (let i = streamEvents.length - 1; i >= 0; i--) {
+					const ev = streamEvents[i];
+					if (
+						ev.type === "message" &&
+						ev.message?.id !== undefined &&
+						storeSnap.messagesByID.has(ev.message.id)
+					) {
+						snapshotStalePartCutoff = i;
+						break;
+					}
+				}
+				// If there are no durable messages in the batch
+				// but the store has committed assistant messages,
+				// some parts may replay their content. Build a
+				// prefix string from committed assistant text and
+				// skip parts that reproduce it.
+				if (
+					snapshotStalePartCutoff === -1 &&
+					storeSnap.orderedMessageIDs.length > 0
+				) {
+					// Collect text from all committed assistant
+					// messages in order. The server buffer
+					// replays parts for these messages before the
+					// live in-flight content.
+					let committedText = "";
+					for (const msgId of storeSnap.orderedMessageIDs) {
+						const msg = storeSnap.messagesByID.get(msgId);
+						if (msg?.role === "assistant") {
+							for (const part of msg.content ?? []) {
+								if (part.type === "text" && part.text) {
+									committedText += part.text;
+								}
+							}
+						}
+					}
+					if (committedText.length > 0) {
+						// Walk the snapshot parts and consume the
+						// committed prefix. Once we've consumed all
+						// of it, the remaining parts are live.
+						let consumed = 0;
+						for (let i = 0; i < streamEvents.length; i++) {
+							if (consumed >= committedText.length) {
+								break;
+							}
+							const ev = streamEvents[i];
+							if (ev.type !== "message_part") {
+								continue;
+							}
+							const partText =
+								ev.message_part?.part?.type === "text"
+									? (ev.message_part.part.text ?? "")
+									: "";
+							if (partText.length > 0) {
+								consumed += partText.length;
+								snapshotStalePartCutoff = i + 1;
+							}
+						}
+					}
+				}
+			}
 			// Collect durable messages for bulk upsert so the
 			// entire batch produces one Map copy + one sort
 			// instead of N copies and N sorts.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
 			let needsStreamReset = false;
-
 			// Wrap all store mutations in a batch so subscribers
 			// are notified exactly once at the end, not per event.
 			store.batch(() => {
-				for (const streamEvent of streamEvents) {
+				for (let eventIdx = 0; eventIdx < streamEvents.length; eventIdx++) {
+					const streamEvent = streamEvents[eventIdx];
 					if (streamEvent.type === "message_part") {
 						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
 						if (!shouldApplyMessagePart()) {
+							continue;
+						}
+						// Skip stale parts from the snapshot batch.
+						// These correspond to already-committed
+						// messages and would duplicate content that
+						// ConversationTimeline already renders.
+						if (eventIdx < snapshotStalePartCutoff) {
 							continue;
 						}
 						const part = streamEvent.message_part?.part;
@@ -522,6 +612,9 @@ export const useChatStore = (
 				// for all mutable chat state. REST data changes
 				// are ignored until the socket tears down.
 				wsConnectedRef.current = true;
+				// Mark the next handleMessage call as the
+				// snapshot batch so stale parts are filtered.
+				isSnapshotBatch = true;
 				// Drop transport-scoped state from the previous
 				// socket attempt so stale partial output or
 				// failures do not leak into the new stream.

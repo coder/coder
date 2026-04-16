@@ -4049,7 +4049,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		const streamBlocks = result.current.streamState?.blocks ?? [];
 		const streamText = streamBlocks
 			.filter((b: { type: string }) => b.type === "response")
-			.map((b: { text?: string }) => b.text)
+			.map((b) => ("text" in b ? b.text : ""))
 			.join("");
 
 		// The stream should NOT contain text from the committed
