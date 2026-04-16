@@ -114,6 +114,125 @@ func (a *streamAccumulator) reset() {
 	*a = streamAccumulator{}
 }
 
+// parsedAskOption represents one selectable option for a question.
+type parsedAskOption struct {
+	Label string
+	Value string
+}
+
+// parsedAskQuestion represents a single question within an ask_user_question
+// tool call.
+type parsedAskQuestion struct {
+	Header   string
+	Question string
+	Options  []parsedAskOption
+}
+
+// askQuestionAnswer holds the user's answer for one question.
+type askQuestionAnswer struct {
+	Header      string `json:"header"`
+	Question    string `json:"question"`
+	Answer      string `json:"answer"`
+	OptionLabel string `json:"option_label,omitempty"`
+	Freeform    bool   `json:"freeform"`
+}
+
+// askUserQuestionState holds the full state for an active ask_user_question
+// overlay.
+type askUserQuestionState struct {
+	ToolCallID   string
+	Questions    []parsedAskQuestion
+	Answers      []askQuestionAnswer
+	CurrentIndex int
+	OptionCursor int
+	OtherMode    bool
+	OtherInput   textinput.Model
+	Submitting   bool
+	Error        error
+}
+
+type askUserQuestionArgs struct {
+	Questions []parsedAskQuestion `json:"questions"`
+}
+
+func newAskUserQuestionState(toolCallID string, questions []parsedAskQuestion) *askUserQuestionState {
+	otherInput := textinput.New()
+	otherInput.Placeholder = "Type your answer..."
+
+	return &askUserQuestionState{
+		ToolCallID: toolCallID,
+		Questions:  questions,
+		Answers:    make([]askQuestionAnswer, 0, len(questions)),
+		OtherInput: otherInput,
+	}
+}
+
+func parseAskUserQuestionArgs(toolCallID string, rawArgs json.RawMessage) (*askUserQuestionState, error) {
+	var args askUserQuestionArgs
+	if err := json.Unmarshal(rawArgs, &args); err != nil {
+		return nil, xerrors.Errorf("parse ask_user_question args: %w", err)
+	}
+	if len(args.Questions) == 0 {
+		return nil, xerrors.New("ask_user_question args must include at least one question")
+	}
+
+	return newAskUserQuestionState(toolCallID, args.Questions), nil
+}
+
+func parseAskUserQuestionToolCall(toolCall codersdk.ChatStreamToolCall) (*askUserQuestionState, error) {
+	return parseAskUserQuestionArgs(toolCall.ToolCallID, json.RawMessage([]byte(toolCall.Args)))
+}
+
+func buildAskUserQuestionToolResult(state *askUserQuestionState) (json.RawMessage, error) {
+	if state == nil {
+		return nil, xerrors.New("ask-user-question state is required")
+	}
+
+	answers := state.Answers
+	if answers == nil {
+		answers = []askQuestionAnswer{}
+	}
+
+	output, err := json.Marshal(struct {
+		Answers []askQuestionAnswer `json:"answers"`
+	}{
+		Answers: answers,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal ask_user_question tool result: %w", err)
+	}
+	return json.RawMessage(output), nil
+}
+
+func findPendingAskUserQuestion(messages []codersdk.ChatMessage) (*askUserQuestionState, error) {
+	resolvedToolCalls := make(map[string]struct{})
+	for i := len(messages) - 1; i >= 0; i-- {
+		for j := len(messages[i].Content) - 1; j >= 0; j-- {
+			part := messages[i].Content[j]
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolCallID == "" {
+				continue
+			}
+			resolvedToolCalls[part.ToolCallID] = struct{}{}
+		}
+	}
+
+	for i := len(messages) - 1; i >= 0; i-- {
+		for j := len(messages[i].Content) - 1; j >= 0; j-- {
+			part := messages[i].Content[j]
+			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ToolName != "ask_user_question" {
+				continue
+			}
+			if _, ok := resolvedToolCalls[part.ToolCallID]; ok {
+				continue
+			}
+			return parseAskUserQuestionArgs(part.ToolCallID, part.Args)
+		}
+	}
+
+	//nolint:nilnil // Nil state and nil error mean no pending tool call was found.
+	return nil, nil
+}
+
 type chatViewModel struct {
 	styles              tuiStyles
 	chat                *codersdk.Chat
@@ -152,9 +271,10 @@ type chatViewModel struct {
 	streamEventCh <-chan codersdk.ChatStreamEvent
 	reconnecting  bool
 
-	chatStatus     codersdk.ChatStatus
-	lastUsage      *codersdk.ChatMessageUsage
-	queuedMessages []codersdk.ChatQueuedMessage
+	chatStatus             codersdk.ChatStatus
+	lastUsage              *codersdk.ChatMessageUsage
+	queuedMessages         []codersdk.ChatQueuedMessage
+	pendingAskUserQuestion *askUserQuestionState
 
 	composerFocused bool
 	selectedBlock   int
@@ -170,6 +290,19 @@ type chatViewModel struct {
 	modelPickerFlat   []codersdk.ChatModel
 	modelPickerCursor int
 }
+
+// These blank identifier references keep foundational ask-user-question
+// state and helpers live until overlay wiring lands.
+var (
+	_ = func(m chatViewModel) *askUserQuestionState {
+		return m.pendingAskUserQuestion
+	}
+	_ = askUserQuestionArgs{}
+	_ = newAskUserQuestionState
+	_ = parseAskUserQuestionArgs
+	_ = parseAskUserQuestionToolCall
+	_ = findPendingAskUserQuestion
+)
 
 func modelOverrideUUID(modelOverride *string) *uuid.UUID {
 	if modelOverride == nil {

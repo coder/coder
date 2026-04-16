@@ -74,11 +74,37 @@ type (
 		event      codersdk.ChatStreamEvent
 		err        error
 	}
+	// showAskUserQuestionMsg tells the parent model to open the
+	// ask-user-question overlay.
+	showAskUserQuestionMsg struct {
+		state *askUserQuestionState
+	}
+	// hideAskUserQuestionMsg tells the parent model to close the
+	// ask-user-question overlay.
+	hideAskUserQuestionMsg struct{}
+	// toolResultsSubmittedMsg is sent after the async SubmitToolResults
+	// call completes.
+	toolResultsSubmittedMsg struct {
+		generation uint64
+		chatID     uuid.UUID
+		err        error
+	}
 	streamRetryMsg struct {
 		generation uint64
 	}
 	toggleModelPickerMsg struct{}
 	toggleDiffDrawerMsg  struct{}
+)
+
+// These blank identifier references keep foundational ask-user-question
+// types live until overlay wiring lands.
+var (
+	_ = func(msg showAskUserQuestionMsg) *askUserQuestionState {
+		return msg.state
+	}
+	_ = hideAskUserQuestionMsg{}
+	_ = toolResultsSubmittedMsg{}
+	_ = submitAskUserQuestionCmd
 )
 
 func scheduleStreamRetry(generation uint64, delay time.Duration) tea.Cmd {
@@ -135,6 +161,28 @@ func loadChatHistoryCmd(ctx context.Context, client *codersdk.ExperimentalClient
 		return allMessages, nil
 	}, func(messages []codersdk.ChatMessage, err error) tea.Msg {
 		return chatHistoryMsg{generation: generation, chatID: chatID, messages: messages, err: err}
+	})
+}
+
+func submitAskUserQuestionCmd(client *codersdk.Client, chatID uuid.UUID, generation uint64, state *askUserQuestionState) tea.Cmd {
+	output, err := buildAskUserQuestionToolResult(state)
+	if err != nil {
+		return func() tea.Msg {
+			return toolResultsSubmittedMsg{generation: generation, chatID: chatID, err: err}
+		}
+	}
+
+	req := codersdk.SubmitToolResultsRequest{
+		Results: []codersdk.ToolResult{{
+			ToolCallID: state.ToolCallID,
+			Output:     output,
+			IsError:    false,
+		}},
+	}
+	return apiCmd(func() (struct{}, error) {
+		return struct{}{}, codersdk.NewExperimentalClient(client).SubmitToolResults(context.Background(), chatID, req)
+	}, func(_ struct{}, err error) tea.Msg {
+		return toolResultsSubmittedMsg{generation: generation, chatID: chatID, err: err}
 	})
 }
 
