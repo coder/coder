@@ -2465,16 +2465,15 @@ class ApiMethods {
 	 *
 	 * Shared by changeWorkspaceVersion and updateWorkspace to ensure
 	 * a clean stop-before-start when switching template versions.
-	 */ private stopWorkspaceIfRunning = async (
+	 */
+	private stopWorkspaceIfRunning = async (
 		workspace: TypesGen.Workspace,
 	): Promise<void> => {
 		if (workspace.latest_build.status === "running") {
 			const stopBuild = await this.stopWorkspace(workspace.id);
 			const awaitedStopBuild = await this.waitForBuild(stopBuild);
 			if (awaitedStopBuild?.status === "canceled") {
-				throw new Error(
-					"Workspace stop was canceled, not proceeding with update.",
-				);
+				throw new Error("Workspace stop was canceled.");
 			}
 		}
 	};
