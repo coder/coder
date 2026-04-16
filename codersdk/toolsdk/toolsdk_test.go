@@ -731,10 +731,6 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceEditFile", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := exec.LookPath("red"); err != nil {
-			t.Skip("red not available")
-		}
-
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
@@ -753,6 +749,10 @@ func TestTools(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify either edits or ed_script")
 
+		if _, err := exec.LookPath("red"); err != nil {
+			t.Skip("red not available, skipping ed_script success test")
+		}
+
 		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
 			Workspace: workspace.Name,
 			Path:      filePath,
@@ -766,10 +766,6 @@ func TestTools(t *testing.T) {
 
 	t.Run("WorkspaceEditFiles", func(t *testing.T) {
 		t.Parallel()
-
-		if _, err := exec.LookPath("red"); err != nil {
-			t.Skip("red not available")
-		}
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -791,6 +787,10 @@ func TestTools(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify at least one file")
+
+		if _, err := exec.LookPath("red"); err != nil {
+			t.Skip("red not available, skipping ed_script success test")
+		}
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
 			Workspace: workspace.Name,

@@ -379,7 +379,8 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	// Classification pass: separate search/replace from ed-script
 	// entries. Validate all entries upfront (before any writes).
 	type edScriptEntry struct {
-		path     string
+		path     string // Resolved (symlink-followed) path.
+		origPath string // Original path from the request (for labels).
 		script   string
 		origMode os.FileMode
 	}
@@ -415,9 +416,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			if edit.Path == "" {
 				combinedErr = errors.Join(combinedErr, xerrors.New("\"path\" is required"))
 				if http.StatusBadRequest > status {
-					if http.StatusBadRequest > status {
-						status = http.StatusBadRequest
-					}
+					status = http.StatusBadRequest
 				}
 				continue
 			}
@@ -425,9 +424,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 				combinedErr = errors.Join(combinedErr,
 					xerrors.Errorf("file path must be absolute: %q", edit.Path))
 				if http.StatusBadRequest > status {
-					if http.StatusBadRequest > status {
-						status = http.StatusBadRequest
-					}
+					status = http.StatusBadRequest
 				}
 				continue
 			}
@@ -460,9 +457,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 				combinedErr = errors.Join(combinedErr,
 					xerrors.Errorf("open %s: not a file", resolved))
 				if http.StatusBadRequest > status {
-					if http.StatusBadRequest > status {
-						status = http.StatusBadRequest
-					}
+					status = http.StatusBadRequest
 				}
 				continue
 			}
@@ -485,15 +480,14 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 				combinedErr = errors.Join(combinedErr,
 					xerrors.Errorf("%s: duplicate file path in request", edit.Path))
 				if http.StatusBadRequest > status {
-					if http.StatusBadRequest > status {
-						status = http.StatusBadRequest
-					}
+					status = http.StatusBadRequest
 				}
 				continue
 			}
 			seenPaths[resolved] = struct{}{}
 			edEntries = append(edEntries, edScriptEntry{
 				path:     resolved,
+				origPath: edit.Path,
 				script:   edit.EdScript,
 				origMode: info.Mode(),
 			})
@@ -548,7 +542,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	// Phase 3: process ed-script entries sequentially.
 	for _, entry := range edEntries {
-		diff, err := api.applyEdScript(ctx, entry.path, entry.script, entry.origMode)
+		diff, err := api.applyEdScript(ctx, entry.path, entry.origPath, entry.script, entry.origMode)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: err.Error(),
@@ -583,7 +577,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 // the original. The isolated directory prevents ed w/r commands
 // from reaching other files in the target's directory.
 // Returns the diff string (empty if no changes) or an error.
-func (api *API) applyEdScript(ctx context.Context, path, script string, origMode os.FileMode) (string, error) {
+func (api *API) applyEdScript(ctx context.Context, path, origPath, script string, origMode os.FileMode) (string, error) {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 
@@ -646,7 +640,7 @@ func (api *API) applyEdScript(ctx context.Context, path, script string, origMode
 	// Use --label with the full path to produce headers that
 	// the frontend can match to files unambiguously.
 	diffCmd := api.execer.CommandContext(ctx, "diff", "-u",
-		"--label", "a/"+path, "--label", "b/"+path,
+		"--label", "a/"+origPath, "--label", "b/"+origPath,
 		path, tmpPath)
 	diffOut, diffErr := diffCmd.CombinedOutput()
 	// diff exits 0 = identical, 1 = different (expected),
