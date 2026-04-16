@@ -48,6 +48,29 @@ func makeInputRaw(handle uintptr) (*TerminalState, error) {
 }
 
 //nolint:revive
+func makeInputRawNoVT(handle uintptr) (*TerminalState, error) {
+	var prevState uint32
+	if err := windows.GetConsoleMode(windows.Handle(handle), &prevState); err != nil {
+		return nil, err
+	}
+
+	// Clear echo, line-input, processed-input, and VT-input flags
+	// so we get immediate, unechoed character input. We explicitly
+	// clear ENABLE_VIRTUAL_TERMINAL_INPUT even if the caller or a
+	// previous program already enabled it — that flag causes the
+	// console to deliver ANSI escape sequences (including
+	// bracketed-paste markers) which corrupt secret/password input.
+	raw := prevState &^ (windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_LINE_INPUT | windows.ENABLE_PROCESSED_OUTPUT | windows.ENABLE_VIRTUAL_TERMINAL_INPUT)
+
+	if err := windows.SetConsoleMode(windows.Handle(handle), raw); err != nil {
+		return nil, err
+	}
+	return &TerminalState{
+		state: terminalState(prevState),
+	}, nil
+}
+
+//nolint:revive
 func makeOutputRaw(handle uintptr) (*TerminalState, error) {
 	prevState, err := makeRaw(windows.Handle(handle), false)
 	if err != nil {

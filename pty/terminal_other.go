@@ -19,6 +19,11 @@ func makeInputRaw(fd uintptr) (*TerminalState, error) {
 }
 
 //nolint:revive
+func makeInputRawNoVT(fd uintptr) (*TerminalState, error) {
+	return makeInputRaw(fd)
+}
+
+//nolint:revive
 func makeOutputRaw(_ uintptr) (*TerminalState, error) {
 	// Does nothing. makeInputRaw does enough for both input and output.
 	return &TerminalState{

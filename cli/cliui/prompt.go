@@ -211,7 +211,7 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 // masking each character with an asterisk.
 func readSecretInput(f *os.File, w io.Writer) (string, error) {
 	// Put terminal into raw mode (no echo, no line buffering).
-	oldState, err := pty.MakeInputRaw(f.Fd())
+	oldState, err := pty.MakeInputRawNoVT(f.Fd())
 	if err != nil {
 		return "", err
 	}
@@ -219,7 +219,15 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 		_ = pty.RestoreTerminal(f.Fd(), oldState)
 	}()
 
-	reader := bufio.NewReader(f)
+	return readSecretRunes(bufio.NewReader(f), w)
+}
+
+// readSecretRunes reads runes one at a time from reader, writing a
+// '*' to w for every printable character. It handles Enter (finish),
+// Ctrl+C (cancel), Backspace (erase), and ANSI escape sequences
+// (discard). The caller is responsible for putting the terminal into
+// raw mode before calling this function.
+func readSecretRunes(reader *bufio.Reader, w io.Writer) (string, error) {
 	var runes []rune
 
 	for {
@@ -248,6 +256,42 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 					return "", err
 				}
 				runes = runes[:len(runes)-1]
+			}
+
+		case r == '\x1b':
+			// ESC starts an ANSI escape sequence (e.g. bracketed-
+			// paste markers ESC[200~ / ESC[201~, cursor keys, or
+			// function keys). Consume and discard the full sequence
+			// so it does not pollute the secret input.
+			next, _, err := reader.ReadRune()
+			if err != nil {
+				return "", err
+			}
+			switch next {
+			case '[':
+				// CSI sequence: ESC [ <params> <final_byte>.
+				// Parameters are bytes in 0x20-0x3F; the final
+				// byte is in the 0x40-0x7E range.
+				for {
+					c, _, err := reader.ReadRune()
+					if err != nil {
+						return "", err
+					}
+					if c >= 0x40 && c <= 0x7E {
+						break
+					}
+				}
+			case 'O':
+				// SS3 / application-mode sequence: ESC O <final>.
+				// Consume the final byte so function/cursor key
+				// sequences do not leak into the input.
+				if _, _, err := reader.ReadRune(); err != nil {
+					return "", err
+				}
+			default:
+				// Unrecognized sequence — put the character back
+				// so it isn't silently swallowed.
+				_ = reader.UnreadRune()
 			}
 
 		default:
