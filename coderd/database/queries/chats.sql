@@ -1425,3 +1425,43 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
+
+-- name: ChatHasVisibleToolParts :one
+-- Returns true if the chat has any non-deleted message containing a
+-- tool-call or tool-result part. Backs the
+-- confirm_share_tool_calls gate on PATCH /chats/{chat}/acl. We use
+-- the jsonb containment operator @> on purpose: it can use a GIN
+-- index on chat_messages.content if one is added later. Soft-
+-- deleted messages are invisible to shared viewers (decision h in
+-- the plan) and are excluded from the classifier.
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_messages
+    WHERE chat_id = @chat_id::uuid
+        AND deleted = false
+        AND (
+            content::jsonb @> '[{"type": "tool-call"}]'::jsonb
+            OR content::jsonb @> '[{"type": "tool-result"}]'::jsonb
+        )
+);
+
+-- name: ChatHasVisibleAttachments :one
+-- Returns true if the chat has any attachment that a shared viewer
+-- could see: a chat_file_links row or a non-deleted message with a
+-- file / file-reference / context-file part. Backs the
+-- confirm_share_attachments gate on PATCH /chats/{chat}/acl.
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_file_links
+    WHERE chat_id = @chat_id::uuid
+    UNION ALL
+    SELECT 1
+    FROM chat_messages
+    WHERE chat_id = @chat_id::uuid
+        AND deleted = false
+        AND (
+            content::jsonb @> '[{"type": "file"}]'::jsonb
+            OR content::jsonb @> '[{"type": "file-reference"}]'::jsonb
+            OR content::jsonb @> '[{"type": "context-file"}]'::jsonb
+        )
+);

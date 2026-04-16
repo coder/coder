@@ -5126,6 +5126,62 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
+const chatHasVisibleAttachments = `-- name: ChatHasVisibleAttachments :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_file_links
+    WHERE chat_id = $1::uuid
+    UNION ALL
+    SELECT 1
+    FROM chat_messages
+    WHERE chat_id = $1::uuid
+        AND deleted = false
+        AND (
+            content::jsonb @> '[{"type": "file"}]'::jsonb
+            OR content::jsonb @> '[{"type": "file-reference"}]'::jsonb
+            OR content::jsonb @> '[{"type": "context-file"}]'::jsonb
+        )
+)
+`
+
+// Returns true if the chat has any attachment that a shared viewer
+// could see: a chat_file_links row or a non-deleted message with a
+// file / file-reference / context-file part. Backs the
+// confirm_share_attachments gate on PATCH /chats/{chat}/acl.
+func (q *sqlQuerier) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, chatHasVisibleAttachments, chatID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const chatHasVisibleToolParts = `-- name: ChatHasVisibleToolParts :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_messages
+    WHERE chat_id = $1::uuid
+        AND deleted = false
+        AND (
+            content::jsonb @> '[{"type": "tool-call"}]'::jsonb
+            OR content::jsonb @> '[{"type": "tool-result"}]'::jsonb
+        )
+)
+`
+
+// Returns true if the chat has any non-deleted message containing a
+// tool-call or tool-result part. Backs the
+// confirm_share_tool_calls gate on PATCH /chats/{chat}/acl. We use
+// the jsonb containment operator @> on purpose: it can use a GIN
+// index on chat_messages.content if one is added later. Soft-
+// deleted messages are invisible to shared viewers (decision h in
+// the plan) and are excluded from the classifier.
+func (q *sqlQuerier) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, chatHasVisibleToolParts, chatID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
 UPDATE chat_messages
 SET provider_response_id = NULL

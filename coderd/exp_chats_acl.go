@@ -148,6 +148,17 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Share-confirmation checks. We require the owner to explicitly
+	// acknowledge that shared viewers will see tool calls and/or
+	// attachments already present in the chat. Runs only when the
+	// request adds at least one shared viewer, since an empty PATCH
+	// (or a removal-only PATCH) should not surface the prompt.
+	if hasShareAdditions(req) {
+		if !api.requireShareConfirmations(ctx, rw, chat, req) {
+			return
+		}
+	}
+
 	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -156,6 +167,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatByID(ctx, chat.ID)
@@ -294,3 +306,86 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	}
 	return codersdk.ChatRoleDeleted
 }
+
+// hasShareAdditions reports whether the PATCH request would add or
+// update at least one viewer (as opposed to being removal-only).
+// The share-confirmation prompt is noise when the owner is only
+// revoking, so we suppress it in that case.
+func hasShareAdditions(req codersdk.UpdateChatACL) bool {
+	for _, role := range req.UserRoles {
+		if role != codersdk.ChatRoleDeleted {
+			return true
+		}
+	}
+	for _, role := range req.GroupRoles {
+		if role != codersdk.ChatRoleDeleted {
+			return true
+		}
+	}
+	return false
+}
+
+// requireShareConfirmations enforces the confirm_share_tool_calls /
+// confirm_share_attachments flags. It returns true if the request
+// may proceed, or false after writing a 400 response. Both flag
+// names are deliberately verbose: the error quotes them in the
+// validations array so a human reading the response knows exactly
+// which checkbox to flip. A future participate role can add more
+// confirm_* flags without renaming these two.
+func (api *API) requireShareConfirmations(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+	req codersdk.UpdateChatACL,
+) bool {
+	hasTools, err := api.Database.ChatHasVisibleToolParts(ctx, chat.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	hasAttachments, err := api.Database.ChatHasVisibleAttachments(ctx, chat.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+
+	var missing []codersdk.ValidationError
+	if hasTools && !req.ConfirmShareToolCalls {
+		missing = append(missing, codersdk.ValidationError{
+			Field:  "confirm_share_tool_calls",
+			Detail: "required",
+		})
+	}
+	if hasAttachments && !req.ConfirmShareAttachments {
+		missing = append(missing, codersdk.ValidationError{
+			Field:  "confirm_share_attachments",
+			Detail: "required",
+		})
+	}
+	if len(missing) == 0 {
+		return true
+	}
+
+	var (
+		message string
+		detail  string
+	)
+	switch {
+	case hasTools && !req.ConfirmShareToolCalls && hasAttachments && !req.ConfirmShareAttachments:
+		message = "Chat contains tool calls and attachments that shared viewers would see."
+		detail = "Set confirm_share_tool_calls=true and confirm_share_attachments=true to share anyway, or clear the relevant history first."
+	case hasTools && !req.ConfirmShareToolCalls:
+		message = "Chat contains tool calls that shared viewers would see."
+		detail = "Set confirm_share_tool_calls=true to share anyway, or clear tool-call history first."
+	case hasAttachments && !req.ConfirmShareAttachments:
+		message = "Chat contains attachments that shared viewers would see."
+		detail = "Set confirm_share_attachments=true to share anyway, or clear attachments first."
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message:     message,
+		Detail:      detail,
+		Validations: missing,
+	})
+	return false
+}
+
