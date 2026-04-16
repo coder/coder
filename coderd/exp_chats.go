@@ -433,7 +433,9 @@ func validateChatExploreModelOverrideID(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	_, err := db.GetEnabledChatModelConfigByID(ctx, *id)
+	//nolint:gocritic // Validation lookup uses system context to check model
+	// availability independently of the caller's read permissions.
+	_, err := db.GetEnabledChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), *id)
 	if err == nil {
 		return 0, nil
 	}
@@ -455,7 +457,18 @@ func (api *API) getChatExploreModelOverrideConfig(
 	if err != nil {
 		return nil, xerrors.Errorf("get explore model override: %w", err)
 	}
-	return parseChatExploreModelOverride(raw)
+	id, err := parseChatExploreModelOverride(raw)
+	if err != nil {
+		// Degrade malformed values to unset so the admin settings page
+		// remains accessible and the bad value can be cleared.
+		api.Logger.Warn(ctx, "malformed explore model override in site config, treating as unset",
+			slog.F("raw_value", raw),
+			slog.Error(err),
+		)
+		//nolint:nilnil // Malformed stored values are intentionally degraded to unset.
+		return nil, nil
+	}
+	return id, nil
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
