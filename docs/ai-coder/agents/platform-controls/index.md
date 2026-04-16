@@ -137,15 +137,22 @@ breakdowns.
 
 See [Spend Management](./usage-insights.md) for details.
 
+### Git providers
+
+Coder Agents extends your existing
+[external authentication](../../admin/external-auth/index.md) configuration to
+support features that need richer access to your git host's API — the in-chat
+diff viewer and PR Insights. For self-hosted GitHub Enterprise deployments,
+additional configuration is required.
+
+See [Git Providers](./git-providers.md) for details.
+
 ### PR Insights
 
 PR Insights tracks pull requests created by Coder Agents and surfaces
-analytics on PR activity, merge rates, and cost efficiency. The system
-automatically fetches PR metadata from configured GitHub external auth
-providers.
+analytics on PR activity, merge rates, and cost efficiency.
 
-See [PR Insights](./pr-insights.md) for configuration details, including
-requirements for GitHub Enterprise deployments.
+See [PR Insights](./pr-insights.md) for requirements and dashboard details.
 
 ### Data retention
 

@@ -36,44 +36,17 @@ For PR data to appear in analytics, all of the following must be true:
    with a configured remote origin. If no branch or remote origin is
    reported, the worker skips the chat.
 
-## GitHub Enterprise configuration
-
-For self-hosted GitHub Enterprise (GHE) deployments, you must set
-`CODER_EXTERNAL_AUTH_X_API_BASE_URL` in addition to the standard external
-auth variables.
-
-Without this, Coder defaults to `https://api.github.com` as the API
-endpoint. Auth operations like clone and push still work because they use the
-`AUTH_URL` and `TOKEN_URL` you configured. However, PR Insights builds its
-URL-matching patterns from the API base URL. When the default points to
-`github.com`, the worker cannot match PR URLs or repository origins from your
-GHE instance, and PR data silently fails to appear.
-
-Example configuration for GHE:
-
-```env
-CODER_EXTERNAL_AUTH_0_ID="primary-github"
-CODER_EXTERNAL_AUTH_0_TYPE=github
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
-CODER_EXTERNAL_AUTH_0_API_BASE_URL="https://github.example.com/api/v3"
-CODER_EXTERNAL_AUTH_0_REGEX=github\.example\.com
-```
-
-> [!NOTE]
-> Public `github.com` configurations do not need `API_BASE_URL` — the
-> default (`https://api.github.com`) is already correct.
+For self-hosted GitHub Enterprise deployments, additional configuration is
+required. See [Git Providers](./git-providers.md#github-enterprise-configuration).
 
 ## Troubleshooting
 
 ### PRs not appearing
 
-Check that `API_BASE_URL` is set for GHE deployments. Verify the user has
-linked their external auth. Check Coder logs for gitsync warnings like
-`no provider for origin` or token resolution errors.
+Verify the user has linked their external auth. Check Coder logs for gitsync
+warnings like `no provider for origin` or token resolution errors. For GitHub
+Enterprise, confirm that `API_BASE_URL` is set — see
+[Git Providers](./git-providers.md#troubleshooting).
 
 ### Only github.com PRs appear
 
@@ -83,6 +56,6 @@ without it because the default is already correct.
 
 ### PR data delayed
 
-The gitsync worker polls on a ~10 second interval. New PRs typically appear
-within a couple of minutes. If a token refresh fails, the worker backs off
-for 10 minutes before retrying.
+The background worker polls on a ~10 second interval. New PRs typically
+appear within a couple of minutes. If a token refresh fails, the worker
+backs off for 10 minutes before retrying.

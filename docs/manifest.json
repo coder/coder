@@ -1245,16 +1245,16 @@
 									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
 									"state": ["early access"]
 								},
-								{
-									"title": "Spend Management",
-									"description": "Spend limits and cost tracking for Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["early access"]
-								},
 									{
-										"title": "Data Retention",
-										"description": "Automatic cleanup of old conversation data",
-										"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+										"title": "Spend Management",
+										"description": "Spend limits and cost tracking for Coder Agents",
+										"path": "./ai-coder/agents/platform-controls/usage-insights.md",
+										"state": ["early access"]
+									},
+									{
+										"title": "Git Providers",
+										"description": "Git provider configuration for the diff viewer and PR Insights",
+										"path": "./ai-coder/agents/platform-controls/git-providers.md",
 										"state": ["early access"]
 									},
 									{
@@ -1262,8 +1262,13 @@
 										"description": "Pull request analytics for Coder Agents",
 										"path": "./ai-coder/agents/platform-controls/pr-insights.md",
 										"state": ["early access"]
-									}
-								]						},
+									},
+									{
+										"title": "Data Retention",
+										"description": "Automatic cleanup of old conversation data",
+										"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+										"state": ["early access"]
+									}								]						},
 						{
 							"title": "Extending Agents",
 							"description": "Add custom skills and MCP tools to agent workspaces",
