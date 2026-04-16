@@ -108,18 +108,18 @@ describe("waitForPendingChatSettingsSyncs", () => {
 		expect(settled).toBe(false);
 
 		workspaceUpdate.resolve(undefined);
-		await expect(waitPromise).resolves.toBe(true);
+		await expect(waitPromise).resolves.toBeUndefined();
 		expect(settled).toBe(true);
 	});
 
-	it("returns false when a chat-setting update fails", async () => {
+	it("rejects when a chat-setting update fails", async () => {
 		const workspaceUpdate = createDeferred<void>();
 		const waitPromise = waitForPendingChatSettingsSyncs([
 			workspaceUpdate.promise,
 		]);
 
 		workspaceUpdate.reject(new Error("boom"));
-		await expect(waitPromise).resolves.toBe(false);
+		await expect(waitPromise).rejects.toThrow("boom");
 	});
 });
 
@@ -502,6 +502,29 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
 		expect(result.current.editorInitialValue).toBe("edited message");
 		expect(result.current.initialEditorState).toBe(editorState);
+		unmount();
+	});
+
+	it("preserves the composer and draft when send fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+
+		act(() => {
+			result.current.handleContentChange("hello", "hello", false);
+		});
+
+		await act(async () => {
+			await expect(result.current.handleSendFromInput("hello")).rejects.toThrow(
+				"boom",
+			);
+		});
+
+		expect(mockInput.clear).not.toHaveBeenCalled();
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
 		unmount();
 	});
 

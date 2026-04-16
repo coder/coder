@@ -142,20 +142,15 @@ export const restoreOptimisticRequestSnapshot = (
 /** @internal Exported for testing. */
 export const waitForPendingChatSettingsSyncs = async (
 	pendingSyncs: readonly (Promise<unknown> | null | undefined)[],
-): Promise<boolean> => {
+): Promise<void> => {
 	const activeSyncs = pendingSyncs.filter(
 		(pendingSync): pendingSync is Promise<unknown> =>
 			pendingSync !== null && pendingSync !== undefined,
 	);
 	if (activeSyncs.length === 0) {
-		return true;
+		return;
 	}
-	try {
-		await Promise.all(activeSyncs);
-		return true;
-	} catch {
-		return false;
-	}
+	await Promise.all(activeSyncs);
 };
 
 /** @internal Exported for testing. */
@@ -1202,14 +1197,10 @@ const AgentChatPage: FC = () => {
 		}
 		// Wait for chat-setting mutations to settle before sending so the
 		// message observes the workspace and plan-mode choices the user just made.
-		if (
-			!(await waitForPendingChatSettingsSyncs([
-				pendingPlanModeSyncRef.current,
-				pendingWorkspaceSyncRef.current,
-			]))
-		) {
-			return;
-		}
+		await waitForPendingChatSettingsSyncs([
+			pendingPlanModeSyncRef.current,
+			pendingWorkspaceSyncRef.current,
+		]);
 
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
