@@ -4260,18 +4260,6 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
-func (q *querier) GetWorkspaceAgentByInstanceIDAndName(ctx context.Context, arg database.GetWorkspaceAgentByInstanceIDAndNameParams) (database.WorkspaceAgent, error) {
-	agent, err := q.db.GetWorkspaceAgentByInstanceIDAndName(ctx, arg)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	return agent, nil
-}
-
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {
@@ -4362,6 +4350,10 @@ func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, crea
 }
 
 func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
+		return q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	}
+
 	agents, err := q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
 	if err != nil {
 		return nil, err

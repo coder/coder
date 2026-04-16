@@ -416,12 +416,15 @@ func requireWorkspaceAgentByInstanceIDAndName(t testing.TB, store database.Store
 	t.Helper()
 
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-	agent, err := store.GetWorkspaceAgentByInstanceIDAndName(ctx, database.GetWorkspaceAgentByInstanceIDAndNameParams{
-		AuthInstanceID: instanceID,
-		Name:           name,
-	})
+	agents, err := store.GetWorkspaceAgentsByInstanceID(ctx, instanceID)
 	require.NoError(t, err)
-	return agent
+	for _, agent := range agents {
+		if agent.Name == name {
+			return agent
+		}
+	}
+	require.FailNow(t, "workspace agent not found", "instance ID %q, name %q", instanceID, name)
+	return database.WorkspaceAgent{}
 }
 
 func newTestInstanceID(t testing.TB) string {
