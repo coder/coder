@@ -109,13 +109,54 @@ func suppressedMultilineStatement(ctx context.Context) error {
 	)
 }
 
-// unsuppressedMultilineStatement is the negative case: the same shape,
+// notSuppressedMultilineStatement is the negative case: the same shape,
 // minus the suppression. The analyzer should still fire.
-func unsuppressedMultilineStatement(ctx context.Context) error {
+func notSuppressedMultilineStatement(ctx context.Context) error {
 	return wrappingCall(
 		dbauthz.AsSystemRestricted(ctx), // want "using 'AsSystemRestricted' is dangerous and should be accompanied by a //dbauthzcheck:ignore comment explaining why it's ok"
 		"some arg",
 	)
+}
+
+// typoedDirectiveDoesNotSuppress guards against the HasPrefix trap:
+// a directive that isn't followed by a word boundary must NOT silence
+// real diagnostics. Only the exact `dbauthzcheck:ignore` (followed by
+// end-of-text, whitespace, `//`, or `--`) suppresses.
+func typoedDirectiveDoesNotSuppress(ctx context.Context) context.Context {
+	//dbauthzcheck:ignoref // fat-fingered directive
+	return dbauthz.AsSystemRestricted(ctx) // want "using 'AsSystemRestricted' is dangerous and should be accompanied by a //dbauthzcheck:ignore comment explaining why it's ok"
+}
+
+// directiveRunTogetherDoesNotSuppress covers the worst case: the
+// directive is immediately concatenated with extra letters.
+func directiveRunTogetherDoesNotSuppress(ctx context.Context) context.Context {
+	//dbauthzcheck:ignoreeee
+	return dbauthz.AsSystemRestricted(ctx) // want "using 'AsSystemRestricted' is dangerous and should be accompanied by a //dbauthzcheck:ignore comment explaining why it's ok"
+}
+
+// funcDocSuppression exercises the FuncDecl doc-comment fallback.
+// The directive sits above the function declaration, not inside the
+// body, and applies to every flagged call inside the body.
+//
+//dbauthzcheck:ignore // whole-function suppression.
+func funcDocSuppression(ctx context.Context) context.Context {
+	return dbauthz.AsSystemRestricted(ctx)
+}
+
+// switchDirectiveDoesNotCoverCases verifies suppression scope. A
+// directive placed above a switch statement does NOT cover calls
+// nested inside case clauses — those calls have their own enclosing
+// statement (the case body), which is what the analyzer uses as the
+// suppression boundary.
+func switchDirectiveDoesNotCoverCases(ctx context.Context) context.Context {
+	//dbauthzcheck:ignore // does NOT cover case bodies below.
+	switch ctx {
+	case nil:
+		return dbauthz.AsSystemRestricted(ctx) // want "using 'AsSystemRestricted' is dangerous and should be accompanied by a //dbauthzcheck:ignore comment explaining why it's ok"
+	default:
+		//dbauthzcheck:ignore // per-case suppression works as expected.
+		return dbauthz.AsSystemRestricted(ctx)
+	}
 }
 
 // asRemoveActor is a value, not a function call, and must not fire.

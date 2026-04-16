@@ -38,7 +38,7 @@ var Analyzer = &analysis.Analyzer{
 	// ResultType must be set so run can return a typed nil instead
 	// of nil, nil — which the nilnil linter forbids. No downstream
 	// analyzer depends on this result.
-	ResultType: reflect.TypeOf((*struct{})(nil)),
+	ResultType: reflect.TypeFor[*struct{}](),
 }
 
 func run(pass *analysis.Pass) (any, error) {
@@ -49,25 +49,16 @@ func run(pass *analysis.Pass) (any, error) {
 
 		suppressed := suppressedLines(pass.Fset, file)
 
-		// We carry an explicit stack of ancestor nodes so we can find
-		// the enclosing statement for each call. Suppression comments
-		// typically sit above the statement containing the call, not
-		// above the call itself (which may be a nested argument).
-		var stack []ast.Node
-		ast.Inspect(file, func(n ast.Node) bool {
-			if n == nil {
-				// End of a node's children: pop.
-				if len(stack) > 0 {
-					stack = stack[:len(stack)-1]
-				}
-				return false
-			}
-
+		// PreorderStack hands us the ancestor stack (excluding the
+		// current node) on every visit, so we can find the enclosing
+		// statement without maintaining our own push/pop bookkeeping.
+		// Suppression comments typically sit above the statement
+		// containing the call, not above the call itself (which may be
+		// a nested argument).
+		ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
 			if call, ok := n.(*ast.CallExpr); ok {
 				checkCall(pass, call, stack, suppressed)
 			}
-
-			stack = append(stack, n)
 			return true
 		})
 	}
@@ -84,7 +75,13 @@ func checkCall(pass *analysis.Pass, call *ast.CallExpr, stack []ast.Node, suppre
 		return
 	}
 
-	if !callHasSingleContextArg(pass, call) {
+	// Every single-arg dbauthz.As* helper takes a context.Context —
+	// the package signatures enforce this — so narrowing to "the call
+	// has exactly one argument" is sufficient after we know the
+	// callee. No types.Implements check is needed, which also means
+	// packages that transitively import context without a direct
+	// import are still analyzed correctly.
+	if len(call.Args) != 1 {
 		return
 	}
 
@@ -102,13 +99,21 @@ func checkCall(pass *analysis.Pass, call *ast.CallExpr, stack []ast.Node, suppre
 
 // isSuppressed reports whether the call is covered by a
 // //dbauthzcheck:ignore directive. A directive suppresses the call if
-// it sits on:
+// any of these lines carry the directive:
 //
-//   - the call's own line (trailing comment), or
-//   - any line between the enclosing statement's first line and the
-//     call's line (inclusive), which covers the common pattern of a
-//     leading comment above a multi-line statement whose argument
-//     list contains the dbauthz.As* call.
+//   - the call's own line (trailing comment),
+//   - any line between the innermost enclosing ast.Stmt's first line
+//     and the call's line (for leading suppressions above multi-line
+//     statements whose dbauthz.As* argument is indented below), or
+//   - any line in the enclosing FuncDecl's doc comment (when the call
+//     has no enclosing statement ancestor, the innermost statement's
+//     first line still matches a FuncDecl doc-comment line because the
+//     doc group immediately precedes the function).
+//
+// Statement scope intentionally stops at the innermost ast.Stmt.
+// Placing a directive above `switch` to cover a `return` inside a
+// nested `case` does not work — the case clause's body is a separate
+// statement. Tests in testdata pin both boundaries.
 func isSuppressed(fset *token.FileSet, suppressed map[int]bool, stack []ast.Node, call *ast.CallExpr) bool {
 	callLine := fset.Position(call.Fun.Pos()).Line
 	if suppressed[callLine] {
@@ -121,6 +126,21 @@ func isSuppressed(fset *token.FileSet, suppressed map[int]bool, stack []ast.Node
 			return true
 		}
 	}
+
+	// Fall back to the enclosing FuncDecl's doc comment, which isn't
+	// a Stmt and so isn't reachable via the statement walk above. A
+	// directive above the function declaration suppresses every call
+	// inside the function body.
+	if doc := enclosingFuncDoc(stack); doc != nil {
+		docStart := fset.Position(doc.Pos()).Line
+		docEnd := fset.Position(doc.End()).Line
+		for line := docStart; line <= docEnd+1; line++ {
+			if suppressed[line] {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -135,6 +155,18 @@ func enclosingStatementLine(fset *token.FileSet, stack []ast.Node, fallback int)
 		}
 	}
 	return fallback
+}
+
+// enclosingFuncDoc returns the doc comment of the innermost enclosing
+// FuncDecl, or nil if the call has no function ancestor or that
+// function carries no doc comment.
+func enclosingFuncDoc(stack []ast.Node) *ast.CommentGroup {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if fn, ok := stack[i].(*ast.FuncDecl); ok {
+			return fn.Doc
+		}
+	}
+	return nil
 }
 
 // dbauthzAsCallee returns the called function object when the call
@@ -167,59 +199,6 @@ func dbauthzAsCallee(pass *analysis.Pass, call *ast.CallExpr) (*types.Func, bool
 	}
 
 	return use, true
-}
-
-// callHasSingleContextArg reports whether the call has exactly one
-// argument and that argument implements context.Context. This mirrors
-// the original ruleguard rule, whose pattern `dbauthz.$f($c)` matched
-// only single-node argument lists.
-//
-// Multi-arg As helpers (notably dbauthz.As(ctx, actor) and
-// dbauthz.AsSubAgentAPI(ctx, orgID, userID)) are arguably just as
-// dangerous, but widening the match would turn a pure port into a
-// behavior change, so we keep the analyzer faithful to the original
-// rule.
-func callHasSingleContextArg(pass *analysis.Pass, call *ast.CallExpr) bool {
-	if len(call.Args) != 1 {
-		return false
-	}
-
-	ctxIface := contextInterface(pass)
-	if ctxIface == nil {
-		return false
-	}
-
-	tv, ok := pass.TypesInfo.Types[call.Args[0]]
-	if !ok || tv.Type == nil {
-		return false
-	}
-	return types.Implements(tv.Type, ctxIface)
-}
-
-// contextInterface returns the *types.Interface for context.Context in
-// the context package used by the file under analysis. It returns nil
-// if the package is not part of the build, which happens for Go files
-// that don't transitively import context.
-func contextInterface(pass *analysis.Pass) *types.Interface {
-	for _, imp := range pass.Pkg.Imports() {
-		if imp.Path() != "context" {
-			continue
-		}
-		obj := imp.Scope().Lookup("Context")
-		if obj == nil {
-			return nil
-		}
-		named, ok := obj.Type().(*types.Named)
-		if !ok {
-			return nil
-		}
-		iface, ok := named.Underlying().(*types.Interface)
-		if !ok {
-			return nil
-		}
-		return iface
-	}
-	return nil
 }
 
 // isTestFile reports whether the file is a Go test file. The original
@@ -267,16 +246,28 @@ func groupHasSuppression(group *ast.CommentGroup) bool {
 }
 
 // isSuppressionComment reports whether the given comment text begins
-// with the suppression directive. We require the directive at the
-// start (after whitespace and the comment markers) so that quotes of
-// the directive in longer text — e.g. analysistest `// want` patterns
-// that reproduce the diagnostic message — don't accidentally suppress
-// real diagnostics.
+// with the suppression directive followed by a word boundary. We
+// require a boundary after the directive so typos like
+// "//dbauthzcheck:ignoref" or "//dbauthzcheck:ignorefoo" don't silently
+// suppress a real diagnostic. Valid terminators are end-of-text,
+// whitespace, and comment separators like "//" or "--".
 func isSuppressionComment(text string) bool {
 	text = strings.TrimPrefix(text, "//")
 	text = strings.TrimPrefix(text, "/*")
 	text = strings.TrimSpace(text)
-	return strings.HasPrefix(text, suppressionDirective)
+
+	rest, ok := strings.CutPrefix(text, suppressionDirective)
+	if !ok {
+		return false
+	}
+	if rest == "" {
+		return true
+	}
+	switch rest[0] {
+	case ' ', '\t':
+		return true
+	}
+	return strings.HasPrefix(rest, "//") || strings.HasPrefix(rest, "--")
 }
 
 // unparen strips parentheses. We only ever care about the underlying
