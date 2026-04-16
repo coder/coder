@@ -946,7 +946,7 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 	}
 	line(
 		"",
-		"WebUI:",
+		"Web UI:",
 	)
 	for _, h := range ifaces {
 		line(indent(fmt.Sprintf("http://%s:%d", h, cfg.webPort)))
@@ -957,7 +957,7 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 			"Proxy:",
 		)
 		for _, h := range ifaces {
-			line(indent(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort)))
+			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.proxyPort)))
 		}
 	}
 	if cfg.prometheusPort != 0 {
