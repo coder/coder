@@ -3,8 +3,8 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -64,10 +64,7 @@ func streamTextStop(text string, usage fantasy.Usage) fantasy.StreamResponse {
 	})
 }
 
-// callCapturingModel returns a FakeModel whose StreamFn records
-// each fantasy.Call and delegates to stepFn for the response.
-// The returned slice and counter are protected by the returned
-// mutex.
+// callCapture records fantasy.Calls made to a FakeModel's StreamFn.
 type callCapture struct {
 	mu    sync.Mutex
 	calls []fantasy.Call
@@ -210,67 +207,33 @@ func TestChatLoop_MessageCacheClearedOnCompaction(t *testing.T) {
 	_ = mc // Cache was cleared; no stale entries survive.
 }
 
-// simulateProviderCachePopulation mimics the Anthropic provider's
-// toPrompt/applySerialisationCache logic: for each output message
-// that lacks a cache_control breakpoint, it checks the cache (hit)
-// or stores a placeholder (miss).
-func simulateProviderCachePopulation(t *testing.T, call fantasy.Call) (hits, misses int) {
-	t.Helper()
-	mc, ok := extractMessageCache(t, call)
-	if !ok {
-		return 0, 0
-	}
-	outIdx := 0
-	for _, msg := range call.Prompt {
-		if msg.Role == fantasy.MessageRoleSystem {
-			continue
-		}
-		if !hasAnthropicEphemeralCacheControl(msg) {
-			if _, cached := mc.Get(outIdx); cached {
-				hits++
-			} else {
-				mc.Set(outIdx, json.RawMessage(`{"simulated":true}`))
-				misses++
-			}
-		}
-		outIdx++
-	}
-	return hits, misses
-}
-
+// TestChatLoop_MessageCachePopulatedByProvider uses a real fantasy
+// Anthropic provider backed by a mock HTTP server to verify that
+// the provider's toPrompt actually populates the cache. This test
+// fails when the fantasy dependency lacks MessageSerializationCache
+// support, since the cache entries will be empty.
 func TestChatLoop_MessageCachePopulatedByProvider(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// 3-step conversation with enough initial messages so that
-	// addAnthropicPromptCaching leaves some without breakpoints.
-	//   Step 0: 4 msgs → 0 hits, 1 miss, 1 total
-	//   Step 1: 6 msgs → 1 hit, 2 misses, 3 total
-	//   Step 2: 8 msgs → 3 hits, 2 misses, 5 total
+	var requestCount atomic.Int32
+	serverURL := chattest.NewAnthropic(t, func(_ *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		requestCount.Add(1)
+		return chattest.AnthropicStreamingResponse(
+			chattest.AnthropicTextChunks("done")...,
+		)
+	})
 
-	type stepStats struct{ hits, misses, total int }
+	provider, err := fantasyanthropic.New(
+		fantasyanthropic.WithAPIKey("test-key"),
+		fantasyanthropic.WithBaseURL(serverURL),
+	)
+	require.NoError(t, err)
 
-	var capture callCapture
-	var stats []stepStats
+	model, err := provider.LanguageModel(ctx, "claude-sonnet-4-20250514")
+	require.NoError(t, err)
 
-	model := &chattest.FakeModel{
-		ProviderName: fantasyanthropic.Name,
-		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-			step := capture.record(call)
-			hits, misses := simulateProviderCachePopulation(t, call)
-			mmc := call.ProviderOptions[MessageCacheProviderOptionsKey].(*mapMessageCache)
-			capture.mu.Lock()
-			stats = append(stats, stepStats{hits, misses, len(mmc.entries)})
-			capture.mu.Unlock()
-
-			if step < 2 {
-				return streamToolCall(fmt.Sprintf("tc-%d", step)), nil
-			}
-			return streamTextStop("done", fantasy.Usage{}), nil
-		},
-	}
-
-	err := Run(ctx, RunOptions{
+	err = Run(ctx, RunOptions{
 		Model: model,
 		Messages: []fantasy.Message{
 			textMessage(fantasy.MessageRoleSystem, "system prompt"),
@@ -278,29 +241,55 @@ func TestChatLoop_MessageCachePopulatedByProvider(t *testing.T) {
 			textMessage(fantasy.MessageRoleAssistant, "thinking"),
 			textMessage(fantasy.MessageRoleUser, "continue"),
 		},
-		Tools:                []fantasy.AgentTool{newNoopTool("read_file")},
-		MaxSteps:             5,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep:          func(_ context.Context, _ PersistedStep) error { return nil },
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), requestCount.Load(), "expected 1 API request")
+
+	// Run doesn't expose the cache directly, but we know
+	// applyAnthropicCaching is true (provider is "anthropic")
+	// so a cache was created. We need to inspect it.
+	//
+	// Since the cache is local to Run and not returned, we
+	// re-run with a wrapper model that captures the Call so we
+	// can inspect the cache after the provider has touched it.
+	var capturedCache *mapMessageCache
+	wrappedModel := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(streamCtx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			// Grab the cache before the real provider runs.
+			v := call.ProviderOptions[MessageCacheProviderOptionsKey]
+			//nolint:forcetypeassert // Test-only, panics are fine.
+			capturedCache = v.(*mapMessageCache)
+
+			// Delegate to the real provider so toPrompt runs
+			// and populates the cache.
+			return model.Stream(streamCtx, call)
+		},
+		ModelName: "claude-sonnet-4-20250514",
+	}
+
+	err = Run(ctx, RunOptions{
+		Model: wrappedModel,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "system prompt"),
+			textMessage(fantasy.MessageRoleUser, "hello"),
+			textMessage(fantasy.MessageRoleAssistant, "thinking"),
+			textMessage(fantasy.MessageRoleUser, "continue"),
+		},
+		MaxSteps:             1,
 		ContextLimitFallback: 4096,
 		PersistStep:          func(_ context.Context, _ PersistedStep) error { return nil },
 	})
 	require.NoError(t, err)
 
-	capture.mu.Lock()
-	defer capture.mu.Unlock()
-
-	require.Equal(t, 3, capture.count)
-	require.Len(t, stats, 3)
-
-	assert.Equal(t, stepStats{0, 1, 1}, stats[0], "step 0")
-	assert.Equal(t, stepStats{1, 2, 3}, stats[1], "step 1")
-	assert.Equal(t, stepStats{3, 2, 5}, stats[2], "step 2")
-
-	// Same cache instance across all steps.
-	for i := 1; i < len(capture.calls); i++ {
-		c0 := capture.calls[0].ProviderOptions[MessageCacheProviderOptionsKey]
-		ci := capture.calls[i].ProviderOptions[MessageCacheProviderOptionsKey]
-		assert.Same(t, c0, ci, "cache instance should be same across steps 0 and %d", i)
-	}
+	require.NotNil(t, capturedCache, "cache should have been created")
+	require.NotEmpty(t, capturedCache.entries,
+		"cache should have been populated by the fantasy Anthropic "+
+			"provider's toPrompt — if empty, the fantasy dependency "+
+			"likely lacks MessageSerializationCache support")
 }
 
 func TestMapMessageCache_BasicOperations(t *testing.T) {
