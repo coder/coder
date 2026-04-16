@@ -4,8 +4,10 @@ import {
 	EllipsisIcon,
 	PencilIcon,
 	Trash2Icon,
+	FolderIcon,
+	FolderOpenIcon,
 } from "lucide-react";
-import { type CSSProperties, type FC, type JSX, useState } from "react";
+import { type FC, type JSX, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -87,7 +89,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			);
 		}
 
-		const Icon = getTemplateFileIcon(filename, isFolder(content));
 		const isActive = currentPath === activePath;
 
 		const labelContent = Label ? (
@@ -101,27 +102,30 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			label
 		);
 
+		const depth = parentPath?.split("/").length ?? 0;
+
 		if (isFolder(content)) {
 			return (
 				<FolderNode
 					key={currentPath}
 					label={labelContent}
-					icon={<Icon className="size-3 shrink-0 text-current" />}
 					isHidden={isHiddenFile}
 					isActive={isActive}
-					depth={parentPath ? parentPath.split("/").length : 0}
+					depth={depth}
 					onClick={() => onSelect(currentPath)}
 					onDelete={onDelete && (() => onDelete(currentPath))}
 					onRename={onRename && (() => onRename(currentPath))}
 				>
 					{Object.entries(content)
 						.sort(compareFileTreeEntries)
-						.map(([childName, child]) =>
-							buildTreeItems(childName, childName, child, currentPath),
+						.map(([filename, child]) =>
+							buildTreeItems(filename, filename, child, currentPath),
 						)}
 				</FolderNode>
 			);
 		}
+
+		const Icon = getTemplateFileIcon(filename);
 
 		return (
 			<FileNode
@@ -130,7 +134,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 				icon={<Icon className="size-3 shrink-0 text-current" />}
 				isHidden={isHiddenFile}
 				isActive={isActive}
-				depth={parentPath ? parentPath.split("/").length : 0}
+				depth={depth}
 				onClick={() => onSelect(currentPath)}
 				onDelete={onDelete && (() => onDelete(currentPath))}
 				onRename={onRename && (() => onRename(currentPath))}
@@ -159,7 +163,9 @@ interface TreeNodeProps {
 }
 
 const nodeClasses =
-	"flex h-8 cursor-pointer select-none items-center gap-1 border-none bg-transparent px-4 text-[13px] w-full text-left hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
+	"flex-grow flex h-8 cursor-pointer select-none items-center gap-2 " +
+	"border-none bg-transparent px-4 text-[13px] text-left " +
+	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
 
 const FileNode: FC<TreeNodeProps> = ({
 	label,
@@ -172,15 +178,21 @@ const FileNode: FC<TreeNodeProps> = ({
 	onRename,
 }) => {
 	return (
-		<div className="group/row relative flex items-center">
+		<div
+			className={cn(
+				"group/tree-item flex flex-row items-center justify-between",
+				"hover:bg-surface-secondary",
+				isActive && "bg-surface-sky",
+			)}
+		>
 			<button
 				type="button"
 				className={cn(
 					nodeClasses,
-					isHidden ? "text-content-disabled" : "text-content-secondary",
-					isActive && "bg-surface-sky text-content-link",
+					isHidden ? "text-content-secondary" : "text-content-primary",
+					isActive && "text-content-link",
 				)}
-				style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` } as CSSProperties}
+				style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
 				onClick={onClick}
 			>
 				{icon}
@@ -191,13 +203,12 @@ const FileNode: FC<TreeNodeProps> = ({
 	);
 };
 
-interface FolderNodeProps extends TreeNodeProps {
+interface FolderNodeProps extends Omit<TreeNodeProps, "icon"> {
 	children: React.ReactNode;
 }
 
 const FolderNode: FC<FolderNodeProps> = ({
 	label,
-	icon,
 	isHidden,
 	isActive,
 	depth,
@@ -210,33 +221,30 @@ const FolderNode: FC<FolderNodeProps> = ({
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
-			<div className="group/row relative flex items-center">
+			<div
+				className={cn(
+					"group/tree-item flex flex-row items-center justify-between",
+					"hover:bg-surface-secondary",
+					isActive && "bg-surface-sky",
+				)}
+			>
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
 						className={cn(
 							nodeClasses,
-							isHidden ? "text-content-disabled" : "text-content-secondary",
-							isActive && "bg-surface-sky text-content-link",
+							isHidden ? "text-content-secondary" : "text-content-primary",
+							isActive && "text-content-link",
 						)}
 						aria-expanded={open}
-						style={
-							{
-								paddingLeft: `${(depth + 1) * 8 + 8}px`,
-							} as CSSProperties
-						}
-						onClick={() => {
-							// CollapsibleTrigger handles open/close toggling.
-							// Also fire onClick so the caller is notified.
-							onClick();
-						}}
+						style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
+						onClick={onClick}
 					>
 						{open ? (
-							<ChevronDownIcon className="size-3 shrink-0" />
+							<FolderOpenIcon className="size-3 shrink-0 text-current" />
 						) : (
-							<ChevronRightIcon className="size-3 shrink-0" />
+							<FolderIcon className="size-3 shrink-0 text-current" />
 						)}
-						{icon}
 						<span className="truncate">{label}</span>
 					</button>
 				</CollapsibleTrigger>
@@ -264,9 +272,9 @@ const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 					size="icon"
 					variant="subtle"
 					className={cn(
-						"absolute right-1 z-10 size-6 shrink-0",
+						"size-6 shrink-0",
 						"opacity-0 transition-opacity",
-						"group-hover/row:opacity-100",
+						"group-hover/tree-item:opacity-100",
 						"focus-visible:opacity-100",
 						"data-[state=open]:opacity-100",
 					)}
@@ -295,13 +303,4 @@ const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
-};
-
-const expandablePaths = (path: string) => {
-	const paths = path.split("/");
-	const result = [];
-	for (let i = 1; i < paths.length; i++) {
-		result.push(paths.slice(0, i).join("/"));
-	}
-	return result;
 };

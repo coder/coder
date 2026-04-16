@@ -47,13 +47,7 @@ const FileTypeMarkdown: FC<ComponentProps<"svg">> = (props) => (
 	</svg>
 );
 
-export const getTemplateFileIcon = (
-	filename: string,
-	isFolder: boolean,
-): ElementType => {
-	if (isFolder) {
-		return FolderIcon;
-	}
+export const getTemplateFileIcon = (filename: string): ElementType => {
 	if (filename.endsWith(".tf")) {
 		return FileTypeTerraform;
 	}
