@@ -291,18 +291,8 @@ type chatViewModel struct {
 	modelPickerCursor int
 }
 
-// These blank identifier references keep foundational ask-user-question
-// state and helpers live until overlay wiring lands.
-var (
-	_ = func(m chatViewModel) *askUserQuestionState {
-		return m.pendingAskUserQuestion
-	}
-	_ = askUserQuestionArgs{}
-	_ = newAskUserQuestionState
-	_ = parseAskUserQuestionArgs
-	_ = parseAskUserQuestionToolCall
-	_ = findPendingAskUserQuestion
-)
+// buildAskUserQuestionToolResult is wired up by the overlay submit flow.
+var _ = buildAskUserQuestionToolResult
 
 func modelOverrideUUID(modelOverride *string) *uuid.UUID {
 	if modelOverride == nil {
@@ -464,6 +454,31 @@ func (m *chatViewModel) setChat(chat codersdk.Chat) {
 	m.gitChanges = nil
 	m.diffContents = nil
 	m.diffErr = nil
+}
+
+// recoverPendingAskUserQuestion restores the pending ask_user_question
+// overlay after reopening a chat that is waiting on client input.
+func (m *chatViewModel) recoverPendingAskUserQuestion() (tea.Cmd, error) {
+	if m.chatStatus != codersdk.ChatStatusRequiresAction {
+		return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+	}
+
+	state, err := findPendingAskUserQuestion(m.messages)
+	if err != nil {
+		return nil, xerrors.Errorf("recover pending ask_user_question: %w", err)
+	}
+	if state == nil {
+		return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+	}
+	if m.pendingAskUserQuestion != nil &&
+		m.pendingAskUserQuestion.ToolCallID == state.ToolCallID {
+		return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+	}
+
+	m.pendingAskUserQuestion = state
+	return func() tea.Msg {
+		return showAskUserQuestionMsg{state: state}
+	}, nil
 }
 
 func (m chatViewModel) isInterruptible() bool {
@@ -883,6 +898,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 
 		if m.composerFocused {
 			if msg.Type == tea.KeyEnter {
+				if m.pendingAskUserQuestion != nil {
+					return m, nil
+				}
 				return m.sendMessage()
 			}
 			var cmd tea.Cmd
@@ -920,14 +938,31 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		m.metadataResolved = true
+		var (
+			cmds        []tea.Cmd
+			recoveryErr error
+		)
 		if msg.err != nil {
 			m.metadataErr = msg.err
 		} else {
 			m.metadataErr = nil
 			m.setChat(msg.chat)
 			m.planMode = m.chat.PlanMode
+			if m.historyResolved {
+				recoveryCmd, err := m.recoverPendingAskUserQuestion()
+				if err != nil {
+					recoveryErr = err
+				} else if recoveryCmd != nil {
+					cmds = append(cmds, recoveryCmd)
+				}
+			}
 		}
-		return m.finishLoading(wasSpinnerActive)
+		updated, cmd := m.finishLoading(wasSpinnerActive)
+		cmds = append(cmds, cmd)
+		if recoveryErr != nil && updated.err == nil {
+			updated.err = recoveryErr
+		}
+		return updated, tea.Batch(cmds...)
 
 	case chatPlanModeUpdatedMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -943,6 +978,10 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		m.historyResolved = true
+		var (
+			cmds        []tea.Cmd
+			recoveryErr error
+		)
 		if msg.err != nil {
 			m.historyErr = msg.err
 		} else {
@@ -955,8 +994,23 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			}
 			m.autoFollow = true
 			m.rebuildBlocks()
+
+			// Recover pending ask_user_question from history.
+			if m.chatStatus == codersdk.ChatStatusRequiresAction {
+				recoveryCmd, err := m.recoverPendingAskUserQuestion()
+				if err != nil {
+					recoveryErr = err
+				} else if recoveryCmd != nil {
+					cmds = append(cmds, recoveryCmd)
+				}
+			}
 		}
-		return m.finishLoading(wasSpinnerActive)
+		updated, cmd := m.finishLoading(wasSpinnerActive)
+		cmds = append(cmds, cmd)
+		if recoveryErr != nil && updated.err == nil {
+			updated.err = recoveryErr
+		}
+		return updated, tea.Batch(cmds...)
 
 	case chatCreatedMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -991,6 +1045,20 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		m.rebuildBlocks()
 		return m.startStreamIfReady(wasSpinnerActive)
+
+	case toolResultsSubmittedMsg:
+		if !m.matchesGeneration(msg.generation) || m.activeChatID != msg.chatID {
+			return m, nil
+		}
+		if msg.err != nil {
+			if m.pendingAskUserQuestion != nil {
+				m.pendingAskUserQuestion.Submitting = false
+				m.pendingAskUserQuestion.Error = msg.err
+			}
+			return m, nil
+		}
+		m.pendingAskUserQuestion = nil
+		return m, nil
 
 	case chatInterruptedMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -1069,6 +1137,17 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 }
 
 func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatViewModel, tea.Cmd) {
+	nextCmd := func(cmd tea.Cmd) tea.Cmd {
+		if m.streaming && m.streamEventCh != nil {
+			listenCmd := listenToStream(m.activeChatID, m.chatGeneration, m.streamEventCh)
+			if cmd != nil {
+				return tea.Batch(cmd, listenCmd)
+			}
+			return listenCmd
+		}
+		return cmd
+	}
+
 	switch event.Type {
 	case codersdk.ChatStreamEventTypeMessagePart:
 		if event.MessagePart != nil {
@@ -1104,16 +1183,47 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 		m.reconnecting = true
 		m.syncViewportContent()
 
+	case codersdk.ChatStreamEventTypeActionRequired:
+		if event.ActionRequired == nil {
+			return m, nextCmd(nil)
+		}
+		for _, tc := range event.ActionRequired.ToolCalls {
+			if tc.ToolName != "ask_user_question" {
+				continue
+			}
+
+			state, err := parseAskUserQuestionToolCall(tc)
+			if err != nil {
+				return m, func() tea.Msg {
+					return chatStreamEventMsg{
+						generation: m.chatGeneration,
+						chatID:     m.activeChatID,
+						event: codersdk.ChatStreamEvent{
+							Type: codersdk.ChatStreamEventTypeError,
+							Error: &codersdk.ChatStreamError{
+								Message: fmt.Sprintf(
+									"failed to parse ask_user_question: %v",
+									err,
+								),
+							},
+						},
+					}
+				}
+			}
+
+			m.pendingAskUserQuestion = state
+			return m, nextCmd(func() tea.Msg {
+				return showAskUserQuestionMsg{state: state}
+			})
+		}
+
 	case codersdk.ChatStreamEventTypeError:
 		if event.Error != nil {
 			m.err = xerrors.Errorf("stream error: %s", event.Error.Message)
 		}
 	}
 
-	if m.streaming && m.streamEventCh != nil {
-		return m, listenToStream(m.activeChatID, m.chatGeneration, m.streamEventCh)
-	}
-	return m, nil
+	return m, nextCmd(nil)
 }
 
 func (m chatViewModel) View() string {

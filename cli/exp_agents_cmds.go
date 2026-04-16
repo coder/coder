@@ -96,14 +96,9 @@ type (
 	toggleDiffDrawerMsg  struct{}
 )
 
-// These blank identifier references keep foundational ask-user-question
-// types live until overlay wiring lands.
+// These remain wired up when the overlay input flow lands.
 var (
-	_ = func(msg showAskUserQuestionMsg) *askUserQuestionState {
-		return msg.state
-	}
 	_ = hideAskUserQuestionMsg{}
-	_ = toolResultsSubmittedMsg{}
 	_ = submitAskUserQuestionCmd
 )
 
