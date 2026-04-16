@@ -335,21 +335,43 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
 
+		collect := func() {
 			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
+			defer func() {
+				logger.Debug(ctx, "agent metrics collection is done")
+				timer.ObserveDuration()
+				ticker.Reset(duration)
+			}()
+
 			derpMap := derpMapFn()
+
+			// Use a consistent value for now for the duration of this collection
+			// to avoid drift during the loop over workspaceAgents, which can cause
+			// incorrect reporting of agent connection status.
+			now := dbtime.Now()
 
 			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx)
 			if err != nil {
 				logger.Error(ctx, "can't get workspace agents", slog.Error(err))
-				goto done
+				return
+			}
+
+			// Prepopulate our known agents and apps before processing, this saves us from having to make a database
+			// roundtrip for every iteration of the loop to get the list of apps for the current agent.
+			agentIDs := make([]uuid.UUID, 0, len(workspaceAgents))
+			for _, agent := range workspaceAgents {
+				agentIDs = append(agentIDs, agent.WorkspaceAgent.ID)
+			}
+			allApps, err := db.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+			if err != nil {
+				logger.Error(ctx, "can't get workspace apps", slog.Error(err))
+				return
+			}
+			appsByAgentID := make(map[uuid.UUID][]database.WorkspaceApp, len(workspaceAgents))
+			for _, app := range allApps {
+				appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 			}
 
 			for _, agent := range workspaceAgents {
@@ -382,7 +404,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						observedFirstConnection[agent.WorkspaceAgent.ID] = struct{}{}
 					}
 				}
-				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
+				connectionStatus := agent.WorkspaceAgent.Status(now, agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
 
 				tailnetNode := "unknown"
@@ -420,13 +442,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 
 				// Collect information about registered applications
-				apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.WorkspaceAgent.ID)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.Error(err))
-					continue
-				}
-
-				for _, app := range apps {
+				for _, app := range appsByAgentID[agent.WorkspaceAgent.ID] {
 					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
 				}
 			}
@@ -449,11 +465,15 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			agentsConnectionsGauge.Commit()
 			agentsConnectionLatenciesGauge.Commit()
 			agentsAppsGauge.Commit()
+		}
 
-		done:
-			logger.Debug(ctx, "agent metrics collection is done")
-			timer.ObserveDuration()
-			ticker.Reset(duration)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			collect()
 		}
 	}()
 	return func() {
@@ -686,6 +706,24 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 
 		experimentsGauge.WithLabelValues(string(exp)).Set(val)
 	}
+
+	return nil
+}
+
+// BuildInfo registers a gauge which is always set to 1, with labels
+// describing the running server version. This follows the common
+// pattern used by Prometheus itself and many Go services.
+func BuildInfo(registerer prometheus.Registerer, version, revision string) error {
+	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "build_info",
+		Help:      "Describes the current build/version of the Coder server. Value is always 1.",
+	}, []string{"version", "revision"})
+	if err := registerer.Register(gauge); err != nil {
+		return err
+	}
+
+	gauge.WithLabelValues(version, revision).Set(1)
 
 	return nil
 }

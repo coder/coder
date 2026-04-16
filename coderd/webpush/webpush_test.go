@@ -387,6 +387,8 @@ func assertWebpushPayload(t testing.TB, r *http.Request) {
 }
 
 // setupPushTest creates a common test setup for webpush notification tests.
+// The test HTTP client bypasses SSRF protection so that httptest.Server
+// (bound to 127.0.0.1) can be reached.
 func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (webpush.Dispatcher, database.Store, string) {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)
@@ -400,6 +402,9 @@ func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Sto
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
+	// Use an unrestricted HTTP client for tests. The default SSRF-safe
+	// client rejects loopback addresses, which blocks httptest.Server.
+	opts = append(opts, webpush.WithHTTPClient(http.DefaultClient))
 	manager, err := webpush.New(ctx, &logger, db, "http://example.com", opts...)
 	require.NoError(t, err, "Failed to create webpush manager")
 
@@ -422,4 +427,57 @@ func TestNoopWebpusher(t *testing.T) {
 	require.Contains(t, testErr.Error(), "push disabled")
 
 	require.Empty(t, noop.PublicKey())
+}
+
+// TestSSRFPrevention verifies that the default SSRF-safe HTTP client blocks
+// webpush delivery to loopback (and other non-public) addresses. This
+// reproduces the attack vector from the original SSRF PoC: an authenticated
+// user supplies a localhost endpoint in their webpush subscription, and the
+// server must refuse to connect.
+func TestSSRFPrevention(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Start a server that records whether it received a request.
+	var received atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		received.Store(true)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	// Create a dispatcher via New() WITHOUT WithHTTPClient so it
+	// uses the default SSRF-safe client that blocks loopback.
+	db, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	manager, err := webpush.New(ctx, &logger, db, "http://example.com")
+	require.NoError(t, err)
+
+	// Test() calls webpushSend directly with the supplied endpoint.
+	err = manager.Test(ctx, codersdk.WebpushSubscription{
+		Endpoint:  server.URL,
+		AuthKey:   validEndpointAuthKey,
+		P256DHKey: validEndpointP256dhKey,
+	})
+	require.Error(t, err, "SSRF-safe client should reject Test() to loopback address")
+	assert.False(t, received.Load(), "Test() request should not reach the localhost server")
+
+	// Dispatch() goes through the subscription cache → webpushSend path.
+	user := dbgen.User(t, db, database.User{})
+	_, err = db.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         dbtime.Now(),
+		UserID:            user.ID,
+		Endpoint:          server.URL,
+		EndpointAuthKey:   validEndpointAuthKey,
+		EndpointP256dhKey: validEndpointP256dhKey,
+	})
+	require.NoError(t, err)
+
+	err = manager.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
+		Title: "SSRF test",
+		Body:  "This should not arrive.",
+	})
+	require.Error(t, err, "SSRF-safe client should reject Dispatch() to loopback address")
+	assert.False(t, received.Load(), "Dispatch() request should not reach the localhost server")
 }

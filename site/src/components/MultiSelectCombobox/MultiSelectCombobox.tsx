@@ -642,6 +642,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 													<CommandItem
 														key={option.value}
 														value={option.value}
+														keywords={[option.label]}
 														disabled={option.disable}
 														onMouseDown={(e) => {
 															e.preventDefault();

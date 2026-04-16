@@ -1033,6 +1033,7 @@ func createAgentChatContextChat(
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
@@ -1059,6 +1060,7 @@ func createAgentChatContextChildChat(
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,

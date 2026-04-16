@@ -465,6 +465,33 @@ func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
 	return nil
 }
 
+// InstanceIdentityConfig holds optional configuration for cloud
+// instance-identity authentication.
+type InstanceIdentityConfig struct {
+	AgentName string
+}
+
+// InstanceIdentityOption configures instance-identity authentication.
+type InstanceIdentityOption func(*InstanceIdentityConfig)
+
+// WithInstanceIdentityAgentName sets the agent name selector sent with
+// the instance-identity authentication request.
+func WithInstanceIdentityAgentName(name string) InstanceIdentityOption {
+	return func(c *InstanceIdentityConfig) {
+		c.AgentName = name
+	}
+}
+
+// applyInstanceIdentityOptions applies the given options and returns
+// the resulting configuration.
+func applyInstanceIdentityOptions(opts []InstanceIdentityOption) InstanceIdentityConfig {
+	var cfg InstanceIdentityConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return cfg
+}
+
 func WithFixedToken(token string) SessionTokenSetup {
 	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
 		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}

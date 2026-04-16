@@ -179,6 +179,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -203,6 +204,16 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "providers": [
+          {
+            "base_url": "string",
+            "bedrock_model": "string",
+            "bedrock_region": "string",
+            "bedrock_small_fast_model": "string",
+            "name": "string",
+            "type": "string"
+          }
+        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,

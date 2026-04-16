@@ -906,6 +906,33 @@ func TestExperimentsMetric(t *testing.T) {
 	}
 }
 
+func TestBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	reg := prometheus.NewRegistry()
+	version := "v2.15.0+abc1234"
+	revision := "abc1234def5678"
+
+	require.NoError(t, prometheusmetrics.BuildInfo(reg, version, revision))
+
+	out, err := reg.Gather()
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, "coderd_build_info", out[0].GetName())
+
+	metrics := out[0].GetMetric()
+	require.Len(t, metrics, 1)
+
+	// Labels are sorted alphabetically by Prometheus.
+	labels := metrics[0].GetLabel()
+	require.Len(t, labels, 2)
+	require.Equal(t, "revision", labels[0].GetName())
+	require.Equal(t, revision, labels[0].GetValue())
+	require.Equal(t, "version", labels[1].GetName())
+	require.Equal(t, version, labels[1].GetValue())
+	require.Equal(t, float64(1), metrics[0].GetGauge().GetValue())
+}
+
 func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) agentproto.DRPCAgentClient {
 	authToken := uuid.NewString()
 

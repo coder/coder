@@ -1,3 +1,4 @@
+export { CompactOrgSelector } from "./CompactOrgSelector";
 export { ConversationItem } from "./Conversation";
 export { Message, MessageContent } from "./Message";
 export type { ModelSelectorOption } from "./ModelSelector";

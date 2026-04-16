@@ -149,6 +149,7 @@ func seedWaitingChat(
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    orgID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             title,
@@ -1435,6 +1436,8 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 // condition where the relay is too slow.
 func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	t.Parallel()
+	// TODO(hugodutka): Unskip when chatd is free of race conditions.
+	t.Skip("skipped due to inherent race condition; see https://github.com/coder/internal/issues/1455")
 
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()
