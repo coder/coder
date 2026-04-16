@@ -428,7 +428,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			resolved, err := api.resolveSymlink(edit.Path)
+			resolved, err := api.resolvePath(edit.Path)
 			if err != nil {
 				combinedErr = errors.Join(combinedErr,
 					xerrors.Errorf("resolve symlink %q: %w", edit.Path, err))

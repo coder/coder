@@ -86,13 +86,10 @@ func TestEditFiles(t *testing.T) {
 		resolvePlanPathCalls := 0
 		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(planPath, nil)
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: planPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     planPath,
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -108,7 +105,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -124,13 +121,10 @@ func TestEditFiles(t *testing.T) {
 			ResolvePath(gomock.Any(), planPath).
 			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
 		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: planPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
-			}},
+			Path:     planPath,
+			EdScript: "1,$s/old/new/g",
 		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -145,7 +139,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -170,7 +164,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+			Input: `{"files":[{"path":"` + planPath + `","ed_script":"1,$s/old/new/g"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)

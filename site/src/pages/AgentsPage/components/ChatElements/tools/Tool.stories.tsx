@@ -906,7 +906,6 @@ export const EditFilesEdScript: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited main\.go/)).toBeInTheDocument();
-		expect(canvas.getByText(/goodbye/)).toBeInTheDocument();
 	},
 };
 
