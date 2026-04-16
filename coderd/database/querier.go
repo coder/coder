@@ -71,6 +71,19 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Returns true if the chat has any attachment that a shared viewer
+	// could see: a chat_file_links row or a non-deleted message with a
+	// file / file-reference / context-file part. Backs the
+	// confirm_share_attachments gate on PATCH /chats/{chat}/acl.
+	ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error)
+	// Returns true if the chat has any non-deleted message containing a
+	// tool-call or tool-result part. Backs the
+	// confirm_share_tool_calls gate on PATCH /chats/{chat}/acl. We use
+	// the jsonb containment operator @> on purpose: it can use a GIN
+	// index on chat_messages.content if one is added later. Soft-
+	// deleted messages are invisible to shared viewers (decision h in
+	// the plan) and are excluded from the classifier.
+	ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
