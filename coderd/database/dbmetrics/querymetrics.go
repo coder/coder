@@ -416,6 +416,22 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteChatACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatACLByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatACLsByOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatACLsByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatACLsByOrganization").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatDebugDataAfterMessageID(ctx, arg)
@@ -1101,6 +1117,14 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatACLByID").Inc()
 	return r0, r1
 }
 
@@ -4285,6 +4309,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	r0 := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatACLByID").Inc()
 	return r0
 }
 
