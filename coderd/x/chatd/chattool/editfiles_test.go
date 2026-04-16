@@ -2,6 +2,7 @@ package chattool_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"charm.land/fantasy"
@@ -112,6 +113,42 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 		assert.Equal(t, 1, resolvePlanPathCalls)
+	})
+
+	t.Run("PlanTurnAllowsLegacyAgentWithoutResolvePath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().
+			ResolvePath(gomock.Any(), planPath).
+			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
+		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
+			Path: planPath,
+			Edits: []workspacesdk.FileEdit{{
+				Search:  "old",
+				Replace: "new",
+			}},
+		}}}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
 	})
 
 	t.Run("PlanTurnRejectsSymlinkedPlanPath", func(t *testing.T) {

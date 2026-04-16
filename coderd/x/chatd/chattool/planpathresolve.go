@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"net/http"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,12 @@ func ensurePlanPathResolvesToItself(
 	normalizedPlanPath := normalizeWorkspacePath(planPath)
 	resolvedPath, err := conn.ResolvePath(ctx, planPath)
 	if err != nil {
+		if resolvePathUnsupported(err) {
+			// Older workspace agents do not expose /resolve-path yet. Keep
+			// plan turns working during rolling upgrades, even though they
+			// cannot enforce the symlink guard until the agent is upgraded.
+			return nil
+		}
 		return xerrors.Errorf("resolve plan path: %w", err)
 	}
 	resolvedPath = normalizeWorkspacePath(resolvedPath)
@@ -31,6 +38,11 @@ func ensurePlanPathResolvesToItself(
 	}
 
 	return nil
+}
+
+func resolvePathUnsupported(err error) bool {
+	var statusErr interface{ StatusCode() int }
+	return xerrors.As(err, &statusErr) && statusErr.StatusCode() == http.StatusNotFound
 }
 
 func normalizeWorkspacePath(pathString string) string {
