@@ -84,9 +84,16 @@ type DRPCAgentClient28 interface {
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 }
 
-// DRPCAgentClient29 is the Agent API at v2.9. It adds
-// session_id and confined_process fields to ReportBoundaryLogsRequest,
-// and sequence_number to BoundaryLog. No new RPCs.
+// DRPCAgentClient29 is the Agent API at v2.9. It adds:
+//   - session_id and confined_process fields to ReportBoundaryLogsRequest,
+//   - sequence_number to BoundaryLog,
+//   - chat runner coordination RPCs (ReportChatRunnerStatus,
+//     PollChatWork, AcquireChatLease, RenewChatLease, ReleaseChatLease).
 type DRPCAgentClient29 interface {
 	DRPCAgentClient28
+	ReportChatRunnerStatus(ctx context.Context, in *ReportChatRunnerStatusRequest) (*ReportChatRunnerStatusResponse, error)
+	PollChatWork(ctx context.Context, in *PollChatWorkRequest) (*PollChatWorkResponse, error)
+	AcquireChatLease(ctx context.Context, in *AcquireChatLeaseRequest) (*AcquireChatLeaseResponse, error)
+	RenewChatLease(ctx context.Context, in *RenewChatLeaseRequest) (*RenewChatLeaseResponse, error)
+	ReleaseChatLease(ctx context.Context, in *ReleaseChatLeaseRequest) (*ReleaseChatLeaseResponse, error)
 }

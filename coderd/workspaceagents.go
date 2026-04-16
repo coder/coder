@@ -10,12 +10,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -41,9 +43,14 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -2647,6 +2654,1423 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
 		ChatID: chat.ID,
 	})
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerRuntimeContext(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerRuntimeContextRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+
+	logger := api.Logger.With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("chat_id", chat.ID),
+	)
+	runtimeCtx, err := api.chatDaemon.ResolveAgentRuntimeContext(
+		sysCtx,
+		chat,
+		logger,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve chat runtime context.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	messages, err := chatRunnerMessagesFromFantasy(runtimeCtx.PromptMessages)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert prompt messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	builtinTools, err := chatRunnerToolDefinitionsFromFantasy(
+		runtimeCtx.BuiltInToolDefinitions,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert built-in tool definitions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	providerTools, err := chatRunnerToolDefinitionsFromFantasy(
+		runtimeCtx.ProviderToolDefinitions,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert provider tool definitions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	dynamicTools, err := chatRunnerDynamicTools(chat)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load dynamic tools.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	providerAPIKeys, providerBaseURLs := providerMapsFromKeys(
+		runtimeCtx.ProviderKeys,
+	)
+
+	resp := agentsdk.ChatRunnerRuntimeContextResponse{
+		ChatID:                     chat.ID,
+		Provider:                   runtimeCtx.ModelConfig.Provider,
+		Model:                      runtimeCtx.ModelConfig.Model,
+		ProviderAPIKeys:            providerAPIKeys,
+		ProviderBaseURLs:           providerBaseURLs,
+		CallConfig:                 runtimeCtx.CallConfig,
+		ContextLimit:               runtimeCtx.ContextLimit,
+		CompactionThresholdPercent: runtimeCtx.CompactionThresholdPercent,
+		Messages:                   messages,
+		SystemInstruction:          runtimeCtx.Instruction,
+		UserPrompt:                 runtimeCtx.ResolvedUserPrompt,
+		IsSubagent:                 runtimeCtx.IncludeSubagentInstruction,
+		BuiltinTools:               builtinTools,
+		ProviderTools:              providerTools,
+		DynamicTools:               dynamicTools,
+		Skills:                     chatRunnerSkills(runtimeCtx.Skills),
+		MCPTools:                   runtimeCtx.MCPToolDefinitions,
+		ModelConfigID:              runtimeCtx.ModelConfig.ID,
+		LeaseEpoch:                 chat.LeaseEpoch,
+	}
+	if chat.ParentChatID.Valid {
+		resp.ParentChatID = chat.ParentChatID.UUID
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerListTemplates(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerListTemplatesRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	// Reject child/subagent chats — template operations are root-chat only.
+	if chat.ParentChatID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template operations are only available for root chats.",
+		})
+		return
+	}
+
+	// Defensive: chatDaemon must be initialized.
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat service is not available.",
+		})
+		return
+	}
+
+	ownerCtx, err := chattool.AsOwner(sysCtx, api.Database, chat.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to authorize template access.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	allowlist := api.chatDaemon.ChatTemplateAllowlist()
+	result, err := chattool.ListTemplatesHelper(
+		ownerCtx,
+		api.Database,
+		workspace.OrganizationID,
+		allowlist,
+		req.Query,
+		req.Page,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list templates.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templates := make([]agentsdk.ChatRunnerTemplate, 0, len(result.Templates))
+	for _, template := range result.Templates {
+		templates = append(templates, agentsdk.ChatRunnerTemplate{
+			ID:          template.ID,
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Description: template.Description,
+			Icon:        template.Icon,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ChatRunnerListTemplatesResponse{
+		Templates:  templates,
+		TotalCount: result.TotalCount,
+		Page:       result.Page,
+		PageSize:   10,
+	})
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerReadTemplate(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerReadTemplateRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	// Reject child/subagent chats — template operations are root-chat only.
+	if chat.ParentChatID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template operations are only available for root chats.",
+		})
+		return
+	}
+
+	// Defensive: chatDaemon must be initialized.
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat service is not available.",
+		})
+		return
+	}
+
+	if req.TemplateID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template ID is required.",
+		})
+		return
+	}
+
+	ownerCtx, err := chattool.AsOwner(sysCtx, api.Database, chat.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to authorize template access.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	allowlist := api.chatDaemon.ChatTemplateAllowlist()
+	result, err := chattool.ReadTemplateHelper(ownerCtx, api.Database, allowlist, req.TemplateID)
+	if err != nil {
+		if errors.Is(err, chattool.ErrTemplateNotFound) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Template not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to read template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	template := agentsdk.ChatRunnerTemplate{
+		ID:          result.Template.ID,
+		Name:        result.Template.Name,
+		DisplayName: result.Template.DisplayName,
+		Description: stringutil.Truncate(result.Template.Description, 200),
+		Icon:        result.Template.Icon,
+	}
+
+	parameters := make([]agentsdk.ChatRunnerTemplateParameter, 0, len(result.Parameters))
+	for _, param := range result.Parameters {
+		var options []agentsdk.ChatRunnerTemplateParameterOption
+		if len(param.Options) > 0 {
+			if err := json.Unmarshal(param.Options, &options); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to decode template parameter options.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+
+		parameters = append(parameters, agentsdk.ChatRunnerTemplateParameter{
+			Name:         param.Name,
+			DisplayName:  param.DisplayName,
+			Description:  stringutil.Truncate(param.Description, 300),
+			Type:         param.Type,
+			DefaultValue: param.DefaultValue,
+			Required:     param.Required,
+			Mutable:      param.Mutable,
+			Options:      options,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ChatRunnerReadTemplateResponse{
+		Template:   template,
+		Parameters: parameters,
+	})
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerPersistStep(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerPersistStepRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	modelConfig, err := api.Database.GetChatModelConfigByID(sysCtx, req.ModelConfigID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Chat model config not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat model config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	var callConfig codersdk.ChatModelCallConfig
+	if len(modelConfig.Options) > 0 {
+		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to decode chat model config options.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	logger := api.Logger.With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("chat_id", chat.ID),
+	)
+	assistantContent, err := chatRunnerContentFromParts(
+		logger,
+		req.AssistantParts,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert assistant parts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	toolResults, err := chatRunnerContentFromParts(logger, req.ToolResults)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert tool result parts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	stepContent := make([]fantasy.Content, 0, len(assistantContent)+len(toolResults))
+	stepContent = append(stepContent, assistantContent...)
+	stepContent = append(stepContent, toolResults...)
+
+	var contextLimit sql.NullInt64
+	if req.ContextLimit != nil {
+		contextLimit = sql.NullInt64{Int64: *req.ContextLimit, Valid: true}
+	}
+
+	_, err = api.chatDaemon.PersistChatStep(sysCtx, chatd.PersistChatStepParams{
+		ChatID:             chat.ID,
+		ExpectedLeaseEpoch: req.LeaseEpoch,
+		ExpectedWorkerID:   chat.WorkerID.UUID,
+		Step: chatloop.PersistedStep{
+			Content:            stepContent,
+			Usage:              fantasyUsageFromChatRunner(req.Usage),
+			ContextLimit:       contextLimit,
+			ProviderResponseID: req.ProviderResponseID,
+			Runtime:            time.Duration(req.RuntimeMs) * time.Millisecond,
+		},
+		CallConfig:         callConfig,
+		ToolNameToConfigID: req.ToolNameToConfigID,
+		ModelConfigID:      req.ModelConfigID,
+	})
+	if err != nil {
+		if errors.Is(err, chatd.ErrStaleLease) {
+			chatRunnerLeaseConflict(ctx, rw, 0, req.LeaseEpoch)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to persist chat step.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ChatRunnerPersistStepResponse{
+		OK: true,
+	})
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerMCPToolCall(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerMCPToolCallRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+
+	// Validate required fields.
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+	if req.LeaseEpoch == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Lease epoch is required.",
+		})
+		return
+	}
+	if req.MCPServerConfigID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server config ID is required.",
+		})
+		return
+	}
+	if req.ToolName == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Tool name is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	logger := api.Logger.With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("chat_id", chat.ID),
+		slog.F("tool_name", req.ToolName),
+		slog.F("mcp_server_config_id", req.MCPServerConfigID),
+	)
+
+	resp, err := api.chatDaemon.ExecuteMCPToolCall(
+		sysCtx,
+		chat,
+		req.MCPServerConfigID,
+		req.ToolName,
+		req.Args,
+		logger,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to execute MCP tool call.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerPublishStreamPart(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerPublishStreamPartRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	api.chatDaemon.PublishChatMessagePart(
+		chat.ID,
+		req.Role,
+		req.Part,
+		req.ToolNameToConfigID,
+	)
+
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusOK,
+		agentsdk.ChatRunnerPublishStreamPartResponse{OK: true},
+	)
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerPublishStreamParts(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerPublishStreamPartsRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+	if len(req.Parts) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "At least one stream part is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != workspaceAgent.ID {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat lease is no longer active for this agent.",
+		})
+		return
+	}
+
+	for _, part := range req.Parts {
+		api.chatDaemon.PublishChatMessagePart(
+			chat.ID,
+			part.Role,
+			part.Part,
+			part.ToolNameToConfigID,
+		)
+	}
+
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusOK,
+		agentsdk.ChatRunnerPublishStreamPartsResponse{OK: true},
+	)
+}
+
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentChatRunnerReloadMessages(
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	var req agentsdk.ChatRunnerReloadMessagesRequest
+	if !readChatContextBody(ctx, rw, r, &req, false) {
+		return
+	}
+	if req.ChatID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat ID is required.",
+		})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chat, err := resolveAgentChat(
+		sysCtx,
+		api.Database,
+		workspaceAgent.ID,
+		workspace.OwnerID,
+		req.ChatID,
+	)
+	if err != nil {
+		writeAgentChatError(ctx, rw, err)
+		return
+	}
+	if req.LeaseEpoch != chat.LeaseEpoch {
+		chatRunnerLeaseConflict(ctx, rw, chat.LeaseEpoch, req.LeaseEpoch)
+		return
+	}
+
+	logger := api.Logger.With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("chat_id", chat.ID),
+	)
+	runtimeCtx, err := api.chatDaemon.ResolveAgentRuntimeContext(
+		sysCtx,
+		chat,
+		logger,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve chat runtime context.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	chainModeActive := chatopenai.IsResponsesStoreEnabled(
+		runtimeCtx.ProviderOptions,
+	) && runtimeCtx.ChainMode.PreviousResponseID != "" &&
+		runtimeCtx.ChainMode.ContributingTrailingUserCount > 0 &&
+		runtimeCtx.ChainMode.ModelConfigID == runtimeCtx.ModelConfig.ID
+
+	reloadedMessages, err := api.chatDaemon.ReloadChatMessages(
+		sysCtx,
+		chatd.ReloadChatMessagesParams{
+			ChatID:                     chat.ID,
+			Instruction:                runtimeCtx.Instruction,
+			Skills:                     runtimeCtx.Skills,
+			ResolvedUserPrompt:         runtimeCtx.ResolvedUserPrompt,
+			IncludeSubagentInstruction: runtimeCtx.IncludeSubagentInstruction,
+			ChainMode:                  runtimeCtx.ChainMode,
+			ChainModeActive:            chainModeActive,
+			Logger:                     logger,
+		},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to reload chat messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	messages, err := chatRunnerMessagesFromFantasy(reloadedMessages)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert reloaded messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ChatRunnerReloadMessagesResponse{
+		Messages:          messages,
+		SystemInstruction: runtimeCtx.Instruction,
+		UserPrompt:        runtimeCtx.ResolvedUserPrompt,
+		IsSubagent:        runtimeCtx.IncludeSubagentInstruction,
+		Skills:            chatRunnerSkills(runtimeCtx.Skills),
+	})
+}
+
+func chatRunnerLeaseConflict(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	expectedLeaseEpoch int64,
+	gotLeaseEpoch int64,
+) {
+	resp := codersdk.Response{
+		Message: "Chat lease epoch changed.",
+		Detail:  "The chat lease epoch changed before this request completed.",
+	}
+	if expectedLeaseEpoch > 0 {
+		resp.Detail = fmt.Sprintf(
+			"Expected lease epoch %d but got %d.",
+			expectedLeaseEpoch,
+			gotLeaseEpoch,
+		)
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, resp)
+}
+
+func chatRunnerMessagesFromFantasy(
+	messages []fantasy.Message,
+) ([]agentsdk.ChatRunnerMessage, error) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+
+	result := make([]agentsdk.ChatRunnerMessage, 0, len(messages))
+	for i, message := range messages {
+		parts := make([]codersdk.ChatMessagePart, 0, len(message.Content))
+		for j, part := range message.Content {
+			sdkPart, err := chatRunnerPartFromFantasyMessagePart(part)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert message %d part %d: %w",
+					i,
+					j,
+					err,
+				)
+			}
+			parts = append(parts, sdkPart)
+		}
+		result = append(result, agentsdk.ChatRunnerMessage{
+			Role:    string(message.Role),
+			Content: parts,
+		})
+	}
+	return result, nil
+}
+
+func chatRunnerPartFromFantasyMessagePart(
+	part fantasy.MessagePart,
+) (codersdk.ChatMessagePart, error) {
+	switch value := part.(type) {
+	case fantasy.TextPart:
+		return chatprompt.PartFromContent(fantasy.TextContent{
+			Text:             value.Text,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case *fantasy.TextPart:
+		if value == nil {
+			return codersdk.ChatMessagePart{}, xerrors.New(
+				"nil fantasy text part",
+			)
+		}
+		return chatprompt.PartFromContent(fantasy.TextContent{
+			Text:             value.Text,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case fantasy.ReasoningPart:
+		return chatprompt.PartFromContent(fantasy.ReasoningContent{
+			Text:             value.Text,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case *fantasy.ReasoningPart:
+		if value == nil {
+			return codersdk.ChatMessagePart{}, xerrors.New(
+				"nil fantasy reasoning part",
+			)
+		}
+		return chatprompt.PartFromContent(fantasy.ReasoningContent{
+			Text:             value.Text,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case fantasy.FilePart:
+		return chatprompt.PartFromContent(fantasy.FileContent{
+			MediaType:        value.MediaType,
+			Data:             value.Data,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case *fantasy.FilePart:
+		if value == nil {
+			return codersdk.ChatMessagePart{}, xerrors.New(
+				"nil fantasy file part",
+			)
+		}
+		return chatprompt.PartFromContent(fantasy.FileContent{
+			MediaType:        value.MediaType,
+			Data:             value.Data,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case fantasy.ToolCallPart:
+		return chatprompt.PartFromContent(fantasy.ToolCallContent{
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Input:            value.Input,
+			ProviderExecuted: value.ProviderExecuted,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case *fantasy.ToolCallPart:
+		if value == nil {
+			return codersdk.ChatMessagePart{}, xerrors.New(
+				"nil fantasy tool-call part",
+			)
+		}
+		return chatprompt.PartFromContent(fantasy.ToolCallContent{
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Input:            value.Input,
+			ProviderExecuted: value.ProviderExecuted,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case fantasy.ToolResultPart:
+		return chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:       value.ToolCallID,
+			Result:           value.Output,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	case *fantasy.ToolResultPart:
+		if value == nil {
+			return codersdk.ChatMessagePart{}, xerrors.New(
+				"nil fantasy tool-result part",
+			)
+		}
+		return chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:       value.ToolCallID,
+			Result:           value.Output,
+			ProviderMetadata: fantasy.ProviderMetadata(value.ProviderOptions),
+		}), nil
+	default:
+		return codersdk.ChatMessagePart{}, xerrors.Errorf(
+			"unsupported fantasy message part %T",
+			part,
+		)
+	}
+}
+
+func chatRunnerToolDefinitionsFromFantasy(
+	tools []fantasy.Tool,
+) ([]agentsdk.ChatRunnerToolDefinition, error) {
+	if len(tools) == 0 {
+		return nil, nil
+	}
+
+	result := make([]agentsdk.ChatRunnerToolDefinition, 0, len(tools))
+	for i, tool := range tools {
+		switch value := tool.(type) {
+		case fantasy.FunctionTool:
+			definition, err := chatRunnerFunctionToolDefinition(value)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert function tool %d: %w",
+					i,
+					err,
+				)
+			}
+			result = append(result, definition)
+		case *fantasy.FunctionTool:
+			if value == nil {
+				return nil, xerrors.Errorf("tool %d is a nil function tool", i)
+			}
+			definition, err := chatRunnerFunctionToolDefinition(*value)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert function tool %d: %w",
+					i,
+					err,
+				)
+			}
+			result = append(result, definition)
+		case fantasy.ProviderDefinedTool:
+			definition, err := chatRunnerProviderDefinedToolDefinition(value)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert provider-defined tool %d: %w",
+					i,
+					err,
+				)
+			}
+			result = append(result, definition)
+		case *fantasy.ProviderDefinedTool:
+			if value == nil {
+				return nil, xerrors.Errorf(
+					"tool %d is a nil provider-defined tool",
+					i,
+				)
+			}
+			definition, err := chatRunnerProviderDefinedToolDefinition(*value)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert provider-defined tool %d: %w",
+					i,
+					err,
+				)
+			}
+			result = append(result, definition)
+		default:
+			return nil, xerrors.Errorf(
+				"unsupported fantasy tool definition %T at index %d",
+				tool,
+				i,
+			)
+		}
+	}
+	return result, nil
+}
+
+func chatRunnerFunctionToolDefinition(
+	tool fantasy.FunctionTool,
+) (agentsdk.ChatRunnerToolDefinition, error) {
+	var inputSchema json.RawMessage
+	if len(tool.InputSchema) > 0 {
+		encoded, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			return agentsdk.ChatRunnerToolDefinition{}, xerrors.Errorf(
+				"marshal tool %q input schema: %w",
+				tool.Name,
+				err,
+			)
+		}
+		inputSchema = encoded
+	}
+
+	var providerConfig json.RawMessage
+	if len(tool.ProviderOptions) > 0 {
+		encoded, err := json.Marshal(tool.ProviderOptions)
+		if err != nil {
+			return agentsdk.ChatRunnerToolDefinition{}, xerrors.Errorf(
+				"marshal tool %q provider options: %w",
+				tool.Name,
+				err,
+			)
+		}
+		providerConfig = encoded
+	}
+
+	return agentsdk.ChatRunnerToolDefinition{
+		Name:           tool.Name,
+		Description:    tool.Description,
+		InputSchema:    inputSchema,
+		ProviderConfig: providerConfig,
+	}, nil
+}
+
+func chatRunnerProviderDefinedToolDefinition(
+	tool fantasy.ProviderDefinedTool,
+) (agentsdk.ChatRunnerToolDefinition, error) {
+	providerConfig, err := json.Marshal(struct {
+		ID   string         `json:"id"`
+		Args map[string]any `json:"args"`
+	}{
+		ID:   tool.ID,
+		Args: tool.Args,
+	})
+	if err != nil {
+		return agentsdk.ChatRunnerToolDefinition{}, xerrors.Errorf(
+			"marshal provider-defined tool %q config: %w",
+			tool.Name,
+			err,
+		)
+	}
+	return agentsdk.ChatRunnerToolDefinition{
+		Name:           tool.Name,
+		ProviderConfig: providerConfig,
+	}, nil
+}
+
+func chatRunnerDynamicTools(
+	chat database.Chat,
+) ([]agentsdk.ChatRunnerToolDefinition, error) {
+	if !chat.DynamicTools.Valid || len(chat.DynamicTools.RawMessage) == 0 {
+		return nil, nil
+	}
+
+	var tools []codersdk.DynamicTool
+	if err := json.Unmarshal(chat.DynamicTools.RawMessage, &tools); err != nil {
+		return nil, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+	}
+
+	result := make([]agentsdk.ChatRunnerToolDefinition, 0, len(tools))
+	for _, tool := range tools {
+		result = append(result, agentsdk.ChatRunnerToolDefinition{
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: tool.InputSchema,
+		})
+	}
+	return result, nil
+}
+
+func chatRunnerSkills(
+	skills []chattool.SkillMeta,
+) []agentsdk.ChatRunnerSkillMeta {
+	if len(skills) == 0 {
+		return nil
+	}
+
+	result := make([]agentsdk.ChatRunnerSkillMeta, 0, len(skills))
+	for _, skill := range skills {
+		metaFile := skill.MetaFile
+		if metaFile == "" {
+			metaFile = chattool.DefaultSkillMetaFile
+		}
+		result = append(result, agentsdk.ChatRunnerSkillMeta{
+			Name:        skill.Name,
+			Description: skill.Description,
+			FilePath:    filepath.Join(skill.Dir, metaFile),
+		})
+	}
+	return result
+}
+
+func fantasyUsageFromChatRunner(usage *agentsdk.ChatRunnerUsage) fantasy.Usage {
+	if usage == nil {
+		return fantasy.Usage{}
+	}
+	return fantasy.Usage{
+		InputTokens:         usage.InputTokens,
+		OutputTokens:        usage.OutputTokens,
+		TotalTokens:         usage.TotalTokens,
+		ReasoningTokens:     usage.ReasoningTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+	}
+}
+
+func chatRunnerContentFromParts(
+	logger slog.Logger,
+	parts []codersdk.ChatMessagePart,
+) ([]fantasy.Content, error) {
+	if len(parts) == 0 {
+		return nil, nil
+	}
+
+	result := make([]fantasy.Content, 0, len(parts))
+	for i, part := range parts {
+		metadata := chatRunnerProviderMetadata(logger, part.ProviderMetadata)
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText:
+			result = append(result, fantasy.TextContent{
+				Text:             part.Text,
+				ProviderMetadata: metadata,
+			})
+		case codersdk.ChatMessagePartTypeReasoning:
+			result = append(result, fantasy.ReasoningContent{
+				Text:             part.Text,
+				ProviderMetadata: metadata,
+			})
+		case codersdk.ChatMessagePartTypeToolCall:
+			result = append(result, fantasy.ToolCallContent{
+				ToolCallID:       part.ToolCallID,
+				ToolName:         part.ToolName,
+				Input:            string(part.Args),
+				ProviderExecuted: part.ProviderExecuted,
+				ProviderMetadata: metadata,
+			})
+		case codersdk.ChatMessagePartTypeToolResult:
+			toolResult, err := chatRunnerToolResultContentFromPart(
+				logger,
+				part,
+				metadata,
+			)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"convert tool result part %d: %w",
+					i,
+					err,
+				)
+			}
+			result = append(result, toolResult)
+		default:
+			return nil, xerrors.Errorf(
+				"unsupported chat message part %q at index %d",
+				part.Type,
+				i,
+			)
+		}
+	}
+	return result, nil
+}
+
+func chatRunnerProviderMetadata(
+	logger slog.Logger,
+	raw json.RawMessage,
+) fantasy.ProviderMetadata {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var intermediate map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &intermediate); err != nil {
+		logger.Warn(
+			context.Background(),
+			"failed to unmarshal provider metadata",
+			slog.Error(err),
+		)
+		return nil
+	}
+	metadata, err := fantasy.UnmarshalProviderMetadata(intermediate)
+	if err != nil {
+		logger.Warn(
+			context.Background(),
+			"failed to decode provider metadata",
+			slog.Error(err),
+		)
+		return nil
+	}
+	return metadata
+}
+
+func chatRunnerToolResultContentFromPart(
+	logger slog.Logger,
+	part codersdk.ChatMessagePart,
+	metadata fantasy.ProviderMetadata,
+) (fantasy.ToolResultContent, error) {
+	resultText := string(part.Result)
+	if resultText == "" || resultText == "null" {
+		resultText = "{}"
+	}
+
+	output := fantasy.ToolResultOutputContent(
+		fantasy.ToolResultOutputContentText{Text: resultText},
+	)
+	if part.IsError {
+		message := strings.TrimSpace(resultText)
+		if extracted := chatRunnerExtractErrorString(part.Result); extracted != "" {
+			message = extracted
+		}
+		output = fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(message),
+		}
+	} else if part.IsMedia {
+		var media chatRunnerPersistedMediaResult
+		unmarshalErr := json.Unmarshal(part.Result, &media)
+		if unmarshalErr == nil && media.Data != "" && media.MimeType != "" {
+			output = fantasy.ToolResultOutputContentMedia{
+				Data:      media.Data,
+				MediaType: media.MimeType,
+				Text:      media.Text,
+			}
+		} else {
+			fields := []slog.Field{
+				slog.F("tool_call_id", part.ToolCallID),
+				slog.F("tool_name", part.ToolName),
+				slog.F("has_data", media.Data != ""),
+				slog.F("has_mime_type", media.MimeType != ""),
+			}
+			if unmarshalErr != nil {
+				fields = append(fields, slog.Error(unmarshalErr))
+			}
+			logger.Warn(
+				context.Background(),
+				"media tool result failed reconstruction, falling through to text",
+				fields...,
+			)
+		}
+	}
+
+	return fantasy.ToolResultContent{
+		ToolCallID:       part.ToolCallID,
+		ToolName:         part.ToolName,
+		Result:           output,
+		ProviderExecuted: part.ProviderExecuted,
+		ProviderMetadata: metadata,
+	}, nil
+}
+
+func chatRunnerExtractErrorString(raw json.RawMessage) string {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ""
+	}
+	errField, ok := fields["error"]
+	if !ok {
+		return ""
+	}
+	var message string
+	if err := json.Unmarshal(errField, &message); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(message)
+}
+
+type chatRunnerPersistedMediaResult struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mime_type"`
+	Text     string `json:"text"`
+}
+
+func providerMapsFromKeys(
+	providerKeys chatprovider.ProviderAPIKeys,
+) (apiKeys map[string]string, baseURLs map[string]string) {
+	apiKeys = make(map[string]string)
+	for provider, apiKey := range providerKeys.ByProvider {
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" {
+			continue
+		}
+		apiKeys[provider] = apiKey
+	}
+	if openAIKey := strings.TrimSpace(providerKeys.OpenAI); openAIKey != "" {
+		if _, ok := apiKeys["openai"]; !ok {
+			apiKeys["openai"] = openAIKey
+		}
+	}
+	if anthropicKey := strings.TrimSpace(providerKeys.Anthropic); anthropicKey != "" {
+		if _, ok := apiKeys["anthropic"]; !ok {
+			apiKeys["anthropic"] = anthropicKey
+		}
+	}
+
+	for provider, baseURL := range providerKeys.BaseURLByProvider {
+		baseURL = strings.TrimSpace(baseURL)
+		if baseURL == "" {
+			continue
+		}
+		if baseURLs == nil {
+			baseURLs = make(map[string]string)
+		}
+		baseURLs[provider] = baseURL
+	}
+
+	return apiKeys, baseURLs
 }
 
 var (

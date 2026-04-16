@@ -60,3 +60,8 @@ type DRPCTailnetClient27 interface {
 type DRPCTailnetClient28 interface {
 	DRPCTailnetClient27
 }
+
+// DRPCTailnetClient29 is the Tailnet API at v2.9.
+type DRPCTailnetClient29 interface {
+	DRPCTailnetClient28
+}

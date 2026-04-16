@@ -57,6 +57,11 @@ type DRPCAgentClient interface {
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
+	ReportChatRunnerStatus(ctx context.Context, in *ReportChatRunnerStatusRequest) (*ReportChatRunnerStatusResponse, error)
+	PollChatWork(ctx context.Context, in *PollChatWorkRequest) (*PollChatWorkResponse, error)
+	AcquireChatLease(ctx context.Context, in *AcquireChatLeaseRequest) (*AcquireChatLeaseResponse, error)
+	RenewChatLease(ctx context.Context, in *RenewChatLeaseRequest) (*RenewChatLeaseResponse, error)
+	ReleaseChatLease(ctx context.Context, in *ReleaseChatLeaseRequest) (*ReleaseChatLeaseResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -231,6 +236,51 @@ func (c *drpcAgentClient) UpdateAppStatus(ctx context.Context, in *UpdateAppStat
 	return out, nil
 }
 
+func (c *drpcAgentClient) ReportChatRunnerStatus(ctx context.Context, in *ReportChatRunnerStatusRequest) (*ReportChatRunnerStatusResponse, error) {
+	out := new(ReportChatRunnerStatusResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportChatRunnerStatus", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) PollChatWork(ctx context.Context, in *PollChatWorkRequest) (*PollChatWorkResponse, error) {
+	out := new(PollChatWorkResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/PollChatWork", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) AcquireChatLease(ctx context.Context, in *AcquireChatLeaseRequest) (*AcquireChatLeaseResponse, error) {
+	out := new(AcquireChatLeaseResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/AcquireChatLease", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) RenewChatLease(ctx context.Context, in *RenewChatLeaseRequest) (*RenewChatLeaseResponse, error) {
+	out := new(RenewChatLeaseResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/RenewChatLease", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentClient) ReleaseChatLease(ctx context.Context, in *ReleaseChatLeaseRequest) (*ReleaseChatLeaseResponse, error) {
+	out := new(ReleaseChatLeaseResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReleaseChatLease", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -250,6 +300,11 @@ type DRPCAgentServer interface {
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
 	ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(context.Context, *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
+	ReportChatRunnerStatus(context.Context, *ReportChatRunnerStatusRequest) (*ReportChatRunnerStatusResponse, error)
+	PollChatWork(context.Context, *PollChatWorkRequest) (*PollChatWorkResponse, error)
+	AcquireChatLease(context.Context, *AcquireChatLeaseRequest) (*AcquireChatLeaseResponse, error)
+	RenewChatLease(context.Context, *RenewChatLeaseRequest) (*RenewChatLeaseResponse, error)
+	ReleaseChatLease(context.Context, *ReleaseChatLeaseRequest) (*ReleaseChatLeaseResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -326,9 +381,29 @@ func (s *DRPCAgentUnimplementedServer) UpdateAppStatus(context.Context, *UpdateA
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) ReportChatRunnerStatus(context.Context, *ReportChatRunnerStatusRequest) (*ReportChatRunnerStatusResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) PollChatWork(context.Context, *PollChatWorkRequest) (*PollChatWorkResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) AcquireChatLease(context.Context, *AcquireChatLeaseRequest) (*AcquireChatLeaseResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) RenewChatLease(context.Context, *RenewChatLeaseRequest) (*RenewChatLeaseResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentUnimplementedServer) ReleaseChatLease(context.Context, *ReleaseChatLeaseRequest) (*ReleaseChatLeaseResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 18 }
+func (DRPCAgentDescription) NumMethods() int { return 23 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -494,6 +569,51 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*UpdateAppStatusRequest),
 					)
 			}, DRPCAgentServer.UpdateAppStatus, true
+	case 18:
+		return "/coder.agent.v2.Agent/ReportChatRunnerStatus", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ReportChatRunnerStatus(
+						ctx,
+						in1.(*ReportChatRunnerStatusRequest),
+					)
+			}, DRPCAgentServer.ReportChatRunnerStatus, true
+	case 19:
+		return "/coder.agent.v2.Agent/PollChatWork", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					PollChatWork(
+						ctx,
+						in1.(*PollChatWorkRequest),
+					)
+			}, DRPCAgentServer.PollChatWork, true
+	case 20:
+		return "/coder.agent.v2.Agent/AcquireChatLease", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					AcquireChatLease(
+						ctx,
+						in1.(*AcquireChatLeaseRequest),
+					)
+			}, DRPCAgentServer.AcquireChatLease, true
+	case 21:
+		return "/coder.agent.v2.Agent/RenewChatLease", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					RenewChatLease(
+						ctx,
+						in1.(*RenewChatLeaseRequest),
+					)
+			}, DRPCAgentServer.RenewChatLease, true
+	case 22:
+		return "/coder.agent.v2.Agent/ReleaseChatLease", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ReleaseChatLease(
+						ctx,
+						in1.(*ReleaseChatLeaseRequest),
+					)
+			}, DRPCAgentServer.ReleaseChatLease, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -785,6 +905,86 @@ type drpcAgent_UpdateAppStatusStream struct {
 }
 
 func (x *drpcAgent_UpdateAppStatusStream) SendAndClose(m *UpdateAppStatusResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ReportChatRunnerStatusStream interface {
+	drpc.Stream
+	SendAndClose(*ReportChatRunnerStatusResponse) error
+}
+
+type drpcAgent_ReportChatRunnerStatusStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ReportChatRunnerStatusStream) SendAndClose(m *ReportChatRunnerStatusResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_PollChatWorkStream interface {
+	drpc.Stream
+	SendAndClose(*PollChatWorkResponse) error
+}
+
+type drpcAgent_PollChatWorkStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_PollChatWorkStream) SendAndClose(m *PollChatWorkResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_AcquireChatLeaseStream interface {
+	drpc.Stream
+	SendAndClose(*AcquireChatLeaseResponse) error
+}
+
+type drpcAgent_AcquireChatLeaseStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_AcquireChatLeaseStream) SendAndClose(m *AcquireChatLeaseResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_RenewChatLeaseStream interface {
+	drpc.Stream
+	SendAndClose(*RenewChatLeaseResponse) error
+}
+
+type drpcAgent_RenewChatLeaseStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_RenewChatLeaseStream) SendAndClose(m *RenewChatLeaseResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ReleaseChatLeaseStream interface {
+	drpc.Stream
+	SendAndClose(*ReleaseChatLeaseResponse) error
+}
+
+type drpcAgent_ReleaseChatLeaseStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ReleaseChatLeaseStream) SendAndClose(m *ReleaseChatLeaseResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

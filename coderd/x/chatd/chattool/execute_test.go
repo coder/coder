@@ -3,6 +3,8 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"charm.land/fantasy"
@@ -12,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -183,6 +186,9 @@ func TestExecuteTool(t *testing.T) {
 				ExitCode: &exitCode,
 				Output:   "hello world",
 			}, nil)
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
 
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -248,6 +254,9 @@ func TestExecuteTool(t *testing.T) {
 				assert.True(t, req.Background)
 				return workspacesdk.StartProcessResponse{ID: "bg-42"}, nil
 			})
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
 
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -265,6 +274,69 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "bg-42", result.BackgroundProcessID)
 	})
 
+	t.Run("ForegroundCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		runCtx, cancel := context.WithCancel(context.WithValue(
+			testutil.Context(t, testutil.WaitMedium),
+			signalContextKey{},
+			"parent",
+		))
+		defer cancel()
+
+		blockingWaitStarted := make(chan struct{})
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(
+				gomock.Any(),
+				"proc-1",
+				gomock.AssignableToTypeOf(&workspacesdk.ProcessOutputOptions{}),
+			).
+			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				require.NotNil(t, opts)
+				assert.True(t, opts.Wait)
+				close(blockingWaitStarted)
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), "proc-1", "terminate").
+			DoAndReturn(func(ctx context.Context, _ string, _ string) error {
+				assertBackgroundSignalContext(ctx, t)
+				return nil
+			})
+
+		go func() {
+			<-blockingWaitStarted
+			cancel()
+		}()
+
+		tool := newExecuteTool(t, mockConn)
+		resp, err := tool.Run(runCtx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 999"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Equal(t, -1, result.ExitCode)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -277,20 +349,40 @@ func TestExecuteTool(t *testing.T) {
 		// First call (blocking wait) returns context error
 		// because the 50ms timeout expires.
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
-			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			ProcessOutput(
+				gomock.Any(),
+				"proc-1",
+				gomock.AssignableToTypeOf(&workspacesdk.ProcessOutputOptions{}),
+			).
+			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				require.NotNil(t, opts)
+				assert.True(t, opts.Wait)
 				<-ctx.Done()
 				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
 			})
 		// Second call (snapshot fallback) returns partial output.
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			ProcessOutput(gomock.Any(), "proc-1", nil).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running: true,
 				Output:  "partial output",
 			}, nil)
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), "proc-1", "terminate").
+			DoAndReturn(func(ctx context.Context, _ string, _ string) error {
+				assertBackgroundSignalContext(ctx, t)
+				return newSignalConflictError(
+					t,
+					"Process \"proc-1\" is not running.",
+				)
+			})
+
 		tool := newExecuteTool(t, mockConn)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		ctx := context.WithValue(
+			testutil.Context(t, testutil.WaitMedium),
+			signalContextKey{},
+			"parent",
+		)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:   "call-1",
 			Name: "execute",
@@ -574,6 +666,27 @@ func newExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn) fantasy
 			return mockConn, nil
 		},
 	})
+}
+
+type signalContextKey struct{}
+
+func assertBackgroundSignalContext(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	require.NoError(t, ctx.Err())
+	_, ok := ctx.Deadline()
+	require.True(t, ok)
+	assert.Nil(t, ctx.Value(signalContextKey{}))
+}
+
+func newSignalConflictError(t *testing.T, message string) error {
+	t.Helper()
+
+	res := httptest.NewRecorder()
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusConflict)
+	require.NoError(t, json.NewEncoder(res).Encode(codersdk.Response{Message: message}))
+	return codersdk.ReadBodyAsError(res.Result())
 }
 
 func ptr[T any](v T) *T {

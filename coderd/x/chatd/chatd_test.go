@@ -1779,49 +1779,569 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
+	db, _ := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "heartbeat-ownership",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	seededChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             "heartbeat-ownership",
+		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
 
 	workerID := uuid.New()
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	acquiredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  workerID,
+		NumChats:  1,
 	})
 	require.NoError(t, err)
+	require.Len(t, acquiredChats, 1)
+	chat := acquiredChats[0]
+	require.Equal(t, seededChat.ID, chat.ID)
+	leaseEpoch := chat.LeaseEpoch
+	require.Positive(t, leaseEpoch)
 
 	// Wrong worker_id should return no IDs.
 	ids, err := db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
-		IDs:      []uuid.UUID{chat.ID},
-		WorkerID: uuid.New(),
-		Now:      time.Now(),
+		IDs:         []uuid.UUID{chat.ID},
+		WorkerID:    uuid.New(),
+		Now:         time.Now(),
+		LeaseEpochs: []int64{leaseEpoch},
 	})
 	require.NoError(t, err)
 	require.Empty(t, ids)
 
 	// Correct worker_id should return the chat's ID.
 	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
-		IDs:      []uuid.UUID{chat.ID},
-		WorkerID: workerID,
-		Now:      time.Now(),
+		IDs:         []uuid.UUID{chat.ID},
+		WorkerID:    workerID,
+		Now:         time.Now(),
+		LeaseEpochs: []int64{leaseEpoch},
 	})
 	require.NoError(t, err)
 	require.Len(t, ids, 1)
 	require.Equal(t, chat.ID, ids[0])
+}
+
+func TestUpdateChatHeartbeatsRejectsStaleEpoch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	seededChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             "heartbeat-stale-epoch",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	workerID := uuid.New()
+	acquiredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  workerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, acquiredChats, 1)
+	chat := acquiredChats[0]
+	require.Equal(t, seededChat.ID, chat.ID)
+	leaseEpoch := chat.LeaseEpoch
+	require.Positive(t, leaseEpoch)
+
+	ids, err := db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:         []uuid.UUID{chat.ID},
+		WorkerID:    workerID,
+		Now:         time.Now(),
+		LeaseEpochs: []int64{leaseEpoch - 1},
+	})
+	require.NoError(t, err)
+	require.Empty(t, ids)
+
+	ids, err = db.UpdateChatHeartbeats(ctx, database.UpdateChatHeartbeatsParams{
+		IDs:         []uuid.UUID{chat.ID},
+		WorkerID:    workerID,
+		Now:         time.Now(),
+		LeaseEpochs: []int64{leaseEpoch},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chat.ID}, ids)
+}
+
+func TestAcquireChatsIncrementsLeaseEpoch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             "acquire-increments-lease-epoch",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	firstWorkerID := uuid.New()
+	firstAcquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  firstWorkerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, firstAcquired, 1)
+	require.Equal(t, chat.ID, firstAcquired[0].ID)
+	require.Equal(t, int64(1), firstAcquired[0].LeaseEpoch)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Valid: false},
+	})
+	require.NoError(t, err)
+
+	secondWorkerID := uuid.New()
+	secondAcquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  secondWorkerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, secondAcquired, 1)
+	require.Equal(t, chat.ID, secondAcquired[0].ID)
+	require.Equal(t, int64(2), secondAcquired[0].LeaseEpoch)
+	require.Equal(t, firstAcquired[0].LeaseEpoch+1, secondAcquired[0].LeaseEpoch)
+}
+
+func TestAcquireChatsSkipAgentEligible(t *testing.T) {
+	t.Parallel()
+
+	type testSetup struct {
+		db    database.Store
+		ctx   context.Context
+		user  database.User
+		org   database.Organization
+		model database.ChatModelConfig
+	}
+
+	newSetup := func(t *testing.T) testSetup {
+		t.Helper()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(ctx, t, db)
+
+		return testSetup{
+			db:    db,
+			ctx:   ctx,
+			user:  user,
+			org:   org,
+			model: model,
+		}
+	}
+
+	newWorkspaceAgent := func(t *testing.T, setup testSetup, chatRunnerReady bool) database.WorkspaceAgent {
+		t.Helper()
+
+		workspace := dbfake.WorkspaceBuild(t, setup.db, database.WorkspaceTable{
+			OwnerID:        setup.user.ID,
+			OrganizationID: setup.org.ID,
+		}).WithAgent().Do()
+		require.Len(t, workspace.Agents, 1)
+
+		agent := workspace.Agents[0]
+		err := setup.db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(setup.ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         agent.ID,
+			ChatRunnerReady: chatRunnerReady,
+		})
+		require.NoError(t, err)
+
+		return agent
+	}
+
+	type chatOptions struct {
+		mcpServerIDs []uuid.UUID
+		dynamicTools pqtype.NullRawMessage
+	}
+
+	insertPendingChat := func(t *testing.T, setup testSetup, title string, agentID uuid.NullUUID, opts chatOptions) database.Chat {
+		t.Helper()
+
+		chat, err := setup.db.InsertChat(setup.ctx, database.InsertChatParams{
+			OrganizationID:    setup.org.ID,
+			Status:            database.ChatStatusPending,
+			OwnerID:           setup.user.ID,
+			Title:             title,
+			LastModelConfigID: setup.model.ID,
+			AgentID:           agentID,
+			MCPServerIDs:      opts.mcpServerIDs,
+			DynamicTools:      opts.dynamicTools,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	dynamicTools := func(raw string) pqtype.NullRawMessage {
+		return pqtype.NullRawMessage{Valid: true, RawMessage: json.RawMessage(raw)}
+	}
+
+	acquireChats := func(t *testing.T, setup testSetup, skipAgentEligible bool) []database.Chat {
+		t.Helper()
+
+		acquiredChats, err := setup.db.AcquireChats(setup.ctx, database.AcquireChatsParams{
+			StartedAt:         time.Now(),
+			WorkerID:          uuid.New(),
+			NumChats:          10,
+			SkipAgentEligible: skipAgentEligible,
+		})
+		require.NoError(t, err)
+		return acquiredChats
+	}
+
+	t.Run("SkipAgentEligible=false acquires all pending chats", func(t *testing.T) {
+		t.Parallel()
+
+		setup := newSetup(t)
+		agent := newWorkspaceAgent(t, setup, true)
+		chat := insertPendingChat(t, setup, "acquire-ready-agent-with-skip-disabled", uuid.NullUUID{UUID: agent.ID, Valid: true}, chatOptions{})
+
+		acquiredChats := acquireChats(t, setup, false)
+		require.Len(t, acquiredChats, 1)
+		require.Equal(t, chat.ID, acquiredChats[0].ID)
+
+		fromDB, err := setup.db.GetChatByID(setup.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, fromDB.Status)
+		require.True(t, fromDB.WorkerID.Valid)
+	})
+
+	t.Run("SkipAgentEligible=true skips chats with ready agent", func(t *testing.T) {
+		t.Parallel()
+
+		setup := newSetup(t)
+		agent := newWorkspaceAgent(t, setup, true)
+		chat := insertPendingChat(t, setup, "skip-ready-agent-with-skip-enabled", uuid.NullUUID{UUID: agent.ID, Valid: true}, chatOptions{})
+
+		acquiredChats := acquireChats(t, setup, true)
+		require.Empty(t, acquiredChats)
+
+		fromDB, err := setup.db.GetChatByID(setup.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusPending, fromDB.Status)
+		require.False(t, fromDB.WorkerID.Valid)
+	})
+
+	t.Run("SkipAgentEligible=true acquires chats with no agent", func(t *testing.T) {
+		t.Parallel()
+
+		setup := newSetup(t)
+		chat := insertPendingChat(t, setup, "acquire-no-agent-with-skip-enabled", uuid.NullUUID{}, chatOptions{})
+
+		acquiredChats := acquireChats(t, setup, true)
+		require.Len(t, acquiredChats, 1)
+		require.Equal(t, chat.ID, acquiredChats[0].ID)
+
+		fromDB, err := setup.db.GetChatByID(setup.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, fromDB.Status)
+		require.True(t, fromDB.WorkerID.Valid)
+	})
+
+	t.Run("SkipAgentEligible=true acquires chats with non-ready agent", func(t *testing.T) {
+		t.Parallel()
+
+		setup := newSetup(t)
+		agent := newWorkspaceAgent(t, setup, false)
+		chat := insertPendingChat(t, setup, "acquire-non-ready-agent-with-skip-enabled", uuid.NullUUID{UUID: agent.ID, Valid: true}, chatOptions{})
+
+		acquiredChats := acquireChats(t, setup, true)
+		require.Len(t, acquiredChats, 1)
+		require.Equal(t, chat.ID, acquiredChats[0].ID)
+
+		fromDB, err := setup.db.GetChatByID(setup.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, fromDB.Status)
+		require.True(t, fromDB.WorkerID.Valid)
+	})
+
+	acquireEligibilityTests := []struct {
+		name         string
+		opts         chatOptions
+		wantAcquired bool
+	}{
+		{
+			name: "SkipAgentEligible=true skips chat with non-empty dynamic tools and ready agent",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`[{"name":"foo"}]`),
+			},
+			wantAcquired: false,
+		},
+		{
+			name: "SkipAgentEligible=true skips chat with non-empty MCP server IDs and ready agent",
+			opts: chatOptions{
+				mcpServerIDs: []uuid.UUID{uuid.New()},
+			},
+			wantAcquired: false,
+		},
+		{
+			name: "SkipAgentEligible=true still skips chat with empty-array dynamic tools and ready agent",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`[]`),
+			},
+			wantAcquired: false,
+		},
+		{
+			name: "SkipAgentEligible=true still skips chat with null dynamic tools and ready agent",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`null`),
+			},
+			wantAcquired: false,
+		},
+	}
+
+	for _, tc := range acquireEligibilityTests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			setup := newSetup(t)
+			agent := newWorkspaceAgent(t, setup, true)
+			chat := insertPendingChat(t, setup, tc.name, uuid.NullUUID{UUID: agent.ID, Valid: true}, tc.opts)
+
+			acquiredChats := acquireChats(t, setup, true)
+			fromDB, err := setup.db.GetChatByID(setup.ctx, chat.ID)
+			require.NoError(t, err)
+
+			if tc.wantAcquired {
+				require.Len(t, acquiredChats, 1)
+				require.Equal(t, chat.ID, acquiredChats[0].ID)
+				require.Equal(t, database.ChatStatusRunning, fromDB.Status)
+				require.True(t, fromDB.WorkerID.Valid)
+				return
+			}
+
+			require.Empty(t, acquiredChats)
+			require.Equal(t, database.ChatStatusPending, fromDB.Status)
+			require.False(t, fromDB.WorkerID.Valid)
+		})
+	}
+}
+
+func TestGetPendingChatsForAgentEligibility(t *testing.T) {
+	t.Parallel()
+
+	type testSetup struct {
+		db    database.Store
+		ctx   context.Context
+		user  database.User
+		org   database.Organization
+		model database.ChatModelConfig
+	}
+
+	newSetup := func(t *testing.T) testSetup {
+		t.Helper()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(ctx, t, db)
+
+		return testSetup{
+			db:    db,
+			ctx:   ctx,
+			user:  user,
+			org:   org,
+			model: model,
+		}
+	}
+
+	newWorkspaceAgent := func(t *testing.T, setup testSetup) database.WorkspaceAgent {
+		t.Helper()
+
+		workspace := dbfake.WorkspaceBuild(t, setup.db, database.WorkspaceTable{
+			OwnerID:        setup.user.ID,
+			OrganizationID: setup.org.ID,
+		}).WithAgent().Do()
+		require.Len(t, workspace.Agents, 1)
+		return workspace.Agents[0]
+	}
+
+	type chatOptions struct {
+		mcpServerIDs []uuid.UUID
+		dynamicTools pqtype.NullRawMessage
+	}
+
+	insertPendingChat := func(t *testing.T, setup testSetup, title string, agentID uuid.UUID, opts chatOptions) database.Chat {
+		t.Helper()
+
+		chat, err := setup.db.InsertChat(setup.ctx, database.InsertChatParams{
+			OrganizationID:    setup.org.ID,
+			Status:            database.ChatStatusPending,
+			OwnerID:           setup.user.ID,
+			Title:             title,
+			LastModelConfigID: setup.model.ID,
+			AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+			MCPServerIDs:      opts.mcpServerIDs,
+			DynamicTools:      opts.dynamicTools,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	dynamicTools := func(raw string) pqtype.NullRawMessage {
+		return pqtype.NullRawMessage{Valid: true, RawMessage: json.RawMessage(raw)}
+	}
+
+	testCases := []struct {
+		name         string
+		opts         chatOptions
+		wantIncluded bool
+	}{
+		{
+			name: "includes chat with non-empty dynamic tools",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`[{"name":"foo"}]`),
+			},
+			wantIncluded: true,
+		},
+		{
+			name: "includes chat with non-empty MCP server IDs",
+			opts: chatOptions{
+				mcpServerIDs: []uuid.UUID{uuid.New()},
+			},
+			wantIncluded: true,
+		},
+		{
+			name:         "includes clean chat",
+			wantIncluded: true,
+		},
+		{
+			name: "includes chat with empty-array dynamic tools",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`[]`),
+			},
+			wantIncluded: true,
+		},
+		{
+			name: "includes chat with null dynamic tools",
+			opts: chatOptions{
+				dynamicTools: dynamicTools(`null`),
+			},
+			wantIncluded: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			setup := newSetup(t)
+			agent := newWorkspaceAgent(t, setup)
+			chat := insertPendingChat(t, setup, tc.name, agent.ID, tc.opts)
+
+			rows, err := setup.db.GetPendingChatsForAgent(setup.ctx, database.GetPendingChatsForAgentParams{
+				AgentID:  agent.ID,
+				MaxChats: 10,
+			})
+			require.NoError(t, err)
+
+			if tc.wantIncluded {
+				require.Len(t, rows, 1)
+				require.Equal(t, chat.ID, rows[0].ID)
+				return
+			}
+
+			require.Empty(t, rows)
+		})
+	}
+}
+
+func TestUpdateChatStatusRejectsStaleEpoch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             "status-rejects-stale-epoch",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	workerID := uuid.New()
+	acquiredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  workerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, acquiredChats, 1)
+	runningChat := acquiredChats[0]
+	require.Equal(t, chat.ID, runningChat.ID)
+	leaseEpoch := runningChat.LeaseEpoch
+	require.Positive(t, leaseEpoch)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          runningChat.ID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Int64: leaseEpoch - 1, Valid: true},
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	fromDB, err := db.GetChatByID(ctx, runningChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, fromDB.Status)
+	require.True(t, fromDB.WorkerID.Valid)
+	require.Equal(t, workerID, fromDB.WorkerID.UUID)
+	require.Equal(t, leaseEpoch, fromDB.LeaseEpoch)
+
+	waitingChat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          runningChat.ID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Int64: leaseEpoch, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, waitingChat.Status)
+	require.False(t, waitingChat.WorkerID.Valid)
+
+	completedChat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          runningChat.ID,
+		Status:      database.ChatStatusCompleted,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Valid: false},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusCompleted, completedChat.Status)
 }
 
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
@@ -3561,7 +4081,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	staleChat1, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: deadWorkerID, Valid: true},
@@ -3597,6 +4117,28 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		return fromDB.Status == database.ChatStatusPending
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
+	startupRecoveryWorkerID := uuid.New()
+	startupRecoveredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  startupRecoveryWorkerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, startupRecoveredChats, 1)
+	require.Equal(t, chat.ID, startupRecoveredChats[0].ID)
+	require.Equal(t, staleChat1.LeaseEpoch+1, startupRecoveredChats[0].LeaseEpoch)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          startupRecoveredChats[0].ID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Int64: startupRecoveredChats[0].LeaseEpoch, Valid: true},
+	})
+	require.NoError(t, err)
+
 	// Now simulate a second stale chat appearing AFTER startup.
 	// This tests the periodic recovery, not just the startup one.
 	deadWorkerID2 := uuid.New()
@@ -3607,7 +4149,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	staleChat2, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat2.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: deadWorkerID2, Valid: true},
@@ -3625,6 +4167,17 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		}
 		return fromDB.Status == database.ChatStatusPending
 	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	periodicRecoveryWorkerID := uuid.New()
+	periodicRecoveredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  periodicRecoveryWorkerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, periodicRecoveredChats, 1)
+	require.Equal(t, chat2.ID, periodicRecoveredChats[0].ID)
+	require.Equal(t, staleChat2.LeaseEpoch+1, periodicRecoveredChats[0].LeaseEpoch)
 }
 
 func TestRecoverStaleRequiresActionChat(t *testing.T) {
@@ -3714,7 +4267,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	})
 
 	// Set the heartbeat far in the past so it's definitely stale.
-	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	staleChat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: deadReplicaID, Valid: true},
@@ -3728,14 +4281,27 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	newReplica := newTestServer(t, db, ps, uuid.New())
 	_ = newReplica
 
+	var recoveredChat database.Chat
 	require.Eventually(t, func() bool {
-		fromDB, err := db.GetChatByID(ctx, chat.ID)
+		var err error
+		recoveredChat, err = db.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return false
 		}
-		return fromDB.Status == database.ChatStatusPending &&
-			!fromDB.WorkerID.Valid
+		return recoveredChat.Status == database.ChatStatusPending &&
+			!recoveredChat.WorkerID.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	reacquireWorkerID := uuid.New()
+	recoveredChats, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  reacquireWorkerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, recoveredChats, 1)
+	require.Equal(t, chat.ID, recoveredChats[0].ID)
+	require.Equal(t, staleChat.LeaseEpoch+1, recoveredChats[0].LeaseEpoch)
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
@@ -3780,6 +4346,454 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 		return fromDB.Status != database.ChatStatusWaiting
 	}, time.Second, testutil.IntervalFast,
 		"waiting chat should not be modified by stale recovery")
+}
+
+func TestAcquireChats_SetsRunnerTypeCoderd(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	workerID := uuid.New()
+	acquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  workerID,
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, acquired, 1)
+	require.Equal(t, chat.ID, acquired[0].ID)
+	require.True(t, acquired[0].RunnerType.Valid)
+	require.Equal(t, database.ChatRunnerTypeCoderd, acquired[0].RunnerType.ChatRunnerType)
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, acquired[0].RunnerType, fromDB.RunnerType)
+}
+
+func TestAcquireChatForAgent_SetsRunnerTypeWorkspaceAgent(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+	}).WithAgent().Do()
+	require.Len(t, workspace.Agents, 1)
+	agent := workspace.Agents[0]
+
+	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         agent.ID,
+		ChatRunnerReady: true,
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	acquired, err := db.AcquireChatForAgent(dbauthz.AsSystemRestricted(ctx), database.AcquireChatForAgentParams{
+		StartedAt: time.Now(),
+		AgentID:   agent.ID,
+		ChatID:    chat.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, chat.ID, acquired.ID)
+	require.True(t, acquired.RunnerType.Valid)
+	require.Equal(t, database.ChatRunnerTypeWorkspaceAgent, acquired.RunnerType.ChatRunnerType)
+}
+
+func TestUpdateChatStatus_ClearsRunnerType(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	acquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt: time.Now(),
+		WorkerID:  uuid.New(),
+		NumChats:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, acquired, 1)
+	require.True(t, acquired[0].RunnerType.Valid)
+
+	updated, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		RunnerType:  database.NullChatRunnerType{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+		LeaseEpoch:  sql.NullInt64{Int64: acquired[0].LeaseEpoch, Valid: true},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.RunnerType.Valid)
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, fromDB.RunnerType.Valid)
+}
+
+func TestRecoverStaleAgentChat_UsesShortThreshold(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
+
+	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         agent.ID,
+		ChatRunnerReady: true,
+	})
+	require.NoError(t, err)
+
+	const (
+		coderdStaleAfter = 2 * time.Second
+		agentStaleAfter  = 500 * time.Millisecond
+	)
+
+	// Keep the heartbeat old enough for the agent threshold while still
+	// leaving room for the coderd-owned chat to stay below its threshold
+	// throughout the negative assertion window.
+	staleHeartbeat := time.Now().Add(-750 * time.Millisecond)
+
+	agentChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             t.Name() + "-agent",
+		LastModelConfigID: model.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:       agentChat.ID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+		RunnerType: database.NullChatRunnerType{
+			ChatRunnerType: database.ChatRunnerTypeWorkspaceAgent,
+			Valid:          true,
+		},
+		StartedAt:   sql.NullTime{Time: staleHeartbeat, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleHeartbeat, Valid: true},
+	})
+	require.NoError(t, err)
+
+	coderdChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             t.Name() + "-coderd",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:       coderdChat.ID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RunnerType: database.NullChatRunnerType{
+			ChatRunnerType: database.ChatRunnerTypeCoderd,
+			Valid:          true,
+		},
+		StartedAt:   sql.NullTime{Time: staleHeartbeat, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleHeartbeat, Valid: true},
+	})
+	require.NoError(t, err)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     coderdStaleAfter,
+		AgentStaleAfter:            agentStaleAfter,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	var recoveredAgentChat database.Chat
+	require.Eventually(t, func() bool {
+		recoveredAgentChat, err = db.GetChatByID(ctx, agentChat.ID)
+		if err != nil {
+			return false
+		}
+		return recoveredAgentChat.Status == database.ChatStatusPending &&
+			!recoveredAgentChat.WorkerID.Valid &&
+			!recoveredAgentChat.RunnerType.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Never(t, func() bool {
+		fromDB, getErr := db.GetChatByID(ctx, coderdChat.ID)
+		if getErr != nil {
+			return false
+		}
+		return fromDB.Status != database.ChatStatusRunning ||
+			!fromDB.WorkerID.Valid ||
+			!fromDB.RunnerType.Valid ||
+			fromDB.RunnerType.ChatRunnerType != database.ChatRunnerTypeCoderd
+	}, time.Second, testutil.IntervalFast,
+		"coderd-owned running chats should use the longer stale threshold")
+}
+
+func TestRecoverStaleChat_NullRunnerType_UsesCoderdThreshold(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	const (
+		coderdStaleAfter = 2 * time.Second
+		agentStaleAfter  = 500 * time.Millisecond
+	)
+
+	staleHeartbeat := time.Now().Add(-750 * time.Millisecond)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	updated, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RunnerType:  database.NullChatRunnerType{},
+		StartedAt:   sql.NullTime{Time: staleHeartbeat, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleHeartbeat, Valid: true},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.RunnerType.Valid)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     coderdStaleAfter,
+		AgentStaleAfter:            agentStaleAfter,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	require.Never(t, func() bool {
+		fromDB, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return fromDB.Status != database.ChatStatusRunning || !fromDB.WorkerID.Valid
+	}, time.Second, testutil.IntervalFast,
+		"NULL runner_type chats should use the coderd stale threshold")
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, fromDB.RunnerType.Valid)
+}
+
+func TestRecoverStaleAgentChat_ReacquiredAfterRecovery(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
+
+	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         agent.ID,
+		ChatRunnerReady: true,
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	acquired, err := db.AcquireChatForAgent(dbauthz.AsSystemRestricted(ctx), database.AcquireChatForAgentParams{
+		StartedAt: time.Now(),
+		AgentID:   agent.ID,
+		ChatID:    chat.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, acquired.RunnerType.Valid)
+	require.Equal(t, database.ChatRunnerTypeWorkspaceAgent, acquired.RunnerType.ChatRunnerType)
+
+	staleHeartbeat := time.Now().Add(-time.Second)
+	staleChat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:       chat.ID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+		RunnerType: database.NullChatRunnerType{
+			ChatRunnerType: database.ChatRunnerTypeWorkspaceAgent,
+			Valid:          true,
+		},
+		StartedAt:   sql.NullTime{Time: staleHeartbeat, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleHeartbeat, Valid: true},
+		LeaseEpoch:  sql.NullInt64{Int64: acquired.LeaseEpoch, Valid: true},
+	})
+	require.NoError(t, err)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     2 * time.Second,
+		AgentStaleAfter:            500 * time.Millisecond,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	var recoveredChat database.Chat
+	require.Eventually(t, func() bool {
+		recoveredChat, err = db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return false
+		}
+		return recoveredChat.Status == database.ChatStatusPending &&
+			!recoveredChat.WorkerID.Valid &&
+			!recoveredChat.RunnerType.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	require.Equal(t, staleChat.LeaseEpoch, recoveredChat.LeaseEpoch)
+
+	reacquired, err := db.AcquireChatForAgent(dbauthz.AsSystemRestricted(ctx), database.AcquireChatForAgentParams{
+		StartedAt: time.Now(),
+		AgentID:   agent.ID,
+		ChatID:    chat.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, staleChat.LeaseEpoch+1, reacquired.LeaseEpoch)
+	require.True(t, reacquired.RunnerType.Valid)
+	require.Equal(t, database.ChatRunnerTypeWorkspaceAgent, reacquired.RunnerType.ChatRunnerType)
+}
+
+func TestRecoverStaleAgentChat_DisconnectedAgent_CoderdFallback(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
+
+	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         agent.ID,
+		ChatRunnerReady: false,
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		OwnerID:           user.ID,
+		Title:             t.Name(),
+		LastModelConfigID: model.ID,
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	staleHeartbeat := time.Now().Add(-time.Second)
+	staleChat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:       chat.ID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+		RunnerType: database.NullChatRunnerType{
+			ChatRunnerType: database.ChatRunnerTypeWorkspaceAgent,
+			Valid:          true,
+		},
+		StartedAt:   sql.NullTime{Time: staleHeartbeat, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleHeartbeat, Valid: true},
+	})
+	require.NoError(t, err)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     2 * time.Second,
+		AgentStaleAfter:            500 * time.Millisecond,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	require.Eventually(t, func() bool {
+		fromDB, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.RunnerType.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	workerID := uuid.New()
+	acquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
+		StartedAt:         time.Now(),
+		WorkerID:          workerID,
+		SkipAgentEligible: true,
+		NumChats:          1,
+	})
+	require.NoError(t, err)
+	require.Len(t, acquired, 1)
+	require.Equal(t, chat.ID, acquired[0].ID)
+	require.Equal(t, staleChat.LeaseEpoch+1, acquired[0].LeaseEpoch)
+	require.True(t, acquired[0].RunnerType.Valid)
+	require.Equal(t, database.ChatRunnerTypeCoderd, acquired[0].RunnerType.ChatRunnerType)
 }
 
 func TestUpdateChatStatusPersistsLastError(t *testing.T) {
@@ -4955,6 +5969,191 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include create_workspace tool output")
 }
 
+func TestStartWorkspaceTool_HandoffToWorkspaceAgent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	var startFnCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("coderd should not continue this chat")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	ws, latestBuild, dbAgent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
+
+	now := time.Now().UTC()
+	err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             dbAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:      sql.NullTime{Time: now, Valid: true},
+		ReadyAt:        sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         dbAgent.ID,
+		ChatRunnerReady: true,
+	})
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Experiments = codersdk.Experiments{codersdk.ExperimentAgentChatRunner}
+		cfg.StartWorkspace = func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			startFnCalls.Add(1)
+			return codersdk.WorkspaceBuild{ID: uuid.New()}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "start-workspace-handoff",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Start the workspace and continue in the workspace agent."),
+		},
+	})
+	require.NoError(t, err)
+
+	var pendingChat database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		pendingChat = got
+		return streamedCallCount.Load() >= 1 &&
+			got.Status == database.ChatStatusPending &&
+			!got.WorkerID.Valid &&
+			!got.LastError.Valid
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.True(t, pendingChat.AgentID.Valid)
+	require.Equal(t, dbAgent.ID, pendingChat.AgentID.UUID)
+	require.True(t, pendingChat.BuildID.Valid)
+	require.Equal(t, latestBuild.ID, pendingChat.BuildID.UUID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var foundStartWorkspaceResult bool
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(message)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "start_workspace" {
+				foundStartWorkspaceResult = true
+				break
+			}
+		}
+	}
+	require.True(t, foundStartWorkspaceResult,
+		"expected persisted start_workspace tool result before handoff")
+
+	require.Never(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status != database.ChatStatusPending || streamedCallCount.Load() > 1
+	}, 200*time.Millisecond, testutil.IntervalFast,
+		"chat should stay pending until the workspace agent picks it up")
+	require.Equal(t, int32(1), streamedCallCount.Load())
+	require.Zero(t, startFnCalls.Load())
+}
+
+func TestStartWorkspaceTool_ExperimentDisabledContinuesInCoderd(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	var startFnCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Workspace is ready. I can continue here.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	ws, _, dbAgent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
+
+	now := time.Now().UTC()
+	err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             dbAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:      sql.NullTime{Time: now, Valid: true},
+		ReadyAt:        sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+		AgentID:         dbAgent.ID,
+		ChatRunnerReady: true,
+	})
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.StartWorkspace = func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			startFnCalls.Add(1)
+			return codersdk.WorkspaceBuild{ID: uuid.New()}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "start-workspace-coderd-continues",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Start the workspace and continue here."),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting && streamedCallCount.Load() >= 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.False(t, chatResult.LastError.Valid)
+	require.Equal(t, int32(2), streamedCallCount.Load())
+	require.Zero(t, startFnCalls.Load())
+}
+
 func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -6010,6 +7209,28 @@ func insertUserTextMessage(
 		Content:       pqtype.NullRawMessage{RawMessage: content.RawMessage, Valid: true},
 		ContextLimit:  sql.NullInt64{Int64: contextLimitValue, Valid: contextLimitValue != 0},
 	})
+
+}
+
+func seedWorkspaceWithChatAgent(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	organizationID uuid.UUID,
+) (database.WorkspaceTable, database.WorkspaceBuild, database.WorkspaceAgent) {
+	t.Helper()
+
+	wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        userID,
+		OrganizationID: organizationID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Name = "dev-coderd-chat"
+		return agents
+	}).Seed(database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStart,
+	}).Do()
+	require.Len(t, wsResp.Agents, 1)
+	return wsResp.Workspace, wsResp.Build, wsResp.Agents[0]
 }
 
 // seedWorkspaceWithAgent creates a full workspace chain with a connected

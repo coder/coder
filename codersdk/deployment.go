@@ -4403,6 +4403,8 @@ const (
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
+	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
+	ExperimentAgentChatRunner       Experiment = "agent-chat-runner"       // Enables agent-side chat runner coordination.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
@@ -4419,6 +4421,10 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
+	case ExperimentAgents:
+		return "Agents"
+	case ExperimentAgentChatRunner:
+		return "Agent Chat Runner"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
@@ -4438,6 +4444,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
+	ExperimentAgents,
+	ExperimentAgentChatRunner,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
 }

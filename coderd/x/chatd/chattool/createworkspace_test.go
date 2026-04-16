@@ -45,7 +45,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agentID, connFn)
+		result := waitForAgentReady(context.Background(), db, agentID, connFn, false)
 		require.Empty(t, result)
 	})
 
@@ -64,7 +64,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, agentID, connFn)
+		result := waitForAgentReady(ctx, db, agentID, connFn, false)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -86,7 +86,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agentID, connFn)
+		result := waitForAgentReady(context.Background(), db, agentID, connFn, false)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
 	})
@@ -104,7 +104,7 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result := waitForAgentReady(context.Background(), db, agentID, nil)
+		result := waitForAgentReady(context.Background(), db, agentID, nil, false)
 		require.Empty(t, result)
 	})
 
@@ -115,8 +115,81 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), nil, uuid.New(), connFn)
+		result := waitForAgentReady(context.Background(), nil, uuid.New(), connFn, false)
 		require.Empty(t, result)
+	})
+
+	t.Run("ChatRunnerReadyEventually", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}, nil)
+
+		chatRunnerChecks := 0
+		db.EXPECT().
+			GetWorkspaceAgentByID(gomock.Any(), agentID).
+			DoAndReturn(func(context.Context, uuid.UUID) (database.WorkspaceAgent, error) {
+				chatRunnerChecks++
+				return database.WorkspaceAgent{
+					ID:              agentID,
+					ChatRunnerReady: chatRunnerChecks > 1,
+				}, nil
+			}).
+			Times(2)
+
+		result := waitForAgentReadyWithChatRunnerPhase(context.Background(), db, agentID, nil, chatRunnerReadinessPhase{
+			enabled:      true,
+			timeout:      50 * time.Millisecond,
+			pollInterval: time.Millisecond,
+		})
+		require.Equal(t, true, result["chat_runner_ready"])
+	})
+
+	t.Run("ChatRunnerReadyTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}, nil)
+		db.EXPECT().
+			GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID, ChatRunnerReady: false}, nil).
+			AnyTimes()
+
+		result := waitForAgentReadyWithChatRunnerPhase(context.Background(), db, agentID, nil, chatRunnerReadinessPhase{
+			enabled:      true,
+			timeout:      20 * time.Millisecond,
+			pollInterval: time.Millisecond,
+		})
+		require.Equal(t, false, result["chat_runner_ready"])
+	})
+
+	t.Run("ChatRunnerExperimentDisabledSkipsPhase3", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}, nil)
+
+		result := waitForAgentReady(context.Background(), db, agentID, nil, false)
+		_, ok := result["chat_runner_ready"]
+		require.False(t, ok)
 	})
 }
 
@@ -179,6 +252,9 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
 			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentByID(gomock.Any(), chatAgentID).
+		Return(database.WorkspaceAgent{ID: chatAgentID, ChatRunnerReady: true}, nil)
 
 	var connectedAgentID uuid.UUID
 	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
@@ -196,13 +272,15 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
-
-		CreateFn:    createFn,
-		AgentConnFn: agentConnFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:                     db,
+		OrganizationID:         orgID,
+		OwnerID:                ownerID,
+		CreateFn:               createFn,
+		AgentConnFn:            agentConnFn,
+		AgentChatRunnerEnabled: true,
+		WorkspaceMu:            &sync.Mutex{},
+		Logger:                 slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
@@ -218,6 +296,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.Equal(t, buildID.String(), result["build_id"])
+	require.Equal(t, true, result["chat_runner_ready"])
 }
 
 func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
@@ -286,8 +365,10 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			{ID: uuid.New(), Name: "beta-coderd-chat", DisplayOrder: 1},
 		}, nil)
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
 
 		ChatID: chatID,
 		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
@@ -387,8 +468,10 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
 
 		ChatID:      uuid.Nil,
 		CreateFn:    createFn,
@@ -577,8 +660,10 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				}, nil
 			}
 
-			tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-				OwnerID: ownerID,
+			tool := CreateWorkspace(CreateWorkspaceOptions{
+				DB:             db,
+				OrganizationID: orgID,
+				OwnerID:        ownerID,
 
 				ChatID:      uuid.Nil,
 				CreateFn:    createFn,
@@ -648,8 +733,10 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 		}, nil)
 
 	createCalled := false
-	tool := CreateWorkspace(chatOrgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: chatOrgID,
+		OwnerID:        ownerID,
 
 		ChatID: chatID,
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
@@ -711,8 +798,8 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 		return nil, nil, xerrors.New("unexpected agent dial")
 	}
 
-	options := testCheckExistingWorkspaceOptions(chatID, connFn)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -804,8 +891,8 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{}, nil)
 
-	options := testCheckExistingWorkspaceOptions(chatID, nil)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -887,8 +974,8 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
-	options := testCheckExistingWorkspaceOptions(chatID, nil)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.Error(t, check.Err)
 	require.Contains(t, check.Err.Error(), "existing workspace build failed")
@@ -935,8 +1022,8 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	options := testCheckExistingWorkspaceOptions(chatID, connFn)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -996,8 +1083,8 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 				Return([]database.WorkspaceAgent{tc.agent}, nil)
 
-			options := testCheckExistingWorkspaceOptions(chatID, nil)
-			check := options.checkExistingWorkspace(context.Background(), db)
+			options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+			check := options.checkExistingWorkspace(context.Background())
 
 			require.NoError(t, check.Err)
 			require.False(t, check.Done)
@@ -1067,8 +1154,10 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
 
 		ChatID:      uuid.Nil,
 		CreateFn:    createFn,
@@ -1111,8 +1200,8 @@ func TestCheckExistingWorkspace_StoppedWorkspace(t *testing.T) {
 		database.WorkspaceTransitionStop,
 	)
 
-	options := testCheckExistingWorkspaceOptions(chatID, nil)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.True(t, check.Done)
 	require.NoError(t, check.Err)
@@ -1144,8 +1233,8 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 			Deleted: true,
 		}, nil)
 
-	options := testCheckExistingWorkspaceOptions(chatID, nil)
-	check := options.checkExistingWorkspace(context.Background(), db)
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	check := options.checkExistingWorkspace(context.Background())
 
 	require.NoError(t, check.Err)
 	require.False(t, check.Done, "should allow creation for deleted workspace")
@@ -1153,10 +1242,12 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 }
 
 func testCheckExistingWorkspaceOptions(
+	db database.Store,
 	chatID uuid.UUID,
 	agentConnFn AgentConnFunc,
 ) CreateWorkspaceOptions {
 	return CreateWorkspaceOptions{
+		DB:                             db,
 		ChatID:                         chatID,
 		AgentConnFn:                    agentConnFn,
 		AgentInactiveDisconnectTimeout: 30 * time.Second,
@@ -1206,6 +1297,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	ownerID := uuid.New()
+	orgID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	chatID := uuid.New()
@@ -1230,12 +1322,12 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		}, nil)
 
 	// Org check: GetTemplateByID returns a template in the
-	// same org (uuid.Nil matches our organizationID param).
+	// same org as the chat.
 	db.EXPECT().
 		GetTemplateByID(gomock.Any(), templateID).
 		Return(database.Template{
 			ID:             templateID,
-			OrganizationID: uuid.Nil,
+			OrganizationID: orgID,
 		}, nil)
 
 	db.EXPECT().
@@ -1295,8 +1387,10 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(uuid.Nil, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
 
 		ChatID:      chatID,
 		CreateFn:    createFn,

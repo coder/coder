@@ -3250,9 +3250,12 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 			ID:          chatID,
 			Status:      database.ChatStatusWaiting,
 			WorkerID:    uuid.NullUUID{},
+			RunnerType:  database.NullChatRunnerType{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
 			LastError:   pqtype.NullRawMessage{},
+			LastError:   sql.NullString{},
+			LeaseEpoch:  sql.NullInt64{},
 		})
 		if updateErr != nil {
 			logger.Error(ctx, "failed to mark chat as waiting", slog.Error(updateErr))

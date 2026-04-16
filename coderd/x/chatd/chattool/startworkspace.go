@@ -1,3 +1,5 @@
+//go:build !slim
+
 package chattool
 
 import (
@@ -26,14 +28,15 @@ type StartWorkspaceFn func(
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	DB            database.Store
-	OwnerID       uuid.UUID
-	ChatID        uuid.UUID
-	StartFn       StartWorkspaceFn
-	AgentConnFn   AgentConnFunc
-	WorkspaceMu   *sync.Mutex
-	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	DB                     database.Store
+	OwnerID                uuid.UUID
+	ChatID                 uuid.UUID
+	StartFn                StartWorkspaceFn
+	AgentConnFn            AgentConnFunc
+	AgentChatRunnerEnabled bool
+	WorkspaceMu            *sync.Mutex
+	OnChatUpdated          func(database.Chat)
+	Logger                 slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -141,22 +144,14 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 						build.ID,
 					)), nil
 				}
-				result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
-				// Re-fire after the agent is fully ready so
-				// callers can load instruction files (AGENTS.md).
-				// This must happen after waitForAgentAndRespond —
-				// firing earlier races with agent startup.
-				if options.OnChatUpdated != nil {
-					if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
-						options.OnChatUpdated(latest)
-					}
-				}
+				result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, options.AgentChatRunnerEnabled, ws, build.ID)
+				notifyLatestChatUpdated(ctx, options.DB, options.ChatID, options.OnChatUpdated)
 				return toolResponse(result), nil
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return toolResponse(waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)), nil
+					return toolResponse(waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, options.AgentChatRunnerEnabled, ws, uuid.Nil)), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -223,7 +218,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				)), nil
 			}
 
-			result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+			result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, options.AgentChatRunnerEnabled, ws, startBuild.ID)
 
 			// If the template version changed, annotate the
 			// response so the model knows an auto-update
@@ -236,15 +231,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
 			}
 
-			// Re-fire after the agent is fully ready so
-			// callers can load instruction files (AGENTS.md).
-			// This must happen after waitForAgentAndRespond —
-			// firing earlier races with agent startup.
-			if options.OnChatUpdated != nil {
-				if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
-					options.OnChatUpdated(latest)
-				}
-			}
+			notifyLatestChatUpdated(ctx, options.DB, options.ChatID, options.OnChatUpdated)
 			return toolResponse(result), nil
 		})
 }
@@ -264,6 +251,7 @@ func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
 	agentConnFn AgentConnFunc,
+	agentChatRunnerEnabled bool,
 	ws database.Workspace,
 	buildID uuid.UUID,
 ) map[string]any {
@@ -300,7 +288,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn, agentChatRunnerEnabled) {
 		result[k] = v
 	}
 	return result

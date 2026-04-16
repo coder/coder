@@ -104,6 +104,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AcquireChatForAgent(ctx context.Context, arg database.AcquireChatForAgentParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireChatForAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireChatForAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireChatForAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -2208,6 +2216,14 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPendingChatsForAgent(ctx context.Context, arg database.GetPendingChatsForAgentParams) ([]database.GetPendingChatsForAgentRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPendingChatsForAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPendingChatsForAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPendingChatsForAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPrebuildMetrics(ctx)
@@ -2464,7 +2480,7 @@ func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (st
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold database.GetStaleChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
 	m.queryLatencies.WithLabelValues("GetStaleChats").Observe(time.Since(start).Seconds())
@@ -3005,6 +3021,14 @@ func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UU
 	r0, r1 := m.s.GetWorkspaceAgentByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentChatRunnerState(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceAgentChatRunnerStateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentChatRunnerState(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentChatRunnerState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentChatRunnerState").Inc()
 	return r0, r1
 }
 
@@ -4320,6 +4344,14 @@ func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) RenewChatLeaseByAgent(ctx context.Context, arg database.RenewChatLeaseByAgentParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.RenewChatLeaseByAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("RenewChatLeaseByAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenewChatLeaseByAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ResolveUserChatSpendLimit(ctx, userID)
@@ -5125,6 +5157,14 @@ func (m queryMetricsStore) UpdateWorkspaceACLByID(ctx context.Context, arg datab
 	r0 := m.s.UpdateWorkspaceACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceACLByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceAgentChatRunnerStatus(ctx context.Context, arg database.UpdateWorkspaceAgentChatRunnerStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentChatRunnerStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentChatRunnerStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentChatRunnerStatus").Inc()
 	return r0
 }
 

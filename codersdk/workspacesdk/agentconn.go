@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	neturl "net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -156,12 +157,37 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 
 // @typescript-ignore AgentConnOptions
 type AgentConnOptions struct {
-	AgentID   uuid.UUID
-	CloseFunc func() error
+	AgentID uuid.UUID
+	// HTTPAPIURL overrides the default tailnet-backed HTTP API endpoint.
+	// When set, HTTP and WebSocket agent API calls use this base URL instead of
+	// dialing the agent over tailnet.
+	HTTPAPIURL string
+	CloseFunc  func() error
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
 	return tailnet.TailscaleServicePrefix.AddrFromUUID(c.opts.AgentID)
+}
+
+func (c *agentConn) httpAPIBaseURL() string {
+	if c.opts.HTTPAPIURL != "" {
+		return strings.TrimRight(c.opts.HTTPAPIURL, "/")
+	}
+	return fmt.Sprintf(
+		"http://%s",
+		net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort)),
+	)
+}
+
+func (c *agentConn) httpAPIURL(path string) string {
+	return c.httpAPIBaseURL() + path
+}
+
+func (c *agentConn) requireTailnetConn() (*tailnet.Conn, error) {
+	if c.Conn == nil {
+		return nil, xerrors.New("workspace agent tailnet connection is not configured")
+	}
+	return c.Conn, nil
 }
 
 // AwaitReachable waits for the agent to be reachable.
@@ -169,6 +195,9 @@ func (c *agentConn) AwaitReachable(ctx context.Context) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	if c.Conn == nil {
+		return c.opts.HTTPAPIURL != ""
+	}
 	return c.Conn.AwaitReachable(ctx, c.agentAddress())
 }
 
@@ -178,7 +207,11 @@ func (c *agentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.Pi
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	return c.Conn.Ping(ctx, c.agentAddress())
+	conn, err := c.requireTailnetConn()
+	if err != nil {
+		return 0, false, nil, err
+	}
+	return conn.Ping(ctx, c.agentAddress())
 }
 
 // Close ends the connection to the workspace agent.
@@ -189,6 +222,9 @@ func (c *agentConn) Close() error {
 		if xerrors.Is(cerr, ErrSkipClose) {
 			return nil
 		}
+	}
+	if c.Conn == nil {
+		return cerr
 	}
 	if cerr != nil {
 		return multierror.Append(cerr, c.Conn.Close())
@@ -241,11 +277,15 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	tailnetConn, err := c.requireTailnetConn()
+	if err != nil {
+		return nil, err
+	}
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	conn, err := tailnetConn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -287,12 +327,16 @@ func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	tailnetConn, err := c.requireTailnetConn()
+	if err != nil {
+		return nil, err
+	}
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
-	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
+	tailnetConn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
+	return tailnetConn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 }
 
 // SSHClient calls SSH to create a client
@@ -328,12 +372,16 @@ func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	tailnetConn, err := c.requireTailnetConn()
+	if err != nil {
+		return nil, err
+	}
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	c.Conn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
-	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
+	tailnetConn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
+	speedConn, err := tailnetConn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -352,6 +400,10 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	tailnetConn, err := c.requireTailnetConn()
+	if err != nil {
+		return nil, err
+	}
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
@@ -362,9 +414,9 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 
 	switch network {
 	case "tcp":
-		return c.Conn.DialContextTCP(ctx, ipp)
+		return tailnetConn.DialContextTCP(ctx, ipp)
 	case "udp":
-		return c.Conn.DialContextUDP(ctx, ipp)
+		return tailnetConn.DialContextUDP(ctx, ipp)
 	default:
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
@@ -501,8 +553,7 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
-	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
+	url := c.httpAPIURL("/api/v0/containers/watch")
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
 		HTTPClient: c.apiClient(),
@@ -538,8 +589,6 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
-
 	dialOpts := &websocket.DialOptions{
 		HTTPClient:      c.apiClient(),
 		CompressionMode: websocket.CompressionNoContextTakeover,
@@ -550,7 +599,7 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	}
 	c.headersMu.RUnlock()
 
-	url := fmt.Sprintf("http://%s%s", host, "/api/v0/git/watch")
+	url := c.httpAPIURL("/api/v0/git/watch")
 	if chatID != uuid.Nil {
 		url += "?chat_id=" + chatID.String()
 	}
@@ -580,8 +629,6 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
-
 	dialOpts := &websocket.DialOptions{
 		HTTPClient:      c.apiClient(),
 		CompressionMode: websocket.CompressionDisabled,
@@ -592,7 +639,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	}
 	c.headersMu.RUnlock()
 
-	url := fmt.Sprintf("http://%s/api/v0/desktop/vnc", host)
+	url := c.httpAPIURL("/api/v0/desktop/vnc")
 	conn, res, err := websocket.Dial(ctx, url, dialOpts)
 	if err != nil {
 		if res == nil {
@@ -672,17 +719,12 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(
-		c.agentAddress().String(),
-		strconv.Itoa(AgentHTTPAPIServerPort),
-	)
-
 	body, err := json.Marshal(action)
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("marshal action: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s/api/v0/desktop/action", host)
+	url := c.httpAPIURL("/api/v0/desktop/action")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("create request: %w", err)
@@ -1315,8 +1357,7 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
-	url := fmt.Sprintf("http://%s%s", host, path)
+	url := c.httpAPIURL(path)
 
 	var r io.Reader
 	if body != nil {
@@ -1358,46 +1399,57 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 // apiClient returns an HTTP client that can be used to make
 // requests to the workspace agent's HTTP API server.
 func (c *agentConn) apiClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			// Disable keep alives as we're usually only making a single
-			// request, and this triggers goleak in tests
-			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				if network != "tcp" {
-					return nil, xerrors.Errorf("network must be tcp")
-				}
-
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
-				}
-
-				// Verify that the port is TailnetStatisticsPort.
-				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
-					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
-				}
-
-				if !c.AwaitReachable(ctx) {
-					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
-				}
-
-				ipAddr, err := netip.ParseAddr(host)
-				if err != nil {
-					return nil, xerrors.Errorf("parse host addr: %w", err)
-				}
-
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
-				if err != nil {
-					return nil, xerrors.Errorf("dial http api: %w", err)
-				}
-
-				return conn, nil
-			},
-		},
+	transport := &http.Transport{
+		// Disable keep alives as we're usually only making a single
+		// request, and this triggers goleak in tests.
+		DisableKeepAlives: true,
 	}
+	if c.opts.HTTPAPIURL != "" {
+		transport.Proxy = nil
+		transport.DialContext = (&net.Dialer{}).DialContext
+		return &http.Client{Transport: transport}
+	}
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" {
+			return nil, xerrors.Errorf("network must be tcp")
+		}
+
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+		}
+
+		// Verify that the port is AgentHTTPAPIServerPort.
+		if port != strconv.Itoa(AgentHTTPAPIServerPort) {
+			return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
+		}
+
+		tailnetConn, err := c.requireTailnetConn()
+		if err != nil {
+			return nil, err
+		}
+		if !c.AwaitReachable(ctx) {
+			return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+		}
+
+		ipAddr, err := netip.ParseAddr(host)
+		if err != nil {
+			return nil, xerrors.Errorf("parse host addr: %w", err)
+		}
+
+		conn, err := tailnetConn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
+		if err != nil {
+			return nil, xerrors.Errorf("dial http api: %w", err)
+		}
+
+		return conn, nil
+	}
+	return &http.Client{Transport: transport}
 }
 
 func (c *agentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
+	if c.Conn == nil {
+		return tailnet.PeerDiagnostics{}
+	}
 	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
 }

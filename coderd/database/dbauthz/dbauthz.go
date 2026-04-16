@@ -1523,6 +1523,17 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) AcquireChatForAgent(ctx context.Context, arg database.AcquireChatForAgentParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.AcquireChatForAgent(ctx, arg)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -3668,6 +3679,35 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPendingChatsForAgent(ctx context.Context, arg database.GetPendingChatsForAgentParams) ([]database.GetPendingChatsForAgentRow, error) {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+
+	rows, err := q.db.GetPendingChatsForAgent(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	if actor.Type == rbac.SubjectTypeSystemRestricted {
+		return rows, nil
+	}
+
+	filtered := make([]database.GetPendingChatsForAgentRow, 0, len(rows))
+	for _, row := range rows {
+		_, err := q.GetChatByID(ctx, row.ID)
+		if err == nil {
+			filtered = append(filtered, row)
+			continue
+		}
+		if IsNotAuthorizedError(err) {
+			continue
+		}
+		return nil, err
+	}
+	return filtered, nil
+}
+
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
 	// GetPrebuildMetrics returns metrics related to prebuilt workspaces,
 	// such as the number of created and failed prebuilt workspaces.
@@ -3924,7 +3964,7 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 	return q.db.GetRuntimeConfig(ctx, key)
 }
 
-func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+func (q *querier) GetStaleChats(ctx context.Context, staleThreshold database.GetStaleChatsParams) ([]database.Chat, error) {
 	// GetStaleChats is a system-level operation used by the chat processor for recovery.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err
@@ -4581,6 +4621,17 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.GetWorkspaceAgentByID(ctx, id)
+}
+
+func (q *querier) GetWorkspaceAgentChatRunnerState(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceAgentChatRunnerStateRow, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return database.GetWorkspaceAgentChatRunnerStateRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return database.GetWorkspaceAgentChatRunnerStateRow{}, err
+	}
+	return q.db.GetWorkspaceAgentChatRunnerState(ctx, agentID)
 }
 
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
@@ -6006,6 +6057,17 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
+func (q *querier) RenewChatLeaseByAgent(ctx context.Context, arg database.RenewChatLeaseByAgentParams) (uuid.UUID, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return uuid.UUID{}, err
+	}
+	return q.db.RenewChatLeaseByAgent(ctx, arg)
+}
+
 func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
 		return database.ResolveUserChatSpendLimitRow{}, err
@@ -7162,6 +7224,17 @@ func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.Updat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentChatRunnerStatus(ctx context.Context, arg database.UpdateWorkspaceAgentChatRunnerStatusParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentChatRunnerStatus(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {

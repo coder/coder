@@ -175,6 +175,12 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
 		LifecycleMetrics:          api.lifecycleMetrics,
+		OnChatRequiresAction: func(ctx context.Context, chat database.Chat) error {
+			if api.chatDaemon == nil {
+				return nil
+			}
+			return api.chatDaemon.PublishRequiresAction(ctx, chat)
+		},
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,

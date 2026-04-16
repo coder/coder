@@ -57,6 +57,7 @@ type API struct {
 	*ConnLogAPI
 	*SubAgentAPI
 	*BoundaryLogsAPI
+	*ChatRunnerAPI
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -100,6 +101,7 @@ type Options struct {
 	ExternalAuthConfigs       []*externalauth.Config
 	Experiments               codersdk.Experiments
 
+	OnChatRequiresAction func(context.Context, database.Chat) error
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
@@ -215,14 +217,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Log:              opts.Log,
 	}
 
-	api.DRPCService = &tailnet.DRPCService{
-		CoordPtr:                opts.TailnetCoordinator,
-		Logger:                  opts.Log,
-		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
-		DerpMapFn:               opts.DerpMapFn,
-		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
-	}
-
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
@@ -239,6 +233,22 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		TemplateID:           workspace.TemplateID,
 		TemplateVersionID:    opts.TemplateVersionID,
 		BoundaryUsageTracker: opts.BoundaryUsageTracker,
+	}
+
+	api.ChatRunnerAPI = &ChatRunnerAPI{
+		AgentID:          opts.AgentID,
+		Database:         opts.Database,
+		Log:              opts.Log,
+		Experiments:      opts.Experiments,
+		OnRequiresAction: opts.OnChatRequiresAction,
+	}
+
+	api.DRPCService = &tailnet.DRPCService{
+		CoordPtr:                opts.TailnetCoordinator,
+		Logger:                  opts.Log,
+		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
+		DerpMapFn:               opts.DerpMapFn,
+		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

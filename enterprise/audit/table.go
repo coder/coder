@@ -392,6 +392,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"worker_id":             ActionIgnore, // Internal.
 		"started_at":            ActionIgnore,
 		"heartbeat_at":          ActionIgnore, // Internal.
+		"runner_type":           ActionIgnore, // Internal.
+		"lease_epoch":           ActionIgnore, // Internal fencing token.
 		"created_at":            ActionIgnore, // Never changes.
 		"updated_at":            ActionIgnore, // Bumped on every mutation.
 		"parent_chat_id":        ActionIgnore, // Immutable after creation.

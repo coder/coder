@@ -69,6 +69,8 @@ import (
 //   - Added session_id and confined_process fields to
 //     ReportBoundaryLogsRequest on the Agent API.
 //   - Added sequence_number field to BoundaryLog on the Agent API.
+//   - Added chat runner coordination RPCs on the Agent API for runner
+//     readiness, work polling, and lease management.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 9

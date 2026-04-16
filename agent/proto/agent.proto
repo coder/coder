@@ -538,6 +538,54 @@ message UpdateAppStatusRequest {
 
 message UpdateAppStatusResponse {}
 
+// Chat runner coordination messages
+message ReportChatRunnerStatusRequest {
+  bool ready = 1;
+}
+
+message ReportChatRunnerStatusResponse {}
+
+message PollChatWorkRequest {
+  int32 max_chats = 1;
+}
+
+message ChatWorkItem {
+  bytes chat_id = 1;
+  string title = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message PollChatWorkResponse {
+  repeated ChatWorkItem work_items = 1;
+}
+
+message AcquireChatLeaseRequest {
+  bytes chat_id = 1;
+}
+
+message AcquireChatLeaseResponse {
+  int64 lease_epoch = 1;
+  string status = 2;
+}
+
+message RenewChatLeaseRequest {
+  bytes chat_id = 1;
+  int64 lease_epoch = 2;
+}
+
+message RenewChatLeaseResponse {
+  bool renewed = 1;
+}
+
+message ReleaseChatLeaseRequest {
+  bytes chat_id = 1;
+  int64 lease_epoch = 2;
+  string final_status = 3;
+  string error = 4;
+}
+
+message ReleaseChatLeaseResponse {}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -557,4 +605,9 @@ service Agent {
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
+	rpc ReportChatRunnerStatus(ReportChatRunnerStatusRequest) returns (ReportChatRunnerStatusResponse);
+	rpc PollChatWork(PollChatWorkRequest) returns (PollChatWorkResponse);
+	rpc AcquireChatLease(AcquireChatLeaseRequest) returns (AcquireChatLeaseResponse);
+	rpc RenewChatLease(RenewChatLeaseRequest) returns (RenewChatLeaseResponse);
+	rpc ReleaseChatLease(ReleaseChatLeaseRequest) returns (ReleaseChatLeaseResponse);
 }

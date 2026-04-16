@@ -1412,6 +1412,64 @@ func AllChatPlanModeValues() []ChatPlanMode {
 	}
 }
 
+type ChatRunnerType string
+
+const (
+	ChatRunnerTypeCoderd         ChatRunnerType = "coderd"
+	ChatRunnerTypeWorkspaceAgent ChatRunnerType = "workspace_agent"
+)
+
+func (e *ChatRunnerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatRunnerType(s)
+	case string:
+		*e = ChatRunnerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatRunnerType: %T", src)
+	}
+	return nil
+}
+
+type NullChatRunnerType struct {
+	ChatRunnerType ChatRunnerType `json:"chat_runner_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ChatRunnerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatRunnerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatRunnerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatRunnerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatRunnerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatRunnerType), nil
+}
+
+func (e ChatRunnerType) Valid() bool {
+	switch e {
+	case ChatRunnerTypeCoderd,
+		ChatRunnerTypeWorkspaceAgent:
+		return true
+	}
+	return false
+}
+
+func AllChatRunnerTypeValues() []ChatRunnerType {
+	return []ChatRunnerType{
+		ChatRunnerTypeCoderd,
+		ChatRunnerTypeWorkspaceAgent,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -4380,6 +4438,8 @@ type Chat struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	LeaseEpoch          int64                 `db:"lease_epoch" json:"lease_epoch"`
+	RunnerType          NullChatRunnerType    `db:"runner_type" json:"runner_type"`
 }
 
 type ChatDebugRun struct {
@@ -5631,7 +5691,9 @@ type WorkspaceAgent struct {
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
-	Deleted bool `db:"deleted" json:"deleted"`
+	Deleted           bool         `db:"deleted" json:"deleted"`
+	ChatRunnerReady   bool         `db:"chat_runner_ready" json:"chat_runner_ready"`
+	ChatRunnerReadyAt sql.NullTime `db:"chat_runner_ready_at" json:"chat_runner_ready_at"`
 }
 
 // Workspace agent devcontainer configuration

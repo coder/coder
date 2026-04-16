@@ -12,8 +12,11 @@ import (
 )
 
 type sqlcQuerier interface {
+	AcquireChatForAgent(ctx context.Context, arg AcquireChatForAgentParams) (Chat, error)
 	// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
-	// to prevent multiple replicas from acquiring the same chat.
+	// to prevent multiple replicas from acquiring the same chat. When
+	// @skip_agent_eligible is true, coderd only acquires chats that cannot run
+	// on a ready workspace agent.
 	AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error)
 	// Blocks until the lock is acquired.
 	//
@@ -521,6 +524,7 @@ type sqlcQuerier interface {
 	// the same pull request are only counted once (keeping the most recent chat).
 	GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPendingChatsForAgent(ctx context.Context, arg GetPendingChatsForAgentParams) ([]GetPendingChatsForAgentRow, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -585,10 +589,11 @@ type sqlcQuerier interface {
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	// Find chats that appear stuck and need recovery. This covers:
-	//   1. Running chats whose heartbeat has expired (worker crash).
+	//   1. Running chats whose heartbeat has expired with runner-specific
+	//      stale thresholds.
 	//   2. Chats awaiting client action (requires_action) past the
-	//      timeout threshold (client disappeared).
-	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
+	//      coderd timeout threshold (client disappeared).
+	GetStaleChats(ctx context.Context, arg GetStaleChatsParams) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
 	GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerIDsBatchRow, error)
@@ -736,6 +741,9 @@ type sqlcQuerier interface {
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
+	// Returns the chat runner readiness and connection state for a workspace agent.
+	// Used during stale chat recovery for observability logging.
+	GetWorkspaceAgentChatRunnerState(ctx context.Context, agentID uuid.UUID) (GetWorkspaceAgentChatRunnerStateRow, error)
 	GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)
 	GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error)
@@ -978,6 +986,7 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	RenewChatLeaseByAgent(ctx context.Context, arg RenewChatLeaseByAgentParams) (uuid.UUID, error)
 	// Resolves the effective spend limit for a user using the hierarchy:
 	// 1. Individual user override (highest priority, applies globally across
 	//    all organizations since it lives on the users table)
@@ -1065,9 +1074,10 @@ type sqlcQuerier interface {
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
-	// provided they are still running and owned by the specified
-	// worker. Returns the IDs that were actually updated so the
-	// caller can detect stolen or completed chats via set-difference.
+	// provided they are still running, owned by the specified worker,
+	// and at the expected lease epoch. Returns the IDs that were
+	// actually updated so the caller can detect stolen or completed
+	// chats via set-difference.
 	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	// Updates the cached injected context parts (AGENTS.md +
@@ -1162,6 +1172,7 @@ type sqlcQuerier interface {
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
+	UpdateWorkspaceAgentChatRunnerStatus(ctx context.Context, arg UpdateWorkspaceAgentChatRunnerStatusParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error

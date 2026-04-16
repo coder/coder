@@ -1,8 +1,11 @@
+//go:build !slim
+
 package chattool
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"charm.land/fantasy"
@@ -14,6 +17,8 @@ import (
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
+	DB                 database.Store
+	OrganizationID     uuid.UUID
 	OwnerID            uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
@@ -25,7 +30,7 @@ type readTemplateArgs struct {
 // ReadTemplate returns a tool that retrieves details about a specific
 // template, including its configurable rich parameters. The agent
 // uses this after list_templates and before create_workspace.
-func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTemplateOptions) fantasy.AgentTool {
+func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
@@ -33,7 +38,7 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			"after finding a template with list_templates and before "+
 			"creating a workspace with create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if db == nil {
+			if options.DB == nil {
 				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
@@ -48,32 +53,28 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 				), nil
 			}
 
-			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not found"), nil
+			var allowlist map[uuid.UUID]bool
+			if options.AllowedTemplateIDs != nil {
+				allowlist = options.AllowedTemplateIDs()
 			}
 
-			ctx, err = asOwner(ctx, db, options.OwnerID)
+			ctx, err = AsOwner(ctx, options.DB, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
-			template, err := db.GetTemplateByID(ctx, templateID)
+			readResult, err := ReadTemplateHelper(ctx, options.DB, allowlist, templateID)
 			if err != nil {
+				if errors.Is(err, ErrTemplateNotFound) {
+					return fantasy.NewTextErrorResponse("template not found"), nil
+				}
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			if options.OrganizationID != uuid.Nil && readResult.Template.OrganizationID != options.OrganizationID {
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
-			if template.OrganizationID != organizationID {
-				return fantasy.NewTextErrorResponse("template not found"), nil
-			}
-
-			params, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("failed to get template parameters: %w", err).Error(),
-				), nil
-			}
-
-			presets, err := db.GetPresetsByTemplateVersionID(ctx, template.ActiveVersionID)
+			presets, err := options.DB.GetPresetsByTemplateVersionID(ctx, readResult.Template.ActiveVersionID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("failed to get template presets: %w", err).Error(),
@@ -81,56 +82,56 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			}
 
 			templateInfo := map[string]any{
-				"id":                template.ID.String(),
-				"name":              template.Name,
-				"active_version_id": template.ActiveVersionID.String(),
+				"id":                readResult.Template.ID.String(),
+				"name":              readResult.Template.Name,
+				"active_version_id": readResult.Template.ActiveVersionID.String(),
 			}
-			if display := strings.TrimSpace(template.DisplayName); display != "" {
+			if display := strings.TrimSpace(readResult.Template.DisplayName); display != "" {
 				templateInfo["display_name"] = display
 			}
-			if desc := strings.TrimSpace(template.Description); desc != "" {
+			if desc := strings.TrimSpace(readResult.Template.Description); desc != "" {
 				templateInfo["description"] = desc
 			}
 
-			paramList := make([]map[string]any, 0, len(params))
-			for _, p := range params {
+			paramList := make([]map[string]any, 0, len(readResult.Parameters))
+			for _, paramDetail := range readResult.Parameters {
 				param := map[string]any{
-					"name":     p.Name,
-					"type":     p.Type,
-					"required": p.Required,
+					"name":     paramDetail.Name,
+					"type":     paramDetail.Type,
+					"required": paramDetail.Required,
 				}
-				if display := strings.TrimSpace(p.DisplayName); display != "" {
+				if display := strings.TrimSpace(paramDetail.DisplayName); display != "" {
 					param["display_name"] = display
 				}
-				if desc := strings.TrimSpace(p.Description); desc != "" {
+				if desc := strings.TrimSpace(paramDetail.Description); desc != "" {
 					param["description"] = truncateRunes(desc, 300)
 				}
-				if p.DefaultValue != "" {
-					param["default"] = p.DefaultValue
+				if paramDetail.DefaultValue != "" {
+					param["default"] = paramDetail.DefaultValue
 				}
-				if p.Mutable {
+				if paramDetail.Mutable {
 					param["mutable"] = true
 				}
-				if p.Ephemeral {
+				if paramDetail.Ephemeral {
 					param["ephemeral"] = true
 				}
-				if p.FormType != "" {
-					param["form_type"] = string(p.FormType)
+				if paramDetail.FormType != "" {
+					param["form_type"] = paramDetail.FormType
 				}
-				if len(p.Options) > 0 && string(p.Options) != "null" && string(p.Options) != "[]" {
+				if len(paramDetail.Options) > 0 && string(paramDetail.Options) != "null" && string(paramDetail.Options) != "[]" {
 					var opts []map[string]any
-					if err := json.Unmarshal(p.Options, &opts); err == nil && len(opts) > 0 {
+					if err := json.Unmarshal(paramDetail.Options, &opts); err == nil && len(opts) > 0 {
 						param["options"] = opts
 					}
 				}
-				if p.ValidationRegex != "" {
-					param["validation_regex"] = p.ValidationRegex
+				if paramDetail.ValidationRegex != "" {
+					param["validation_regex"] = paramDetail.ValidationRegex
 				}
-				if p.ValidationMin.Valid {
-					param["validation_min"] = p.ValidationMin.Int32
+				if paramDetail.ValidationMin.Valid {
+					param["validation_min"] = paramDetail.ValidationMin.Int32
 				}
-				if p.ValidationMax.Valid {
-					param["validation_max"] = p.ValidationMax.Int32
+				if paramDetail.ValidationMax.Valid {
+					param["validation_max"] = paramDetail.ValidationMax.Int32
 				}
 
 				paramList = append(paramList, param)
@@ -144,7 +145,7 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			// Include presets only when the template has them
 			// to avoid cluttering responses.
 			if len(presets) > 0 {
-				presetParams, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
+				presetParams, err := options.DB.GetPresetParametersByTemplateVersionID(ctx, readResult.Template.ActiveVersionID)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("failed to get preset parameters: %w", err).Error(),

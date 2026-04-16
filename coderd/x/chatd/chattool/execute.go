@@ -25,6 +25,10 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// terminateSignalTimeout limits the best-effort cleanup
+	// signal sent after foreground cancellation or timeout.
+	terminateSignalTimeout = 5 * time.Second
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -212,6 +216,9 @@ func executeForeground(
 	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	if cmdCtx.Err() != nil && result.BackgroundProcessID != "" {
+		terminateProcessBestEffort(conn, resp.ID)
+	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
@@ -224,6 +231,22 @@ func executeForeground(
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
 	return fantasy.NewTextResponse(string(data))
+}
+
+func terminateProcessBestEffort(conn workspacesdk.AgentConn, processID string) {
+	if processID == "" {
+		return
+	}
+
+	signalCtx, cancel := context.WithTimeout(
+		context.Background(),
+		terminateSignalTimeout,
+	)
+	defer cancel()
+
+	// Preserve the original command result even if cleanup races with a
+	// natural exit or the agent cannot deliver the signal.
+	_ = conn.SignalProcess(signalCtx, processID, "terminate")
 }
 
 // truncateOutput safely truncates output to maxOutputToModel,

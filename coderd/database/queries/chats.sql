@@ -682,7 +682,9 @@ SELECT
 
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
--- to prevent multiple replicas from acquiring the same chat.
+-- to prevent multiple replicas from acquiring the same chat. When
+-- @skip_agent_eligible is true, coderd only acquires chats that cannot run
+-- on a ready workspace agent.
 UPDATE
     chats
 SET
@@ -690,7 +692,9 @@ SET
     started_at = @started_at::timestamptz,
     heartbeat_at = @started_at::timestamptz,
     updated_at = @started_at::timestamptz,
-    worker_id = @worker_id::uuid
+    worker_id = @worker_id::uuid,
+    runner_type = 'coderd'::chat_runner_type,
+    lease_epoch = lease_epoch + 1
 WHERE
     id = ANY(
         SELECT
@@ -700,6 +704,16 @@ WHERE
         WHERE
             status = 'pending'::chat_status
             AND archived = false
+            AND (
+                NOT @skip_agent_eligible::boolean
+                OR agent_id IS NULL
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM workspace_agents wa
+                    WHERE wa.id = chats.agent_id
+                        AND wa.chat_runner_ready = true
+                )
+            )
         ORDER BY
             updated_at ASC
         FOR UPDATE
@@ -716,12 +730,15 @@ UPDATE
 SET
     status = @status::chat_status,
     worker_id = sqlc.narg('worker_id')::uuid,
+    runner_type = sqlc.narg('runner_type')::chat_runner_type,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
+    AND (sqlc.narg('lease_epoch')::bigint IS NULL
+        OR lease_epoch = sqlc.narg('lease_epoch')::bigint)
 RETURNING
     *;
 
@@ -731,44 +748,58 @@ UPDATE
 SET
     status = @status::chat_status,
     worker_id = sqlc.narg('worker_id')::uuid,
+    runner_type = sqlc.narg('runner_type')::chat_runner_type,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::jsonb,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
+    AND (sqlc.narg('lease_epoch')::bigint IS NULL
+        OR lease_epoch = sqlc.narg('lease_epoch')::bigint)
 RETURNING
     *;
 
 -- name: GetStaleChats :many
 -- Find chats that appear stuck and need recovery. This covers:
---   1. Running chats whose heartbeat has expired (worker crash).
+--   1. Running chats whose heartbeat has expired with runner-specific
+--      stale thresholds.
 --   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--      coderd timeout threshold (client disappeared).
 SELECT
     *
 FROM
     chats
 WHERE
     (status = 'running'::chat_status
-        AND heartbeat_at < @stale_threshold::timestamptz)
+        AND runner_type = 'workspace_agent'::chat_runner_type
+        AND heartbeat_at < @agent_stale_threshold::timestamptz)
+    OR (status = 'running'::chat_status
+        AND (runner_type IS NULL OR runner_type = 'coderd'::chat_runner_type)
+        AND heartbeat_at < @coderd_stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @coderd_stale_threshold::timestamptz);
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
--- provided they are still running and owned by the specified
--- worker. Returns the IDs that were actually updated so the
--- caller can detect stolen or completed chats via set-difference.
+-- provided they are still running, owned by the specified worker,
+-- and at the expected lease epoch. Returns the IDs that were
+-- actually updated so the caller can detect stolen or completed
+-- chats via set-difference.
 UPDATE
     chats
 SET
     heartbeat_at = @now::timestamptz
+FROM
+    (SELECT
+        UNNEST(@ids::uuid[]) AS id,
+        UNNEST(@lease_epochs::bigint[]) AS epoch) AS t
 WHERE
-    id = ANY(@ids::uuid[])
-    AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status
-RETURNING id;
+    chats.id = t.id
+    AND chats.worker_id = @worker_id::uuid
+    AND chats.status = 'running'::chat_status
+    AND chats.lease_epoch = t.epoch
+RETURNING chats.id;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT

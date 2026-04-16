@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -118,6 +119,8 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, started)
 		require.Nil(t, result["build_id"], "build_id should not be present when workspace was already running")
 		require.Equal(t, true, result["no_build"], "no_build should be true when workspace was already running")
+		_, hasChatRunnerReady := result["chat_runner_ready"]
+		require.False(t, hasChatRunnerReady, "chat_runner_ready should be absent when the experiment is disabled")
 	})
 
 	t.Run("AlreadyRunningPrefersChatSuffixAgent", func(t *testing.T) {
@@ -164,6 +167,12 @@ func TestStartWorkspace(t *testing.T) {
 		}
 		require.NotEqual(t, uuid.Nil, preferredAgentID)
 
+		err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         preferredAgentID,
+			ChatRunnerReady: true,
+		})
+		require.NoError(t, err)
+
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
@@ -179,10 +188,11 @@ func TestStartWorkspace(t *testing.T) {
 		}
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
-			OwnerID:     user.ID,
-			ChatID:      chat.ID,
-			AgentConnFn: agentConnFn,
+			DB:                     db,
+			OwnerID:                user.ID,
+			ChatID:                 chat.ID,
+			AgentConnFn:            agentConnFn,
+			AgentChatRunnerEnabled: true,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for already-running workspace")
 				return codersdk.WorkspaceBuild{}, nil
@@ -199,6 +209,7 @@ func TestStartWorkspace(t *testing.T) {
 		started, ok := result["started"].(bool)
 		require.True(t, ok)
 		require.True(t, started)
+		require.Equal(t, true, result["chat_runner_ready"])
 	})
 
 	t.Run("AlreadyRunningWithoutAgentsReturnsNoAgent", func(t *testing.T) {

@@ -39,6 +39,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
+	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/agentchat/chatexec"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -1133,6 +1135,90 @@ func (a *agent) run() (retErr error) {
 
 	// metadata reporting can cease as soon as we start gracefully shutting down
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
+
+	connMan.startAgentAPI("chat runner", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, _ proto.DRPCAgentClient28) error {
+			agentClient, ok := a.client.(*agentsdk.Client)
+			if !ok {
+				return xerrors.New("chat runner requires *agentsdk.Client")
+			}
+
+			var (
+				chatLoopbackURL  string
+				chatLoopbackErr  error
+				chatLoopbackOnce sync.Once
+			)
+			startChatLoopbackServer := func() error {
+				chatLoopbackOnce.Do(func() {
+					listener, err := net.Listen("tcp", "127.0.0.1:0")
+					if err != nil {
+						chatLoopbackErr = xerrors.Errorf("listen on loopback: %w", err)
+						return
+					}
+					chatLoopbackURL = "http://" + listener.Addr().String()
+					server := &http.Server{
+						BaseContext:       func(net.Listener) context.Context { return ctx },
+						Handler:           a.apiHandler(),
+						ReadTimeout:       20 * time.Second,
+						ReadHeaderTimeout: 20 * time.Second,
+						WriteTimeout:      20 * time.Second,
+						ErrorLog:          slog.Stdlib(ctx, a.logger.Named("chat_loopback_api_server"), slog.LevelInfo),
+					}
+					go func() {
+						select {
+						case <-ctx.Done():
+						case <-a.hardCtx.Done():
+						}
+						_ = server.Close()
+					}()
+					go func() {
+						serveErr := server.Serve(listener)
+						if serveErr != nil && !xerrors.Is(serveErr, http.ErrServerClosed) && !strings.Contains(serveErr.Error(), "use of closed network connection") {
+							a.logger.Error(ctx, "serve chat loopback HTTP API server", slog.Error(serveErr))
+						}
+					}()
+				})
+				return chatLoopbackErr
+			}
+
+			runner, err := agentchat.New(agentchat.Options{
+				Client: aAPI,
+				Logger: a.logger.Named("agentchat"),
+				Clock:  a.clock,
+				Executor: chatexec.New(
+					agentClient,
+					a.logger.Named("chatexec"),
+					func(context.Context) (workspacesdk.AgentConn, error) {
+						manifest := a.manifest.Load()
+						if manifest == nil {
+							return nil, xerrors.New("agent manifest is not ready")
+						}
+						if manifest.AgentID == uuid.Nil {
+							return nil, xerrors.New("agent manifest is missing agent ID")
+						}
+						if err := startChatLoopbackServer(); err != nil {
+							return nil, xerrors.Errorf("start chat loopback HTTP API server: %w", err)
+						}
+						return workspacesdk.NewAgentConn(a.TailnetConn(), workspacesdk.AgentConnOptions{
+							AgentID:    manifest.AgentID,
+							HTTPAPIURL: chatLoopbackURL,
+							CloseFunc: func() error {
+								return workspacesdk.ErrSkipClose
+							},
+						}), nil
+					},
+				),
+			})
+			if err != nil {
+				return xerrors.Errorf("create chat runner: %w", err)
+			}
+			if err := runner.Start(ctx); err != nil {
+				return xerrors.Errorf("start chat runner: %w", err)
+			}
+			<-ctx.Done()
+			return runner.Close()
+		},
+	)
 
 	// resources monitor can cease as soon as we start gracefully shutting down.
 	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
