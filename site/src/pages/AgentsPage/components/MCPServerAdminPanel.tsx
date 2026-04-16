@@ -4,15 +4,17 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleIcon,
+	PencilIcon,
 	PlusIcon,
 	ServerIcon,
 	XIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useId, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
@@ -145,67 +147,84 @@ const ServerList: FC<ServerListProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
-}) => (
-	<>
-		<SectionHeader
-			label={sectionLabel ?? "MCP Servers"}
-			description={
-				sectionDescription ??
-				"Configure external MCP servers that provide additional tools for Coder Agents."
-			}
-			badge={sectionBadge}
-			action={
-				<Button size="sm" onClick={onAdd}>
-					<PlusIcon className="h-4 w-4" />
-					Add Server
-				</Button>
-			}
-		/>
+}) => {
+	const addButton = (
+		<Button size="sm" onClick={onAdd}>
+			<PlusIcon className="h-4 w-4" />
+			Add server
+		</Button>
+	);
 
-		{servers.length === 0 ? (
-			<div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-				<p className="m-0 text-sm text-content-secondary">
-					No MCP servers configured yet.
-				</p>
-			</div>
-		) : (
-			<div>
-				{servers.map((server, i) => (
-					<button
-						key={server.id}
-						type="button"
-						onClick={() => onSelect(server)}
-						aria-label={`${server.display_name} (${server.enabled ? "enabled" : "disabled"})`}
-						className={cn(
-							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
-							i > 0 && "border-0 border-t border-solid border-border/50",
-						)}
-					>
-						<MCPServerIcon
-							iconUrl={server.icon_url}
-							name={server.display_name}
-							className="h-8 w-8"
-						/>
-						<div className="min-w-0 flex-1">
-							<span className="block truncate text-[15px] font-medium text-content-primary text-left">
-								{server.display_name}
-							</span>
-							<span className="block truncate text-xs text-content-secondary">
-								{server.url} · {authTypeLabel(server.auth_type)}
-							</span>
-						</div>
-						{server.enabled ? (
-							<CheckCircleIcon className="h-4 w-4 shrink-0 text-content-success" />
-						) : (
-							<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
-						)}
-						<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-					</button>
-				))}
-			</div>
-		)}
-	</>
-);
+	return (
+		<>
+			<SectionHeader
+				label={sectionLabel ?? "MCP Servers"}
+				description={
+					sectionDescription ??
+					"Configure external MCP servers that provide additional tools for Coder Agents."
+				}
+				badge={sectionBadge}
+				action={addButton}
+			/>
+
+			{servers.length === 0 ? (
+				<div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						No MCP servers configured yet.
+					</p>
+					{addButton}
+				</div>
+			) : (
+				<div>
+					{servers.map((server, i) => (
+						<button
+							key={server.id}
+							type="button"
+							onClick={() => onSelect(server)}
+							aria-label={`${server.display_name} (${server.enabled ? "enabled" : "disabled"})`}
+							className={cn(
+								"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
+								i > 0 && "border-0 border-t border-solid border-border/50",
+							)}
+						>
+							<MCPServerIcon
+								iconUrl={server.icon_url}
+								name={server.display_name}
+								className="h-8 w-8 shrink-0"
+							/>
+							<div className="min-w-0 flex-1">
+								<span
+									className={cn(
+										"block truncate text-[15px] font-medium text-left",
+										server.enabled
+											? "text-content-primary"
+											: "text-content-secondary",
+									)}
+								>
+									{server.display_name}
+								</span>
+								<span className="block truncate text-xs text-content-secondary">
+									{server.url} · {authTypeLabel(server.auth_type)}
+								</span>
+							</div>
+							{!server.enabled && (
+								<Badge size="xs" variant="warning">
+									disabled
+								</Badge>
+							)}
+							{server.enabled ? (
+								<CheckCircleIcon className="h-4 w-4 shrink-0 text-content-success" />
+							) : (
+								<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
+							)}
+							<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+						</button>
+					))}
+				</div>
+			)}
+		</>
+	);
+};
 
 // ── Server Form ────────────────────────────────────────────────
 
@@ -290,9 +309,9 @@ const ServerForm: FC<ServerFormProps> = ({
 	const formId = useId();
 	const isEditing = server !== null;
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [showConnection, setShowConnection] = useState(true);
-	const [showAuth, setShowAuth] = useState(true);
-	const [showBehavior, setShowBehavior] = useState(true);
+	const [showConnection, setShowConnection] = useState(false);
+	const [showAuth, setShowAuth] = useState(false);
+	const [showBehavior, setShowBehavior] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialValues(server),
@@ -361,46 +380,63 @@ const ServerForm: FC<ServerFormProps> = ({
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
 					iconUrl={form.values.iconURL}
-					name={form.values.displayName || "New Server"}
+					name={form.values.displayName || "New server"}
 					className="h-8 w-8"
 				/>
-				<input
-					type="text"
-					value={form.values.displayName}
-					onChange={(e) => {
-						form.setFieldValue("displayName", e.target.value);
-						if (!form.values.slugTouched) {
-							form.setFieldValue("slug", slugify(e.target.value));
-						}
-					}}
-					disabled={isDisabled}
-					className="m-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-					placeholder="Server display name"
-					aria-label="Display Name"
-				/>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="ml-auto inline-flex">
-							<Switch
-								checked={form.values.enabled}
-								onCheckedChange={(v) => {
-									form.setFieldValue("enabled", v);
-								}}
-								aria-label="Enabled"
-								disabled={isDisabled}
-							/>
+				<div className="inline-flex items-center gap-1">
+					<div className="relative inline-grid">
+						<span
+							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
+							aria-hidden="true"
+						>
+							{form.values.displayName || "Server display name"}
 						</span>
-					</TooltipTrigger>
-					<TooltipContent side="bottom">
-						{form.values.enabled ? "Disable" : "Enable"} this server
-					</TooltipContent>
-				</Tooltip>
+						<input
+							type="text"
+							value={form.values.displayName}
+							onChange={(e) => {
+								form.setFieldValue("displayName", e.target.value);
+								if (!form.values.slugTouched) {
+									form.setFieldValue("slug", slugify(e.target.value));
+								}
+							}}
+							disabled={isDisabled}
+							spellCheck={false}
+							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+							placeholder="Server display name"
+							aria-label="Display Name"
+						/>
+					</div>
+					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+				</div>
+				{isEditing && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="ml-auto inline-flex">
+								<Switch
+									checked={form.values.enabled}
+									onCheckedChange={(v) => {
+										form.setFieldValue("enabled", v);
+									}}
+									aria-label="Enabled"
+									disabled={isDisabled}
+								/>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{form.values.enabled
+								? "Disable this server. It will be hidden from agents."
+								: "Enable this server. It will be visible to agents."}
+						</TooltipContent>
+					</Tooltip>
+				)}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 			<form
 				id={formId}
 				onSubmit={form.handleSubmit}
 				className="flex flex-1 flex-col"
+				spellCheck={false}
 				autoComplete="off"
 			>
 				<div className="space-y-6">
@@ -426,8 +462,8 @@ const ServerForm: FC<ServerFormProps> = ({
 							)}
 						</button>
 						{showConnection && (
-							<div className="space-y-5 pt-3">
-								<div className="grid items-start gap-5 sm:grid-cols-2">
+							<div className="space-y-4 pt-3">
+								<div className="grid items-start gap-4 sm:grid-cols-2">
 									<Field label="Slug" htmlFor={`${formId}-slug`} required>
 										<Input
 											id={`${formId}-slug`}
@@ -524,7 +560,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							)}
 						</button>
 						{showAuth && (
-							<div className="space-y-5 pt-3">
+							<div className="space-y-4 pt-3">
 								<Select
 									value={form.values.authType}
 									onValueChange={(v) => {
@@ -796,7 +832,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							)}
 						</button>
 						{showBehavior && (
-							<div className="space-y-5 pt-3">
+							<div className="space-y-4 pt-3">
 								<Field label="Availability" htmlFor={`${formId}-availability`}>
 									<Select
 										value={form.values.availability}
@@ -846,31 +882,31 @@ const ServerForm: FC<ServerFormProps> = ({
 									/>
 								</div>
 
-								<div className="flex items-start justify-between gap-4">
-									<div className="min-w-0 space-y-1">
-										<Label
-											htmlFor={`${formId}-allow-in-plan-mode`}
+									<div className="flex items-start justify-between gap-4">
+										<div className="min-w-0 space-y-1">
+											<Label
+												htmlFor={`${formId}-allow-in-plan-mode`}
 											className="text-sm font-medium text-content-primary"
-										>
-											Allow all tools from this MCP server in root plan mode
-										</Label>
+											>
+												Allow all tools from this MCP server in root plan mode
+											</Label>
 										<p className="m-0 text-xs text-content-secondary">
-											When enabled, the root plan-mode agent can call these tools
+												When enabled, the root plan-mode agent can call these tools
 											during planning. Workspace MCP and plan-mode subagents remain
 											restricted.
-										</p>
-									</div>
+											</p>
+										</div>
 									<Switch
-										id={`${formId}-allow-in-plan-mode`}
+											id={`${formId}-allow-in-plan-mode`}
 										checked={form.values.allowInPlanMode}
 										onCheckedChange={(v) => {
-											form.setFieldValue("allowInPlanMode", v);
-										}}
+												form.setFieldValue("allowInPlanMode", v);
+											}}
 										disabled={isDisabled}
-									/>
-								</div>
+										/>
+									</div>
 
-								<div className="grid items-start gap-5 sm:grid-cols-2">
+									<div className="grid items-start gap-4 sm:grid-cols-2">
 									{" "}
 									<Field
 										label="Tool Allow List"
@@ -997,6 +1033,22 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const serverId = searchParams.get("server");
+	const navigate = useNavigate();
+	const location = useLocation();
+	// Whether the current form entry was pushed by an in-app click
+	// (as opposed to a direct-entry URL like a bookmark or shared link).
+	// When true, navigate(-1) is safe; otherwise we fall back to
+	// clearing params with replace to avoid leaving the app.
+	const canGoBack =
+		(location.state as { pushed?: boolean } | null)?.pushed === true;
+
+	const exitServerView = () => {
+		if (canGoBack) {
+			navigate(-1);
+		} else {
+			setSearchParams({}, { replace: true });
+		}
+	};
 
 	const servers = (serversData ?? [])
 		.slice()
@@ -1037,7 +1089,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				return;
 			}
 		}
-		setSearchParams({});
+		exitServerView();
 	};
 
 	const handleDelete = async (id: string) => {
@@ -1047,27 +1099,31 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 			// Error surfaced via mutation error state.
 			return;
 		}
-		setSearchParams({});
+		exitServerView();
 	};
-
-	if (isLoadingServers) {
-		return (
-			<div className="flex items-center gap-1.5 text-xs text-content-secondary">
-				<Spinner className="h-4 w-4" loading />
-				Loading
-			</div>
-		);
-	}
 
 	return (
 		<div className={cn("flex min-h-full flex-col", className)}>
+			{isLoadingServers && (
+				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
+					<Spinner className="h-4 w-4" loading />
+					Loading
+				</div>
+			)}
 			{/* Content */}
 			<div className="flex flex-1 flex-col gap-8">
 				{!isFormView ? (
 					<ServerList
 						servers={servers}
-						onSelect={(server) => setSearchParams({ server: server.id })}
-						onAdd={() => setSearchParams({ server: "new" })}
+						onSelect={(server) =>
+							setSearchParams(
+								{ server: server.id },
+								{ state: { pushed: true } },
+							)
+						}
+						onAdd={() =>
+							setSearchParams({ server: "new" }, { state: { pushed: true } })
+						}
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
 						sectionBadge={sectionBadge}
@@ -1080,7 +1136,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 						isDeleting={isDeletingServer}
 						onSave={handleSave}
 						onDelete={handleDelete}
-						onBack={() => setSearchParams({})}
+						onBack={exitServerView}
 					/>
 				)}
 			</div>

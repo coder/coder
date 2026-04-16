@@ -8,6 +8,16 @@ import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 
 const now = "2026-03-19T12:00:00.000Z";
 
+// Expand a collapsible section in the form by its header label.
+// The section bodies start collapsed to mirror the Models panel, so stories
+// that interact with fields inside a section need to expand it first.
+const expandSection = async (
+	body: ReturnType<typeof within>,
+	name: RegExp | string,
+): Promise<void> => {
+	await userEvent.click(await body.findByRole("button", { name }));
+};
+
 const createServerConfig = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
@@ -82,7 +92,20 @@ export const EmptyState: Story = {
 			await body.findByText(/No MCP servers configured yet/i),
 		).toBeInTheDocument();
 		await expect(
-			body.getByRole("button", { name: /Add Server/i }),
+			body.getAllByRole("button", { name: /Add Server/i })[0],
+		).toBeInTheDocument();
+
+		// Header action + empty-state CTA both render an Add button.
+		expect(body.getAllByRole("button", { name: /Add server/i })).toHaveLength(
+			2,
+		);
+		const emptyStateText = body.getByText(/No MCP servers configured yet/i);
+		const emptyStateContainer = emptyStateText.closest("div");
+		expect(emptyStateContainer).not.toBeNull();
+		expect(
+			within(emptyStateContainer as HTMLElement).getByRole("button", {
+				name: /Add server/i,
+			}),
 		).toBeInTheDocument();
 	},
 };
@@ -137,6 +160,9 @@ export const ServerList: Story = {
 		).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /Linear/ })).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /GitHub/ })).toBeInTheDocument();
+
+		// Disabled servers surface a warning badge next to the name.
+		expect(body.getByText(/^disabled$/i)).toBeInTheDocument();
 	},
 };
 
@@ -150,14 +176,29 @@ export const CreateServer: Story = {
 
 		// Click Add Server.
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		// Fill in the display name via the inline header input.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Slug should auto-populate.
+		// Collapsible sections start collapsed and the Enabled switch is
+		// edit-only. PencilIcon sits next to the editable name.
+		expect(
+			body.getByRole("button", { name: /Connection/i }),
+		).toBeInTheDocument();
+		expect(body.queryByLabelText(/^Slug$/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("switch", { name: /Enabled/i }),
+		).not.toBeInTheDocument();
+		const nameRow = nameInput.closest("div")?.parentElement;
+		expect(nameRow?.querySelector("svg.lucide-pencil")).toBeTruthy();
+
+		// Expand Connection to reveal slug + server URL.
+		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
+
+		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 
 		await userEvent.type(
@@ -192,15 +233,17 @@ export const CreateServerOAuth2: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "GitHub");
+		await expandSection(body, /Connection/i);
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://api.githubcopilot.com/mcp/",
 		);
 
+		await expandSection(body, /Authentication/i);
 		// Select OAuth2 from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(await body.findByRole("option", { name: /OAuth2/i }));
@@ -241,15 +284,17 @@ export const CreateServerAPIKey: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "Linear");
+		await expandSection(body, /Connection/i);
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.linear.app/v1",
 		);
 
+		await expandSection(body, /Authentication/i);
 		// Select API Key from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(
@@ -306,6 +351,9 @@ export const EditServer: Story = {
 		// The inline name input should be pre-populated.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		expect(nameInput).toHaveValue("Sentry");
+
+		// Expand Connection to access slug, URL, and description.
+		await expandSection(body, /Connection/i);
 		expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 		expect(body.getByLabelText(/Server URL/i)).toHaveValue(
 			"https://mcp.sentry.io/sse",
@@ -355,6 +403,9 @@ export const EditServerWithOAuth2Secret: Story = {
 
 		await userEvent.click(await body.findByRole("button", { name: /GitHub/ }));
 
+		// Authentication section is collapsed by default.
+		await expandSection(body, /Authentication/i);
+
 		// The OAuth2 fields should be visible.
 		const secretField = await body.findByLabelText(/Client Secret/i);
 		expect(secretField).toHaveValue("••••••••••••••••");
@@ -384,6 +435,9 @@ export const EditServerWithCustomHeaders: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: /Custom API/ }),
 		);
+
+		// Authentication section is collapsed by default.
+		await expandSection(body, /Authentication/i);
 
 		// Should show message about existing headers.
 		await expect(
@@ -519,7 +573,7 @@ export const BackToList: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		// Click Back.
@@ -543,18 +597,20 @@ export const CreateServerWithToolGovernance: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		await userEvent.type(
 			await body.findByLabelText(/Display Name/i),
 			"Restricted Server",
 		);
+		await expandSection(body, /Connection/i);
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
 		);
 
+		await expandSection(body, /Behavior/i);
 		await userEvent.type(
 			body.getByLabelText(/Tool Allow List/i),
 			"search, read_file",
@@ -587,18 +643,20 @@ export const CustomHeadersAuthType: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			(await body.findAllByRole("button", { name: /Add server/i }))[0],
 		);
 
 		await userEvent.type(
 			await body.findByLabelText(/Display Name/i),
 			"Custom API",
 		);
+		await expandSection(body, /Connection/i);
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
 		);
 
+		await expandSection(body, /Authentication/i);
 		// Select Custom Headers auth type.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(
