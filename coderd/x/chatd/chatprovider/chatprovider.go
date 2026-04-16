@@ -663,6 +663,7 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyanthropic.EffortLow),
 			string(fantasyanthropic.EffortMedium),
 			string(fantasyanthropic.EffortHigh),
+			string(fantasyanthropic.EffortXHigh),
 			string(fantasyanthropic.EffortMax),
 		)
 	case fantasyopenrouter.Name:
