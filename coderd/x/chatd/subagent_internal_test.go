@@ -534,6 +534,38 @@ func TestSpawnExploreAgent_FallsBackToCurrentTurnModel(t *testing.T) {
 	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
 }
 
+func TestSpawnExploreAgent_FallsBackOnInvalidUUID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-invalid-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-invalid-override",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect the handler flow"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
 func TestSpawnExploreAgent_FallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	t.Parallel()
 

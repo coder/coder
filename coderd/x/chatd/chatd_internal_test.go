@@ -173,7 +173,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"read_skill",
 		"read_skill_file",
 		"ask_user_question",
-	), uuid.NullUUID{UUID: uuid.New(), Valid: true})
+	))
 
 	require.Equal(t, []string{
 		"read_file",

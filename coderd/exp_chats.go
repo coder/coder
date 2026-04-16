@@ -3480,8 +3480,7 @@ func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Requ
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) ||
-		!api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}

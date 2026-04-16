@@ -4439,11 +4439,7 @@ func allowedPlanToolNames(
 	return toolNames
 }
 
-func allowedExploreToolNames(
-	allTools []fantasy.AgentTool,
-	parentChatID uuid.NullUUID,
-) []string {
-	_ = parentChatID
+func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
 		"read_file":                true,
 		"write_file":               false,
@@ -4485,7 +4481,7 @@ func allowedBehaviorToolNames(
 	parentChatID uuid.NullUUID,
 ) []string {
 	if isExploreSubagentMode(chatMode) {
-		return allowedExploreToolNames(allTools, parentChatID)
+		return allowedExploreToolNames(allTools)
 	}
 	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
 		return allowedPlanToolNames(allTools, parentChatID)
