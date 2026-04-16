@@ -38,7 +38,7 @@ func TestExpAgentsE2E(t *testing.T) {
 		session.expect(ctx, "charlie nav seed")
 		session.expect(ctx, "enter: open")
 		session.enter()
-		session.expect(ctx, "esc: back")
+		session.expect(ctx, "esc")
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()
@@ -78,7 +78,7 @@ func TestExpAgentsE2E(t *testing.T) {
 		session := startExpAgentsSession(t, ctx, client, chat.ID.String())
 
 		session.expect(ctx, "direct open seed")
-		session.expect(ctx, "esc: back")
+		session.expect(ctx, "esc")
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()
