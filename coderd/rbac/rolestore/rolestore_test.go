@@ -109,6 +109,7 @@ func TestReconcileSystemRole(t *testing.T) {
 
 			want := tt.permsFunc(rbac.OrgSettings{
 				ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
+				ShareableChatOwners:      rbac.ShareableChatOwners(org.ShareableChatOwners),
 			})
 			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.OrgPermissions), want.Org))
 			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.MemberPermissions), want.Member))
@@ -179,7 +180,10 @@ func TestReconcileSystemRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.IsSystem)
 
-		want := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners)})
+		want := rbac.OrgMemberPermissions(rbac.OrgSettings{
+			ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
+			ShareableChatOwners:      rbac.ShareableChatOwners(org.ShareableChatOwners),
+		})
 		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), want.Org))
 		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), want.Member))
 	}

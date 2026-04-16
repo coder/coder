@@ -210,6 +210,7 @@ func TestRolePermissions(t *testing.T) {
 		require.NoError(t, err)
 		perms := rbac.OrgMemberPermissions(rbac.OrgSettings{
 			ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
+			ShareableChatOwners:      rbac.ShareableChatOwnersEveryone,
 		})
 		return authSubject{
 			Name: "org_member_me",
@@ -1098,6 +1099,15 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ChatUsage",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:     "ShareMyChat",
+			Actions:  []policy.Action{policy.ActionShare},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgMemberMe},
