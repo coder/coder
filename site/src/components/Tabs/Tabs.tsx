@@ -64,7 +64,7 @@ export const TabsList: FC<TabsListProps> = ({
 			data-slot="tabs-list"
 			className={cn(
 				tabsListVariants({ variant }),
-				overflowKebabMenu && "flex-nowrap",
+				overflowKebabMenu && "min-w-0 w-full max-w-full flex-nowrap",
 				className,
 			)}
 			{...props}

@@ -251,6 +251,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
 	];
+	const hasAnyLogs = agentLogs.length > 0;
+	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -258,7 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		getTabMeasureProps,
 	} = useKebabMenu({
 		tabs: logTabs,
-		enabled: true,
+		enabled: logTabsMeasureEnabled,
 		isActive: showLogs,
 	});
 	const overflowLogTabValuesSet = new Set(
@@ -278,7 +280,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const allLogsText = agentLogs.map((log) => log.output).join("\n");
 	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
 	const hasSelectedLogs = selectedLogs.length > 0;
-	const hasAnyLogs = agentLogs.length > 0;
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 	const downloadableLogSets = logTabs
 		.filter((tab) => tab.value !== "all")
@@ -482,7 +483,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<div className="flex items-stretch">
 										<div
 											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1"
+											className="min-w-0 flex-1 overflow-hidden"
 										>
 											<TabsList variant="insideBox" overflowKebabMenu>
 												{visibleLogTabs.map((tab) => (
