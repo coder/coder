@@ -417,12 +417,55 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().PinChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("UnpinChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UnpinChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
-	}))
+		s.Run("UnpinChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().UnpinChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+			check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
+		}))
+		s.Run("GetChatACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().GetChatACLByID(gomock.Any(), chat.ID).Return(database.GetChatACLByIDRow{}, nil).AnyTimes()
+			check.Args(chat.ID).Asserts(chat, policy.ActionRead)
+		}))
+		s.Run("UpdateChatACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			chat.RootChatID = uuid.NullUUID{}
+			chat.ParentChatID = uuid.NullUUID{}
+			arg := database.UpdateChatACLByIDParams{ID: chat.ID}
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().UpdateChatACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+			check.Args(arg).Asserts(chat, policy.ActionShare)
+		}))
+		s.Run("DeleteChatACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			chat.RootChatID = uuid.NullUUID{}
+			chat.ParentChatID = uuid.NullUUID{}
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().DeleteChatACLByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+			check.Args(chat.ID).Asserts(chat, policy.ActionShare)
+		}))
+		s.Run("DeleteChatACLsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+			arg := database.DeleteChatACLsByOrganizationParams{
+				OrganizationID:         uuid.New(),
+				ExcludeServiceAccounts: false,
+			}
+			dbm.EXPECT().DeleteChatACLsByOrganization(gomock.Any(), arg).Return(nil).AnyTimes()
+			check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		}))
+		s.Run("ChatHasVisibleToolParts", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().ChatHasVisibleToolParts(gomock.Any(), chat.ID).Return(false, nil).AnyTimes()
+			check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(false)
+		}))
+		s.Run("ChatHasVisibleAttachments", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+			chat := testutil.Fake(s.T(), faker, database.Chat{})
+			dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+			dbm.EXPECT().ChatHasVisibleAttachments(gomock.Any(), chat.ID).Return(false, nil).AnyTimes()
+			check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(false)
+		}))
 	s.Run("SoftDeleteChatMessagesAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.SoftDeleteChatMessagesAfterIDParams{
@@ -1936,6 +1979,16 @@ func (s *MethodTestSuite) TestOrganization() {
 		}
 		dbm.EXPECT().GetOrganizationByID(gomock.Any(), org.ID).Return(org, nil).AnyTimes()
 		dbm.EXPECT().UpdateOrganizationWorkspaceSharingSettings(gomock.Any(), arg).Return(org, nil).AnyTimes()
+		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
+	}))
+	s.Run("UpdateOrganizationChatSharingSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.UpdateOrganizationChatSharingSettingsParams{
+			ID:                  org.ID,
+			ShareableChatOwners: database.ShareableChatOwnersNone,
+		}
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), org.ID).Return(org, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationChatSharingSettings(gomock.Any(), arg).Return(org, nil).AnyTimes()
 		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
 	}))
 	s.Run("InsertOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
