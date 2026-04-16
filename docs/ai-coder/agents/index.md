@@ -270,9 +270,10 @@ skills in its `.agents/skills/` directory.
 
 `propose_plan` and `ask_user_question` are only available while plan mode is
 active. In plan mode, the agent can still inspect the workspace and template
-metadata, but execution, process management, MCP, dynamic, and provider-native
-tools are blocked. `write_file` and `edit_files` remain available only for the
-chat-specific plan file under `.coder/plans/`.
+metadata, execute shell commands for exploration, and read process output.
+`write_file` and `edit_files` remain available only for the chat-specific plan
+file under `.coder/plans/`. MCP, dynamic, provider-native, and computer-use
+tools are blocked.
 
 ## Plan mode
 
@@ -293,8 +294,10 @@ While plan mode is active:
   a plan is proposed
 - `propose_plan` snapshots the current plan file into the transcript so you can
   review it before implementation starts
-- execution, process management, MCP tools, dynamic tools, provider-native
-  tools, and computer-use tools are not available
+- `execute` and `process_output` remain available for exploration, such as
+  cloning repositories, searching code, and running inspection commands
+- MCP tools, dynamic tools, provider-native tools, and computer-use tools are
+  not available
 
 This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal

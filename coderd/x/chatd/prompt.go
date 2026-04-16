@@ -105,13 +105,24 @@ When the <plan-file-path> block below is present, use that exact path.
 // when the chat is in plan mode.
 const PlanningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.
-The only writable artifact is the plan file at the path specified in the <plan-file-path> block below.
-All other actions are read-only investigation.
+The only intentional authored workspace artifact is the plan file at the path specified in the <plan-file-path> block below.
+You may use execute and process_output for exploration, including cloning repositories, searching code, and running inspection commands needed to build the plan.
+Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 If no workspace is attached to this chat yet, create and start one with create_workspace and start_workspace before investigating.
 If the plan file already exists, read it first with read_file before replacing or refining it.
-Use read_file, list_templates, read_template, and spawn_agent to gather context. In Plan Mode, spawn_agent delegation is for investigation only, not for code writing or implementation.
+Use read_file, execute, process_output, list_templates, read_template, and spawn_agent to gather context. In Plan Mode, spawn_agent delegation is for investigation and planning support, not code writing or implementation.
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.
 After a successful propose_plan call, stop immediately. Do not produce follow-up output.
 ` + defaultSystemPromptPlanPathBlockPlaceholder
+
+// PlanningSubagentOverlayPrompt contains plan-mode instructions for
+// delegated child chats. Child chats may investigate with shell tools
+// but should return findings to the parent instead of authoring the
+// final plan.
+const PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-agent.
+Every response must help the parent agent produce a plan.
+You may use read_file, execute, process_output, read_skill, and read_skill_file for exploration, including cloning repositories, searching code, and running inspection commands.
+Do not implement changes or intentionally modify workspace files.
+Return concise findings and recommendations to the parent agent.`

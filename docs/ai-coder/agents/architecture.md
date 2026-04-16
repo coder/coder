@@ -159,9 +159,11 @@ and cannot create workspaces or spawn further sub-agents.
 | `ask_user_question` | Asks the user structured clarification questions during plan mode.                      |
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is
-active. In that mode, the chat-specific plan file is the only writable
-artifact. Execution, process, MCP, dynamic, and provider-native tools are not
-available.
+active. In that mode, `write_file` and `edit_files` are restricted to the
+chat-specific plan file, while `execute` and `process_output` remain available
+for exploration such as cloning repositories, searching code, and running
+inspection commands. MCP, dynamic, provider-native, and computer-use tools are
+not available.
 
 ### Orchestration tools
 

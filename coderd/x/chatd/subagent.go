@@ -120,7 +120,7 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 		"cannot spawn its own subagents. After spawning, use " +
 		"wait_agent to collect the result."
 	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
-		spawnAgentDescription += " During plan mode, spawned agents must only perform read-only investigation (exploring code, reading files, analyzing architecture). Do not delegate code writing, refactoring, or file mutations."
+		spawnAgentDescription += " During plan mode, spawned agents may use shell commands for exploration, such as cloning repositories, searching code, and running inspection commands, but they must not implement changes or intentionally modify workspace files."
 	}
 
 	tools := []fantasy.AgentTool{

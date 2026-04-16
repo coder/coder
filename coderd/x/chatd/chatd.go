@@ -4393,8 +4393,8 @@ func allowedPlanToolNames(
 		"read_file":                true,
 		"write_file":               isRootChat,
 		"edit_files":               isRootChat,
-		"execute":                  false,
-		"process_output":           false,
+		"execute":                  true,
+		"process_output":           true,
 		"process_list":             false,
 		"process_signal":           false,
 		"list_templates":           isRootChat,
@@ -4472,10 +4472,14 @@ func buildSystemPrompt(
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
 	}
 	isPlanModeTurn := planContext.mode.Valid && planContext.mode.ChatPlanMode == database.ChatPlanModePlan
-	if isPlanModeTurn && planContext.isRootChat {
-		prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
-		if planContext.planModeInstructions != "" {
-			prompt = chatprompt.InsertSystem(prompt, planContext.planModeInstructions)
+	if isPlanModeTurn {
+		if planContext.isRootChat {
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			if planContext.planModeInstructions != "" {
+				prompt = chatprompt.InsertSystem(prompt, planContext.planModeInstructions)
+			}
+		} else {
+			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
 		}
 	}
 	return prompt

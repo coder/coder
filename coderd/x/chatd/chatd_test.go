@@ -482,14 +482,22 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		"root plan-mode chat should have write_file")
 	require.Contains(t, rootCalls[0], "edit_files",
 		"root plan-mode chat should have edit_files")
+	require.Contains(t, rootCalls[0], "execute",
+		"root plan-mode chat should have execute")
+	require.Contains(t, rootCalls[0], "process_output",
+		"root plan-mode chat should have process_output")
 	require.NotContains(t, childCalls[0], "ask_user_question",
 		"plan-mode subagent should NOT have ask_user_question")
 	require.NotContains(t, childCalls[0], "write_file",
 		"plan-mode subagent should NOT have write_file")
 	require.NotContains(t, childCalls[0], "edit_files",
 		"plan-mode subagent should NOT have edit_files")
+	require.Contains(t, childCalls[0], "execute",
+		"plan-mode subagent should have execute")
+	require.Contains(t, childCalls[0], "process_output",
+		"plan-mode subagent should have process_output")
 	require.True(t, requestHasSystemSubstring(rootRequests[0], "You are in Plan Mode."))
-	require.False(t, requestHasSystemSubstring(childRequests[0], "You are in Plan Mode."))
+	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Plan Mode as a delegated sub-agent."))
 	require.False(t, requestHasSystemSubstring(childRequests[0], "When the plan is ready, call propose_plan"))
 }
 
@@ -858,7 +866,8 @@ func TestPlanTurnPromptContract(t *testing.T) {
 
 	require.Len(t, recorded, 1, "expected exactly 1 streamed model call")
 	require.True(t, requestHasSystemSubstring(recorded[0], "You are in Plan Mode."))
-	require.True(t, requestHasSystemSubstring(recorded[0], "The only writable artifact is the plan file"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "The only intentional authored workspace artifact is the plan file"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {

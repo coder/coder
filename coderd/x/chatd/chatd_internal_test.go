@@ -123,6 +123,8 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"read_file",
 			"write_file",
 			"edit_files",
+			"execute",
+			"process_output",
 			"list_templates",
 			"read_template",
 			"create_workspace",
@@ -136,13 +138,15 @@ func TestAllowedPlanToolNames(t *testing.T) {
 		}, got)
 	})
 
-	t.Run("PlanModeChildChatsStayReadOnly", func(t *testing.T) {
+	t.Run("PlanModeChildChatsAllowExplorationOnly", func(t *testing.T) {
 		t.Parallel()
 
 		got := allowedPlanToolNames(makeTools(
 			"read_file",
 			"write_file",
 			"edit_files",
+			"execute",
+			"process_output",
 			"list_templates",
 			"read_template",
 			"create_workspace",
@@ -157,15 +161,18 @@ func TestAllowedPlanToolNames(t *testing.T) {
 
 		require.Equal(t, []string{
 			"read_file",
+			"execute",
+			"process_output",
 			"read_skill",
 			"read_skill_file",
 		}, got)
 		require.NotContains(t, got, "write_file")
 		require.NotContains(t, got, "edit_files")
 		require.NotContains(t, got, "ask_user_question")
+		require.NotContains(t, got, "propose_plan")
 	})
 
-	t.Run("PlanModeExcludesDangerousTools", func(t *testing.T) {
+	t.Run("PlanModeStillExcludesDangerousTools", func(t *testing.T) {
 		t.Parallel()
 
 		got := allowedPlanToolNames(makeTools(
@@ -176,9 +183,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"propose_plan",
 		), planMode, uuid.NullUUID{})
 
-		require.Equal(t, []string{"propose_plan"}, got)
-		require.NotContains(t, got, "execute")
-		require.NotContains(t, got, "process_output")
+		require.Equal(t, []string{"execute", "process_output", "propose_plan"}, got)
 		require.NotContains(t, got, "message_agent")
 		require.NotContains(t, got, "spawn_computer_use_agent")
 	})
