@@ -177,6 +177,7 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	readonly last_prompt?: string;
+	readonly last_active_at?: string;
 }
 
 // From codersdk/aibridge.go

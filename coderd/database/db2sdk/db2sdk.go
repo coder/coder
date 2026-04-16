@@ -1066,6 +1066,9 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	if row.LastPrompt != "" {
 		session.LastPrompt = &row.LastPrompt
 	}
+	if row.LastActiveAt.Valid {
+		session.LastActiveAt = &row.LastActiveAt.Time
+	}
 	return session
 }
 

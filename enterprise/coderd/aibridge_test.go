@@ -782,9 +782,9 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.EqualValues(t, 4, res.Count)
 		require.Len(t, res.Sessions, 4)
 
-		// Sessions ordered by started_at DESC: session-A (now), then
-		// thread-based (now-1h), then standalone (now-2h), then
-		// multi-thread (now-3h).
+		// Sessions ordered by last_active_at DESC (fallback: started_at):
+		// session-A (now), then thread-based (now-1h), then standalone
+		// (now-2h), then multi-thread (now-3h).
 		require.Equal(t, "session-A", res.Sessions[0].ID)
 		require.Equal(t, s2i1.ID.String(), res.Sessions[1].ID)
 		require.Equal(t, s3i1.ID.String(), res.Sessions[2].ID)
@@ -1509,6 +1509,71 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Sessions, 3)
 		require.EqualValues(t, 3, res.Count)
+	})
+
+	// SortsByLastActive verifies that sessions are ordered by the latest prompt
+	// timestamp (last_active_at) falling back to started_at when a session has
+	// no prompts.
+	//
+	// Three sessions are created with intentionally crossing timestamps so that
+	// the "prompt time" order differs from the "started_at" order:
+	//
+	//   X: started=now,   no prompts    → sort_at = now
+	//   Y: started=now-2h, prompt=now-30m → sort_at = now-30m
+	//   Z: started=now-1h, no prompts   → sort_at = now-1h
+	//
+	// Old order (by started_at DESC): X, Z, Y
+	// New order (by last_active_at DESC, fallback started_at): X, Y, Z
+	t.Run("SortsByLastActive", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Session X: started now, no prompts.
+		xEndedAt := now.Add(time.Minute)
+		xInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "session-x", Valid: true},
+		}, &xEndedAt)
+
+		// Session Y: started 2 hours ago, has a prompt from 30 minutes ago.
+		yEndedAt := now.Add(time.Minute)
+		yInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(-2 * time.Hour),
+			ClientSessionID: sql.NullString{String: "session-y", Valid: true},
+		}, &yEndedAt)
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: yInterception.ID,
+			Prompt:         "prompt from session y",
+			CreatedAt:      now.Add(-30 * time.Minute),
+		})
+
+		// Session Z: started 1 hour ago, no prompts.
+		zEndedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(-1 * time.Hour),
+			ClientSessionID: sql.NullString{String: "session-z", Valid: true},
+		}, &zEndedAt)
+
+		//nolint:gocritic // Owner role is irrelevant; testing sort order.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 3)
+
+		// Expected order: X (sort_at=now), Y (sort_at=now-30m), Z (sort_at=now-1h).
+		require.Equal(t, xInterception.SessionID, res.Sessions[0].ID, "session X should be first (started most recently, no prompts)")
+		require.Equal(t, yInterception.SessionID, res.Sessions[1].ID, "session Y should be second (prompt at now-30m beats Z's started_at of now-1h)")
+		require.Equal(t, "session-z", res.Sessions[2].ID, "session Z should be last (no prompts, started_at=now-1h)")
+
+		// Y should have LastActiveAt populated; X and Z should not.
+		require.NotNil(t, res.Sessions[1].LastActiveAt, "session Y should have last_active_at set")
+		require.Nil(t, res.Sessions[0].LastActiveAt, "session X has no prompts, last_active_at should be nil")
+		require.Nil(t, res.Sessions[2].LastActiveAt, "session Z has no prompts, last_active_at should be nil")
 	})
 }
 

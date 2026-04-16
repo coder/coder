@@ -446,22 +446,35 @@ WHERE
 -- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 -- first-interception metadata) only for the ~page-size result set.
 WITH cursor_pos AS (
-	-- Resolve the cursor's started_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group.
-	SELECT MIN(aibridge_interceptions.started_at) AS started_at
-	FROM aibridge_interceptions
-	WHERE aibridge_interceptions.session_id = @after_session_id AND aibridge_interceptions.ended_at IS NOT NULL
+	-- Resolve the cursor's sort_at once, outside the HAVING clause, so the
+	-- planner cannot accidentally re-evaluate it per group. Direct LEFT JOIN
+	-- is safe here since we only use MAX/MIN aggregates (no COUNT affected
+	-- by fan-out from multiple prompts per interception). The ended_at IS NOT
+	-- NULL filter keeps this consistent with session_page's aggregation scope.
+	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS sort_at
+	FROM aibridge_interceptions ai
+	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
+	WHERE ai.session_id = @after_session_id AND ai.ended_at IS NOT NULL
 ),
 session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
+	-- A pre-aggregated subquery for prompts keeps the join one-to-one with
+	-- aibridge_interceptions so COUNT(*) for thread tallies is not inflated.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
-		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
+		MAX(pr.latest_prompt_at) AS last_active_at,
+		COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)) AS sort_at
 	FROM
 		aibridge_interceptions ai
+	LEFT JOIN (
+		SELECT interception_id, MAX(created_at) AS latest_prompt_at
+		FROM aibridge_user_prompts
+		GROUP BY interception_id
+	) pr ON pr.interception_id = ai.id
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
@@ -504,22 +517,21 @@ session_page AS (
 	GROUP BY
 		ai.session_id, ai.initiator_id
 	HAVING
-		-- Cursor pagination: uses a composite (started_at, session_id)
-		-- cursor to support keyset pagination. The less-than comparison
-		-- matches the DESC sort order so rows after the cursor come
-		-- later in results. The cursor value comes from cursor_pos to
-		-- guarantee single evaluation.
+		-- Cursor pagination: uses a composite (sort_at, session_id) cursor to
+		-- support keyset pagination. The less-than comparison matches the DESC
+		-- sort order so rows after the cursor come later in results. The cursor
+		-- value comes from cursor_pos to guarantee single evaluation.
 		CASE
 			WHEN @after_session_id::text != '' THEN (
-				(MIN(ai.started_at), ai.session_id) < (
-					(SELECT started_at FROM cursor_pos),
+				(COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+					(SELECT sort_at FROM cursor_pos),
 					@after_session_id::text
 				)
 			)
 			ELSE true
 		END
 	ORDER BY
-		MIN(ai.started_at) DESC,
+		sort_at DESC,
 		ai.session_id DESC
 	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 	OFFSET @offset_
@@ -541,7 +553,8 @@ SELECT
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
-	COALESCE(slp.prompt, '') AS last_prompt
+	COALESCE(slp.prompt, '') AS last_prompt,
+	sp.last_active_at AS last_active_at
 FROM
 	session_page sp
 JOIN
@@ -578,7 +591,7 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) slp ON true
 ORDER BY
-	sp.started_at DESC,
+	sp.sort_at DESC,
 	sp.session_id DESC
 ;
 

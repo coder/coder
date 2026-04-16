@@ -13375,6 +13375,10 @@ const docTemplate = `{
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
                 },
+                "last_active_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "last_prompt": {
                     "type": "string"
                 },

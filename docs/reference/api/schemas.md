@@ -690,6 +690,7 @@
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
       "last_prompt": "string",
       "metadata": {
         "property1": null,
@@ -824,6 +825,7 @@
     "name": "string",
     "username": "string"
   },
+  "last_active_at": "2019-08-24T14:15:22Z",
   "last_prompt": "string",
   "metadata": {
     "property1": null,
@@ -854,6 +856,7 @@
 | `ended_at`            | string                                                                                 | false    |              |             |
 | `id`                  | string                                                                                 | false    |              |             |
 | `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_active_at`      | string                                                                                 | false    |              |             |
 | `last_prompt`         | string                                                                                 | false    |              |             |
 | `metadata`            | object                                                                                 | false    |              |             |
 | » `[any property]`    | any                                                                                    | false    |              |             |
