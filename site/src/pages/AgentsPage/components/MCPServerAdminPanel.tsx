@@ -17,7 +17,6 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -549,7 +548,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								</Select>
 
 								{form.values.authType === "oauth2" && (
-									<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
+									<div className="space-y-4 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
 										<p className="m-0 text-xs text-content-secondary">
 											Register a client with the external MCP server's OAuth2
 											provider and enter the credentials below. Coder will
@@ -639,7 +638,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								)}
 
 								{form.values.authType === "api_key" && (
-									<div className="grid items-start gap-4 rounded-lg border border-border bg-surface-secondary/30 p-4 sm:grid-cols-2">
+									<div className="grid items-start gap-4 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4 sm:grid-cols-2">
 										<Field
 											label="Header Name"
 											htmlFor={`${formId}-apikey-header`}
@@ -683,7 +682,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								)}
 
 								{form.values.authType === "custom_headers" && (
-									<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
+									<div className="space-y-3 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
 										{server?.has_custom_headers &&
 											!form.values.customHeadersTouched && (
 												<p className="m-0 text-xs text-content-secondary">
@@ -798,13 +797,7 @@ const ServerForm: FC<ServerFormProps> = ({
 						</button>
 						{showBehavior && (
 							<div className="space-y-5 pt-3">
-								<div>
-									<Label
-										htmlFor={`${formId}-availability`}
-										className="mb-1 block text-sm font-medium text-content-primary"
-									>
-										Availability
-									</Label>
+								<Field label="Availability" htmlFor={`${formId}-availability`}>
 									<Select
 										value={form.values.availability}
 										onValueChange={(v) => {
@@ -831,24 +824,21 @@ const ServerForm: FC<ServerFormProps> = ({
 											))}
 										</SelectContent>
 									</Select>
-								</div>
+								</Field>
 
 								<div className="flex items-start justify-between gap-4">
 									<div className="min-w-0 space-y-1">
-										<Label
-											htmlFor={`${formId}-model-intent`}
-											className="text-sm font-medium text-content-primary"
-										>
+										<p className="m-0 text-sm font-medium text-content-primary">
 											Model intent
-										</Label>
+										</p>
 										<p className="m-0 text-xs text-content-secondary">
 											Require the model to describe each tool call's purpose in
 											natural language, shown as a status label in the UI.
 										</p>
 									</div>
 									<Switch
-										id={`${formId}-model-intent`}
 										checked={form.values.modelIntent}
+										aria-label="Model intent"
 										onCheckedChange={(v) => {
 											form.setFieldValue("modelIntent", v);
 										}}
@@ -930,7 +920,14 @@ const ServerForm: FC<ServerFormProps> = ({
 								Delete
 							</Button>
 						) : (
-							<div />
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								onClick={onBack}
+							>
+								Cancel
+							</Button>
 						)}
 						<Button size="lg" type="submit" disabled={!canSubmit}>
 							{isSaving && <Spinner className="h-4 w-4" loading />}
