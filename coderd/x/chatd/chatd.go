@@ -4419,7 +4419,7 @@ func allowedPlanToolNames(
 		"start_workspace":          isRootChat,
 		"propose_plan":             isRootChat,
 		"spawn_agent":              isRootChat,
-		"spawn_explore_agent":      false,
+		"spawn_explore_agent":      isRootChat,
 		"wait_agent":               isRootChat,
 		"message_agent":            false,
 		"close_agent":              false,
@@ -4474,6 +4474,9 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	return toolNames
 }
 
+// allowedBehaviorToolNames applies behavior-specific precedence for
+// tool filtering: Explore mode wins over plan mode, and plan mode wins
+// over the default behavior that allows all tools.
 func allowedBehaviorToolNames(
 	allTools []fantasy.AgentTool,
 	planMode database.NullChatPlanMode,

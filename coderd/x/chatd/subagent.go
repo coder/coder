@@ -229,6 +229,9 @@ func (p *Server) subagentTools(
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				// Explore subagents operate independently of planning.
+				// Clear plan mode to prevent the child from inheriting
+				// parent planning behavior.
 				clearPlanMode := database.NullChatPlanMode{}
 				childChat, err := p.createChildSubagentChatWithOptions(
 					ctx,

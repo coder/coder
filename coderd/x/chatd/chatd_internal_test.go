@@ -109,6 +109,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"read_skill",
 			"read_skill_file",
@@ -217,7 +218,7 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 
 	t.Run("PlanModeUsesPlanAllowlist", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
+		require.Equal(t, []string{"read_file", "spawn_explore_agent"}, allowedBehaviorToolNames(
 			allTools,
 			planMode,
 			database.NullChatMode{},
