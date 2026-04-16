@@ -6428,6 +6428,13 @@ func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrg
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
 }
 
+func (q *querier) UpdateOrganizationChatSharingSettings(ctx context.Context, arg database.UpdateOrganizationChatSharingSettingsParams) (database.Organization, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOrganizationChatSharingSettingsParams) (database.Organization, error) {
+		return q.db.GetOrganizationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganizationChatSharingSettings)(ctx, arg)
+}
+
 func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{

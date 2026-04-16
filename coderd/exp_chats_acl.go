@@ -135,6 +135,10 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.allowChatSharing(ctx, rw, chat) {
+		return
+	}
+
 	var req codersdk.UpdateChatACL
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -225,6 +229,10 @@ func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 
 	if chat.RootChatID.Valid || chat.ParentChatID.Valid {
 		writeChatACLSubChatError(ctx, rw, chat)
+		return
+	}
+
+	if !api.allowChatSharing(ctx, rw, chat) {
 		return
 	}
 
@@ -387,5 +395,41 @@ func (api *API) requireShareConfirmations(
 		Validations: missing,
 	})
 	return false
+}
+// allowChatSharing enforces the chat-sharing gate for an
+// organization. Returns false after writing an HTTP error response
+// when the org has shareable_chat_owners = 'none', or when
+// shareable_chat_owners = 'service_accounts' and the chat's owner is
+// not a service account. Mirrors allowWorkspaceSharing in
+// coderd/workspaces.go.
+func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, chat database.Chat) bool {
+	// nolint:gocritic // System context so the check does not depend on
+	// the caller's organization:read permissions.
+	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), chat.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	switch org.ShareableChatOwners {
+	case database.ShareableChatOwnersNone:
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Chat sharing is disabled for this organization.",
+		})
+		return false
+	case database.ShareableChatOwnersServiceAccounts:
+		// nolint:gocritic // See above.
+		owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), chat.OwnerID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return false
+		}
+		if !owner.IsServiceAccount {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Chat sharing is restricted to service-account chats in this organization.",
+			})
+			return false
+		}
+	}
+	return true
 }
 

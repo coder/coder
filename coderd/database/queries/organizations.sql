@@ -153,3 +153,15 @@ WHERE
     id = @id
 RETURNING *;
 
+-- name: UpdateOrganizationChatSharingSettings :one
+-- Mirrors UpdateOrganizationWorkspaceSharingSettings for the new
+-- shareable_chat_owners column. Called from the enterprise chat-
+-- sharing settings handler and audited at the organization row.
+UPDATE
+    organizations
+SET
+    shareable_chat_owners = @shareable_chat_owners,
+    updated_at = @updated_at
+WHERE
+    id = @id
+RETURNING *;

@@ -1038,6 +1038,10 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
+	// Mirrors UpdateOrganizationWorkspaceSharingSettings for the new
+	// shareable_chat_owners column. Called from the enterprise chat-
+	// sharing settings handler and audited at the organization row.
+	UpdateOrganizationChatSharingSettings(ctx context.Context, arg UpdateOrganizationChatSharingSettingsParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)
 	// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an

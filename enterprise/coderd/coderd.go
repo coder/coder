@@ -429,11 +429,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
 
-				r.Route("/workspace-sharing", func(r chi.Router) {
-					r.Get("/", api.workspaceSharingSettings)
-					r.Patch("/", api.patchWorkspaceSharingSettings)
-				})
-			})
+					r.Route("/workspace-sharing", func(r chi.Router) {
+						r.Get("/", api.workspaceSharingSettings)
+						r.Patch("/", api.patchWorkspaceSharingSettings)
+					})
+					r.Route("/chat-sharing", func(r chi.Router) {
+						r.Use(httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAgents))
+						r.Get("/", api.chatSharingSettings)
+						r.Patch("/", api.patchChatSharingSettings)
+					})			})
 		})
 
 		r.Group(func(r chi.Router) {
