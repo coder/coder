@@ -98,14 +98,14 @@ Import: `import { FeatureStageBadge } from "#/components/FeatureStageBadge/Featu
 
 All these tests set `ExperimentAgents` in deployment values. Remove the experiment assignment lines — the feature is now unconditional.
 
-| File | Lines |
-|------|-------|
-| `coderd/x/chatd/integration_test.go` | ~40, 301, 456 |
-| `coderd/x/chatd/chatd_test.go` | ~197, 362, 3041, 3222, 6033 |
-| `coderd/mcp_test.go` | ~28 |
-| `coderd/exp_chats_test.go` | ~54 |
-| `enterprise/coderd/roles_test.go` | ~456 |
-| `enterprise/coderd/exp_chats_test.go` | ~1107, 1185 |
+| File                                  | Lines                       |
+|---------------------------------------|-----------------------------|
+| `coderd/x/chatd/integration_test.go`  | ~40, 301, 456               |
+| `coderd/x/chatd/chatd_test.go`        | ~197, 362, 3041, 3222, 6033 |
+| `coderd/mcp_test.go`                  | ~28                         |
+| `coderd/exp_chats_test.go`            | ~54                         |
+| `enterprise/coderd/roles_test.go`     | ~456                        |
+| `enterprise/coderd/exp_chats_test.go` | ~1107, 1185                 |
 
 ### 12. Generated types
 
