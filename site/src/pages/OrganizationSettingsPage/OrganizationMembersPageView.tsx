@@ -96,7 +96,11 @@ export const OrganizationMembersPageView: FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				{canEditMembers && <AddUsersDialog onSubmit={addMembers} />}
+				{canEditMembers && (
+					<div className="flex justify-end">
+						<AddUsersDialog onSubmit={addMembers} />
+					</div>
+				)}
 
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
