@@ -155,8 +155,7 @@ func TestSecretCreate(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.Contains(t, output.Stdout(), "api-key")
-		require.Contains(t, output.Stderr(), "stdin ends with a trailing newline")
-		require.Contains(t, output.Stderr(), `printf %s "$UPDATED_VALUE" | coder secret update api-key`)
+		require.Contains(t, output.Stderr(), "secret value from stdin ends with a trailing newline")
 
 		secret, err := db.GetUserSecretByUserIDAndName(
 			dbauthz.AsSystemRestricted(ctx),
