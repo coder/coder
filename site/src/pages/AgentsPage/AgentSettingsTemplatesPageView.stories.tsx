@@ -75,9 +75,11 @@ export const TemplateAllowlist: Story = {
 			});
 
 			// A non-matching template should not be visible.
-			expect(
-				canvas.queryByRole("option", { name: "Kubernetes Production" }),
-			).not.toBeInTheDocument();
+			await waitFor(() => {
+				expect(
+					canvas.queryByRole("option", { name: "Kubernetes Production" }),
+				).not.toBeInTheDocument();
+			});
 
 			// Clear the search and verify the full list returns.
 			await userEvent.clear(input);
