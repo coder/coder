@@ -2799,7 +2799,7 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 }
 
 func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return "", err
 	}
 	return q.db.GetChatPlanModeInstructions(ctx)
