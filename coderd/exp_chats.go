@@ -2697,8 +2697,24 @@ func (api *API) chatStartWorkspace(
 	)
 	if err != nil {
 		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
+			const message = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values."
+			if responder, ok := httperror.IsResponder(err); ok {
+				status, resp := responder.Response()
+				originalMessage := resp.Message
+				resp.Message = message
+				if len(resp.Validations) == 0 && originalMessage != "" {
+					if resp.Detail == "" {
+						resp.Detail = originalMessage
+					} else {
+						resp.Detail = originalMessage + ": " + resp.Detail
+					}
+				} else if resp.Detail == "" {
+					resp.Detail = err.Error()
+				}
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(status, resp)
+			}
 			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI.",
+				Message: message,
 				Detail:  err.Error(),
 			})
 		}
