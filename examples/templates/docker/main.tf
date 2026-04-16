@@ -209,3 +209,9 @@ resource "docker_container" "workspace" {
     value = data.coder_workspace.me.name
   }
 }
+
+
+resource "coder_metadata" "workspace_cost" {
+  resource_id = coder_agent.main.id
+  daily_cost  = 1
+}

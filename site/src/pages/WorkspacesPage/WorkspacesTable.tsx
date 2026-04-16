@@ -4,11 +4,13 @@ import {
 	EllipsisVertical,
 	ExternalLinkIcon,
 	FileIcon,
+	InfoIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
+
 import type React from "react";
 import {
 	type FC,
@@ -26,6 +28,8 @@ import {
 	startWorkspace,
 	stopWorkspace,
 } from "#/api/queries/workspaces";
+import { workspaceQuota } from "#/api/queries/workspaceQuota";
+
 import type {
 	Template,
 	Workspace,
@@ -150,9 +154,33 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
 						Template
 					</TableHead>
-					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
-						Status
-					</TableHead>
+						<TableHead className={cn("flex-1 min-w-32", hideHeaders && "invisible")}>
+
+
+
+							<div className="flex items-center gap-1">
+								Credits
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+												<InfoIcon
+													tabIndex={0}
+													className="cursor-pointer size-icon-xs text-content-secondary hover:text-content-primary"
+													aria-label="Credits information"
+												/>
+
+										</TooltipTrigger>
+										<TooltipContent>
+											<CreditsTooltip workspaces={workspaces} />
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							</div>
+						</TableHead>
+						<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
+							Status
+						</TableHead>
+
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
 					</TableHead>
@@ -287,9 +315,15 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							<TableCell>
-								<WorkspaceStatus workspace={workspace} />
-							</TableCell>
+								<TableCell>
+									{workspace.latest_build.daily_cost}
+								</TableCell>
+
+								<TableCell>
+									<WorkspaceStatus workspace={workspace} />
+								</TableCell>
+
+
 
 							<WorkspaceActionsCell
 								workspace={workspace}
@@ -876,7 +910,101 @@ type BaseIconLinkButtonProps = BaseIconLinkCommonProps & {
 
 type BaseIconLinkProps = BaseIconLinkAnchorProps | BaseIconLinkButtonProps;
 
+const formatCreditsNumber = (num: number): string => {
+	return num.toLocaleString();
+};
+
+interface CreditsTooltipProps {
+	workspaces?: readonly Workspace[];
+}
+
+const CreditsTooltip: FC<CreditsTooltipProps> = ({ workspaces }) => {
+	const { user: me } = useAuthenticated();
+	const { organizations } = useDashboard();
+
+
+	if (!workspaces || workspaces.length === 0) {
+		return null;
+	}
+
+	const isViewingOwnWorkspaces = workspaces.every(
+		(ws) => ws.owner_id === me.id,
+	);
+
+	const totalCredits = workspaces.reduce(
+		(sum, ws) => sum + (ws.latest_build.daily_cost || 0),
+		0,
+	);
+
+	// Get primary organization for quota lookup
+	const primaryOrg = organizations[0];
+
+	// Fetch quota - for own workspaces, use user's quota from their primary org
+	// For all workspaces, we'd need to aggregate, so we'll skip quota display
+	const { data: quota } = useQuery({
+		...workspaceQuota(primaryOrg?.name || "", me.username),
+		enabled: isViewingOwnWorkspaces && totalCredits > 0 && !!primaryOrg,
+	});
+
+	const quotaBudget = quota?.budget;
+	const percentageUsed = quotaBudget ? Math.round((totalCredits / quotaBudget) * 100) : 0;
+
+		if (isViewingOwnWorkspaces) {
+			return (
+				<div className="flex flex-col gap-2 max-w-xs">
+					<div>
+						You are using{" "}
+						<span className="font-semibold">{formatCreditsNumber(totalCredits)}</span>
+						{quotaBudget && (
+							<>
+								{" "}of{" "}
+								<span className="font-semibold">{formatCreditsNumber(quotaBudget)}</span>
+								{" "}credits
+							</>
+						)}
+						{!quotaBudget && " credits"}
+					</div>
+					{quotaBudget && (
+						<div>
+							<span className={cn("font-semibold", percentageUsed >= 85 && "text-content-warning")}>
+								{percentageUsed}% of your quota
+							</span>
+							{percentageUsed >= 85 && " — consider deleting unused workspaces."}
+						</div>
+					)}
+					{!quotaBudget && totalCredits > 0 && workspaces.length > 1 && (
+						<div className="text-sm text-content-secondary">
+							Consider deleting unused workspaces to reduce costs.
+						</div>
+					)}
+				</div>
+			);
+		}
+
+
+
+	return (
+		<div className="flex flex-col gap-2">
+			<div>
+				Everyone is using{" "}
+				<span className="font-semibold">{formatCreditsNumber(totalCredits)}</span> credits.
+			</div>
+			{totalCredits > 0 && workspaces.length > 1 && (
+				<div className="text-xs text-content-secondary">
+					Consider deleting unused workspaces to reduce costs.
+				</div>
+			)}
+		</div>
+	);
+};
+
+
+
+
+
+
 const BaseIconLink: FC<BaseIconLinkProps> = ({
+
 	isLoading,
 	label,
 	children,

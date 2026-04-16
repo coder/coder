@@ -315,6 +315,50 @@ export const WithQuotaWithOrgs: Story = {
 		],
 	},
 };
+export const WithQuotaNearLimit: Story = {
+	parameters: {
+		showOrganizations: false,
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUserOwner.username,
+				),
+				data: {
+					credits_consumed: 37,
+					budget: 40,
+				} satisfies WorkspaceQuota,
+			},
+		],
+	},
+};
+
+export const WithQuotaNearLimitSingularCredit: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			latest_build: {
+				...baseWorkspace.latest_build,
+				daily_cost: 1,
+			},
+		},
+	},
+	parameters: {
+		showOrganizations: false,
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUserOwner.username,
+				),
+				data: {
+					credits_consumed: 36,
+					budget: 40,
+				} satisfies WorkspaceQuota,
+			},
+		],
+	},
+};
 
 export const TemplateInfoPopover: Story = {
 	play: async ({ canvasElement, step }) => {
