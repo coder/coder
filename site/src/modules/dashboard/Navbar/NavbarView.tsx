@@ -14,7 +14,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
@@ -272,12 +271,7 @@ function idleTasksLabel(count: number) {
 }
 
 const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
-	const { experiments, buildInfo } = useDashboard();
-	const prerelease = getPrereleaseFlag(buildInfo);
-	const experimentEnabled =
-		experiments.includes("agents") || prerelease === "devel";
-
-	if (!experimentEnabled || !canCreateChat) {
+	if (!canCreateChat) {
 		return null;
 	}
 

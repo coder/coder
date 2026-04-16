@@ -28,6 +28,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -132,13 +133,16 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					</Link>
 				</Button>
 			) : (
-				<NavLink to="/workspaces" className="inline-flex shrink-0 md:hidden">
-					{logoUrl ? (
-						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-					) : (
-						<CoderIcon className="h-6 w-6 fill-content-primary" />
-					)}
-				</NavLink>
+				<div className="inline-flex shrink-0 items-center gap-2 md:hidden">
+					<NavLink to="/workspaces" className="inline-flex">
+						{logoUrl ? (
+							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+						) : (
+							<CoderIcon className="h-6 w-6 fill-content-primary" />
+						)}
+					</NavLink>
+					<FeatureStageBadge contentType="beta" size="sm" />
+				</div>
 			)}
 			{isSidebarCollapsed && (
 				<Button

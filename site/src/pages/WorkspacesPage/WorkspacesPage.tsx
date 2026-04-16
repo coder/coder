@@ -82,8 +82,6 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
-	const { experiments } = useDashboard();
-	const agentsEnabled = experiments.includes("agents");
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -147,7 +145,7 @@ const WorkspacesPage: FC = () => {
 	);
 	const chatsByWorkspaceQuery = useQuery({
 		...chatsByWorkspace(workspaceIds),
-		enabled: agentsEnabled && workspaceIds.length > 0,
+		enabled: workspaceIds.length > 0,
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();

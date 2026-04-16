@@ -526,11 +526,7 @@ func (h *Handler) populateHTMLState(
 		}
 	})
 	wg.Go(func() {
-		agentsTabVisible := false
-		if experiments != nil {
-			agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
-		}
-		data, err := json.Marshal(agentsTabVisible)
+		data, err := json.Marshal(true)
 		if err == nil {
 			state.AgentsTabVisible = html.EscapeString(string(data))
 		}

@@ -37,7 +37,6 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 
 	// Stand up a full coderd with the agents experiment.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
@@ -298,7 +297,6 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 
 	// Stand up a full coderd with the agents experiment.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
@@ -453,7 +451,6 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 
 	// Stand up a full coderd with the agents experiment.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})

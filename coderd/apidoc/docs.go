@@ -16271,12 +16271,10 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "oauth2",
-                "agents",
                 "mcp-server-http",
                 "workspace-build-updates"
             ],
             "x-enum-comments": {
-                "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -16291,7 +16289,6 @@ const docTemplate = `{
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
-                "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel."
             ],
@@ -16301,7 +16298,6 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
-                "ExperimentAgents",
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates"
             ]
