@@ -117,6 +117,9 @@ export const OrganizationMembersPageView: FC<
 						<AddUsersPopover
 							isLoading={isAddingMember}
 							onSubmit={addMembers}
+							// Best-effort: only excludes members on the current
+							// page because the list is paginated. The server
+							// rejects duplicates, so this is a UX optimization.
 							existingUserIds={new Set(members?.map((m) => m.user_id) ?? [])}
 							search={addUsersSearch}
 							onSearchChange={setAddUsersSearch}

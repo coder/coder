@@ -85,44 +85,67 @@ const GroupMembersPage: FC = () => {
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 					<AddUsersPopover
 						isLoading={addMemberMutation.isPending}
+						// Best-effort: only excludes members on the current
+						// page because the list is paginated. The server
+						// rejects duplicates, so this is a UX optimization.
 						existingUserIds={new Set(members.map((m) => m.id))}
 						search={addUsersSearch}
 						onSearchChange={setAddUsersSearch}
 						usersQuery={addableMembersQuery}
 						onSubmit={async (usersToAdd) => {
-							const addPromises = usersToAdd.map((user) =>
-								addMemberMutation.mutateAsync({
-									groupId: groupData.id,
-									userId: user.id,
-								}),
+							const toastId = toast.loading(
+								usersToAdd.length === 1
+									? `Adding "${usersToAdd[0].username}" to "${groupData.name}"...`
+									: `Adding ${usersToAdd.length} members to "${groupData.name}"...`,
 							);
-							const addAllPromise = Promise.all(addPromises);
 
-							toast.promise(addAllPromise, {
-								loading:
-									usersToAdd.length === 1
-										? `Adding "${usersToAdd[0].username}" to "${groupData.name}"...`
-										: `Adding ${usersToAdd.length} members to "${groupData.name}"...`,
-								success:
-									usersToAdd.length === 1
-										? `Added "${usersToAdd[0].username}" to "${groupData.name}" successfully.`
-										: `Added ${usersToAdd.length} members to "${groupData.name}" successfully.`,
-								error: (error) => ({
-									message: getErrorMessage(error, "Failed to add members."),
-									description: getErrorDetail(error),
-								}),
-							});
-
-							await addAllPromise;
-						}}
-						onSuccess={async () => {
-							// Only invalidate the group-members list we are updating.
-							await queryClient.invalidateQueries({
-								queryKey: groupMembersByOrganizationQueryKey(
-									organization,
-									groupData.name,
+							const results = await Promise.allSettled(
+								usersToAdd.map((user) =>
+									addMemberMutation.mutateAsync({
+										groupId: groupData.id,
+										userId: user.id,
+									}),
 								),
-							});
+							);
+
+							const succeeded = results.filter((r) => r.status === "fulfilled");
+							const failed = results.filter(
+								(r): r is PromiseRejectedResult => r.status === "rejected",
+							);
+
+							// Always refresh when at least one add succeeded
+							// so the member list stays in sync with the server.
+							if (succeeded.length > 0) {
+								await queryClient.invalidateQueries({
+									queryKey: groupMembersByOrganizationQueryKey(
+										organization,
+										groupData.name,
+									),
+								});
+							}
+
+							if (failed.length > 0) {
+								const msg =
+									succeeded.length > 0
+										? `Added ${succeeded.length} member(s), but ${failed.length} could not be added.`
+										: getErrorMessage(
+												failed[0].reason,
+												"Failed to add members.",
+											);
+								toast.error(msg, {
+									id: toastId,
+									description: getErrorDetail(failed[0].reason),
+								});
+								// Throw so the popover stays open for retry.
+								throw failed[0].reason;
+							}
+
+							toast.success(
+								usersToAdd.length === 1
+									? `Added "${usersToAdd[0].username}" to "${groupData.name}" successfully.`
+									: `Added ${usersToAdd.length} members to "${groupData.name}" successfully.`,
+								{ id: toastId },
+							);
 						}}
 					/>
 				)}

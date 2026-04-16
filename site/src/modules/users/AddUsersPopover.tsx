@@ -112,7 +112,7 @@ export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 							autoFocus
 						/>
 						<div
-							className="max-h-64 overflow-y-auto rounded-md border border-solid"
+							className="max-h-64 overflow-y-auto"
 							data-testid="add-members-user-list"
 						>
 							{usersQuery.isFetching && !usersQuery.data ? (

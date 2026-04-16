@@ -116,28 +116,46 @@ const OrganizationMembersPage: FC = () => {
 				members={members}
 				membersQuery={membersQuery}
 				addMembers={async (usersToAdd: readonly AddableUser[]) => {
-					const addMutationPromises = usersToAdd.map((user) =>
-						addMemberMutation.mutateAsync(user.id),
+					const toastId = toast.loading(
+						usersToAdd.length === 1
+							? `Adding "${usersToAdd[0].username}" to organization "${organization.display_name}"...`
+							: `Adding ${usersToAdd.length} members to organization "${organization.display_name}"...`,
 					);
-					const addAllMembersPromise = Promise.all(addMutationPromises);
 
-					toast.promise(addAllMembersPromise, {
-						loading:
-							usersToAdd.length === 1
-								? `Adding "${usersToAdd[0].username}" to organization "${organization.display_name}"...`
-								: `Adding ${usersToAdd.length} members to organization "${organization.display_name}"...`,
-						success:
-							usersToAdd.length === 1
-								? `Added "${usersToAdd[0].username}" to organization "${organization.display_name}".`
-								: `Added ${usersToAdd.length} members to organization "${organization.display_name}".`,
-						error: (error) => ({
-							message: getErrorMessage(error, "Failed to add members."),
-							description: getErrorDetail(error),
-						}),
-					});
+					const results = await Promise.allSettled(
+						usersToAdd.map((user) => addMemberMutation.mutateAsync(user.id)),
+					);
 
-					await addAllMembersPromise;
-					void membersQuery.refetch();
+					const succeeded = results.filter((r) => r.status === "fulfilled");
+					const failed = results.filter(
+						(r): r is PromiseRejectedResult => r.status === "rejected",
+					);
+
+					// Always refresh when at least one add succeeded so
+					// the member list stays in sync with the server.
+					if (succeeded.length > 0) {
+						void membersQuery.refetch();
+					}
+
+					if (failed.length > 0) {
+						const msg =
+							succeeded.length > 0
+								? `Added ${succeeded.length} member(s), but ${failed.length} could not be added.`
+								: getErrorMessage(failed[0].reason, "Failed to add members.");
+						toast.error(msg, {
+							id: toastId,
+							description: getErrorDetail(failed[0].reason),
+						});
+						// Throw so the popover stays open for retry.
+						throw failed[0].reason;
+					}
+
+					toast.success(
+						usersToAdd.length === 1
+							? `Added "${usersToAdd[0].username}" to organization "${organization.display_name}".`
+							: `Added ${usersToAdd.length} members to organization "${organization.display_name}".`,
+						{ id: toastId },
+					);
 				}}
 				removeMember={setMemberToDelete}
 				updateMemberRoles={async (
