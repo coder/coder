@@ -1369,6 +1369,8 @@ WITH cursor_pos AS (
 	-- is safe here since we only use MAX/MIN aggregates (no COUNT affected
 	-- by fan-out from multiple prompts per interception). The ended_at IS NOT
 	-- NULL filter keeps this consistent with session_page's aggregation scope.
+	-- COALESCE falls back to MIN(ai.started_at) for sessions with no prompts
+	-- so that sort_at is never NULL and cursor pagination always works.
 	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS sort_at
 	FROM aibridge_interceptions ai
 	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
@@ -1387,6 +1389,11 @@ session_page AS (
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
 		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
+		-- last_active_at is the latest user-prompt timestamp; it is NULL for
+		-- sessions that have no prompts. sort_at adds a MIN(started_at)
+		-- fallback so promptless sessions still appear and sort correctly —
+		-- a NULL sort_at in the HAVING row-value comparison evaluates to
+		-- NULL (not false), which silently drops rows from results.
 		MAX(pr.latest_prompt_at) AS last_active_at,
 		COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)) AS sort_at
 	FROM
