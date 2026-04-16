@@ -1,6 +1,7 @@
 import { useFormik } from "formik";
 import {
 	CheckCircleIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleIcon,
 	PlusIcon,
@@ -290,6 +291,9 @@ const ServerForm: FC<ServerFormProps> = ({
 	const formId = useId();
 	const isEditing = server !== null;
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [showConnection, setShowConnection] = useState(true);
+	const [showAuth, setShowAuth] = useState(true);
+	const [showBehavior, setShowBehavior] = useState(true);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialValues(server),
@@ -452,390 +456,480 @@ const ServerForm: FC<ServerFormProps> = ({
 							disabled={isDisabled}
 						/>
 					</Field>
-					{/* ── Connection row: URL + transport side by side ── */}
-					<hr className="!my-0 border-0 border-t border-solid border-border" />
-					<div className="grid items-start gap-5 sm:grid-cols-[1fr_auto]">
-						<Field
-							label="Server URL"
-							htmlFor={`${formId}-url`}
-							required
-							description="The endpoint URL for this MCP server."
+					{/* ── Connection section ── */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+							onClick={() => setShowConnection((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
-							<Input
-								id={`${formId}-url`}
-								className="h-9 text-[13px]"
-								{...form.getFieldProps("url")}
-								placeholder="https://mcp.example.com/sse"
-								disabled={isDisabled}
-							/>
-						</Field>
-
-						<Field label="Transport" htmlFor={`${formId}-transport`}>
-							<Select
-								value={form.values.transport}
-								onValueChange={(v) => {
-									form.setFieldValue("transport", v);
-								}}
-								disabled={isDisabled}
-							>
-								<SelectTrigger
-									id={`${formId}-transport`}
-									className="h-9 min-w-[160px] text-[13px]"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{TRANSPORT_OPTIONS.map((opt) => (
-										<SelectItem key={opt.value} value={opt.value}>
-											{opt.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					</div>
-					{/* ── Authentication ── */}
-					<hr className="!my-0 border-0 border-t border-solid border-border" />
-					<Field
-						label="Authentication"
-						htmlFor={`${formId}-auth`}
-						description="How users authenticate with this MCP server."
-					>
-						<Select
-							value={form.values.authType}
-							onValueChange={(v) => {
-								form.setFieldValue("authType", v);
-							}}
-							disabled={isDisabled}
-						>
-							<SelectTrigger
-								id={`${formId}-auth`}
-								className="h-9 max-w-[240px] text-[13px]"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{AUTH_TYPE_OPTIONS.map((opt) => (
-									<SelectItem key={opt.value} value={opt.value}>
-										{opt.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-					{form.values.authType === "oauth2" && (
-						<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
-							<p className="m-0 text-xs text-content-secondary">
-								Register a client with the external MCP server's OAuth2 provider
-								and enter the credentials below. Coder will handle the per-user
-								authorization flow.
-							</p>
-							<div className="grid items-start gap-4 sm:grid-cols-2">
-								{" "}
-								<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
-									<Input
-										id={`${formId}-oauth-id`}
-										className="h-9 text-[13px]"
-										{...form.getFieldProps("oauth2ClientID")}
-										disabled={isDisabled}
-									/>
-								</Field>
-								<Field label="Client Secret" htmlFor={`${formId}-oauth-secret`}>
-									<Input
-										id={`${formId}-oauth-secret`}
-										className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-										type="text"
-										autoComplete="off"
-										data-1p-ignore
-										data-lpignore="true"
-										data-form-type="other"
-										data-bwignore
-										value={form.values.oauth2ClientSecret}
-										onChange={(e) => {
-											form.setFieldValue("oauth2SecretTouched", true);
-											form.setFieldValue("oauth2ClientSecret", e.target.value);
-										}}
-										onFocus={() => {
-											if (
-												!form.values.oauth2SecretTouched &&
-												form.values.oauth2ClientSecret === SECRET_PLACEHOLDER
-											) {
-												form.setFieldValue("oauth2ClientSecret", "");
-												form.setFieldValue("oauth2SecretTouched", true);
-											}
-										}}
-										disabled={isDisabled}
-									/>
-								</Field>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Connection
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Server endpoint and transport protocol.
+								</p>
 							</div>
-							<div className="grid items-start gap-4 sm:grid-cols-2">
-								<Field
-									label="Authorization URL"
-									htmlFor={`${formId}-oauth-auth-url`}
-								>
-									<Input
-										id={`${formId}-oauth-auth-url`}
-										className="h-9 text-[13px]"
-										{...form.getFieldProps("oauth2AuthURL")}
-										placeholder="https://provider.com/oauth2/authorize"
-										disabled={isDisabled}
-									/>
-								</Field>
-								<Field label="Token URL" htmlFor={`${formId}-oauth-token-url`}>
-									<Input
-										id={`${formId}-oauth-token-url`}
-										className="h-9 text-[13px]"
-										{...form.getFieldProps("oauth2TokenURL")}
-										placeholder="https://provider.com/oauth2/token"
-										disabled={isDisabled}
-									/>
-								</Field>
-							</div>
-							<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
-								<Input
-									id={`${formId}-oauth-scopes`}
-									className="h-9 text-[13px]"
-									{...form.getFieldProps("oauth2Scopes")}
-									placeholder="read write"
-									disabled={isDisabled}
-								/>
-							</Field>
-						</div>
-					)}
-					{form.values.authType === "api_key" && (
-						<div className="grid items-start gap-4 rounded-lg border border-border bg-surface-secondary/30 p-4 sm:grid-cols-2">
-							<Field label="Header Name" htmlFor={`${formId}-apikey-header`}>
-								<Input
-									id={`${formId}-apikey-header`}
-									className="h-9 text-[13px]"
-									{...form.getFieldProps("apiKeyHeader")}
-									placeholder="Authorization"
-									disabled={isDisabled}
-								/>
-							</Field>
-							<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
-								<Input
-									id={`${formId}-apikey-value`}
-									className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-									type="text"
-									autoComplete="off"
-									data-1p-ignore
-									data-lpignore="true"
-									data-form-type="other"
-									data-bwignore
-									value={form.values.apiKeyValue}
-									onChange={(e) => {
-										form.setFieldValue("apiKeyTouched", true);
-										form.setFieldValue("apiKeyValue", e.target.value);
-									}}
-									onFocus={() => {
-										if (
-											!form.values.apiKeyTouched &&
-											form.values.apiKeyValue === SECRET_PLACEHOLDER
-										) {
-											form.setFieldValue("apiKeyValue", "");
-											form.setFieldValue("apiKeyTouched", true);
-										}
-									}}
-									disabled={isDisabled}
-								/>
-							</Field>
-						</div>
-					)}
-					{form.values.authType === "custom_headers" && (
-						<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
-							{server?.has_custom_headers &&
-								!form.values.customHeadersTouched && (
-									<p className="m-0 text-xs text-content-secondary">
-										This server has custom headers configured. Add headers below
-										to replace them.
-									</p>
-								)}
-							{form.values.customHeaders.map((header, index) => (
-								<div key={index} className="flex items-start gap-2">
-									<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
-										<Input
-											className="h-9 text-[13px]"
-											value={header.key}
-											onChange={(e) => {
-												form.setFieldValue("customHeadersTouched", true);
-												const updated = [...form.values.customHeaders];
-												updated[index] = {
-													...updated[index],
-													key: e.target.value,
-												};
-												form.setFieldValue("customHeaders", updated);
-											}}
-											placeholder="Header name"
-											disabled={isDisabled}
-											aria-label={`Header ${index + 1} name`}
-										/>
-										<Input
-											className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-											type="text"
-											autoComplete="off"
-											data-1p-ignore
-											data-lpignore="true"
-											data-form-type="other"
-											data-bwignore
-											value={header.value}
-											onChange={(e) => {
-												form.setFieldValue("customHeadersTouched", true);
-												const updated = [...form.values.customHeaders];
-												updated[index] = {
-													...updated[index],
-													value: e.target.value,
-												};
-												form.setFieldValue("customHeaders", updated);
-											}}
-											placeholder="Header value"
-											disabled={isDisabled}
-											aria-label={`Header ${index + 1} value`}
-										/>
-									</div>
-									<Button
-										variant="outline"
-										size="icon"
-										type="button"
-										className="mt-0 h-9 w-9 shrink-0"
-										onClick={() => {
-											form.setFieldValue("customHeadersTouched", true);
-											form.setFieldValue(
-												"customHeaders",
-												form.values.customHeaders.filter((_, i) => i !== index),
-											);
-										}}
-										disabled={isDisabled}
-										aria-label={`Remove header ${index + 1}`}
+							{showConnection ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							)}
+						</button>
+						{showConnection && (
+							<div className="space-y-5 pt-3">
+								<div className="grid items-start gap-5 sm:grid-cols-[1fr_auto]">
+									<Field
+										label="Server URL"
+										htmlFor={`${formId}-url`}
+										required
+										description="The endpoint URL for this MCP server."
 									>
-										<XIcon className="h-4 w-4" />
-									</Button>
+										<Input
+											id={`${formId}-url`}
+											className="h-9 text-[13px]"
+											{...form.getFieldProps("url")}
+											placeholder="https://mcp.example.com/sse"
+											disabled={isDisabled}
+										/>
+									</Field>
+
+									<Field label="Transport" htmlFor={`${formId}-transport`}>
+										<Select
+											value={form.values.transport}
+											onValueChange={(v) => {
+												form.setFieldValue("transport", v);
+											}}
+											disabled={isDisabled}
+										>
+											<SelectTrigger
+												id={`${formId}-transport`}
+												className="h-9 min-w-[160px] text-[13px]"
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{TRANSPORT_OPTIONS.map((opt) => (
+													<SelectItem key={opt.value} value={opt.value}>
+														{opt.label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</Field>
 								</div>
-							))}
-							<Button
-								variant="outline"
-								size="sm"
-								type="button"
-								onClick={() => {
-									form.setFieldValue("customHeadersTouched", true);
-									form.setFieldValue("customHeaders", [
-										...form.values.customHeaders,
-										{ key: "", value: "" },
-									]);
-								}}
-								disabled={isDisabled}
-							>
-								<PlusIcon className="h-4 w-4" />
-								Add header
-							</Button>
-						</div>
-					)}
-					{/* ── Availability ── */}
-					<hr className="!my-0 border-0 border-t border-solid border-border" />
-					<Field
-						label="Availability"
-						htmlFor={`${formId}-availability`}
-						description="Controls how this server appears in new conversations."
-					>
-						<Select
-							value={form.values.availability}
-							onValueChange={(v) => {
-								form.setFieldValue("availability", v);
-							}}
-							disabled={isDisabled}
+							</div>
+						)}
+					</div>
+						{/* ── Authentication section ── */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+								onClick={() => setShowAuth((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
-							<SelectTrigger
-								id={`${formId}-availability`}
-								className="h-9 text-[13px]"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{AVAILABILITY_OPTIONS.map((opt) => (
-									<SelectItem key={opt.value} value={opt.value}>
-										<div>
-											<span>{opt.label}</span>
-											<span className="ml-1.5 text-content-secondary">
-												— {opt.description}
-											</span>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Authentication
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									How users authenticate with this MCP server.
+								</p>
+							</div>
+							{showAuth ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							)}
+						</button>
+						{showAuth && (
+							<div className="space-y-5 pt-3">
+								<Select
+									value={form.values.authType}
+									onValueChange={(v) => {
+										form.setFieldValue("authType", v);
+									}}
+									disabled={isDisabled}
+								>
+									<SelectTrigger
+										id={`${formId}-auth`}
+										className="h-9 max-w-[240px] text-[13px]"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{AUTH_TYPE_OPTIONS.map((opt) => (
+											<SelectItem key={opt.value} value={opt.value}>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+
+								{form.values.authType === "oauth2" && (
+									<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
+										<p className="m-0 text-xs text-content-secondary">
+											Register a client with the external MCP server's OAuth2
+											provider and enter the credentials below. Coder will
+											handle the per-user authorization flow.
+										</p>
+										<div className="grid items-start gap-4 sm:grid-cols-2">
+											{" "}
+											<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
+												<Input
+													id={`${formId}-oauth-id`}
+													className="h-9 text-[13px]"
+													{...form.getFieldProps("oauth2ClientID")}
+													disabled={isDisabled}
+												/>
+											</Field>
+											<Field
+												label="Client Secret"
+												htmlFor={`${formId}-oauth-secret`}
+											>
+												<Input
+													id={`${formId}-oauth-secret`}
+													className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
+													type="text"
+													autoComplete="off"
+													data-1p-ignore
+													data-lpignore="true"
+													data-form-type="other"
+													data-bwignore
+													value={form.values.oauth2ClientSecret}
+													onChange={(e) => {
+														form.setFieldValue("oauth2SecretTouched", true);
+														form.setFieldValue(
+															"oauth2ClientSecret",
+															e.target.value,
+														);
+													}}
+													onFocus={() => {
+														if (
+															!form.values.oauth2SecretTouched &&
+															form.values.oauth2ClientSecret ===
+																SECRET_PLACEHOLDER
+														) {
+															form.setFieldValue("oauth2ClientSecret", "");
+															form.setFieldValue("oauth2SecretTouched", true);
+														}
+													}}
+													disabled={isDisabled}
+												/>
+											</Field>
 										</div>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>{" "}
-					{/* ── Tool governance row ── */}
-					<hr className="!my-0 border-0 border-t border-solid border-border" />
-					<div className="flex items-start justify-between gap-4">
-						<div className="min-w-0 space-y-1">
-							<Label
-								htmlFor={`${formId}-model-intent`}
-								className="text-sm font-medium text-content-primary"
-							>
-								Model intent
-							</Label>
-							<p className="m-0 text-xs text-content-secondary">
-								Require the model to describe each tool call's purpose in
-								natural language, shown as a status label in the UI.
-							</p>
-						</div>
-						<Switch
-							id={`${formId}-model-intent`}
-							checked={form.values.modelIntent}
-							onCheckedChange={(v) => {
-								form.setFieldValue("modelIntent", v);
-							}}
-							disabled={isDisabled}
-						/>
+										<div className="grid items-start gap-4 sm:grid-cols-2">
+											<Field
+												label="Authorization URL"
+												htmlFor={`${formId}-oauth-auth-url`}
+											>
+												<Input
+													id={`${formId}-oauth-auth-url`}
+													className="h-9 text-[13px]"
+													{...form.getFieldProps("oauth2AuthURL")}
+													placeholder="https://provider.com/oauth2/authorize"
+													disabled={isDisabled}
+												/>
+											</Field>
+											<Field
+												label="Token URL"
+												htmlFor={`${formId}-oauth-token-url`}
+											>
+												<Input
+													id={`${formId}-oauth-token-url`}
+													className="h-9 text-[13px]"
+													{...form.getFieldProps("oauth2TokenURL")}
+													placeholder="https://provider.com/oauth2/token"
+													disabled={isDisabled}
+												/>
+											</Field>
+										</div>
+										<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
+											<Input
+												id={`${formId}-oauth-scopes`}
+												className="h-9 text-[13px]"
+												{...form.getFieldProps("oauth2Scopes")}
+												placeholder="read write"
+												disabled={isDisabled}
+											/>
+										</Field>
+									</div>
+								)}
+
+								{form.values.authType === "api_key" && (
+									<div className="grid items-start gap-4 rounded-lg border border-border bg-surface-secondary/30 p-4 sm:grid-cols-2">
+										<Field
+											label="Header Name"
+											htmlFor={`${formId}-apikey-header`}
+										>
+											<Input
+												id={`${formId}-apikey-header`}
+												className="h-9 text-[13px]"
+												{...form.getFieldProps("apiKeyHeader")}
+												placeholder="Authorization"
+												disabled={isDisabled}
+											/>
+										</Field>
+										<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
+											<Input
+												id={`${formId}-apikey-value`}
+												className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
+												type="text"
+												autoComplete="off"
+												data-1p-ignore
+												data-lpignore="true"
+												data-form-type="other"
+												data-bwignore
+												value={form.values.apiKeyValue}
+												onChange={(e) => {
+													form.setFieldValue("apiKeyTouched", true);
+													form.setFieldValue("apiKeyValue", e.target.value);
+												}}
+												onFocus={() => {
+													if (
+														!form.values.apiKeyTouched &&
+														form.values.apiKeyValue === SECRET_PLACEHOLDER
+													) {
+														form.setFieldValue("apiKeyValue", "");
+														form.setFieldValue("apiKeyTouched", true);
+													}
+												}}
+												disabled={isDisabled}
+											/>
+										</Field>
+									</div>
+								)}
+
+								{form.values.authType === "custom_headers" && (
+									<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
+										{server?.has_custom_headers &&
+											!form.values.customHeadersTouched && (
+												<p className="m-0 text-xs text-content-secondary">
+													This server has custom headers configured. Add headers
+													below to replace them.
+												</p>
+											)}
+										{form.values.customHeaders.map((header, index) => (
+											<div key={index} className="flex items-start gap-2">
+												<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
+													<Input
+														className="h-9 text-[13px]"
+														value={header.key}
+														onChange={(e) => {
+															form.setFieldValue("customHeadersTouched", true);
+															const updated = [...form.values.customHeaders];
+															updated[index] = {
+																...updated[index],
+																key: e.target.value,
+															};
+															form.setFieldValue("customHeaders", updated);
+														}}
+														placeholder="Header name"
+														disabled={isDisabled}
+														aria-label={`Header ${index + 1} name`}
+													/>
+													<Input
+														className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
+														type="text"
+														autoComplete="off"
+														data-1p-ignore
+														data-lpignore="true"
+														data-form-type="other"
+														data-bwignore
+														value={header.value}
+														onChange={(e) => {
+															form.setFieldValue("customHeadersTouched", true);
+															const updated = [...form.values.customHeaders];
+															updated[index] = {
+																...updated[index],
+																value: e.target.value,
+															};
+															form.setFieldValue("customHeaders", updated);
+														}}
+														placeholder="Header value"
+														disabled={isDisabled}
+														aria-label={`Header ${index + 1} value`}
+													/>
+												</div>
+												<Button
+													variant="outline"
+													size="icon"
+													type="button"
+													className="mt-0 h-9 w-9 shrink-0"
+													onClick={() => {
+														form.setFieldValue("customHeadersTouched", true);
+														form.setFieldValue(
+															"customHeaders",
+															form.values.customHeaders.filter(
+																(_, i) => i !== index,
+															),
+														);
+													}}
+													disabled={isDisabled}
+													aria-label={`Remove header ${index + 1}`}
+												>
+													<XIcon className="h-4 w-4" />
+												</Button>
+											</div>
+										))}
+										<Button
+											variant="outline"
+											size="sm"
+											type="button"
+											onClick={() => {
+												form.setFieldValue("customHeadersTouched", true);
+												form.setFieldValue("customHeaders", [
+													...form.values.customHeaders,
+													{ key: "", value: "" },
+												]);
+											}}
+											disabled={isDisabled}
+										>
+											<PlusIcon className="h-4 w-4" />
+											Add header
+										</Button>
+									</div>
+								)}
+							</div>
+						)}
 					</div>
-					<div className="flex items-center justify-between">
-						<div>
-							<Label htmlFor={`${formId}-allow-in-plan-mode`}>
-								Allow all tools from this MCP server in root plan mode
-							</Label>
-							<p className="text-sm text-content-secondary">
-								When enabled, the root plan-mode agent can call these tools
-								during planning. Workspace MCP and plan-mode subagents remain
-								restricted.
-							</p>
-						</div>
-						<Switch
-							id={`${formId}-allow-in-plan-mode`}
-							checked={form.values.allowInPlanMode}
-							onCheckedChange={(v) => {
-								form.setFieldValue("allowInPlanMode", v);
-							}}
-							disabled={isDisabled}
-						/>
-					</div>
-					<div className="grid items-start gap-5 sm:grid-cols-2">
-						{" "}
-						<Field
-							label="Tool Allow List"
-							htmlFor={`${formId}-allow-list`}
-							description="Comma-separated. Empty = all allowed."
+					{/* ── Behavior section ── */}
+					<div className="border-0 border-t border-solid border-border pt-4">
+						<button
+							type="button"
+							onClick={() => setShowBehavior((v) => !v)}
+							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
-							<Input
-								id={`${formId}-allow-list`}
-								className="h-9 text-[13px]"
-								{...form.getFieldProps("toolAllowList")}
-								placeholder="tool1, tool2"
-								disabled={isDisabled}
-							/>
-						</Field>
-						<Field
-							label="Tool Deny List"
-							htmlFor={`${formId}-deny-list`}
-							description="Comma-separated names to block."
-						>
-							<Input
-								id={`${formId}-deny-list`}
-								className="h-9 text-[13px]"
-								{...form.getFieldProps("toolDenyList")}
-								placeholder="tool3, tool4"
-								disabled={isDisabled}
-							/>
-						</Field>
+							<div>
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Behavior
+								</h3>
+								<p className="m-0 text-xs text-content-secondary">
+									Availability, model intent, and tool governance.
+								</p>
+							</div>
+							{showBehavior ? (
+								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							) : (
+								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+							)}
+						</button>
+						{showBehavior && (
+							<div className="space-y-5 pt-3">
+								<div>
+									<Label
+										htmlFor={`${formId}-availability`}
+										className="mb-1 block text-sm font-medium text-content-primary"
+									>
+										Availability
+									</Label>
+									<Select
+										value={form.values.availability}
+										onValueChange={(v) => {
+											form.setFieldValue("availability", v);
+										}}
+										disabled={isDisabled}
+									>
+										<SelectTrigger
+											id={`${formId}-availability`}
+											className="h-9 text-[13px]"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{AVAILABILITY_OPTIONS.map((opt) => (
+												<SelectItem key={opt.value} value={opt.value}>
+													<div>
+														<span>{opt.label}</span>
+														<span className="ml-1.5 text-content-secondary">
+															— {opt.description}
+														</span>
+													</div>
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+
+								<div className="flex items-start justify-between gap-4">
+									<div className="min-w-0 space-y-1">
+										<Label
+											htmlFor={`${formId}-model-intent`}
+											className="text-sm font-medium text-content-primary"
+										>
+											Model intent
+										</Label>
+										<p className="m-0 text-xs text-content-secondary">
+											Require the model to describe each tool call's purpose in
+											natural language, shown as a status label in the UI.
+										</p>
+									</div>
+									<Switch
+										id={`${formId}-model-intent`}
+										checked={form.values.modelIntent}
+										onCheckedChange={(v) => {
+											form.setFieldValue("modelIntent", v);
+										}}
+										disabled={isDisabled}
+									/>
+								</div>
+
+								<div className="flex items-start justify-between gap-4">
+									<div className="min-w-0 space-y-1">
+										<Label
+											htmlFor={`${formId}-allow-in-plan-mode`}
+											className="text-sm font-medium text-content-primary"
+										>
+											Allow all tools from this MCP server in root plan mode
+										</Label>
+										<p className="m-0 text-xs text-content-secondary">
+											When enabled, the root plan-mode agent can call these tools
+											during planning. Workspace MCP and plan-mode subagents remain
+											restricted.
+										</p>
+									</div>
+									<Switch
+										id={`${formId}-allow-in-plan-mode`}
+										checked={form.values.allowInPlanMode}
+										onCheckedChange={(v) => {
+											form.setFieldValue("allowInPlanMode", v);
+										}}
+										disabled={isDisabled}
+									/>
+								</div>
+
+								<div className="grid items-start gap-5 sm:grid-cols-2">
+									{" "}
+									<Field
+										label="Tool Allow List"
+										htmlFor={`${formId}-allow-list`}
+										description="Comma-separated. Empty = all allowed."
+									>
+										<Input
+											id={`${formId}-allow-list`}
+											className="h-9 text-[13px]"
+											{...form.getFieldProps("toolAllowList")}
+											placeholder="tool1, tool2"
+											disabled={isDisabled}
+										/>
+									</Field>
+									<Field
+										label="Tool Deny List"
+										htmlFor={`${formId}-deny-list`}
+										description="Comma-separated names to block."
+									>
+										<Input
+											id={`${formId}-deny-list`}
+											className="h-9 text-[13px]"
+											{...form.getFieldProps("toolDenyList")}
+											placeholder="tool3, tool4"
+											disabled={isDisabled}
+										/>
+									</Field>
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 
