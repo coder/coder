@@ -1,7 +1,9 @@
 # PR Insights
 
 PR Insights tracks pull requests created by Coder Agents and surfaces
-analytics on PR activity, merge rates, and cost efficiency.
+analytics on PR activity, merge rates, and cost efficiency. The dashboard
+(under **Agents** > **Insights** > **PR Insights**) shows merge rates,
+cost per merged PR, per-model breakdowns, and individual PR status.
 
 ## How it works
 
@@ -64,51 +66,6 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.example\.com
 > [!NOTE]
 > Public `github.com` configurations do not need `API_BASE_URL` — the
 > default (`https://api.github.com`) is already correct.
-
-## Dashboard
-
-Navigate to **Agents** > **Insights** > **PR Insights**.
-
-### Summary view
-
-Period-over-period comparison cards:
-
-- **Total PRs created** — count of PRs opened during the selected period.
-- **Total PRs merged** — count of PRs merged during the selected period.
-- **Merge rate** — percentage of created PRs that were merged.
-- **Cost per merged PR** — total agent spend divided by merged PR count.
-- **Approval rate** — percentage of PRs that received an approving review.
-
-### Per-model breakdown
-
-Table showing per-model stats:
-
-| Column           | Description                                   |
-|------------------|-----------------------------------------------|
-| Model            | LLM model used by the agent                   |
-| Total PRs        | Number of PRs created using this model        |
-| Merge rate       | Percentage of PRs merged for this model       |
-| Cost per merged  | Average agent cost per merged PR              |
-| Additions        | Total lines added across PRs for this model   |
-| Deletions        | Total lines removed across PRs for this model |
-
-### Recent PRs
-
-Table of individual PRs:
-
-| Column        | Description                                    |
-|---------------|------------------------------------------------|
-| PR            | PR number with link to the pull request        |
-| State         | Current state: open, merged, or closed         |
-| Additions     | Lines added                                    |
-| Deletions     | Lines removed                                  |
-| Review status | Approval state from reviewers                  |
-| Chat          | Link to the associated agent chat              |
-| Cost          | Agent spend attributed to this PR              |
-
-### Time series
-
-Daily chart of PRs created, merged, and closed over the selected period.
 
 ## Troubleshooting
 
