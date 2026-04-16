@@ -172,34 +172,34 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 								? `See affected workspaces for ${orgDisplayName}`
 								: "See affected workspaces"
 						}
-						>
+					>
+						<TopbarData>
 							<TopbarIcon>
 								<CircleDollarSign
 									className="size-icon-sm"
 									aria-label="Daily usage"
 								/>
 							</TopbarIcon>
-								<TopbarData>
-									<span>
-										{workspace.latest_build.daily_cost}{" "}
-																			<span className="text-content-secondary">
-										{workspace.latest_build.daily_cost === 1
-											? "credit"
-											: "credits"}{" "}
-										(
-										<span
-							className={cn({
-								"text-content-warning":
-									quota.credits_consumed >= quota.budget * 0.85,
-								})}									>
-											{quota.credits_consumed}
-											</span>
-												{" "} of {quota.budget} total)
-									</span>
+							<span>
+								{workspace.latest_build.daily_cost}{" "}
+								<span className="text-content-secondary">
+									{workspace.latest_build.daily_cost === 1
+										? "credit"
+										: "credits"}{" "}
+									(
+									<span
+										className={cn({
+											"text-content-warning":
+												quota.credits_consumed >= quota.budget * 0.85,
+										})}
+									>
+										{quota.credits_consumed}
+									</span>{" "}
+									of {quota.budget} total)
 								</span>
-							</TopbarData>
-						</Link>
-
+							</span>
+						</TopbarData>
+					</Link>
 				)}
 
 				{shouldDisplayDormantData && (
