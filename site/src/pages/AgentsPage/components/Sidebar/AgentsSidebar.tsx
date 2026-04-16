@@ -140,6 +140,14 @@ interface AgentsSidebarProps {
 	isFetchingNextPage?: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	/**
+	 * Three-state filter on the `shared` query parameter for GET /chats:
+	 * - "owned"   -> only my chats (default, sends no `shared` param)
+	 * - "include" -> owned plus chats shared with me
+	 * - "only"    -> only chats shared with me
+	 */
+	sharedFilter?: "owned" | "include" | "only";
+	onSharedFilterChange?: (filter: "owned" | "include" | "only") => void;
 	onCollapse?: () => void;
 	isAdmin?: boolean;
 }
@@ -755,6 +763,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isFetchingNextPage,
 		archivedFilter,
 		onArchivedFilterChange,
+		sharedFilter = "owned",
+		onSharedFilterChange,
 		onCollapse,
 		isAdmin = false,
 	} = props;
@@ -912,6 +922,41 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<CheckIcon className="ml-auto h-3.5 w-3.5" />
 					)}
 				</DropdownMenuItem>
+				{onSharedFilterChange && (
+					<>
+						<DropdownMenuSeparator />
+						<div className="px-2 py-1 text-2xs uppercase text-content-secondary">
+							Shared
+						</div>
+						<DropdownMenuItem
+							data-testid="sidebar-shared-filter-owned"
+							onSelect={() => onSharedFilterChange("owned")}
+						>
+							My chats
+							{sharedFilter === "owned" && (
+								<CheckIcon className="ml-auto h-3.5 w-3.5" />
+							)}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							data-testid="sidebar-shared-filter-include"
+							onSelect={() => onSharedFilterChange("include")}
+						>
+							All accessible
+							{sharedFilter === "include" && (
+								<CheckIcon className="ml-auto h-3.5 w-3.5" />
+							)}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							data-testid="sidebar-shared-filter-only"
+							onSelect={() => onSharedFilterChange("only")}
+						>
+							Shared with me
+							{sharedFilter === "only" && (
+								<CheckIcon className="ml-auto h-3.5 w-3.5" />
+							)}
+						</DropdownMenuItem>
+					</>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

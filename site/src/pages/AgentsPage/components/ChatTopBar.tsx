@@ -23,6 +23,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { ChatSharePopover } from "#/modules/chats/ChatSharingForm/ChatSharePopover";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { useEmbedContext } from "./EmbedContext";
@@ -48,6 +49,8 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	chat?: TypesGen.Chat;
+	canShare?: boolean;
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -65,6 +68,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	chat,
+	canShare = false,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 
@@ -174,6 +179,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
+				{!isEmbedded && !isArchived && canShare && chat && (
+					<ChatSharePopover chat={chat} canShare={canShare} />
+				)}
 				{!isEmbedded && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

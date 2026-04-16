@@ -200,6 +200,23 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
+/** Viewer of a shared chat sees a read-only banner and a disabled input. */
+export const ReadOnlyBannerForViewer: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={buildChat({ owner_id: "some-other-owner" })}
+			isReadOnly
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			await body.findByTestId("chat-readonly-banner"),
+		).toBeInTheDocument();
+	},
+};
+
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
 	render: () => (

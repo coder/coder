@@ -231,7 +231,11 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
-export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
+export const infiniteChats = (opts?: {
+	q?: string;
+	archived?: boolean;
+	shared?: TypesGen.ChatSharedFilter;
+}) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
 	// Build the search query string including the archived filter.
@@ -243,6 +247,9 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 		qParts.push(`archived:${opts.archived}`);
 	}
 	const q = qParts.length > 0 ? qParts.join(" ") : undefined;
+	// The shared selector is sent as its own query parameter; the
+	// backend only recognizes non-empty values ("include", "only").
+	const shared = opts?.shared ? opts.shared : undefined;
 
 	return {
 		queryKey: [...chatsKey, opts],
@@ -261,12 +268,56 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 				q,
+				shared,
 			});
 		},
 		refetchOnWindowFocus: true as const,
 		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
+
+const chatACLKey = (chatId: string) => ["chatAcl", chatId] as const;
+
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	entry: TypesGen.ChatShareEntry;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	entry: TypesGen.ChatShareEntry;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, entry }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: entry },
+		}),
+	onSuccess: async (_res: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, entry }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: entry },
+		}),
+	onSuccess: async (_res: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+		});
+	},
+});
 
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),

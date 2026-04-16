@@ -3118,12 +3118,32 @@ class ExperimentalApiMethods {
 		limit?: number;
 		offset?: number;
 		q?: string;
+		shared?: TypesGen.ChatSharedFilter;
 	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
 			getURLWithSearchParams("/api/experimental/chats", req),
 		);
 		return response.data;
 	};
+
+	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`/api/experimental/chats/${chatId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatACL = async (
+		chatId: string,
+		data: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, data);
+	};
+
+	deleteChatACL = async (chatId: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/chats/${chatId}/acl`);
+	};
+
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,

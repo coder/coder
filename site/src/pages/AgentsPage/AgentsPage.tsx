@@ -88,6 +88,9 @@ const AgentsPage: FC = () => {
 	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
 		"active",
 	);
+	const [sharedFilter, setSharedFilter] = useState<
+		"owned" | "include" | "only"
+	>("owned");
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -133,7 +136,10 @@ const AgentsPage: FC = () => {
 	}, []);
 
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({ archived: archivedFilter === "archived" }),
+		infiniteChats({
+			archived: archivedFilter === "archived",
+			shared: sharedFilter === "owned" ? undefined : sharedFilter,
+		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
@@ -726,6 +732,8 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+				sharedFilter={sharedFilter}
+				onSharedFilterChange={setSharedFilter}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}
