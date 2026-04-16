@@ -1,10 +1,4 @@
-import {
-	BracesIcon,
-	FileCodeIcon,
-	FileIcon,
-	FolderIcon,
-	TerminalIcon,
-} from "lucide-react";
+import { BracesIcon, FileCodeIcon, FileIcon, TerminalIcon } from "lucide-react";
 import type { ComponentProps, ElementType, FC } from "react";
 import { DockerIcon } from "#/components/Icons/DockerIcon";
 

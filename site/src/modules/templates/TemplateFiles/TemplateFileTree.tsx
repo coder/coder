@@ -1,11 +1,9 @@
 import {
-	ChevronDownIcon,
-	ChevronRightIcon,
 	EllipsisIcon,
-	PencilIcon,
-	Trash2Icon,
 	FolderIcon,
 	FolderOpenIcon,
+	PencilIcon,
+	Trash2Icon,
 } from "lucide-react";
 import { type FC, type JSX, useState } from "react";
 import { Button } from "#/components/Button/Button";
