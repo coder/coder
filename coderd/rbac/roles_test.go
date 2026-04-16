@@ -1096,25 +1096,25 @@ func TestRolePermissions(t *testing.T) {
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
-		{
-			Name:     "ChatUsage",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			{
+				Name:     "ChatUsage",
+				Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+				Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+				AuthorizeMap: map[bool][]hasAuthSubjects{
+					true:  {owner, orgAdmin, orgMemberMe},
+					false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				},
 			},
-		},
-		{
-			Name:     "ShareMyChat",
-			Actions:  []policy.Action{policy.ActionShare},
-			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			{
+				Name:     "ShareMyChat",
+				Actions:  []policy.Action{policy.ActionShare},
+				Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+				AuthorizeMap: map[bool][]hasAuthSubjects{
+					true:  {owner, orgAdmin, orgMemberMe},
+					false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				},
 			},
-		},
-	}
+		}
 	// Build coverage set from test case definitions statically,
 	// so we don't need shared mutable state during execution.
 	// This allows subtests to run in parallel.
