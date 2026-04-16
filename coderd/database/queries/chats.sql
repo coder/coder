@@ -406,7 +406,8 @@ INSERT INTO chats (
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -422,7 +423,8 @@ INSERT INTO chats (
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -1299,7 +1301,7 @@ SELECT
     id, owner_id, created_at, updated_at, status,
     (parent_chat_id IS NOT NULL)::bool AS has_parent,
     root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
+    mode, archived, last_model_config_id, client_type
 FROM chats
 WHERE updated_at > @updated_after;
 

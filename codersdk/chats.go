@@ -52,6 +52,15 @@ const (
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
+// ChatClientType indicates whether a chat was created from the
+// web UI or programmatically via the API.
+type ChatClientType string
+
+const (
+	ChatClientTypeUI  ChatClientType = "ui"
+	ChatClientTypeAPI ChatClientType = "api"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
@@ -85,6 +94,7 @@ type Chat struct {
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
+	ClientType          ChatClientType    `json:"client_type"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -393,8 +403,9 @@ type CreateChatRequest struct {
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
-	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
-	PlanMode           ChatPlanMode  `json:"plan_mode,omitempty"`
+	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
+	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
+	ClientType         ChatClientType `json:"client_type,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.

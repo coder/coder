@@ -122,6 +122,7 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 			LastModelConfigID: modelCfgID,
 			Title:             "test chat",
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			MCPServerIDs:      []uuid.UUID{},
 		})
 		require.NoError(t, err)

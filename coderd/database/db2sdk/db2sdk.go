@@ -1597,6 +1597,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
+		ClientType:        codersdk.ChatClientType(c.ClientType),
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

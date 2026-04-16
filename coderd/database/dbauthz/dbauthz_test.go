@@ -866,7 +866,8 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{
-			Status: database.ChatStatusWaiting,
+			Status:     database.ChatStatusWaiting,
+			ClientType: database.ChatClientTypeUi,
 		})
 		chat := testutil.Fake(s.T(), faker, database.Chat{OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChat(gomock.Any(), arg).Return(chat, nil).AnyTimes()

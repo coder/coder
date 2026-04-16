@@ -812,6 +812,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "all-fields-test",
 		Status:            database.ChatStatusRunning,
+		ClientType:        database.ChatClientTypeUi,
 		LastError:         sql.NullString{String: "boom", Valid: true},
 		CreatedAt:         now,
 		UpdatedAt:         now,
