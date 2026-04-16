@@ -97,6 +97,24 @@ sql:
           - column: "workspaces.group_acl"
             go_type:
               type: "WorkspaceACL"
+          - column: "chats.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats.group_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats_with_acl.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats_with_acl.group_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats_with_acl.effective_user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "chats_with_acl.effective_group_acl"
+            go_type:
+              type: "WorkspaceACL"
           - column: "workspaces_expanded.user_acl"
             go_type:
               type: "WorkspaceACL"

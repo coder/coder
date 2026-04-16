@@ -224,6 +224,7 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +468,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeChatShare:
 		return true
 	}
 	return false
@@ -680,6 +682,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeChatShare,
 	}
 }
 
@@ -3305,6 +3308,67 @@ func AllResourceTypeValues() []ResourceType {
 	}
 }
 
+type ShareableChatOwners string
+
+const (
+	ShareableChatOwnersNone            ShareableChatOwners = "none"
+	ShareableChatOwnersEveryone        ShareableChatOwners = "everyone"
+	ShareableChatOwnersServiceAccounts ShareableChatOwners = "service_accounts"
+)
+
+func (e *ShareableChatOwners) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShareableChatOwners(s)
+	case string:
+		*e = ShareableChatOwners(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShareableChatOwners: %T", src)
+	}
+	return nil
+}
+
+type NullShareableChatOwners struct {
+	ShareableChatOwners ShareableChatOwners `json:"shareable_chat_owners"`
+	Valid               bool                `json:"valid"` // Valid is true if ShareableChatOwners is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShareableChatOwners) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShareableChatOwners, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShareableChatOwners.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShareableChatOwners) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShareableChatOwners), nil
+}
+
+func (e ShareableChatOwners) Valid() bool {
+	switch e {
+	case ShareableChatOwnersNone,
+		ShareableChatOwnersEveryone,
+		ShareableChatOwnersServiceAccounts:
+		return true
+	}
+	return false
+}
+
+func AllShareableChatOwnersValues() []ShareableChatOwners {
+	return []ShareableChatOwners{
+		ShareableChatOwnersNone,
+		ShareableChatOwnersEveryone,
+		ShareableChatOwnersServiceAccounts,
+	}
+}
+
 type ShareableWorkspaceOwners string
 
 const (
@@ -4362,6 +4426,8 @@ type Chat struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
+	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
 }
 
 type ChatDebugRun struct {
@@ -4517,6 +4583,41 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Projects each chat alongside its effective ACL. Sub-chats inherit the root chat's user_acl/group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant's own ACL.
+type ChatsWithAcl struct {
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title               string                `db:"title" json:"title"`
+	Status              ChatStatus            `db:"status" json:"status"`
+	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived            bool                  `db:"archived" json:"archived"`
+	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	Mode                NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels              json.RawMessage       `db:"labels" json:"labels"`
+	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
+	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
+	EffectiveUserAcl    WorkspaceACL          `db:"effective_user_acl" json:"effective_user_acl"`
+	EffectiveGroupAcl   WorkspaceACL          `db:"effective_group_acl" json:"effective_group_acl"`
 }
 
 type ConnectionLog struct {
@@ -4896,6 +4997,8 @@ type Organization struct {
 	Deleted     bool      `db:"deleted" json:"deleted"`
 	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
+	// Controls whose chats can be shared: none, everyone, or service_accounts.
+	ShareableChatOwners ShareableChatOwners `db:"shareable_chat_owners" json:"shareable_chat_owners"`
 }
 
 type OrganizationMember struct {

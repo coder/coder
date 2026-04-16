@@ -14,6 +14,8 @@ const (
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck CheckConstraint = "chat_usage_limit_config_default_limit_micros_check" // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck             CheckConstraint = "chat_usage_limit_config_period_check"               // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
+	CheckChatGroupAclNotNullJsonb                    CheckConstraint = "chat_group_acl_not_null_jsonb"                      // chats
+	CheckChatUserAclNotNullJsonb                     CheckConstraint = "chat_user_acl_not_null_jsonb"                       // chats
 	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
 	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users

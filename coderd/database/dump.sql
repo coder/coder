@@ -220,7 +220,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'chat:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -525,6 +526,12 @@ CREATE TYPE resource_type AS ENUM (
     'prebuilds_settings',
     'task',
     'ai_seat'
+);
+
+CREATE TYPE shareable_chat_owners AS ENUM (
+    'none',
+    'everyone',
+    'service_accounts'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1481,8 +1488,49 @@ CREATE TABLE chats (
     dynamic_tools jsonb,
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
-    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL
+    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
+    CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text)))
 );
+
+CREATE VIEW chats_with_acl AS
+ SELECT c.id,
+    c.owner_id,
+    c.workspace_id,
+    c.title,
+    c.status,
+    c.worker_id,
+    c.started_at,
+    c.heartbeat_at,
+    c.created_at,
+    c.updated_at,
+    c.parent_chat_id,
+    c.root_chat_id,
+    c.last_model_config_id,
+    c.archived,
+    c.last_error,
+    c.mode,
+    c.mcp_server_ids,
+    c.labels,
+    c.build_id,
+    c.agent_id,
+    c.pin_order,
+    c.last_read_message_id,
+    c.last_injected_context,
+    c.dynamic_tools,
+    c.organization_id,
+    c.plan_mode,
+    c.client_type,
+    c.user_acl,
+    c.group_acl,
+    COALESCE(root.user_acl, c.user_acl) AS effective_user_acl,
+    COALESCE(root.group_acl, c.group_acl) AS effective_group_acl
+   FROM (chats c
+     LEFT JOIN chats root ON ((root.id = c.root_chat_id)));
+
+COMMENT ON VIEW chats_with_acl IS 'Projects each chat alongside its effective ACL. Sub-chats inherit the root chat''s user_acl/group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant''s own ACL.';
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
@@ -1995,10 +2043,13 @@ CREATE TABLE organizations (
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL
+    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
+    shareable_chat_owners shareable_chat_owners DEFAULT 'everyone'::shareable_chat_owners NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
+
+COMMENT ON COLUMN organizations.shareable_chat_owners IS 'Controls whose chats can be shared: none, everyone, or service_accounts.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
