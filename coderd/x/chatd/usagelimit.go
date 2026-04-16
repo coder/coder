@@ -64,7 +64,7 @@ func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPerio
 // for each period and compare each spend/limit pair Go-side, blocking on
 // whichever period is tightest.
 func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, organizationID uuid.NullUUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
-	//nolint:gocritic // AsChatd provides narrowly-scoped daemon access for
+	//dbauthzcheck:ignore // AsChatd provides narrowly-scoped daemon access for
 	// deployment config reads and cross-user chat spend aggregation.
 	authCtx := dbauthz.AsChatd(ctx)
 

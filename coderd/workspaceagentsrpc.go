@@ -330,7 +330,7 @@ func (m *agentConnectionMonitor) sendPings(ctx context.Context) {
 }
 
 func (m *agentConnectionMonitor) updateConnectionTimes(ctx context.Context) error {
-	//nolint:gocritic // We only update the agent we are minding.
+	//dbauthzcheck:ignore // We only update the agent we are minding.
 	err := m.db.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:               m.workspaceAgent.ID,
 		FirstConnectedAt: m.firstConnectedAt,
@@ -397,7 +397,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		//
 		// Use a system context as the agent has disconnected and that token
 		// may no longer be valid.
-		//nolint:gocritic
+		//dbauthzcheck:ignore
 		finalCtx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(m.apiCtx), m.disconnectTimeout)
 		defer cancel()
 

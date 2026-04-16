@@ -19,7 +19,7 @@ const (
 // AI seat count and emits it as an HBAISeats heartbeat event.
 func AISeatsHeartbeat(db database.Store) HeartbeatFunc {
 	return func(ctx context.Context) (usagetypes.HeartbeatEvent, error) {
-		//nolint:gocritic // We are a publisher in this function
+		//dbauthzcheck:ignore // We are a publisher in this function
 		ctx = dbauthz.AsUsagePublisher(ctx)
 		count, err := db.GetActiveAISeatCount(ctx)
 		if err != nil {

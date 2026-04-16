@@ -71,7 +71,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 		return
 	}
 
-	// nolint: gocritic // Read-only access to provisioner daemons for health check
+	//dbauthzcheck:ignore // Read-only access to provisioner daemons for health check
 	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 	if err != nil {
 		r.Severity = health.SeverityError

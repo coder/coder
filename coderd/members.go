@@ -182,7 +182,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 
 	var aiSeatSet map[uuid.UUID]struct{}
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		//dbauthzcheck:ignore // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -244,7 +244,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	}
 	var aiSeatSet map[uuid.UUID]struct{}
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		//dbauthzcheck:ignore // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -355,7 +355,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	}
 	var aiSeatSet map[uuid.UUID]struct{}
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		//dbauthzcheck:ignore // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -473,7 +473,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWriter, member httpmw.OrganizationMember, organization database.Organization) bool {
-	// nolint:gocritic // The caller could be an org admin without this perm.
+	//dbauthzcheck:ignore // The caller could be an org admin without this perm.
 	// We need to disable manual role assignment if role sync is enabled for
 	// the given organization.
 	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
@@ -483,7 +483,7 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 	}
 
 	if user.LoginType == database.LoginTypeOIDC {
-		// nolint:gocritic // fetching settings
+		//dbauthzcheck:ignore // fetching settings
 		orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)

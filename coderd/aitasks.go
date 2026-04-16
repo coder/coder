@@ -1314,7 +1314,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := api.NotificationsEnqueuer.Enqueue(
-		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
 		notifications.TemplateTaskPaused,
@@ -1418,7 +1418,7 @@ func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := api.NotificationsEnqueuer.Enqueue(
-		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
 		notifications.TemplateTaskResumed,

@@ -20,31 +20,6 @@ import (
 	"github.com/quasilyte/go-ruleguard/dsl/types"
 )
 
-// dbauthzAuthorizationContext is a lint rule that protects the usage of
-// system contexts. This is a dangerous pattern that can lead to
-// leaking database information as a system context can be essentially
-// "sudo".
-//
-// Anytime a function like "AsSystem" is used, it should be accompanied by a comment
-// explaining why it's ok and a nolint.
-func dbauthzAuthorizationContext(m dsl.Matcher) {
-	m.Import("context")
-	m.Import("github.com/coder/coder/v2/coderd/database/dbauthz")
-
-	m.Match(
-		`dbauthz.$f($c)`,
-	).
-		Where(
-			m["c"].Type.Implements("context.Context") &&
-				// Only report on functions that start with "As".
-				m["f"].Text.Matches("^As") &&
-				// Ignore test usages of dbauthz contexts.
-				!m.File().Name.Matches(`_test\.go$`),
-		).
-		// Instructions for fixing the lint error should be included on the dangerous function.
-		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
-}
-
 // testingWithOwnerUser is a lint rule that detects potential permission bugs.
 // Calling clitest.SetupConfig with a client authenticated as the Owner user
 // can be a problem, since the CLI will be operating as that user and we may

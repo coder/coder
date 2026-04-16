@@ -45,7 +45,7 @@ func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.St
 	if len(ciphers) > 0 {
 		dbc.primaryCipherDigest = ciphers[0].HexDigest()
 	}
-	// nolint: gocritic // This is allowed.
+	//dbauthzcheck:ignore // This is allowed.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	if err := dbc.ensureEncryptedWithRetry(authCtx); err != nil {
 		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)

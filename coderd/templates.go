@@ -79,7 +79,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 
 	// This is just to get the workspace count, so we use a system context to
 	// return ALL workspaces. Not just workspaces the user can view.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		TemplateIDs: []uuid.UUID{template.ID},
 	})
@@ -152,7 +152,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		templateNameLabel = template.Name
 	}
 
-	// nolint:gocritic // Need notifier actor to enqueue notifications
+	//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      templateNameLabel,
@@ -972,7 +972,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 
 	for userID := range users {
 		_, err = api.NotificationsEnqueuer.Enqueue(
-			//nolint:gocritic // We need the notifier auth context to be able to send the deprecation notification.
+			//dbauthzcheck:ignore // We need the notifier auth context to be able to send the deprecation notification.
 			dbauthz.AsNotifier(ctx),
 			userID,
 			notifications.TemplateTemplateDeprecated,

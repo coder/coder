@@ -62,7 +62,7 @@ func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims jwt.MapClaims) (*
 func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) database.UserLink {
 	t.Helper()
 
-	//nolint:gocritic // Testing
+	//dbauthzcheck:ignore // Testing
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
 
 	id, _, err := httpmw.SplitAPIToken(user.SessionToken())

@@ -110,7 +110,7 @@ func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Re
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		//nolint:gocritic // System context required to look up and reconcile the
+		//dbauthzcheck:ignore // System context required to look up and reconcile the
 		// system roles; callers only need `organization:update`
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 

@@ -227,7 +227,7 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 	}
 
 	if len(cleanupSubscriptions) > 0 {
-		// nolint:gocritic // These are known to be invalid subscriptions.
+		//dbauthzcheck:ignore // These are known to be invalid subscriptions.
 		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
 		if err != nil {
 			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))

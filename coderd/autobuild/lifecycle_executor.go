@@ -71,7 +71,7 @@ type Stats struct {
 func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
-		//nolint:gocritic // Autostart has a limited set of permissions.
+		//dbauthzcheck:ignore // Autostart has a limited set of permissions.
 		ctx:                     dbauthz.AsAutostart(ctx),
 		db:                      db,
 		ps:                      ps,
@@ -142,7 +142,7 @@ func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t
 		WantTags:       tags,
 	}
 
-	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	//dbauthzcheck:ignore // The user (in this case, the user/context for autostart builds) may not have the full
 	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
 	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
 	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)

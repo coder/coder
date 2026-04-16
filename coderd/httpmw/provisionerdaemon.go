@@ -70,7 +70,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				return
 			}
 			hashedKey := provisionerkey.HashSecret(key)
-			// nolint:gocritic // System must check if the provisioner key is valid.
+			//dbauthzcheck:ignore // System must check if the provisioner key is valid.
 			pk, err := opts.DB.GetProvisionerKeyByHashedSecret(dbauthz.AsSystemRestricted(ctx), hashedKey)
 			if err != nil {
 				if httpapi.Is404Error(err) {
@@ -100,7 +100,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 			ctx = context.WithValue(ctx, provisionerDaemonContextKey{}, true)
 			// store key used to authenticate the request
 			ctx = context.WithValue(ctx, provisionerKeyAuthContextKey{}, pk)
-			// nolint:gocritic // Authenticating as a provisioner daemon.
+			//dbauthzcheck:ignore // Authenticating as a provisioner daemon.
 			ctx = dbauthz.AsProvisionerd(ctx)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -127,7 +127,7 @@ func fallbackToPSK(ctx context.Context, psk string, next http.Handler, w http.Re
 	// store a boolean so the caller can check if the request is from an
 	// authenticated provisioner daemon.
 	ctx = context.WithValue(ctx, provisionerDaemonContextKey{}, true)
-	// nolint:gocritic // Authenticating as a provisioner daemon.
+	//dbauthzcheck:ignore // Authenticating as a provisioner daemon.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	next.ServeHTTP(w, r.WithContext(ctx))
 }

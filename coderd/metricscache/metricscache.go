@@ -84,7 +84,7 @@ func New(db database.Store, log slog.Logger, clock quartz.Clock, intervals Inter
 }
 
 func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
-	//nolint:gocritic // This is a system service.
+	//dbauthzcheck:ignore // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	templates, err := c.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{

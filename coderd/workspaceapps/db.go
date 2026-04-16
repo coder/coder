@@ -90,7 +90,7 @@ func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
 }
 
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
-	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
+	//dbauthzcheck:ignore // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
 	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
 	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
@@ -479,7 +479,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 
 		var newOrStale bool
 		err := p.Database.InTx(func(tx database.Store) (err error) {
-			// nolint:gocritic // System context is needed to write audit sessions.
+			//dbauthzcheck:ignore // System context is needed to write audit sessions.
 			dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
 			newOrStale, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{

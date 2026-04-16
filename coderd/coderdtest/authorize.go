@@ -50,7 +50,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	// We use the database directly to not cause additional auth checks on behalf
 	// of the user. This does add authz checks on behalf of the system user, but
 	// it is hard to avoid that.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	token := client.SessionToken()
 	parts := strings.Split(token, "-")

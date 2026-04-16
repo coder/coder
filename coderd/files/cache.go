@@ -297,7 +297,7 @@ func fetch(store database.Store, fileID uuid.UUID) (CacheEntryValue, error) {
 	//   for each acquirer afterwards.
 	// This prevents a canceled context or an unauthorized user from "holding up
 	// the queue".
-	//nolint:gocritic
+	//dbauthzcheck:ignore
 	file, err := store.GetFileByID(dbauthz.AsFileReader(context.Background()), fileID)
 	if err != nil {
 		return CacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)

@@ -301,16 +301,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
-	// nolint:gocritic // Setting up unit test data inside test helper
+	//dbauthzcheck:ignore // Setting up unit test data inside test helper
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(context.Background()))
 	if xerrors.Is(err, sql.ErrNoRows) || depID == "" {
-		// nolint:gocritic // Setting up unit test data inside test helper
+		//dbauthzcheck:ignore // Setting up unit test data inside test helper
 		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
 		require.NoError(t, err, "insert a deployment id")
 	}
 
 	if options.WebpushDispatcher == nil {
-		// nolint:gocritic // Gets/sets VAPID keys.
+		//dbauthzcheck:ignore // Gets/sets VAPID keys.
 		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database, "http://example.com")
 		if err != nil {
 			panic(xerrors.Errorf("failed to create web push notifier: %w", err))
@@ -518,7 +518,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	const derpMeshKey = "test-key"
 	// Technically AGPL coderd servers don't set this value, but it doesn't
 	// change any behavior. It's useful for enterprise tests.
-	err = options.Database.InsertDERPMeshKey(dbauthz.AsSystemRestricted(ctx), derpMeshKey) //nolint:gocritic // test
+	err = options.Database.InsertDERPMeshKey(dbauthz.AsSystemRestricted(ctx), derpMeshKey) //dbauthzcheck:ignore // test
 	if !database.IsUniqueViolation(err, database.UniqueSiteConfigsKeyKey) {
 		require.NoError(t, err, "insert DERP mesh key")
 	}
@@ -836,7 +836,7 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 		})
 	}
 
-	//nolint:gocritic // We’re constructing the subject. The incoming ctx
+	//dbauthzcheck:ignore // We’re constructing the subject. The incoming ctx
 	// typically has no dbauthz actor yet, and using AuthzUserSubject(user)
 	// here would be circular (it lacks DB-backed org-member roles needed for
 	// organization:read). Use system-restricted ctx for the membership lookup.
@@ -852,7 +852,7 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
 	}
 
-	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
+	//dbauthzcheck:ignore // We need to expand DB-backed/system roles. The caller
 	// ctx may not have permission to read system roles, so use system-restricted
 	// context for the internal role lookup.
 	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roles)
@@ -1692,7 +1692,7 @@ func GetProvisionerForTags(tx database.Store, curTime time.Time, orgID uuid.UUID
 		WantTags:       tags,
 	}
 
-	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	//dbauthzcheck:ignore // The user (in this case, the user/context for autostart builds) may not have the full
 	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
 	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
 	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(context.Background()), queryParams)
@@ -1714,7 +1714,7 @@ func GetProvisionerForTags(tx database.Store, curTime time.Time, orgID uuid.UUID
 
 func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
 	// Use system restricted context which has permissions to update provisioner daemons
-	//nolint: gocritic // We need system context to modify this.
+	//dbauthzcheck:ignore // We need system context to modify this.
 	return dbauthz.AsSystemRestricted(ctx)
 }
 

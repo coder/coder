@@ -462,7 +462,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
 	}
 
-	// nolint:gocritic // The user performing this request may not have permission
+	//dbauthzcheck:ignore // The user performing this request may not have permission
 	// to read all provisioner daemons. We need to retrieve the eligible
 	// provisioner daemons for this job to show in the UI if there is no
 	// matching provisioner daemon.
@@ -584,7 +584,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}
 		}
 		if b.state.orphan && !hasActiveEligibleProvisioner {
-			// nolint: gocritic // User won't necessarily have the permission to do this so we act as a system user.
+			//dbauthzcheck:ignore // User won't necessarily have the permission to do this so we act as a system user.
 			if err := store.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsWorkspaceBuilder(b.ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 				CompletedAt: sql.NullTime{Valid: true, Time: now},
 				Error:       sql.NullString{Valid: false},
@@ -829,7 +829,7 @@ func (b *Builder) getState() ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
-	// nolint: gocritic // Workspace builder needs to read provisioner state for the new build.
+	//dbauthzcheck:ignore // Workspace builder needs to read provisioner state for the new build.
 	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsWorkspaceBuilder(b.ctx), bld.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace build provisioner state: %w", err)

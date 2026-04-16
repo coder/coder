@@ -36,7 +36,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // Requires system context to read runtime config
+	//dbauthzcheck:ignore // Requires system context to read runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	settings, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
@@ -94,7 +94,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
@@ -165,7 +165,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 	}
 
 	var settings idpsync.GroupSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, tx)
@@ -238,7 +238,7 @@ func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request
 	}
 
 	var settings idpsync.GroupSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, tx)
@@ -295,7 +295,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // Requires system context to read runtime config
+	//dbauthzcheck:ignore // Requires system context to read runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	settings, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
@@ -340,7 +340,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
@@ -405,7 +405,7 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	var settings idpsync.RoleSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, tx)
@@ -472,7 +472,7 @@ func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request)
 	}
 
 	var settings idpsync.RoleSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, tx)
@@ -521,7 +521,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	//nolint:gocritic // Requires system context to read runtime config
+	//dbauthzcheck:ignore // Requires system context to read runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	settings, err := api.IDPSync.OrganizationSyncSettings(sysCtx, api.Database)
 	if err != nil {
@@ -566,7 +566,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 		return
 	}
 
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, api.Database)
 	if err != nil {
@@ -631,7 +631,7 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 	}
 
 	var settings idpsync.OrganizationSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
@@ -697,7 +697,7 @@ func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.
 	}
 
 	var settings idpsync.OrganizationSyncSettings
-	//nolint:gocritic // Requires system context to update runtime config
+	//dbauthzcheck:ignore // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, tx)

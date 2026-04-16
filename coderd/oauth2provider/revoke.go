@@ -124,7 +124,7 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 	}
 
 	// Try to find refresh token by prefix
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(parsedToken.Prefix))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -140,7 +140,7 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 	}
 
 	// Verify ownership
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
 	if err != nil {
 		return xerrors.Errorf("get oauth2 provider app secret: %w", err)
@@ -151,7 +151,7 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 
 	// Delete the associated API key, which should cascade to remove the refresh token
 	// According to RFC 7009, when a refresh token is revoked, associated access tokens should be invalidated
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	err = db.DeleteAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("delete api key: %w", err)
@@ -167,7 +167,7 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	}
 
 	// Get the API key
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	apiKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), keyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -189,7 +189,7 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	}
 
 	// Find the associated OAuth2 token to verify ownership
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	dbToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), apiKey.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -200,7 +200,7 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	}
 
 	// Verify the token belongs to the requesting app
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
 	if err != nil {
 		return xerrors.Errorf("get oauth2 provider app secret for api key verification: %w", err)
@@ -211,7 +211,7 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	}
 
 	// Delete the API key
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	//dbauthzcheck:ignore // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
 	err = db.DeleteAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), apiKey.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("delete api key for revocation: %w", err)

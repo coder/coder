@@ -77,12 +77,12 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	eg.Go(func() (err error) {
-		//nolint:gocritic // TODO: can we make this not require system restricted?
+		//dbauthzcheck:ignore // TODO: can we make this not require system restricted?
 		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{waws.WorkspaceAgent.ID})
 		return err
 	})
 	eg.Go(func() (err error) {
-		//nolint:gocritic // TODO: can we make this not require system restricted?
+		//dbauthzcheck:ignore // TODO: can we make this not require system restricted?
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{waws.WorkspaceAgent.ID})
 		return err
 	})
@@ -103,7 +103,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	for _, app := range dbApps {
 		appIDs = append(appIDs, app.ID)
 	}
-	// nolint:gocritic // This is a system restricted operation.
+	//dbauthzcheck:ignore // This is a system restricted operation.
 	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2043,7 +2043,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
-		//nolint:gocritic // Chat processor context required for cross-user chat lookup
+		//dbauthzcheck:ignore // Chat processor context required for cross-user chat lookup
 		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
 			WorkspaceID: workspace.ID,
 			OwnerID:     workspace.OwnerID,
@@ -2198,7 +2198,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			return
 		}
 		// MarkStale will trigger a refresh by coderd/gitsync.
-		//nolint:gocritic // Chat processor context required for cross-user chat lookup
+		//dbauthzcheck:ignore // Chat processor context required for cross-user chat lookup
 		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
 			WorkspaceID: workspace.ID,
 			OwnerID:     workspace.OwnerID,
@@ -2496,7 +2496,7 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	// Use system context for chat operations since the
 	// workspace agent scope does not include chat resources.
 	// We verify agent-to-chat ownership explicitly below.
-	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	//dbauthzcheck:ignore // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
 	if err != nil {
@@ -2622,7 +2622,7 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 
 	// Use system context for chat operations since the
 	// workspace agent scope does not include chat resources.
-	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	//dbauthzcheck:ignore // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
 	if err != nil {

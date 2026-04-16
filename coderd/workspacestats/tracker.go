@@ -125,7 +125,7 @@ func (tr *UsageTracker) flush(now time.Time) {
 	// Set a short-ish timeout for this. We don't want to hang forever.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	// nolint: gocritic // system function
+	//dbauthzcheck:ignore // system function
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	tr.flushLock.Lock()
 	defer tr.flushLock.Unlock()

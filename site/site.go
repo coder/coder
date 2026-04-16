@@ -301,7 +301,7 @@ func ShouldCacheFile(reqFile string) bool {
 // reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
 // The purpose is to track the first time the first user opens the site.
 func (h *Handler) reportHTMLFirstServedAt() {
-	// nolint:gocritic // Manipulating telemetry items is system-restricted.
+	//dbauthzcheck:ignore // Manipulating telemetry items is system-restricted.
 	// TODO(hugodutka): Add a telemetry context in RBAC.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
@@ -385,7 +385,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	})
 	if !ok || apiKey == nil || actor == nil {
 		var cfg codersdk.AppearanceConfig
-		// nolint:gocritic // User is not expected to be signed in.
+		//dbauthzcheck:ignore // User is not expected to be signed in.
 		ctx := dbauthz.AsSystemRestricted(r.Context())
 		cfg, _ = af.Fetch(ctx)
 		state.ApplicationName = applicationNameOrDefault(cfg)

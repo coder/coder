@@ -91,7 +91,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			//nolint:gocritic // System needs to be able to get workspace agents.
+			//dbauthzcheck:ignore // System needs to be able to get workspace agents.
 			row, err := opts.DB.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {

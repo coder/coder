@@ -180,7 +180,7 @@ func UsersFilter(
 		})
 
 		// Set the last seen for each user to a unique day
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		_, err := db.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(setupCtx), database.UpdateUserLastSeenAtParams{
 			ID:         userData.ID,
 			LastSeenAt: lastSeenNow.Add(-1 * time.Hour * 24 * time.Duration(i)),
@@ -190,7 +190,7 @@ func UsersFilter(
 
 		// Set a github user ID for github login types.
 		if i%7 == 0 {
-			// nolint:gocritic // Setting up unit test data.
+			//dbauthzcheck:ignore // Setting up unit test data.
 			err = db.UpdateUserGithubComUserID(dbauthz.AsSystemRestricted(setupCtx), database.UpdateUserGithubComUserIDParams{
 				ID: userData.ID,
 				GithubComUserID: sql.NullInt64{
@@ -234,7 +234,7 @@ func UsersFilter(
 
 	// Add users with different creation dates for testing date filters
 	for i := range 3 {
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		user1, err := db.InsertUser(dbauthz.AsSystemRestricted(setupCtx), database.InsertUserParams{
 			ID:               uuid.New(),
 			Email:            fmt.Sprintf("before%d@coder.com", i),
@@ -249,7 +249,7 @@ func UsersFilter(
 			IsServiceAccount: false,
 		})
 		require.NoError(t, err)
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		_, err = db.InsertOrganizationMember(dbauthz.AsSystemRestricted(setupCtx), database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user1.ID,
@@ -269,7 +269,7 @@ func UsersFilter(
 		require.NoError(t, err)
 		users = append(users, sdkUser1)
 
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		user2, err := db.InsertUser(dbauthz.AsSystemRestricted(setupCtx), database.InsertUserParams{
 			ID:               uuid.New(),
 			Email:            fmt.Sprintf("during%d@coder.com", i),
@@ -284,7 +284,7 @@ func UsersFilter(
 			IsServiceAccount: false,
 		})
 		require.NoError(t, err)
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		_, err = db.InsertOrganizationMember(dbauthz.AsSystemRestricted(setupCtx), database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user2.ID,
@@ -303,7 +303,7 @@ func UsersFilter(
 		require.NoError(t, err)
 		users = append(users, sdkUser2)
 
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		user3, err := db.InsertUser(dbauthz.AsSystemRestricted(setupCtx), database.InsertUserParams{
 			ID:               uuid.New(),
 			Email:            fmt.Sprintf("after%d@coder.com", i),
@@ -318,7 +318,7 @@ func UsersFilter(
 			IsServiceAccount: false,
 		})
 		require.NoError(t, err)
-		// nolint:gocritic // Setting up unit test data.
+		//dbauthzcheck:ignore // Setting up unit test data.
 		_, err = db.InsertOrganizationMember(dbauthz.AsSystemRestricted(setupCtx), database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user3.ID,

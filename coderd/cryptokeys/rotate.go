@@ -55,7 +55,7 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
 func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) {
-	//nolint:gocritic // KeyRotator can only rotate crypto keys.
+	//dbauthzcheck:ignore // KeyRotator can only rotate crypto keys.
 	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
 		db:          db,

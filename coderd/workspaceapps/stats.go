@@ -307,7 +307,7 @@ func (sc *StatsCollector) start() {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		//nolint:gocritic // Inserting app stats is a system function.
+		//dbauthzcheck:ignore // Inserting app stats is a system function.
 		_ = sc.flush(dbauthz.AsSystemRestricted(ctx))
 		cancel()
 

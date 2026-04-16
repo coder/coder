@@ -982,7 +982,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 			}
 
-			// nolint:gocritic // We need to run the manager in a notifier context.
+			//dbauthzcheck:ignore // We need to run the manager in a notifier context.
 			notificationsManager.Run(dbauthz.AsNotifier(ctx))
 
 			// Run report generator to distribute periodic reports.
@@ -1939,7 +1939,7 @@ type githubOAuth2ConfigParams struct {
 func isDeploymentEligibleForGithubDefaultProvider(ctx context.Context, db database.Store) (bool, error) {
 	// We want to enable the default provider only for new deployments, and avoid
 	// enabling it if a deployment was upgraded from an older version.
-	// nolint:gocritic // Requires system privileges
+	//dbauthzcheck:ignore // Requires system privileges
 	defaultEligible, err := db.GetOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, xerrors.Errorf("get github default eligible: %w", err)
@@ -1947,14 +1947,14 @@ func isDeploymentEligibleForGithubDefaultProvider(ctx context.Context, db databa
 	defaultEligibleNotSet := errors.Is(err, sql.ErrNoRows)
 
 	if defaultEligibleNotSet {
-		// nolint:gocritic // User count requires system privileges
+		//dbauthzcheck:ignore // User count requires system privileges
 		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return false, xerrors.Errorf("get user count: %w", err)
 		}
 		// We check if a deployment is new by checking if it has any users.
 		defaultEligible = userCount == 0
-		// nolint:gocritic // Requires system privileges
+		//dbauthzcheck:ignore // Requires system privileges
 		if err := db.UpsertOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx), defaultEligible); err != nil {
 			return false, xerrors.Errorf("upsert github default eligible: %w", err)
 		}

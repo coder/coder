@@ -64,7 +64,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
 	}
-	// nolint:gocritic // Inserting a replica is a system function.
+	//dbauthzcheck:ignore // Inserting a replica is a system function.
 	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
 		ID:           options.ID,
 		CreatedAt:    dbtime.Now(),
@@ -161,7 +161,7 @@ func (m *Manager) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-deleteTicker.C:
-			// nolint:gocritic // Deleting a replica is a system function
+			//dbauthzcheck:ignore // Deleting a replica is a system function
 			err := m.db.DeleteReplicasUpdatedBefore(dbauthz.AsSystemRestricted(ctx), m.updateInterval())
 			if err != nil {
 				m.logger.Warn(ctx, "delete old replicas", slog.Error(err))
@@ -245,7 +245,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	defer m.closeWait.Done()
 	// Expect replicas to update once every three times the interval...
 	// If they don't, assume death!
-	// nolint:gocritic // Reading replicas is a system function
+	//dbauthzcheck:ignore // Reading replicas is a system function
 	replicas, err := m.db.GetReplicasUpdatedAfter(dbauthz.AsSystemRestricted(ctx), m.updateInterval())
 	if err != nil {
 		return xerrors.Errorf("get replicas: %w", err)
@@ -313,7 +313,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	// nolint:gocritic // Updating a replica is a system function.
+	//dbauthzcheck:ignore // Updating a replica is a system function.
 	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:           m.self.ID,
 		UpdatedAt:    dbtime.Now(),
@@ -333,7 +333,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			return xerrors.Errorf("update replica: %w", err)
 		}
 		// self replica has been cleaned up, we must reinsert
-		// nolint:gocritic // Updating a replica is a system function.
+		//dbauthzcheck:ignore // Updating a replica is a system function.
 		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
 			ID:           m.self.ID,
 			CreatedAt:    dbtime.Now(),
@@ -465,7 +465,7 @@ func (m *Manager) Close() error {
 	defer m.mutex.Unlock()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	// nolint:gocritic // Updating a replica is a system function.
+	//dbauthzcheck:ignore // Updating a replica is a system function.
 	_, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:        m.self.ID,
 		UpdatedAt: dbtime.Now(),

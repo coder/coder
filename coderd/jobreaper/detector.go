@@ -111,7 +111,7 @@ type Stats struct {
 
 // New returns a new job reaper.
 func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
-	//nolint:gocritic // Job reaper has a limited set of permissions.
+	//dbauthzcheck:ignore // Job reaper has a limited set of permissions.
 	ctx, cancel := context.WithCancel(dbauthz.AsJobReaper(ctx))
 	d := &Detector{
 		ctx:    ctx,

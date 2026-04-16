@@ -174,11 +174,11 @@ type Server struct {
 // allowlist is empty or cannot be loaded the function returns
 // nil, which the tools interpret as "all templates allowed".
 func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
-	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	//dbauthzcheck:ignore // AsChatd provides narrowly-scoped daemon
 	// access for reading deployment config.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	//nolint:gocritic // AsChatd provides narrowly-scoped read
+	//dbauthzcheck:ignore // AsChatd provides narrowly-scoped read
 	// access to deployment config (the template allowlist).
 	ctx = dbauthz.AsChatd(ctx)
 	raw, err := p.db.GetChatTemplateAllowlist(ctx)
@@ -2002,7 +2002,7 @@ func (p *Server) RegenerateChatTitle(
 ) (database.Chat, error) {
 	// Reuse chatd's scoped auth context for deployment-config lookups while
 	// keeping chat ownership authorization at the HTTP layer.
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	//dbauthzcheck:ignore // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID)
 	if err != nil {
@@ -2024,7 +2024,7 @@ func (p *Server) RegenerateChatTitle(
 		if errors.As(err, &generationErr) {
 			// Reuse chatd's scoped auth context for failure accounting while
 			// detaching from request cancellation so usage is still recorded.
-			//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
+			//dbauthzcheck:ignore // Failure accounting still needs chatd-scoped config reads.
 			recordCtx, recordCancel := context.WithTimeout(
 				dbauthz.AsChatd(context.WithoutCancel(ctx)),
 				5*time.Second,
@@ -2799,7 +2799,7 @@ func New(cfg Config) *Server {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
-	//nolint:gocritic // The chat processor uses a scoped chatd context.
+	//dbauthzcheck:ignore // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
 
 	p.configCache = newChatConfigCache(ctx, cfg.Database, clk)
@@ -3163,7 +3163,7 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	// Collect the IDs we believe we own.
 	ids := slices.Collect(maps.Keys(snapshot))
 
-	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	//dbauthzcheck:ignore // AsChatd provides narrowly-scoped daemon
 	// access for batch-updating heartbeats.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	updatedIDs, err := p.db.UpdateChatHeartbeats(chatdCtx, database.UpdateChatHeartbeatsParams{
@@ -4513,7 +4513,7 @@ func (p *Server) loadPlanModeInstructions(
 
 	// Plan-mode instructions live in deployment config, but chat workers do
 	// not carry a deployment-config actor during background execution.
-	//nolint:gocritic // Required to read deployment config during background chat processing.
+	//dbauthzcheck:ignore // Required to read deployment config during background chat processing.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
@@ -6812,7 +6812,7 @@ func (p *Server) refreshMCPTokenIfNeeded(
 		expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Chatd needs system-level write access to
+	//dbauthzcheck:ignore // Chatd needs system-level write access to
 	// persist the refreshed OAuth2 token for the user.
 	updated, err := p.db.UpsertMCPServerUserToken(
 		dbauthz.AsSystemRestricted(ctx),

@@ -137,7 +137,7 @@ func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature 
 	cache.logger.Debug(ctx, "created new key cache")
 
 	cache.cond = sync.NewCond(&cache.mu)
-	//nolint:gocritic // We need to be able to read the keys in order to cache them.
+	//dbauthzcheck:ignore // We need to be able to read the keys in order to cache them.
 	cache.ctx, cache.cancel = context.WithCancel(dbauthz.AsKeyReader(ctx))
 	cache.refresher = cache.clock.AfterFunc(refreshInterval, cache.refresh)
 
@@ -154,7 +154,7 @@ func (c *cache) EncryptingKey(ctx context.Context) (string, interface{}, error) 
 		return "", nil, ErrInvalidFeature
 	}
 
-	//nolint:gocritic // cache can only read crypto keys.
+	//dbauthzcheck:ignore // cache can only read crypto keys.
 	ctx = dbauthz.AsKeyReader(ctx)
 	return c.cryptoKey(ctx, latestSequence)
 }
@@ -169,7 +169,7 @@ func (c *cache) DecryptingKey(ctx context.Context, id string) (interface{}, erro
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}
 
-	//nolint:gocritic // cache can only read crypto keys.
+	//dbauthzcheck:ignore // cache can only read crypto keys.
 	ctx = dbauthz.AsKeyReader(ctx)
 	_, secret, err := c.cryptoKey(ctx, int32(seq))
 	if err != nil {
@@ -183,7 +183,7 @@ func (c *cache) SigningKey(ctx context.Context) (string, interface{}, error) {
 		return "", nil, ErrInvalidFeature
 	}
 
-	//nolint:gocritic // cache can only read crypto keys.
+	//dbauthzcheck:ignore // cache can only read crypto keys.
 	ctx = dbauthz.AsKeyReader(ctx)
 	return c.cryptoKey(ctx, latestSequence)
 }
@@ -197,7 +197,7 @@ func (c *cache) VerifyingKey(ctx context.Context, id string) (interface{}, error
 	if err != nil {
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}
-	//nolint:gocritic // cache can only read crypto keys.
+	//dbauthzcheck:ignore // cache can only read crypto keys.
 	ctx = dbauthz.AsKeyReader(ctx)
 	_, secret, err := c.cryptoKey(ctx, int32(seq))
 	if err != nil {

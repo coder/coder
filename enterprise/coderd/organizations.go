@@ -294,7 +294,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		// Populate the placeholder system role(s) that the DB trigger
 		// created for us.
-		//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+		//dbauthzcheck:ignore // ReconcileOrgMemberRole needs the system:update
 		// permission that user doesn't have.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		for roleName := range rolestore.SystemRoleNames {

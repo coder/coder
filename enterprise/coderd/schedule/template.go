@@ -231,7 +231,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return database.Template{}, xerrors.Errorf("get template schedule: %w", err)
 		}
 
-		//nolint:gocritic // We need to be able to read information about all workspaces.
+		//dbauthzcheck:ignore // We need to be able to read information about all workspaces.
 		workspaces, err := db.GetWorkspacesByTemplateID(dbauthz.AsSystemRestricted(ctx), tpl.ID)
 		if err != nil {
 			return database.Template{}, xerrors.Errorf("get workspaces by template id: %w", err)
@@ -257,7 +257,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			nextStartAts = append(nextStartAts, nextStartAt)
 		}
 
-		//nolint:gocritic // We need to be able to update information about regular user workspaces.
+		//dbauthzcheck:ignore // We need to be able to update information about regular user workspaces.
 		if err := db.BatchUpdateWorkspaceNextStartAt(dbauthz.AsSystemRestricted(ctx), database.BatchUpdateWorkspaceNextStartAtParams{
 			IDs:          workspaceIDs,
 			NextStartAts: nextStartAts,
@@ -271,7 +271,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		for _, ws := range dormantWorkspacesUpdated {
 			_, err = s.enqueuer.Enqueue(
-				// nolint:gocritic // Need actor to enqueue notification
+				//dbauthzcheck:ignore // Need actor to enqueue notification
 				dbauthz.AsNotifier(ctx),
 				ws.OwnerID,
 				notifications.TemplateWorkspaceMarkedForDeletion,
@@ -300,7 +300,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	//nolint:gocritic // This function will retrieve all workspace builds on
+	//dbauthzcheck:ignore // This function will retrieve all workspace builds on
 	// the template and update their max deadline to be within the new
 	// policy parameters.
 	ctx = dbauthz.AsSystemRestricted(ctx)

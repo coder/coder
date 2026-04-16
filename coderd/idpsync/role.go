@@ -77,7 +77,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		return nil
 	}
 
-	// nolint:gocritic // all syncing is done as a system user
+	//dbauthzcheck:ignore // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	err := db.InTx(func(tx database.Store) error {

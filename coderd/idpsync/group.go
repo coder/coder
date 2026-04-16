@@ -123,7 +123,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		return nil
 	}
 
-	// nolint:gocritic // all syncing is done as a system user
+	//dbauthzcheck:ignore // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	err := db.InTx(func(tx database.Store) error {

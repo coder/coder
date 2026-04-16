@@ -74,7 +74,7 @@ func New(logger slog.Logger, db database.Store, opts ...Option) *Rolluper {
 		opt(r)
 	}
 
-	//nolint:gocritic // The system rolls up database tables without user input.
+	//dbauthzcheck:ignore // The system rolls up database tables without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	go r.start(ctx)
 

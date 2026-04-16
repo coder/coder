@@ -100,7 +100,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			}
 
 			// Get the proxy.
-			// nolint:gocritic // Get proxy by ID to check auth token
+			//dbauthzcheck:ignore // Get proxy by ID to check auth token
 			proxy, err := opts.DB.GetWorkspaceProxyByID(dbauthz.AsSystemRestricted(ctx), proxyID)
 			if xerrors.Is(err, sql.ErrNoRows) {
 				// Proxy IDs are public so we don't care about leaking them via
@@ -134,7 +134,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 
 			ctx = r.Context()
 			ctx = context.WithValue(ctx, workspaceProxyContextKey{}, proxy)
-			//nolint:gocritic // Workspace proxies have full permissions. The
+			//dbauthzcheck:ignore // Workspace proxies have full permissions. The
 			// workspace proxy auth middleware is not mounted to every route, so
 			// they can still only access the routes that the middleware is
 			// mounted to.

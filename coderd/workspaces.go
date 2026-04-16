@@ -826,7 +826,7 @@ func createWorkspace(
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
 
-	// nolint:gocritic // Need system context to fetch admins
+	//dbauthzcheck:ignore // Need system context to fetch admins
 	admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
 	if err != nil {
 		api.Logger.Error(ctx, "find template admins", slog.Error(err))
@@ -1014,7 +1014,7 @@ func (api *API) notifyWorkspaceCreated(
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // Need notifier actor to enqueue notifications
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
 		receiverID,
 		notifications.TemplateWorkspaceCreated,
@@ -1462,7 +1462,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		if initiatorErr == nil && tmplErr == nil {
 			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
-				// nolint:gocritic // Need notifier actor to enqueue notifications
+				//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
@@ -2324,7 +2324,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		userIDs = append(userIDs, id)
 	}
 	// For context see https://github.com/coder/coder/pull/19375
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -2356,7 +2356,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
 		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.InternalServerError(rw, err)
@@ -2368,7 +2368,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	for _, it := range dbGroups {
 		var members []database.GroupMember
 		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
 			GroupID:       it.Group.ID,
 			IncludeSystem: false,
@@ -2563,7 +2563,7 @@ func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 // sharing is disabled or the org lookup fails; otherwise it returns
 // true.
 func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWriter, organizationID uuid.UUID) bool {
-	//nolint:gocritic // Use system context so this check doesn’t
+	//dbauthzcheck:ignore // Use system context so this check doesn’t
 	// depend on the caller having organization:read.
 	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), organizationID)
 	if err != nil {
@@ -2608,7 +2608,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	})
 	eg.Go(func() (err error) {
 		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get workspace builds: %w", err)
@@ -2617,7 +2617,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	})
 	eg.Go(func() (err error) {
 		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get workspace app statuses: %w", err)
@@ -3038,7 +3038,7 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 
 	// Use system context to list all users. The authorization check above
 	// ensures only users who can create workspaces for others can access this.
-	//nolint:gocritic // System context needed to list users for workspace owner selection.
+	//dbauthzcheck:ignore // System context needed to list users for workspace owner selection.
 	users, _, ok := api.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
 	if !ok {
 		return

@@ -238,7 +238,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic
+	//dbauthzcheck:ignore
 	dbUser, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email:    email,
 		Username: sUser.UserName,
@@ -252,7 +252,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		sUser.UserName = dbUser.Username
 
 		if *sUser.Active && dbUser.Status == database.UserStatusSuspended {
-			//nolint:gocritic
+			//dbauthzcheck:ignore
 			newUser, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 				ID: dbUser.ID,
 				// The user will get transitioned to Active after logging in.
@@ -294,14 +294,14 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	// the default org, regardless if sync is enabled or not.
 	// This is to preserve single org deployment behavior.
 	organizations := []uuid.UUID{}
-	//nolint:gocritic // SCIM operations are a system user
+	//dbauthzcheck:ignore // SCIM operations are a system user
 	orgSync, err := api.IDPSync.OrganizationSyncSettings(dbauthz.AsSystemRestricted(ctx), api.Database)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to get organization sync settings: %w", err)))
 		return
 	}
 	if orgSync.AssignDefault {
-		//nolint:gocritic // SCIM operations are a system user
+		//dbauthzcheck:ignore // SCIM operations are a system user
 		defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		if err != nil {
 			_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to get default organization: %w", err)))
@@ -310,7 +310,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		organizations = append(organizations, defaultOrganization.ID)
 	}
 
-	//nolint:gocritic // needed for SCIM
+	//dbauthzcheck:ignore // needed for SCIM
 	dbUser, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Username:        sUser.UserName,
@@ -378,7 +378,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // needed for SCIM
+	//dbauthzcheck:ignore // needed for SCIM
 	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err) // internal error
@@ -394,7 +394,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	newStatus := scimUserStatus(dbUser, *sUser.Active)
 	if dbUser.Status != newStatus {
-		//nolint:gocritic // needed for SCIM
+		//dbauthzcheck:ignore // needed for SCIM
 		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,
@@ -466,7 +466,7 @@ func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // needed for SCIM
+	//dbauthzcheck:ignore // needed for SCIM
 	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err) // internal error
@@ -490,7 +490,7 @@ func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 
 	newStatus := scimUserStatus(dbUser, *sUser.Active)
 	if dbUser.Status != newStatus {
-		//nolint:gocritic // needed for SCIM
+		//dbauthzcheck:ignore // needed for SCIM
 		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,

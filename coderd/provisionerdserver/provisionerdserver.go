@@ -321,7 +321,7 @@ func (s *server) heartbeat(ctx context.Context) error {
 }
 
 func (s *server) defaultHeartbeat(ctx context.Context) error {
-	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
+	//dbauthzcheck:ignore // This is specifically for updating the last seen at timestamp.
 	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         s.ID,
 		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
@@ -332,7 +332,7 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 //
 // Deprecated: This method is only available for back-level provisioner daemons.
 func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
@@ -358,7 +358,7 @@ type jobAndErr struct {
 
 // AcquireJobWithCancel queries the database to lock a job.
 func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) (retErr error) {
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	streamCtx := dbauthz.AsProvisionerd(stream.Context())
 	defer func() {
 		closeErr := stream.Close()
@@ -409,7 +409,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
 		now := s.timeNow()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
-			//nolint:gocritic // Provisionerd has specific authz rules.
+			//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 			dbauthz.AsProvisionerd(context.Background()),
 			database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID: je.job.ID,
@@ -919,7 +919,7 @@ func (s *server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequ
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(request.JobId)
 	if err != nil {
@@ -953,7 +953,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
@@ -1185,7 +1185,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
@@ -1521,7 +1521,7 @@ func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream)
 		return xerrors.Errorf("unsupported file upload type: %s", file.Type)
 	}
 
-	//nolint:gocritic // Provisionerd actor
+	//dbauthzcheck:ignore // Provisionerd actor
 	_, err = s.Database.InsertFile(dbauthz.AsProvisionerd(s.lifecycleCtx), insert)
 	if err != nil {
 		// Duplicated files already exist in the database, so we can ignore this error.
@@ -1545,7 +1545,7 @@ func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream)
 func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvisionerDaemon_DownloadFileStream) error {
 	//nolint:errcheck
 	defer stream.CloseSend()
-	//nolint:gocritic // Provisionerd is the actor here.
+	//dbauthzcheck:ignore // Provisionerd is the actor here.
 	ctx := dbauthz.AsProvisionerd(stream.Context())
 
 	// A graceful error message will help debugging.
@@ -1618,7 +1618,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	//nolint:gocritic // Provisionerd has specific authz rules.
+	//dbauthzcheck:ignore // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
@@ -1881,7 +1881,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				hashBytes := sha256.Sum256(moduleFiles)
 				hash := hex.EncodeToString(hashBytes[:])
 
-				//nolint:gocritic // Acting as provisionerd
+				//dbauthzcheck:ignore // Acting as provisionerd
 				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
 				switch {
 				case err == nil:
@@ -1893,7 +1893,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				case !xerrors.Is(err, sql.ErrNoRows):
 					return xerrors.Errorf("check for cached modules: %w", err)
 				default:
-					//nolint:gocritic // Acting as provisionerd
+					//dbauthzcheck:ignore // Acting as provisionerd
 					file, err = db.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
 						ID:        uuid.New(),
 						Hash:      hash,
@@ -1914,7 +1914,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 
 			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
 				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
-				//nolint:gocritic // Acting as provisioner
+				//dbauthzcheck:ignore // Acting as provisioner
 				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
 				if err != nil {
 					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)

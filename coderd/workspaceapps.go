@@ -180,7 +180,7 @@ func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts
 		// Strip the port for the database query.
 		host = strings.Split(host, ":")[0]
 
-		// nolint:gocritic // system query
+		//dbauthzcheck:ignore // system query
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 		proxy, err := api.Database.GetWorkspaceProxyByHostname(systemCtx, database.GetWorkspaceProxyByHostnameParams{
 			Hostname:              host,

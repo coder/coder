@@ -44,14 +44,14 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// We have to use the system restricted context here because the caller
 	// might not have permission to read all users.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	users, _, ok := api.AGPL.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
 	if !ok {
 		return
 	}
 
 	// Perm check is the template update check.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 		OrganizationID: template.OrganizationID,
 	})
@@ -62,7 +62,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,
@@ -72,7 +72,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			return
 		}
 
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,
@@ -144,7 +144,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// but they can read the acl list if the function got this far. So we let
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,
@@ -153,7 +153,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		// nolint:gocritic
+		//dbauthzcheck:ignore
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,

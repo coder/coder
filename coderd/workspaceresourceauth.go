@@ -132,7 +132,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	ctx := r.Context()
 	// Instance identity auth happens before the agent has a session token, so
 	// these lookups must use a restricted system context.
-	//nolint:gocritic // Instance identity auth happens before agent auth.
+	//dbauthzcheck:ignore // Instance identity auth happens before agent auth.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	agentName = strings.TrimSpace(agentName)
 

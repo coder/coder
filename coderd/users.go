@@ -103,7 +103,7 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // GetUserLinkByUserIDLoginType requires reading
+	//dbauthzcheck:ignore // GetUserLinkByUserIDLoginType requires reading
 	// rbac.ResourceSystem. The endpoint is scoped to the authenticated
 	// user's own identity via apiKey, so this is safe.
 	link, err := api.Database.GetUserLinkByUserIDLoginType(
@@ -141,7 +141,7 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// nolint:gocritic // Getting user count is a system function.
+	//dbauthzcheck:ignore // Getting user count is a system function.
 	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -184,7 +184,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This should only function for the first user.
-	// nolint:gocritic // Getting user count is a system function.
+	//dbauthzcheck:ignore // Getting user count is a system function.
 	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -234,7 +234,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//nolint:gocritic // needed to create first user
+	//dbauthzcheck:ignore // needed to create first user
 	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -244,7 +244,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // needed to create first user
+	//dbauthzcheck:ignore // needed to create first user
 	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Email:    createUser.Email,
@@ -343,7 +343,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	var aiSeatSet map[uuid.UUID]struct{}
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
 		var aiSeatUserIDs []uuid.UUID
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		//dbauthzcheck:ignore // AI seat state is a system-level read gated by entitlement.
 		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
 		if err != nil {
 			if !xerrors.Is(err, sql.ErrNoRows) {
@@ -673,7 +673,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	// This query is ONLY done to get the workspace count, so we use a system
 	// context to return ALL workspaces. Not just workspaces the user can view.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
@@ -726,7 +726,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, u := range userAdmins {
-		// nolint: gocritic // Need notifier actor to enqueue notifications
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountDeleted,
 			map[string]string{
 				"deleted_account_name":      user.Username,
@@ -1091,7 +1091,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
-		// nolint:gocritic // Need notifier actor to enqueue notifications
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
 			labels, data, "api-put-user-status",
 			targetUser.ID,
@@ -1099,7 +1099,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	// nolint:gocritic // Need notifier actor to enqueue notifications
+	//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
 		labels, data, "api-put-user-status",
 		targetUser.ID,
@@ -1720,7 +1720,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			continue
 		}
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-			// nolint:gocritic // Need notifier actor to enqueue notifications
+			//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),
 			u.ID,
 			notifications.TemplateUserAccountCreated,
@@ -1759,7 +1759,7 @@ func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
 		return
 	}
 
-	//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+	//dbauthzcheck:ignore // AI seat state is a system-level read gated by entitlement.
 	aiSeatUserIDs, err := api.Database.GetUserAISeatStates(
 		dbauthz.AsSystemRestricted(ctx),
 		[]uuid.UUID{user.ID},

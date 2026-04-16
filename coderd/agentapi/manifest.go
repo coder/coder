@@ -60,7 +60,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil
 	})
 	eg.Go(func() (err error) {
-		// nolint:gocritic // This is necessary to fetch agent scripts!
+		//dbauthzcheck:ignore // This is necessary to fetch agent scripts!
 		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
 		return err
 	})

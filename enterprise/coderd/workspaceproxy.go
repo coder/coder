@@ -61,7 +61,7 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error) {
-	//nolint:gocritic // this intentionally requests resources that users
+	//dbauthzcheck:ignore // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
 	// regions. Regions are just a data subset of proxies.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -1027,7 +1027,7 @@ type workspaceProxiesFetchUpdater struct {
 }
 
 func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
-	//nolint:gocritic // Need perms to read all workspace proxies.
+	//dbauthzcheck:ignore // Need perms to read all workspace proxies.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	return w.fetchFunc(authCtx)
 }

@@ -894,7 +894,7 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 	// Use twice the snapshot frequency as the staleness limit to ensure we
 	// capture data from replicas that may have slightly different flush times.
 	maxStaleness := r.options.SnapshotFrequency * 2
-	//nolint:gocritic // This is the actual collection of boundary usage tracking.
+	//dbauthzcheck:ignore // This is the actual collection of boundary usage tracking.
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
 
 	// Claim the telemetry lock for this period. Use snapshot frequency so each

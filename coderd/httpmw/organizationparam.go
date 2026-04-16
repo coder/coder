@@ -171,7 +171,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 	// to access the OrganizationMember object, but *not* the User object.  So, it is
 	// very important that we do not add the User object to the request context or otherwise
 	// leak it to the API handler.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	user, ok := ExtractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
 	if !ok {
 		return nil, nil, true

@@ -29,7 +29,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	//nolint:gocritic // The system generates periodic reports without direct user input.
+	//dbauthzcheck:ignore // The system generates periodic reports without direct user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	// Start the ticker with the initial delay.

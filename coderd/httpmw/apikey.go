@@ -273,7 +273,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 
 	// Refresh OIDC/GitHub tokens if applicable.
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
-		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
+		//dbauthzcheck:ignore // System needs to fetch UserLink to check if it's valid.
 		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
@@ -380,7 +380,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			link.OAuthAccessToken = token.AccessToken
 			link.OAuthRefreshToken = token.RefreshToken
 			link.OAuthExpiry = token.Expiry
-			//nolint:gocritic // system needs to update user link
+			//dbauthzcheck:ignore // system needs to update user link
 			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
 				UserID:                 link.UserID,
 				LoginType:              link.LoginType,
@@ -432,7 +432,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 	if changed {
-		//nolint:gocritic // System needs to update API Key LastUsed
+		//dbauthzcheck:ignore // System needs to update API Key LastUsed
 		err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystemRestricted(ctx), database.UpdateAPIKeyByIDParams{
 			ID:        key.ID,
 			LastUsed:  key.LastUsed,
@@ -450,7 +450,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			}
 		}
 
-		//nolint:gocritic // system needs to update user last seen at
+		//dbauthzcheck:ignore // system needs to update user last seen at
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
 			LastSeenAt: dbtime.Now(),
@@ -525,7 +525,7 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, sessionTo
 		}
 	}
 
-	//nolint:gocritic // System needs to fetch API key to check if it's valid.
+	//dbauthzcheck:ignore // System needs to fetch API key to check if it's valid.
 	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -699,7 +699,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // is being used with the correct audience/resource server (RFC 8707).
 func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
 	// Get the OAuth2 provider app token to check its audience
-	//nolint:gocritic // OAuth2 system context — audience validation for provider app tokens
+	//dbauthzcheck:ignore // OAuth2 system context — audience validation for provider app tokens
 	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID)
 	if err != nil {
 		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
@@ -893,7 +893,7 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
 func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
-	//nolint:gocritic // system needs to update user roles
+	//dbauthzcheck:ignore // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
 		return rbac.Subject{}, "", xerrors.Errorf("get authorization user roles: %w", err)
@@ -904,7 +904,7 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)
 	}
 
-	//nolint:gocritic // Permission to lookup custom roles the user has assigned.
+	//dbauthzcheck:ignore // Permission to lookup custom roles the user has assigned.
 	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roleNames)
 	if err != nil {
 		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)

@@ -258,7 +258,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		rw.WriteHeader(http.StatusNoContent)
 	}()
 
-	//nolint:gocritic // In order to request a one-time passcode, we need to get the user first - and can only do that in the system auth context.
+	//dbauthzcheck:ignore // In order to request a one-time passcode, we need to get the user first - and can only do that in the system auth context.
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
@@ -279,7 +279,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	//nolint:gocritic // We need the system auth context to be able to save the one-time passcode.
+	//dbauthzcheck:ignore // We need the system auth context to be able to save the one-time passcode.
 	err = api.Database.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
 		ID:                       user.ID,
 		HashedOneTimePasscode:    []byte(hashedPasscode),
@@ -308,7 +308,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
-		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
+		//dbauthzcheck:ignore // We need the notifier auth context to be able to send the user their one-time passcode.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
@@ -373,7 +373,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 	}
 
 	err = api.Database.InTx(func(tx database.Store) error {
-		//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
+		//dbauthzcheck:ignore // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
 		user, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 			Email: req.Email,
 		})
@@ -419,7 +419,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("hash user password: %w", err)
 		}
 
-		//nolint:gocritic // We need the system auth context to be able to update the user's password.
+		//dbauthzcheck:ignore // We need the system auth context to be able to update the user's password.
 		err = tx.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
 			ID:             user.ID,
 			HashedPassword: []byte(newHashedPassword),
@@ -429,7 +429,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
+		//dbauthzcheck:ignore // We need the system auth context to be able to delete all API keys for the user.
 		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
@@ -529,7 +529,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // Creating the API key as the user instead of as system.
+	//dbauthzcheck:ignore // Creating the API key as the user instead of as system.
 	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypePassword,
@@ -563,7 +563,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, rbac.Subject, bool) {
 	logger := api.Logger.Named(userAuthLoggerName)
 
-	//nolint:gocritic // In order to login, we need to get the user first!
+	//dbauthzcheck:ignore // In order to login, we need to get the user first!
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
@@ -645,7 +645,7 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 			return user, nil
 		}
 
-		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+		//dbauthzcheck:ignore // System needs to update status of the user account (dormant -> active).
 		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:         user.ID,
 			Status:     database.UserStatusActive,
@@ -881,7 +881,7 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOAuth2Github is a system function.
-		//nolint:gocritic
+		//dbauthzcheck:ignore
 		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
@@ -1196,7 +1196,7 @@ func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOIDC is a system function.
-		//nolint:gocritic
+		//dbauthzcheck:ignore
 		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
@@ -1709,7 +1709,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			isConvertLoginType = true
 		}
 
-		// nolint:gocritic // Getting user count is a system function.
+		//dbauthzcheck:ignore // Getting user count is a system function.
 		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return xerrors.Errorf("unable to fetch user count: %w", err)
@@ -1740,7 +1740,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
-			//nolint:gocritic
+			//dbauthzcheck:ignore
 			_, err = tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
@@ -1754,7 +1754,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 					params.Username = codersdk.UsernameFrom(alternate)
 
-					//nolint:gocritic
+					//dbauthzcheck:ignore
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
@@ -1774,7 +1774,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				}
 			}
 
-			//nolint:gocritic
+			//dbauthzcheck:ignore
 			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 			if err != nil {
 				return xerrors.Errorf("unable to fetch default organization: %w", err)
@@ -1786,7 +1786,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				rbacRoles = append(rbacRoles, rbac.RoleOwner().String())
 			}
 
-			//nolint:gocritic
+			//dbauthzcheck:ignore
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 					Email:    params.Email,
@@ -1823,7 +1823,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			initDormantAuditOnce()
 			dormantConvertAudit.UserID = user.ID
 			dormantConvertAudit.Old = user
-			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+			//dbauthzcheck:ignore // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 				ID:         user.ID,
 				Status:     database.UserStatusActive,
@@ -1838,7 +1838,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if link.UserID == uuid.Nil {
-			//nolint:gocritic // System needs to insert the user link (linked_id, oauth_token, oauth_expiry).
+			//dbauthzcheck:ignore // System needs to insert the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 				UserID:                 user.ID,
 				LoginType:              params.LoginType,
@@ -1856,7 +1856,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if link.UserID != uuid.Nil {
-			//nolint:gocritic // System needs to update the user link (linked_id, oauth_token, oauth_expiry).
+			//dbauthzcheck:ignore // System needs to update the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
 				UserID:                 user.ID,
 				LoginType:              params.LoginType,
@@ -1918,7 +1918,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			//nolint:gocritic
+			//dbauthzcheck:ignore
 			user, err = tx.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
@@ -1963,7 +1963,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// as the user needs to be forced to log back in.
 		key = *oldKey
 	} else {
-		//nolint:gocritic
+		//dbauthzcheck:ignore
 		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
 			UserID:          user.ID,
 			LoginType:       params.LoginType,
@@ -2063,7 +2063,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
-	// nolint:gocritic // system query to update user login type. The user already
+	//dbauthzcheck:ignore // system query to update user login type. The user already
 	// provided their password to authenticate this request.
 	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: params.LoginType,

@@ -560,7 +560,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	// If this workspace build has a different template version ID to the previous build
 	// we can assume it has just been updated.
 	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
-		// nolint:gocritic // Need system context to fetch admins
+		//dbauthzcheck:ignore // Need system context to fetch admins
 		admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
 		if err != nil {
 			api.Logger.Error(ctx, "find template admins", slog.Error(err))
@@ -626,7 +626,7 @@ func (api *API) notifyWorkspaceUpdated(
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // Need notifier actor to enqueue notifications
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
 		receiverID,
 		notifications.TemplateWorkspaceManuallyUpdated,
@@ -931,7 +931,7 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 	}
 
 	// Use system context since we've already verified authorization via template permissions.
-	// nolint:gocritic // System access required for provisioner state update.
+	//dbauthzcheck:ignore // System access required for provisioner state update.
 	err = api.Database.UpdateWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 		ID:               workspaceBuild.ID,
 		ProvisionerState: req.State,
@@ -1016,13 +1016,13 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
 
-	// nolint:gocritic // Getting template versions by ID is a system function.
+	//dbauthzcheck:ignore // Getting template versions by ID is a system function.
 	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}
 
-	// nolint:gocritic // Getting workspace resources by job ID is a system function.
+	//dbauthzcheck:ignore // Getting workspace resources by job ID is a system function.
 	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
@@ -1041,13 +1041,13 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+	//dbauthzcheck:ignore // Getting workspace resource metadata by resource ID is a system function.
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
 	}
 
-	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+	//dbauthzcheck:ignore // Getting workspace agents by resource IDs is a system function.
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
@@ -1076,17 +1076,17 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+		//dbauthzcheck:ignore // Getting workspace apps by agent IDs is a system function.
 		apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
 	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
+		//dbauthzcheck:ignore // Getting workspace scripts by agent IDs is a system function.
 		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
 	eg.Go(func() error {
-		// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
+		//dbauthzcheck:ignore // Getting workspace agent log sources by agent IDs is a system function.
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
@@ -1100,7 +1100,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		appIDs = append(appIDs, app.ID)
 	}
 
-	// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
+	//dbauthzcheck:ignore // Getting workspace app statuses by app IDs is a system function.
 	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
@@ -1356,7 +1356,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching provisioner job timings: %w", err)
 	}
 
-	//nolint:gocritic // Already checked if the build can be fetched.
+	//dbauthzcheck:ignore // Already checked if the build can be fetched.
 	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(dbauthz.AsSystemRestricted(ctx), build.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
@@ -1370,7 +1370,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
-	//nolint:gocritic // Already checked if the build can be fetched.
+	//dbauthzcheck:ignore // Already checked if the build can be fetched.
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agents: %w", err)

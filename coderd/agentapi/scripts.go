@@ -63,7 +63,7 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		status = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
 	}
 
-	//nolint:gocritic // We need permissions to write to the DB here and we are in the context of the agent.
+	//dbauthzcheck:ignore // We need permissions to write to the DB here and we are in the context of the agent.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	_, err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
 		ScriptID:  scriptID,

@@ -30,7 +30,7 @@ func Validate[Role codersdk.WorkspaceRole | codersdk.TemplateRole](
 	db database.Store,
 	v UpdateValidator[Role],
 ) []codersdk.ValidationError {
-	// nolint:gocritic // Validate requires full read access to users and groups
+	//dbauthzcheck:ignore // Validate requires full read access to users and groups
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	var validErrs []codersdk.ValidationError
 

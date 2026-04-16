@@ -74,7 +74,7 @@ func (p *Server) stopAndStoreRecording(
 
 	// The chatd actor is used here because the recording is stored on
 	// behalf of the chat system, not a specific user request.
-	//nolint:gocritic // AsChatd is required to read the workspace for org lookup.
+	//dbauthzcheck:ignore // AsChatd is required to read the workspace for org lookup.
 	ws, err := p.db.GetWorkspaceByID(dbauthz.AsChatd(ctx), workspaceID.UUID)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to resolve workspace for recording",
@@ -165,7 +165,7 @@ func (p *Server) stopAndStoreRecording(
 
 	// Second pass: store the collected data in the database.
 	if videoData != nil {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
+		//dbauthzcheck:ignore // AsChatd is required to insert chat files from the recording pipeline.
 		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
 			OwnerID:        ownerID,
 			OrganizationID: ws.OrganizationID,
@@ -181,7 +181,7 @@ func (p *Server) stopAndStoreRecording(
 		}
 	}
 	if thumbnailData != nil && result.recordingFileID != "" {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
+		//dbauthzcheck:ignore // AsChatd is required to insert chat files from the recording pipeline.
 		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
 			OwnerID:        ownerID,
 			OrganizationID: ws.OrganizationID,

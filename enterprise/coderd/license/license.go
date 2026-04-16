@@ -34,25 +34,25 @@ func Entitlements(
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
 
-	// nolint:gocritic // Getting unexpired licenses is a system function.
+	//dbauthzcheck:ignore // Getting unexpired licenses is a system function.
 	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return codersdk.Entitlements{}, err
 	}
 
-	// nolint:gocritic // Getting active user count is a system function.
+	//dbauthzcheck:ignore // Getting active user count is a system function.
 	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx), false) // Don't include system user in license count.
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
-	// nolint:gocritic // Getting active AI seat count is a system function.
+	//dbauthzcheck:ignore // Getting active AI seat count is a system function.
 	activeAISeatCount, err := db.GetActiveAISeatCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query active AI seat count: %w", err)
 	}
 
-	// nolint:gocritic // Getting external templates is a system function.
+	//dbauthzcheck:ignore // Getting external templates is a system function.
 	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
 		HasExternalAgent: sql.NullBool{
 			Bool:  true,
@@ -79,7 +79,7 @@ func Entitlements(
 			// licenses (e.g. higher hard limit) to account for additional
 			// usage.
 			//
-			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			//dbauthzcheck:ignore // Requires permission to read all workspaces to read managed agent count.
 			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 				StartDate: startTime,
 				EndDate:   endTime,

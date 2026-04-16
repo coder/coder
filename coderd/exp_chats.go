@@ -481,7 +481,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Validate MCP server IDs exist.
 	if len(req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
+		//dbauthzcheck:ignore // Need to validate MCP server IDs exist.
 		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -654,7 +654,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	//nolint:gocritic // System context required to read enabled chat models.
+	//dbauthzcheck:ignore // System context required to read enabled chat models.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	if api.chatDaemon == nil {
@@ -2018,7 +2018,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 	// Validate MCP server IDs exist.
 	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
+		//dbauthzcheck:ignore // Need to validate MCP server IDs exist.
 		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3006,7 +3006,7 @@ func (api *API) resolveChatGitAccessToken(
 			if config.Regex == nil || !config.Regex.MatchString(origin) {
 				continue
 			}
-			//nolint:gocritic // System access needed to read external auth
+			//dbauthzcheck:ignore // System access needed to read external auth
 			// links when called from the gitsync worker (chatd context).
 			link, err := api.Database.GetExternalAuthLink(dbauthz.AsSystemRestricted(ctx),
 				database.GetExternalAuthLinkParams{
@@ -3017,7 +3017,7 @@ func (api *API) resolveChatGitAccessToken(
 			if err != nil {
 				continue
 			}
-			//nolint:gocritic // System context carried through for token refresh.
+			//dbauthzcheck:ignore // System context carried through for token refresh.
 			refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
 			if refreshErr == nil {
 				link = refreshed
@@ -3046,7 +3046,7 @@ func (api *API) resolveChatGitAccessToken(
 		}
 		seen[providerID] = struct{}{}
 
-		//nolint:gocritic // System access needed to read external auth
+		//dbauthzcheck:ignore // System access needed to read external auth
 		// links when called from the gitsync worker (chatd context).
 		link, err := api.Database.GetExternalAuthLink(
 			dbauthz.AsSystemRestricted(ctx),
@@ -3063,7 +3063,7 @@ func (api *API) resolveChatGitAccessToken(
 		// the same code path used by provisionerdserver when handing
 		// tokens to provisioners.
 		if cfg, ok := configs[providerID]; ok {
-			//nolint:gocritic // System context carried through for token refresh.
+			//dbauthzcheck:ignore // System context carried through for token refresh.
 			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
 			if refreshErr != nil {
 				api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
@@ -3889,7 +3889,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 	// deployment-config read access, which non-admin users lack.
 	// The user is only checking if the model exists and is enabled
 	// before writing their own personal preference.
-	//nolint:gocritic // Non-admin users need this lookup to save their own setting.
+	//dbauthzcheck:ignore // Non-admin users need this lookup to save their own setting.
 	modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfigID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
@@ -4426,7 +4426,7 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	//nolint:gocritic // System context required to read enabled chat providers.
+	//dbauthzcheck:ignore // System context required to read enabled chat providers.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -4874,7 +4874,7 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 		apiKey = httpmw.APIKey(r)
 	)
 
-	//nolint:gocritic // Non-admin users need to read provider configs to manage their own chat credentials.
+	//dbauthzcheck:ignore // Non-admin users need to read provider configs to manage their own chat credentials.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	providers, err := api.Database.GetChatProviders(chatdCtx)
 	if err != nil {
@@ -4932,7 +4932,7 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	//nolint:gocritic // Non-admin users need to validate provider availability before storing their own key.
+	//dbauthzcheck:ignore // Non-admin users need to validate provider availability before storing their own key.
 	provider, err := api.Database.GetChatProviderByID(dbauthz.AsChatd(ctx), providerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -5044,7 +5044,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		configs, err = api.Database.GetChatModelConfigs(ctx)
 	} else {
-		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
+		//dbauthzcheck:ignore // All authenticated users need to read enabled model configs to use the chat feature.
 		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
 	}
 	if err != nil {
@@ -5837,7 +5837,7 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 	if api.chatDaemon == nil {
 		return false
 	}
-	//nolint:gocritic // System context required to read enabled chat providers.
+	//dbauthzcheck:ignore // System context required to read enabled chat providers.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	enabledProviders, err := api.Database.GetEnabledChatProviders(

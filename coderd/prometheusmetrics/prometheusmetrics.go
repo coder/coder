@@ -107,8 +107,8 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 			}
 
 			gauge.Reset()
-			//nolint:gocritic // This is a system service that needs full access
-			//to the users table.
+			//dbauthzcheck:ignore // This is a system service that needs full access
+			// to the users table.
 			users, err := db.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
 			if err != nil {
 				logger.Error(ctx, "get all users for prometheus metrics", slog.Error(err))
@@ -325,7 +325,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	observedFirstConnection := make(map[uuid.UUID]struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
+	//dbauthzcheck:ignore // Prometheus must collect metrics for all Coder users.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
 

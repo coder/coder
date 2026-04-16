@@ -49,7 +49,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	//nolint:gocritic // Use dbpurge-specific subject with minimal permissions.
+	//dbauthzcheck:ignore // Use dbpurge-specific subject with minimal permissions.
 	ctx = dbauthz.AsDBPurge(ctx)
 
 	iterationDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -196,7 +196,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		aibridgeRetention := i.vals.AI.BridgeConfig.Retention.Value()
 		if aibridgeRetention > 0 {
 			deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
-			// nolint:gocritic // Needs to run as aibridge context.
+			//dbauthzcheck:ignore // Needs to run as aibridge context.
 			purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
 			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)

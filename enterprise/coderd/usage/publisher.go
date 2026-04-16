@@ -68,7 +68,7 @@ var _ Publisher = &tallymanPublisher{}
 // Coder's Tallyman service.
 func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Store, keys map[string]ed25519.PublicKey, opts ...TallymanPublisherOption) Publisher {
 	ctx, cancel := context.WithCancel(ctx)
-	ctx = dbauthz.AsUsagePublisher(ctx) //nolint:gocritic // we intentionally want to be able to process usage events
+	ctx = dbauthz.AsUsagePublisher(ctx) //dbauthzcheck:ignore // we intentionally want to be able to process usage events
 
 	publisher := &tallymanPublisher{
 		ctx:         ctx,

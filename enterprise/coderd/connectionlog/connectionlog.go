@@ -280,7 +280,7 @@ func (b *DBBatcher) batchLen() int {
 }
 
 func (b *DBBatcher) run(ctx context.Context) {
-	//nolint:gocritic // System-level batch operation for connection logs.
+	//dbauthzcheck:ignore // System-level batch operation for connection logs.
 	authCtx := dbauthz.AsConnectionLogger(ctx)
 	for ctx.Err() == nil {
 		select {
@@ -359,7 +359,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		writeCtx, cancel = context.WithTimeout(context.Background(), shutdownWriteTimeout)
 		defer cancel()
 	}
-	//nolint:gocritic // System-level batch operation for connection logs.
+	//dbauthzcheck:ignore // System-level batch operation for connection logs.
 	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(writeCtx), params)
 	if err == nil {
 		return
@@ -477,7 +477,7 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 		case <-t.C:
 		}
 
-		//nolint:gocritic // System-level batch operation for connection logs.
+		//dbauthzcheck:ignore // System-level batch operation for connection logs.
 		err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(b.ctx), params)
 		if err == nil {
 			return
@@ -500,7 +500,7 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 func (b *DBBatcher) shutdownBatch(params database.BatchUpsertConnectionLogsParams) {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownWriteTimeout)
 	defer cancel()
-	//nolint:gocritic // System-level batch operation for connection logs.
+	//dbauthzcheck:ignore // System-level batch operation for connection logs.
 	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctx), params)
 	if err != nil {
 		b.log.Error(b.ctx, "batch write failed on shutdown, dropping batch",

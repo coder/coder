@@ -122,7 +122,7 @@ func (c *Cron) Close() error {
 }
 
 func (c *Cron) run(ctx context.Context, job CronJob) {
-	//nolint:gocritic // We are a publisher in this function
+	//dbauthzcheck:ignore // We are a publisher in this function
 	ctx = dbauthz.AsUsagePublisher(ctx)
 	defer c.wg.Done()
 	for {

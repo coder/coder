@@ -94,7 +94,7 @@ func (t *Tracker) FlushToDB(ctx context.Context, db database.Store, replicaID uu
 	t.usageSinceLastFlush = false
 	t.mu.Unlock()
 
-	//nolint:gocritic // This is the actual package doing boundary usage tracking.
+	//dbauthzcheck:ignore // This is the actual package doing boundary usage tracking.
 	authCtx := dbauthz.AsBoundaryUsageTracker(ctx)
 	err := db.InTx(func(tx database.Store) error {
 		// The advisory lock ensures a clean period cutover by preventing

@@ -77,7 +77,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 // @Router /regions [get]
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	//nolint:gocritic // this route intentionally requests resources that users
+	//dbauthzcheck:ignore // this route intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
 	// regions.
 	ctx = dbauthz.AsSystemRestricted(ctx)

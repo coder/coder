@@ -48,7 +48,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		configs, err = api.Database.GetMCPServerConfigs(ctx)
 	} else {
-		//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
+		//dbauthzcheck:ignore // All authenticated users need to read enabled MCP server configs to use the chat feature.
 		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
 	}
 	if err != nil {
@@ -62,7 +62,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// Look up the calling user's OAuth2 tokens so we can populate
 	// auth_connected per server. Attempt to refresh expired tokens
 	// so the status is accurate and the token is ready for use.
-	//nolint:gocritic // Need to check user tokens across all servers.
+	//dbauthzcheck:ignore // Need to check user tokens across all servers.
 	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -376,7 +376,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		config, err = api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
 	} else {
-		//nolint:gocritic // All authenticated users can view enabled MCP server configs.
+		//dbauthzcheck:ignore // All authenticated users can view enabled MCP server configs.
 		config, err = api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
 		if err == nil && !config.Enabled {
 			httpapi.ResourceNotFound(rw)
@@ -405,7 +405,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Populate AuthConnected for the calling user. Attempt to
 	// refresh the token so the status is accurate.
 	if config.AuthType == "oauth2" {
-		//nolint:gocritic // Need to check user token for this server.
+		//dbauthzcheck:ignore // Need to check user token for this server.
 		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -734,7 +734,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	//nolint:gocritic // Any authenticated user can initiate OAuth2 for an enabled MCP server.
+	//dbauthzcheck:ignore // Any authenticated user can initiate OAuth2 for an enabled MCP server.
 	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -829,7 +829,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	//nolint:gocritic // Any authenticated user can complete OAuth2 for an enabled MCP server.
+	//dbauthzcheck:ignore // Any authenticated user can complete OAuth2 for an enabled MCP server.
 	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -961,7 +961,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		expiry = sql.NullTime{Time: token.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Users store their own tokens.
+	//dbauthzcheck:ignore // Users store their own tokens.
 	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
 		MCPServerConfigID: mcpServerID,
 		UserID:            apiKey.UserID,
@@ -1007,7 +1007,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	//nolint:gocritic // Users manage their own tokens.
+	//dbauthzcheck:ignore // Users manage their own tokens.
 	err := api.Database.DeleteMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.DeleteMCPServerUserTokenParams{
 		MCPServerConfigID: mcpServerID,
 		UserID:            apiKey.UserID,
@@ -1060,7 +1060,7 @@ func (api *API) refreshMCPUserToken(
 			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 		}
 
-		//nolint:gocritic // Need system-level write access to
+		//dbauthzcheck:ignore // Need system-level write access to
 		// persist the refreshed OAuth2 token.
 		_, err = api.Database.UpsertMCPServerUserToken(
 			dbauthz.AsSystemRestricted(ctx),

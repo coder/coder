@@ -208,7 +208,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-		//nolint:gocritic // We need to be notifier to send the notification.
+		//dbauthzcheck:ignore // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		key.UserID,
 		notifications.TemplateTestNotification,
@@ -397,7 +397,7 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-		//nolint:gocritic // We need to be notifier to send the notification.
+		//dbauthzcheck:ignore // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
 		notifications.TemplateCustomNotification,

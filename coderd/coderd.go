@@ -512,7 +512,7 @@ func New(options *Options) *API {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// nolint:gocritic // Load deployment ID. This never changes
+	//dbauthzcheck:ignore // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
@@ -583,7 +583,7 @@ func New(options *Options) *API {
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
 	// Ensure all system role permissions are current.
-	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
+	//dbauthzcheck:ignore // Startup reconciliation reads/writes system roles. There is
 	// no user request context here, so use a system-restricted context.
 	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
 	if err != nil {
@@ -807,7 +807,7 @@ func New(options *Options) *API {
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
-		// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+		//dbauthzcheck:ignore // chat diff worker needs to be able to CRUD chats.
 		go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 	}
 	if options.DeploymentValues.Prometheus.Enable {
@@ -2275,7 +2275,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}()
 
 	// All in memory provisioners will be part of the default org for now.
-	//nolint:gocritic // in-memory provisioners are owned by system
+	//dbauthzcheck:ignore // in-memory provisioners are owned by system
 	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
 	if err != nil {
 		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
@@ -2297,7 +2297,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		apiVersion = options.versionOverride
 	}
 
-	//nolint:gocritic // in-memory provisioners are owned by system
+	//dbauthzcheck:ignore // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
 		OrganizationID: defaultOrg.ID,

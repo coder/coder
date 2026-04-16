@@ -209,7 +209,7 @@ func (c *Checker) update() (r Result, err error) {
 		return r, xerrors.Errorf("json marshal result: %w", err)
 	}
 
-	// nolint:gocritic // Inserting the last update check is a system function.
+	//dbauthzcheck:ignore // Inserting the last update check is a system function.
 	err = c.db.UpsertLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
 	if err != nil {
 		return r, err
@@ -225,7 +225,7 @@ func (c *Checker) notifyIfNewer(prev, next Result) {
 }
 
 func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
-	// nolint:gocritic // Getting the last update check is a system function.
+	//dbauthzcheck:ignore // Getting the last update check is a system function.
 	s, err := c.db.GetLastUpdateCheck(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return r, err

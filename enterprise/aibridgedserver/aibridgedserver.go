@@ -123,7 +123,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 }
 
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetId())
@@ -204,7 +204,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 }
 
 func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetId())
@@ -232,7 +232,7 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 }
 
 func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetInterceptionId())
@@ -280,7 +280,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetInterceptionId())
@@ -322,7 +322,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 }
 
 func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetInterceptionId())
@@ -374,7 +374,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 }
 
 func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	intcID, err := uuid.Parse(in.GetInterceptionId())
@@ -466,7 +466,7 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 		return nil, xerrors.Errorf("parse user_id: %w", err)
 	}
 
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 	links, err := s.store.GetExternalAuthLinksByUserID(ctx, userID)
 	if err != nil {
@@ -562,7 +562,7 @@ externalAuthLoop:
 //
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
 func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
-	//nolint:gocritic // AIBridged has specific authz rules.
+	//dbauthzcheck:ignore // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	// Key matches expected format.

@@ -219,7 +219,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 	// Record from the given time.
 	defer func() { p.healthCheckDuration.Observe(time.Since(now).Seconds()) }()
 
-	//nolint:gocritic // Proxy health is a system service.
+	//dbauthzcheck:ignore // Proxy health is a system service.
 	proxies, err := p.db.GetWorkspaceProxies(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace proxies: %w", err)

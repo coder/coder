@@ -184,7 +184,7 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	// Create a child context that will be canceled when:
 	// 1. The parent context is canceled, OR
 	// 2. c.cancelFn() is called to trigger shutdown
-	// nolint:gocritic // Reconciliation Loop needs Prebuilds Orchestrator permissions.
+	//dbauthzcheck:ignore // Reconciliation Loop needs Prebuilds Orchestrator permissions.
 	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 
 	// If the reconciler was already stopped, exit early and release the context.
@@ -769,7 +769,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		return nil
 	}
 
-	// nolint:gocritic // ReconcilePreset needs Prebuilds Orchestrator permissions.
+	//dbauthzcheck:ignore // ReconcilePreset needs Prebuilds Orchestrator permissions.
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	fields := []slog.Field{
@@ -1195,7 +1195,7 @@ func (c *StoreReconciler) ForceMetricsUpdate(ctx context.Context) error {
 }
 
 func (c *StoreReconciler) TrackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
-	// nolint:gocritic // Necessary to query all the required data.
+	//dbauthzcheck:ignore // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	// Since this may be called in a fire-and-forget fashion, we need to give up at some point.
 	trackCtx, trackCancel := context.WithTimeout(ctx, time.Minute)

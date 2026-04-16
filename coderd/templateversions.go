@@ -71,7 +71,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 
 	var matchedProvisioners *codersdk.MatchedProvisioners
 	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
@@ -203,7 +203,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 
 	var matchedProvisioners *codersdk.MatchedProvisioners
 	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
@@ -607,7 +607,7 @@ func (api *API) templateVersionDryRunMatchedProvisioners(rw http.ResponseWriter,
 		return
 	}
 
-	// nolint:gocritic // The user may not have permissions to read all
+	//dbauthzcheck:ignore // The user may not have permissions to read all
 	// provisioner daemons in the org.
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
 		OrganizationID: job.ProvisionerJob.OrganizationID,
@@ -964,7 +964,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	}
 	var matchedProvisioners *codersdk.MatchedProvisioners
 	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
@@ -1048,7 +1048,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 
 	var matchedProvisioners *codersdk.MatchedProvisioners
 	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
@@ -1153,7 +1153,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 
 	var matchedProvisioners *codersdk.MatchedProvisioners
 	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
@@ -1663,7 +1663,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		// Check for eligible provisioners. This allows us to return a warning to the user if they
 		// submit a job for which no provisioner is available.
-		// nolint: gocritic // The user hitting this endpoint may not have
+		//dbauthzcheck:ignore // The user hitting this endpoint may not have
 		// permission to read provisioner daemons, but we want to show them
 		// information about the provisioner daemons that are available.
 		eligibleProvisioners, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{

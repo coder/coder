@@ -219,7 +219,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// nolint:gocritic // GetWorkspaceResourcesByJobID is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceResourcesByJobID is a system function.
 	resources, err := api.Database.GetWorkspaceResourcesByJobID(dbauthz.AsSystemRestricted(ctx), job.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -236,7 +236,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	// nolint:gocritic // GetWorkspaceAgentsByResourceIDs is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceAgentsByResourceIDs is a system function.
 	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -253,7 +253,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
 	}
 
-	// nolint:gocritic // GetWorkspaceAppsByAgentIDs is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceAppsByAgentIDs is a system function.
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -266,7 +266,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// nolint:gocritic // GetWorkspaceAgentScriptsByAgentIDs is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceAgentScriptsByAgentIDs is a system function.
 	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -279,7 +279,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// nolint:gocritic // GetWorkspaceAgentLogSourcesByAgentIDs is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceAgentLogSourcesByAgentIDs is a system function.
 	logSources, err := api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -292,7 +292,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
+	//dbauthzcheck:ignore // GetWorkspaceResourceMetadataByResourceIDs is a system function.
 	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

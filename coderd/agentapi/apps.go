@@ -168,7 +168,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	cleaned := strutil.UISanitize(req.Message)
 
 	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
+	//dbauthzcheck:ignore // This is a system restricted operation.
 	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
@@ -178,7 +178,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// nolint:gocritic // This is a system restricted operation.
+	//dbauthzcheck:ignore // This is a system restricted operation.
 	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
@@ -327,7 +327,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 	}
 
 	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // Need notifier actor to enqueue notifications
+		//dbauthzcheck:ignore // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
 		ws.OwnerID,
 		notificationTemplate,

@@ -79,7 +79,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return nil
 	}
 
-	// nolint:gocritic // all syncing is done as a system user
+	//dbauthzcheck:ignore // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	orgSettings, err := s.OrganizationSyncSettings(ctx, tx)

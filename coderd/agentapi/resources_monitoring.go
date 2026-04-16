@@ -126,7 +126,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 
 	debouncedUntil, shouldNotify := a.memoryMonitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
 
-	//nolint:gocritic // We need to be able to update the resource monitor here.
+	//dbauthzcheck:ignore // We need to be able to update the resource monitor here.
 	err := a.Database.UpdateMemoryResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateMemoryResourceMonitorParams{
 		AgentID:        a.AgentID,
 		State:          newState,
@@ -152,7 +152,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	}
 
 	_, err = a.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // We need to be able to send the notification.
+		//dbauthzcheck:ignore // We need to be able to send the notification.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
 		notifications.TemplateWorkspaceOutOfMemory,
@@ -219,7 +219,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			})
 		}
 
-		//nolint:gocritic // We need to be able to update the resource monitor here.
+		//dbauthzcheck:ignore // We need to be able to update the resource monitor here.
 		if err := a.Database.UpdateVolumeResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateVolumeResourceMonitorParams{
 			AgentID:        a.AgentID,
 			Path:           monitor.Path,
@@ -246,7 +246,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	}
 
 	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // We need to be able to send the notification.
+		//dbauthzcheck:ignore // We need to be able to send the notification.
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
 		notifications.TemplateWorkspaceOutOfDisk,

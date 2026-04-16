@@ -182,7 +182,7 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 	// If they can read the template version, then they can read the file for
 	// parameter loading purposes.
-	//nolint:gocritic
+	//dbauthzcheck:ignore
 	fileCtx := dbauthz.AsFileReader(ctx)
 
 	var templateFS fs.FS
@@ -306,14 +306,14 @@ func WorkspaceOwner(ctx context.Context, db database.Store, org uuid.UUID, owner
 		}
 
 		// Org member fetched, so use the provisioner context to fetch the user.
-		//nolint:gocritic // Has the correct permissions, and matches the provisioning flow.
+		//dbauthzcheck:ignore // Has the correct permissions, and matches the provisioning flow.
 		user, err = db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
 		if err != nil {
 			return nil, xerrors.Errorf("fetch user: %w", err)
 		}
 	}
 
-	// nolint:gocritic // This is kind of the wrong query to use here, but it
+	//dbauthzcheck:ignore // This is kind of the wrong query to use here, but it
 	// matches how the provisioner currently works. We should figure out
 	// something that needs less escalation but has the correct behavior.
 	row, err := db.GetAuthorizationUserRoles(dbauthz.AsProvisionerd(ctx), ownerID)
@@ -341,7 +341,7 @@ func WorkspaceOwner(ctx context.Context, db database.Store, org uuid.UUID, owner
 
 	// The correct public key has to be sent. This will not be leaked
 	// unless the template leaks it.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	key, err := db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("ssh key: %w", err)
@@ -350,7 +350,7 @@ func WorkspaceOwner(ctx context.Context, db database.Store, org uuid.UUID, owner
 	// The groups need to be sent to preview. These groups are not exposed to the
 	// user, unless the template does it through the parameters. Regardless, we need
 	// the correct groups, and a user might not have read access.
-	// nolint:gocritic
+	//dbauthzcheck:ignore
 	groups, err := db.GetGroups(dbauthz.AsProvisionerd(ctx), database.GetGroupsParams{
 		OrganizationID: org,
 		HasMemberID:    ownerID,

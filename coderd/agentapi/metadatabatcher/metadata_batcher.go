@@ -262,7 +262,7 @@ func (b *Batcher) processUpdate(update update) {
 // run runs the batcher loop, reading from the update channel and flushing
 // periodically or when the batch reaches capacity.
 func (b *Batcher) run(ctx context.Context) {
-	// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
+	//dbauthzcheck:ignore // This is only ever used for one thing - updating agent metadata.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
@@ -289,7 +289,7 @@ func (b *Batcher) run(ctx context.Context) {
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
 			defer cancel() //nolint:revive // We're returning, defer is fine.
 
-			// nolint:gocritic // This is only ever used for one thing - updating agent metadata.
+			//dbauthzcheck:ignore // This is only ever used for one thing - updating agent metadata.
 			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), flushExit)
 			return
 		}

@@ -241,7 +241,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	authCtx := ctx
 	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" || r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
-		//nolint:gocritic // PSK auth means no actor in request,
+		//dbauthzcheck:ignore // PSK auth means no actor in request,
 		// so use system restricted.
 		authCtx = dbauthz.AsSystemRestricted(ctx)
 	}
