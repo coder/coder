@@ -1,5 +1,12 @@
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	EllipsisVerticalIcon,
+	PencilIcon,
+	Trash2Icon,
+} from "lucide-react";
 import { type CSSProperties, type FC, type JSX, useState } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -33,12 +40,6 @@ function compareFileTreeEntries(
 	return isFolder(contentA) ? -1 : 1;
 }
 
-type ContextMenu = {
-	path: string;
-	clientX: number;
-	clientY: number;
-};
-
 interface TemplateFilesTreeProps {
 	onSelect: (path: string) => void;
 	onDelete?: (path: string) => void;
@@ -61,8 +62,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	onSelect,
 	Label,
 }) => {
-	const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
-
 	const defaultExpanded = activePath ? expandablePaths(activePath) : [];
 
 	const buildTreeItems = (
@@ -104,24 +103,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			label
 		);
 
-		const handleContextMenu = (event: React.MouseEvent) => {
-			const hasContextActions = onRename || onDelete;
-			if (!hasContextActions) {
-				return;
-			}
-			event.preventDefault();
-			event.stopPropagation();
-			setContextMenu(
-				contextMenu
-					? undefined
-					: {
-							path: currentPath,
-							clientY: event.clientY,
-							clientX: event.clientX,
-						},
-			);
-		};
-
 		if (isFolder(content)) {
 			return (
 				<FolderNode
@@ -133,7 +114,8 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 					isActive={isActive}
 					depth={parentPath ? parentPath.split("/").length : 0}
 					onClick={() => onSelect(currentPath)}
-					onContextMenu={handleContextMenu}
+					onDelete={onDelete && (() => onDelete(currentPath))}
+					onRename={onRename && (() => onRename(currentPath))}
 				>
 					{Object.entries(content)
 						.sort(compareFileTreeEntries)
@@ -153,7 +135,8 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 				isActive={isActive}
 				depth={parentPath ? parentPath.split("/").length : 0}
 				onClick={() => onSelect(currentPath)}
-				onContextMenu={handleContextMenu}
+				onDelete={onDelete && (() => onDelete(currentPath))}
+				onRename={onRename && (() => onRename(currentPath))}
 			/>
 		);
 	};
@@ -163,54 +146,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			{Object.entries(fileTree)
 				.sort(compareFileTreeEntries)
 				.map(([filename, child]) => buildTreeItems(filename, filename, child))}
-
-			<DropdownMenu
-				open={Boolean(contextMenu)}
-				onOpenChange={(open) => {
-					if (!open) {
-						setContextMenu(undefined);
-					}
-				}}
-			>
-				{/* Hidden trigger positioned at the context menu coordinates. */}
-				<DropdownMenuTrigger asChild>
-					<span
-						className="pointer-events-none fixed"
-						style={
-							contextMenu
-								? {
-										top: contextMenu.clientY,
-										left: contextMenu.clientX,
-									}
-								: { top: -9999, left: -9999 }
-						}
-					/>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="start">
-					{onRename && (
-						<DropdownMenuItem
-							onClick={() => {
-								if (!contextMenu) return;
-								onRename(contextMenu.path);
-								setContextMenu(undefined);
-							}}
-						>
-							Rename
-						</DropdownMenuItem>
-					)}
-					{onDelete && (
-						<DropdownMenuItem
-							onClick={() => {
-								if (!contextMenu) return;
-								onDelete(contextMenu.path);
-								setContextMenu(undefined);
-							}}
-						>
-							Delete
-						</DropdownMenuItem>
-					)}
-				</DropdownMenuContent>
-			</DropdownMenu>
 		</div>
 	);
 };
@@ -222,7 +157,8 @@ interface TreeNodeProps {
 	isActive: boolean;
 	depth: number;
 	onClick: () => void;
-	onContextMenu: (event: React.MouseEvent) => void;
+	onDelete?: (() => void) | false;
+	onRename?: (() => void) | false;
 }
 
 const nodeClasses =
@@ -235,23 +171,27 @@ const FileNode: FC<TreeNodeProps> = ({
 	isActive,
 	depth,
 	onClick,
-	onContextMenu,
+	onDelete,
+	onRename,
 }) => {
+	const hasActions = onRename || onDelete;
 	return (
-		<button
-			type="button"
-			className={cn(
-				nodeClasses,
-				isHidden ? "text-content-disabled" : "text-content-secondary",
-				isActive && "bg-surface-sky text-content-link",
-			)}
-			style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` } as CSSProperties}
-			onClick={onClick}
-			onContextMenu={onContextMenu}
-		>
-			{icon}
-			<span className="truncate">{label}</span>
-		</button>
+		<div className="group/row relative flex items-center">
+			<button
+				type="button"
+				className={cn(
+					nodeClasses,
+					isHidden ? "text-content-disabled" : "text-content-secondary",
+					isActive && "bg-surface-sky text-content-link",
+				)}
+				style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` } as CSSProperties}
+				onClick={onClick}
+			>
+				{icon}
+				<span className="truncate">{label}</span>
+			</button>
+			{hasActions && <MoreMenu onRename={onRename} onDelete={onDelete} />}
+		</div>
 	);
 };
 
@@ -268,45 +208,95 @@ const FolderNode: FC<FolderNodeProps> = ({
 	isActive,
 	depth,
 	onClick,
-	onContextMenu,
+	onDelete,
+	onRename,
 	children,
 }) => {
 	const [open, setOpen] = useState(defaultOpen);
+	const hasActions = onRename || onDelete;
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
-			<CollapsibleTrigger asChild>
-				<button
-					type="button"
-					className={cn(
-						nodeClasses,
-						isHidden ? "text-content-disabled" : "text-content-secondary",
-						isActive && "bg-surface-sky text-content-link",
-					)}
-					aria-expanded={open}
-					style={
-						{
-							paddingLeft: `${(depth + 1) * 8 + 8}px`,
-						} as CSSProperties
-					}
-					onClick={() => {
-						// CollapsibleTrigger handles open/close toggling.
-						// Also fire onClick so the caller is notified.
-						onClick();
-					}}
-					onContextMenu={onContextMenu}
-				>
-					{open ? (
-						<ChevronDownIcon className="size-3 shrink-0" />
-					) : (
-						<ChevronRightIcon className="size-3 shrink-0" />
-					)}
-					{icon}
-					<span className="truncate">{label}</span>
-				</button>
-			</CollapsibleTrigger>
+			<div className="group/row relative flex items-center">
+				<CollapsibleTrigger asChild>
+					<button
+						type="button"
+						className={cn(
+							nodeClasses,
+							isHidden ? "text-content-disabled" : "text-content-secondary",
+							isActive && "bg-surface-sky text-content-link",
+						)}
+						aria-expanded={open}
+						style={
+							{
+								paddingLeft: `${(depth + 1) * 8 + 8}px`,
+							} as CSSProperties
+						}
+						onClick={() => {
+							// CollapsibleTrigger handles open/close toggling.
+							// Also fire onClick so the caller is notified.
+							onClick();
+						}}
+					>
+						{open ? (
+							<ChevronDownIcon className="size-3 shrink-0" />
+						) : (
+							<ChevronRightIcon className="size-3 shrink-0" />
+						)}
+						{icon}
+						<span className="truncate">{label}</span>
+					</button>
+				</CollapsibleTrigger>
+				{hasActions && <MoreMenu onRename={onRename} onDelete={onDelete} />}
+			</div>
 			<CollapsibleContent>{children}</CollapsibleContent>
 		</Collapsible>
+	);
+};
+
+interface MoreMenuProps {
+	onRename?: (() => void) | false;
+	onDelete?: (() => void) | false;
+}
+
+const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					size="icon"
+					variant="subtle"
+					className={cn(
+						"absolute right-1 z-10 size-6 shrink-0",
+						"opacity-0 transition-opacity",
+						"group-hover/row:opacity-100",
+						"focus-visible:opacity-100",
+						"data-[state=open]:opacity-100",
+					)}
+					onClick={(e) => e.stopPropagation()}
+				>
+					<EllipsisVerticalIcon className="size-4" />
+					<span className="sr-only">File actions</span>
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				{onRename && (
+					<DropdownMenuItem onClick={onRename}>
+						<PencilIcon />
+						Rename
+					</DropdownMenuItem>
+				)}
+				{onDelete && (
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
+						onClick={onDelete}
+					>
+						<Trash2Icon />
+						Delete&hellip;
+					</DropdownMenuItem>
+				)}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };
 
