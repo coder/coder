@@ -1,9 +1,10 @@
 # Git Providers
 
-Coder Agents extends your existing
+Coder Agents leverages your existing
 [external authentication](../../../admin/external-auth/index.md) configuration
-to power the in-chat diff viewer and [PR Insights](./pr-insights.md). These
-features use the GitHub API to fetch diffs, PR status, and review metadata.
+to power the in-chat diff viewer and [PR Insights](./pr-insights.md).
+Self-hosted GitHub Enterprise deployments require one additional setting
+(`API_BASE_URL`) for these features to work.
 
 > [!NOTE]
 > Only `github` type external auth providers are supported today.

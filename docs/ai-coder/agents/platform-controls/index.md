@@ -139,11 +139,10 @@ See [Spend Management](./usage-insights.md) for details.
 
 ### Git providers
 
-Coder Agents extends your existing
+Coder Agents leverages your existing
 [external authentication](../../admin/external-auth/index.md) configuration to
-support features that need richer access to your git host's API — the in-chat
-diff viewer and PR Insights. For self-hosted GitHub Enterprise deployments,
-additional configuration is required.
+power the in-chat diff viewer and PR Insights. Self-hosted GitHub Enterprise
+deployments require additional configuration for these features.
 
 See [Git Providers](./git-providers.md) for details.
 
