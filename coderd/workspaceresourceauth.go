@@ -144,6 +144,33 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
+
+	// Template version agents can share an instance ID with workspace build
+	// agents. Keep only workspace build agents before resolving ambiguity so
+	// template version agents do not force CODER_AGENT_NAME.
+	buildAgents := agents[:0]
+	for _, candidate := range agents {
+		resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, candidate.ResourceID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job resource.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
+			buildAgents = append(buildAgents, candidate)
+		}
+	}
+	agents = buildAgents
 	if len(agents) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
