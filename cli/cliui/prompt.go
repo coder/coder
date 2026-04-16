@@ -269,9 +269,10 @@ func readSecretRunes(reader *bufio.Reader, w io.Writer) (string, error) {
 			}
 			switch next {
 			case '[':
-				// CSI sequence: ESC [ <params> <final_byte>.
-				// Parameters are bytes in 0x20-0x3F; the final
-				// byte is in the 0x40-0x7E range.
+				// CSI sequence: ESC [ <params> <intermediates> <final_byte>.
+				// Parameter bytes are 0x30-0x3F, intermediate bytes
+				// are 0x20-0x2F, and the final byte is 0x40-0x7E.
+				// We simply scan until the final byte.
 				for {
 					c, _, err := reader.ReadRune()
 					if err != nil {
