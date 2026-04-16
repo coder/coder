@@ -342,7 +342,7 @@ SELECT
             AND cm.id > COALESCE(chats.last_read_message_id, 0)
     ) AS has_unread
 FROM
-    chats
+    chats_with_acl AS chats
 WHERE
     CASE
         WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id

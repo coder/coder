@@ -1523,14 +1523,12 @@ CREATE VIEW chats_with_acl AS
     c.organization_id,
     c.plan_mode,
     c.client_type,
-    c.user_acl,
-    c.group_acl,
-    COALESCE(root.user_acl, c.user_acl) AS effective_user_acl,
-    COALESCE(root.group_acl, c.group_acl) AS effective_group_acl
+    COALESCE(root.user_acl, c.user_acl) AS user_acl,
+    COALESCE(root.group_acl, c.group_acl) AS group_acl
    FROM (chats c
      LEFT JOIN chats root ON ((root.id = c.root_chat_id)));
 
-COMMENT ON VIEW chats_with_acl IS 'Projects each chat alongside its effective ACL. Sub-chats inherit the root chat''s user_acl/group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant''s own ACL.';
+COMMENT ON VIEW chats_with_acl IS 'Projects each chat alongside its effective ACL. Sub-chats inherit the root chat''s user_acl / group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant''s own ACL. Column names match the base chats table so sqlc row types are shared.';
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,

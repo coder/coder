@@ -109,12 +109,9 @@ sql:
           - column: "chats_with_acl.group_acl"
             go_type:
               type: "WorkspaceACL"
-          - column: "chats_with_acl.effective_user_acl"
+          - column: "chats_with_acl.labels"
             go_type:
-              type: "WorkspaceACL"
-          - column: "chats_with_acl.effective_group_acl"
-            go_type:
-              type: "WorkspaceACL"
+              type: "StringMap"
           - column: "workspaces_expanded.user_acl"
             go_type:
               type: "WorkspaceACL"

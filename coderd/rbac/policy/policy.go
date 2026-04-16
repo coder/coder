@@ -82,6 +82,7 @@ var chatActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat messages and metadata",
 	ActionUpdate: "update chat title or settings",
 	ActionDelete: "delete a chat",
+	ActionShare:  "share a chat read-only with other users or groups",
 }
 
 // RBACPermissions is indexed by the type

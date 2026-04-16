@@ -4585,7 +4585,7 @@ type ChatUsageLimitConfig struct {
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Projects each chat alongside its effective ACL. Sub-chats inherit the root chat's user_acl/group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant's own ACL.
+// Projects each chat alongside its effective ACL. Sub-chats inherit the root chat's user_acl / group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant's own ACL. Column names match the base chats table so sqlc row types are shared.
 type ChatsWithAcl struct {
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
@@ -4604,7 +4604,7 @@ type ChatsWithAcl struct {
 	LastError           sql.NullString        `db:"last_error" json:"last_error"`
 	Mode                NullChatMode          `db:"mode" json:"mode"`
 	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels              json.RawMessage       `db:"labels" json:"labels"`
+	Labels              StringMap             `db:"labels" json:"labels"`
 	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
 	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
@@ -4616,8 +4616,6 @@ type ChatsWithAcl struct {
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
 	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
-	EffectiveUserAcl    WorkspaceACL          `db:"effective_user_acl" json:"effective_user_acl"`
-	EffectiveGroupAcl   WorkspaceACL          `db:"effective_group_acl" json:"effective_group_acl"`
 }
 
 type ConnectionLog struct {
