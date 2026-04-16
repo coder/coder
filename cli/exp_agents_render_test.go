@@ -500,7 +500,7 @@ func TestExpAgentsRender(t *testing.T) {
 			blocks := []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "assistant reply"}}
 
 			output := plainText(renderChatBlocks(styles, blocks, 0, map[int]bool{}, false, 60))
-			require.Contains(t, output, "│ assistant reply")
+			require.Contains(t, output, "│   assistant reply")
 		})
 
 		t.Run("CollapsesConsecutiveSameNameToolResults", func(t *testing.T) {

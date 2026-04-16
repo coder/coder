@@ -529,7 +529,7 @@ func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, e
 			blocks[index].cachedCollapsedCount = blocks[index].collapsedCount
 		}
 		if index == activeSelection {
-			blockView = styles.selectedItem.Render(blockView)
+			blockView = styles.selectedBlock.Render(blockView)
 		}
 		rendered = append(rendered, blockView)
 	}

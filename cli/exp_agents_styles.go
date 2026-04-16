@@ -12,6 +12,7 @@ type tuiStyles struct {
 	statusBar     lipgloss.Style
 	statusBadge   lipgloss.Style
 	selectedItem  lipgloss.Style
+	selectedBlock lipgloss.Style
 	normalItem    lipgloss.Style
 	dimmedText    lipgloss.Style
 	errorText     lipgloss.Style
@@ -40,11 +41,12 @@ func newTUIStyles(renderers ...*lipgloss.Renderer) tuiStyles {
 	}
 
 	return tuiStyles{
-		title:       renderer.NewStyle().Bold(true),
-		subtitle:    renderer.NewStyle().Faint(true),
-		statusBar:   renderer.NewStyle(),
-		statusBadge: renderer.NewStyle().Padding(0, 1),
-		selectedItem: renderer.NewStyle().
+		title:        renderer.NewStyle().Bold(true),
+		subtitle:     renderer.NewStyle().Faint(true),
+		statusBar:    renderer.NewStyle(),
+		statusBadge:  renderer.NewStyle().Padding(0, 1),
+		selectedItem: renderer.NewStyle().Bold(true),
+		selectedBlock: renderer.NewStyle().
 			BorderLeft(true).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(lipgloss.AdaptiveColor{Light: "63", Dark: "63"}).
