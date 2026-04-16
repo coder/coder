@@ -2459,6 +2459,91 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 		"expected second LLM call to include the submitted dynamic tool result")
 }
 
+func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([]chattest.OpenAIRequest, 0, 1)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Dynamic tool collision test")
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, chattest.OpenAIRequest{
+			Messages: append([]chattest.OpenAIMessage(nil), req.Messages...),
+			Tools:    append([]chattest.OpenAITool(nil), req.Tools...),
+			Stream:   req.Stream,
+		})
+		streamedCallsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Dynamic tool list captured.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	server := newActiveTestServer(t, db, ps)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "propose_plan",
+		Description: "A dynamic tool whose name collides with the hidden built-in.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		},
+	}})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "dynamic-propose-plan-collision",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List the available tools."),
+		},
+		DynamicTools: dynamicToolsJSON,
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	streamedCallsMu.Lock()
+	recordedCalls := append([]chattest.OpenAIRequest(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.NotEmpty(t, recordedCalls)
+
+	var foundDynamicTool bool
+	for _, tool := range recordedCalls[0].Tools {
+		if tool.Function.Name == "propose_plan" {
+			foundDynamicTool = true
+			break
+		}
+	}
+	require.True(t, foundDynamicTool,
+		"expected the dynamic propose_plan tool to remain visible outside plan mode")
+}
+
 func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	t.Parallel()
 

@@ -4414,11 +4414,7 @@ func allowedPlanToolNames(
 	if !isPlanModeTurn {
 		toolNames := make([]string, 0, len(allTools))
 		for _, tool := range allTools {
-			name := tool.Info().Name
-			if name == "propose_plan" {
-				continue
-			}
-			toolNames = append(toolNames, name)
+			toolNames = append(toolNames, tool.Info().Name)
 		}
 		return toolNames
 	}
@@ -4483,6 +4479,233 @@ func buildSystemPrompt(
 		}
 	}
 	return prompt
+}
+
+type rootChatToolsOptions struct {
+	chat            database.Chat
+	modelConfigID   uuid.UUID
+	workspaceCtx    *turnWorkspaceContext
+	workspaceMu     *sync.Mutex
+	instruction     *string
+	skills          *[]chattool.SkillMeta
+	resolvePlanPath func(context.Context) (string, string, error)
+	isPlanModeTurn  bool
+}
+
+func (p *Server) loadPlanModeInstructions(
+	ctx context.Context,
+	mode database.NullChatPlanMode,
+	logger slog.Logger,
+) string {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return ""
+	}
+
+	// Plan-mode instructions live in deployment config, but chat workers do
+	// not carry a deployment-config actor during background execution.
+	//nolint:gocritic // Required to read deployment config during background chat processing.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
+	if err != nil {
+		logger.Warn(ctx,
+			"failed to fetch plan mode instructions",
+			slog.Error(err),
+		)
+		return ""
+	}
+
+	return fetched
+}
+
+func (p *Server) appendRootChatTools(
+	ctx context.Context,
+	tools []fantasy.AgentTool,
+	opts rootChatToolsOptions,
+) []fantasy.AgentTool {
+	onChatUpdated := func(updatedChat database.Chat) {
+		opts.workspaceCtx.selectWorkspace(updatedChat)
+		// Notify the frontend immediately so it can start streaming
+		// build logs before the tool completes.
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+
+		// When a workspace is first attached mid-turn (e.g. via
+		// create_workspace), fetch and persist instruction files
+		// immediately so the LLM has AGENTS.md context for the remainder
+		// of this turn. The persisted marker prevents redundant fetches on
+		// subsequent turns.
+		if *opts.instruction == "" && updatedChat.WorkspaceID.Valid {
+			newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
+				ctx,
+				updatedChat,
+				opts.modelConfigID,
+				opts.workspaceCtx.getWorkspaceAgent,
+				opts.workspaceCtx.getWorkspaceConn,
+			)
+			if persistErr != nil {
+				p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
+					slog.F("chat_id", updatedChat.ID),
+					slog.Error(persistErr),
+				)
+			} else {
+				*opts.instruction = newInstruction
+				if len(discoveredSkills) > 0 {
+					*opts.skills = discoveredSkills
+				}
+			}
+		}
+	}
+
+	tools = append(tools,
+		chattool.ListTemplates(opts.chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+			OwnerID:            opts.chat.OwnerID,
+			AllowedTemplateIDs: p.chatTemplateAllowlist,
+		}),
+		chattool.ReadTemplate(opts.chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+			OwnerID:            opts.chat.OwnerID,
+			AllowedTemplateIDs: p.chatTemplateAllowlist,
+		}),
+		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+			OwnerID:                        opts.chat.OwnerID,
+			ChatID:                         opts.chat.ID,
+			CreateFn:                       p.createWorkspaceFn,
+			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+			WorkspaceMu:                    opts.workspaceMu,
+			OnChatUpdated:                  onChatUpdated,
+			Logger:                         p.logger,
+			AllowedTemplateIDs:             p.chatTemplateAllowlist,
+		}),
+		chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:            p.db,
+			OwnerID:       opts.chat.OwnerID,
+			ChatID:        opts.chat.ID,
+			StartFn:       p.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:   opts.workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+		}),
+	)
+	if opts.isPlanModeTurn {
+		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
+			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  opts.resolvePlanPath,
+			IsPlanTurn:       opts.isPlanModeTurn,
+			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
+				return p.storePlanSnapshotFile(ctx, opts.workspaceCtx, name, mediaType, data)
+			},
+		}))
+	}
+
+	return append(tools, p.subagentTools(ctx, func() database.Chat {
+		return opts.chat
+	})...)
+}
+
+func (p *Server) storePlanSnapshotFile(
+	ctx context.Context,
+	workspaceCtx *turnWorkspaceContext,
+	name string,
+	mediaType string,
+	data []byte,
+) (uuid.UUID, error) {
+	chatSnapshot := workspaceCtx.currentChatSnapshot()
+	if !chatSnapshot.WorkspaceID.Valid {
+		return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+	}
+
+	ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
+	}
+
+	row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        chatSnapshot.OwnerID,
+		OrganizationID: ws.OrganizationID,
+		Name:           name,
+		Mimetype:       mediaType,
+		Data:           data,
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
+	}
+
+	// Cap enforcement and dedup are handled atomically in SQL.
+	// rejected > 0 means the cap was exceeded.
+	rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatSnapshot.ID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      []uuid.UUID{row.ID},
+	})
+	switch {
+	case err != nil:
+		p.logger.Error(ctx, "failed to link file to chat",
+			slog.F("chat_id", chatSnapshot.ID),
+			slog.F("file_id", row.ID),
+			slog.Error(err),
+		)
+	case rejected > 0:
+		p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+			slog.F("chat_id", chatSnapshot.ID),
+			slog.F("file_id", row.ID),
+			slog.F("max_file_links", codersdk.MaxChatFileIDs),
+		)
+	}
+
+	return row.ID, nil
+}
+
+func appendDynamicTools(
+	ctx context.Context,
+	logger slog.Logger,
+	tools []fantasy.AgentTool,
+	raw pqtype.NullRawMessage,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+) ([]fantasy.AgentTool, map[string]bool, error) {
+	if mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan {
+		return tools, nil, nil
+	}
+
+	dynamicToolNames, err := parseDynamicToolNames(raw)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse dynamic tool names: %w", err)
+	}
+	if len(dynamicToolNames) == 0 {
+		return tools, dynamicToolNames, nil
+	}
+
+	var dynamicToolDefs []codersdk.DynamicTool
+	if raw.Valid {
+		if err := json.Unmarshal(raw.RawMessage, &dynamicToolDefs); err != nil {
+			return nil, nil, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+		}
+	}
+
+	activeToolNames := make(map[string]struct{}, len(tools))
+	for _, name := range allowedPlanToolNames(tools, mode, parentChatID) {
+		activeToolNames[name] = struct{}{}
+	}
+	for _, t := range tools {
+		info := t.Info()
+		if _, active := activeToolNames[info.Name]; !active {
+			continue
+		}
+		if dynamicToolNames[info.Name] {
+			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+				slog.F("tool_name", info.Name))
+			delete(dynamicToolNames, info.Name)
+		}
+	}
+
+	var filteredDefs []codersdk.DynamicTool
+	for _, dt := range dynamicToolDefs {
+		if dynamicToolNames[dt.Name] {
+			filteredDefs = append(filteredDefs, dt)
+		}
+	}
+
+	return append(tools, dynamicToolsFromSDK(logger, filteredDefs)...), dynamicToolNames, nil
 }
 
 func (p *Server) runChat(
@@ -4572,22 +4795,7 @@ func (p *Server) runChat(
 	// turn.
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
-	var planModeInstructions string
-	if isPlanModeTurn {
-		// Plan-mode instructions live in deployment config, but chat workers do
-		// not carry a deployment-config actor during background execution.
-		//nolint:gocritic // Required to read deployment config during background chat processing.
-		systemCtx := dbauthz.AsSystemRestricted(ctx)
-		fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
-		if err == nil {
-			planModeInstructions = fetched
-		} else {
-			logger.Warn(ctx,
-				"failed to fetch plan mode instructions",
-				slog.Error(err),
-			)
-		}
-	}
+	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
 	result.PushSummaryModel = model
@@ -5225,130 +5433,16 @@ func (p *Server) runChat(
 	// create workspaces or spawn further subagents. They should
 	// focus on completing their delegated task.
 	if isRootChat {
-		// Workspace provisioning tools.
-		onChatUpdated := func(updatedChat database.Chat) {
-			workspaceCtx.selectWorkspace(updatedChat)
-			// Notify the frontend immediately so it can
-			// start streaming build logs before the tool
-			// completes.
-			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
-
-			// When a workspace is first attached mid-turn
-			// (e.g. via create_workspace), fetch and persist
-			// instruction files immediately so the LLM has
-			// AGENTS.md context for the remainder of this
-			// turn. The persisted marker prevents redundant
-			// fetches on subsequent turns.
-			if instruction == "" && updatedChat.WorkspaceID.Valid {
-				newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
-					ctx,
-					updatedChat,
-					modelConfig.ID,
-					workspaceCtx.getWorkspaceAgent,
-					workspaceCtx.getWorkspaceConn,
-				)
-				if persistErr != nil {
-					p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
-						slog.F("chat_id", updatedChat.ID),
-						slog.Error(persistErr),
-					)
-				} else {
-					instruction = newInstruction
-					if len(discoveredSkills) > 0 {
-						skills = discoveredSkills
-					}
-				}
-			}
-		}
-		tools = append(tools,
-			chattool.ListTemplates(chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.ReadTemplate(chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.CreateWorkspace(chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
-				OwnerID:                        chat.OwnerID,
-				ChatID:                         chat.ID,
-				CreateFn:                       p.createWorkspaceFn,
-				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  onChatUpdated,
-				Logger:                         p.logger,
-				AllowedTemplateIDs:             p.chatTemplateAllowlist,
-			}),
-
-			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-				DB:            p.db,
-				OwnerID:       chat.OwnerID,
-				ChatID:        chat.ID,
-				StartFn:       p.startWorkspaceFn,
-				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu:   &workspaceMu,
-				OnChatUpdated: onChatUpdated,
-				Logger:        p.logger,
-			}),
-		)
-		// Plan presentation tool.
-		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
-				workspaceCtx.chatStateMu.Lock()
-				chatSnapshot := *workspaceCtx.currentChat
-				workspaceCtx.chatStateMu.Unlock()
-
-				if !chatSnapshot.WorkspaceID.Valid {
-					return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
-				}
-
-				ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
-				if err != nil {
-					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
-				}
-
-				row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
-					OwnerID:        chatSnapshot.OwnerID,
-					OrganizationID: ws.OrganizationID,
-					Name:           name,
-					Mimetype:       mediaType,
-					Data:           data,
-				})
-				if err != nil {
-					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
-				}
-
-				// Cap enforcement and dedup are handled atomically
-				// in SQL. rejected > 0 = cap exceeded.
-				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-					ChatID:       chatSnapshot.ID,
-					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-					FileIds:      []uuid.UUID{row.ID},
-				})
-				switch {
-				case err != nil:
-					p.logger.Error(ctx, "failed to link file to chat",
-						slog.F("chat_id", chatSnapshot.ID),
-						slog.F("file_id", row.ID),
-						slog.Error(err),
-					)
-				case rejected > 0:
-					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
-						slog.F("chat_id", chatSnapshot.ID),
-						slog.F("file_id", row.ID),
-						slog.F("max_file_links", codersdk.MaxChatFileIDs),
-					)
-				}
-				return row.ID, nil
-			},
-		}))
-		tools = append(tools, p.subagentTools(ctx, func() database.Chat {
-			return chat
-		})...)
+		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+			chat:            chat,
+			modelConfigID:   modelConfig.ID,
+			workspaceCtx:    &workspaceCtx,
+			workspaceMu:     &workspaceMu,
+			instruction:     &instruction,
+			skills:          &skills,
+			resolvePlanPath: resolvePlanPathForTools,
+			isPlanModeTurn:  isPlanModeTurn,
+		})
 	}
 
 	// Append skill tools when the workspace has skills.
@@ -5381,40 +5475,21 @@ func (p *Server) runChat(
 	}
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
-	// are never executed by the chatloop — the client handles
+	// are never executed by the chatloop. The client handles
 	// execution via POST /tool-results.
 	var dynamicToolNames map[string]bool
-	if !isPlanModeTurn {
-		dynamicToolNames, err = parseDynamicToolNames(chat.DynamicTools)
-		if err != nil {
-			return result, xerrors.Errorf("parse dynamic tool names: %w", err)
-		}
-		// Unmarshal the full definitions separately so we can
-		// build the filtered list below. parseDynamicToolNames
-		// already validated the JSON, so this cannot fail.
-		var dynamicToolDefs []codersdk.DynamicTool
-		if chat.DynamicTools.Valid {
-			if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
-				return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
-			}
-		}
-		for _, t := range tools {
-			info := t.Info()
-			if dynamicToolNames[info.Name] {
-				logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
-					slog.F("tool_name", info.Name))
-				delete(dynamicToolNames, info.Name)
-			}
-		}
-
-		var filteredDefs []codersdk.DynamicTool
-		for _, dt := range dynamicToolDefs {
-			if dynamicToolNames[dt.Name] {
-				filteredDefs = append(filteredDefs, dt)
-			}
-		}
-		tools = append(tools, dynamicToolsFromSDK(p.logger, filteredDefs)...)
+	tools, dynamicToolNames, err = appendDynamicTools(
+		ctx,
+		logger,
+		tools,
+		chat.DynamicTools,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
+	if err != nil {
+		return result, err
 	}
+
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool

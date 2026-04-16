@@ -75,7 +75,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 		Valid:        true,
 	}
 
-	t.Run("NormalModeExcludesProposePlan", func(t *testing.T) {
+	t.Run("NormalModeReturnsAllRegisteredTools", func(t *testing.T) {
 		t.Parallel()
 
 		got := allowedPlanToolNames(makeTools(
@@ -87,6 +87,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 
 		require.Equal(t, []string{
 			"read_file",
+			"propose_plan",
 			"custom_tool",
 			"execute",
 		}, got)
