@@ -1,11 +1,6 @@
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -20,7 +15,6 @@ import {
 	chat,
 	chatDesktopEnabled,
 	chatKey,
-	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
 	createChatMessage,
@@ -600,10 +594,7 @@ const AgentChatPage: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
-	const chatMessagesQuery = useInfiniteQuery({
-		...chatMessagesForInfiniteScroll(agentId ?? ""),
-		enabled: Boolean(agentId),
-	});
+
 	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChatQuery = useQuery({
 		...chat(parentChatID ?? ""),
@@ -734,38 +725,6 @@ const AgentChatPage: FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
-
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
-				}
-			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
@@ -843,12 +802,9 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
-	const { store, clearStreamError } = useChatStore({
+	const { store, clearStreamError, wsReady } = useChatStore({
 		chatID: agentId,
-		chatMessages: chatMessagesList,
 		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
@@ -1088,24 +1044,17 @@ const AgentChatPage: FC = () => {
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
 		if (
 			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
+			!wsReady ||
+			storeMessageCount === 0
 		) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, storeMessageCount, wsReady, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -1203,9 +1152,9 @@ const AgentChatPage: FC = () => {
 
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
-			const originalEditedMessage = chatMessagesList?.find(
-				(existingMessage) => existingMessage.id === editedMessageID,
-			);
+			const originalEditedMessage = Array.from(
+				store.getSnapshot().messagesByID.values(),
+			).find((existingMessage) => existingMessage.id === editedMessageID);
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
@@ -1332,7 +1281,7 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
+	if (chatQuery.isLoading || !wsReady) {
 		return (
 			<AgentChatPageLoadingView
 				titleElement={titleElement}
@@ -1352,7 +1301,7 @@ const AgentChatPage: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !chatMessagesQuery.data?.pages?.length || !agentId) {
+	if (!chatQuery.data || !wsReady || !agentId) {
 		return (
 			<AgentChatPageNotFoundView
 				titleElement={titleElement}
@@ -1417,9 +1366,9 @@ const AgentChatPage: FC = () => {
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}
-			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			hasMoreMessages={false}
+			isFetchingMoreMessages={false}
+			onFetchMoreMessages={() => {}}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

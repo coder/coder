@@ -279,14 +279,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -360,14 +353,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -435,14 +421,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -529,14 +508,7 @@ describe("useChatStore", () => {
 		const TestHarness: FC = () => {
 			const { store } = useChatStore({
 				chatID,
-				chatMessages: [existingMessage],
 				chatRecord: makeChat(chatID),
-				chatMessagesData: {
-					messages: [existingMessage],
-					queued_messages: [],
-					has_more: false,
-				},
-				chatQueuedMessages: [],
 				setChatErrorReason,
 				clearChatErrorReason,
 			});
@@ -603,14 +575,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -678,14 +643,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -766,14 +724,7 @@ describe("useChatStore", () => {
 		const clearChatErrorReason = vi.fn();
 		const initialOptions = {
 			chatID,
-			chatMessages: [existingMessage],
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -817,12 +768,6 @@ describe("useChatStore", () => {
 
 		rerender({
 			...initialOptions,
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
 		});
 
 		await waitFor(() => {
@@ -849,14 +794,7 @@ describe("useChatStore", () => {
 		// server-side while the user was viewing a different chat.
 		const staleOptions = {
 			chatID,
-			chatMessages: [existingMessage],
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [queuedMessage],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMessage],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -886,12 +824,6 @@ describe("useChatStore", () => {
 		// data with an empty queue (no queue_update from WS yet).
 		rerender({
 			...staleOptions,
-			chatMessagesData: {
-				messages: [existingMessage],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [],
 		});
 
 		// The store should accept the fresh REST data because the
@@ -940,10 +872,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: initialChatMessagesData,
-					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1016,10 +945,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: initialChatMessagesData,
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1089,14 +1015,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID: chatID1,
-			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [] as TypesGen.ChatQueuedMessage[],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -1138,13 +1057,7 @@ describe("useChatStore", () => {
 		rerender({
 			...initialOptions,
 			chatID: chatID2,
-			chatMessages: [msg2],
 			chatRecord: makeChat(chatID2),
-			chatMessagesData: {
-				messages: [msg2],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		await waitFor(() => {
@@ -1176,14 +1089,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [queuedMessage],
-						has_more: false,
-					},
-					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1232,14 +1138,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1334,14 +1233,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1430,14 +1322,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID: chatID1,
-			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [] as TypesGen.ChatQueuedMessage[],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -1479,13 +1364,7 @@ describe("useChatStore", () => {
 		rerender({
 			...initialOptions,
 			chatID: chatID2,
-			chatMessages: [msg2],
 			chatRecord: makeChat(chatID2),
-			chatMessagesData: {
-				messages: [msg2],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		await waitFor(() => {
@@ -1521,14 +1400,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID: chatID1,
-			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: makeChat(chatID1),
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -1557,14 +1429,7 @@ describe("useChatStore", () => {
 		rerender({
 			...initialOptions,
 			chatID: chatID2,
-			chatMessages: [],
 			chatRecord: makeChat(chatID2),
-			chatMessagesData: {
-				messages: [],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [],
 		});
 
 		// After the switch, queued messages from chat-1 should NOT be
@@ -1593,14 +1458,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1663,14 +1521,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1739,14 +1590,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1798,14 +1642,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1864,14 +1701,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1947,14 +1777,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2034,14 +1857,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2097,14 +1913,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2178,14 +1987,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2255,14 +2057,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2332,14 +2127,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: { ...makeChat(chatID), status: "completed" },
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -2381,14 +2169,7 @@ describe("useChatStore", () => {
 			() =>
 				useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				}),
@@ -2434,14 +2215,7 @@ describe("useChatStore", () => {
 			() =>
 				useChatStore({
 					chatID,
-					chatMessages: [msg],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [msg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				}),
@@ -2499,14 +2273,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2624,14 +2391,7 @@ describe("useChatStore", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -2683,14 +2443,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID,
-			chatMessages: initialMessages,
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: noQueued,
-				has_more: false,
-			},
-			chatQueuedMessages: noQueued,
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -2714,12 +2467,6 @@ describe("useChatStore", () => {
 		// message (server truncated messages 2 and 3).
 		rerender({
 			...initialOptions,
-			chatMessages: [msg1],
-			chatMessagesData: {
-				messages: [msg1],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		// Messages 2 and 3 should be removed — replaceMessages should
@@ -2754,14 +2501,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID,
-			chatMessages: initialMessages,
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -2827,13 +2567,6 @@ describe("useChatStore", () => {
 			// chatMessagesList useMemo to return a new array with
 			// the same elements. The new reference triggers the
 			// sync effect.
-			chatMessages: [...initialMessages],
-			chatMessagesData: {
-				messages: [...initialMessages],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [],
 		});
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
@@ -2863,14 +2596,7 @@ describe("useChatStore", () => {
 
 		const initialOptions = {
 			chatID,
-			chatMessages: initialMessages,
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [queuedMsg],
-				has_more: false,
-			},
-			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -2964,14 +2690,7 @@ describe("useChatStore", () => {
 			(props: { chatRecord: TypesGen.Chat }) => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: props.chatRecord,
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -3044,14 +2763,7 @@ describe("thinking indicator event ordering", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: { ...makeChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3129,14 +2841,7 @@ describe("thinking indicator event ordering", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: { ...makeChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3209,14 +2914,7 @@ describe("thinking indicator event ordering", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: { ...makeChat(chatID), status: "running" },
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3298,14 +2996,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3362,14 +3053,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3435,14 +3119,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3501,14 +3178,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: activeChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3574,14 +3244,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3645,14 +3308,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3711,14 +3367,7 @@ describe("updateSidebarChat via stream events", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: initialChat,
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -3765,14 +3414,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -3857,14 +3499,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -3964,14 +3599,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg, committedAssistant],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg, committedAssistant],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -4083,14 +3711,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [userMsg],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [userMsg],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
@@ -4208,14 +3829,7 @@ describe("store/cache desync protection", () => {
 		const initialMessages = [msg1, msg2];
 		const initialOptions = {
 			chatID,
-			chatMessages: initialMessages,
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: initialMessages,
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason: vi.fn(),
 			clearChatErrorReason: vi.fn(),
 		};
@@ -4254,12 +3868,6 @@ describe("store/cache desync protection", () => {
 		const msg2New = makeMessage(chatID, 2, "assistant", "hi");
 		rerender({
 			...initialOptions,
-			chatMessages: [msg1New, msg2New],
-			chatMessagesData: {
-				messages: [msg1New, msg2New],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		// msg3 was added to the store AFTER the last sync. It
@@ -4298,14 +3906,7 @@ describe("store/cache desync protection", () => {
 
 		const initialOptions = {
 			chatID,
-			chatMessages: [msg1, msg2, msg3],
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: [msg1, msg2, msg3],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason: vi.fn(),
 			clearChatErrorReason: vi.fn(),
 		};
@@ -4332,12 +3933,6 @@ describe("store/cache desync protection", () => {
 		const msg1New = makeMessage(chatID, 1, "user", "hello");
 		rerender({
 			...initialOptions,
-			chatMessages: [msg1New],
-			chatMessagesData: {
-				messages: [msg1New],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		// Once the WS is connected, REST prop changes are ignored.
@@ -4370,14 +3965,7 @@ describe("store/cache desync protection", () => {
 		);
 		const initialOptions = {
 			chatID,
-			chatMessages: [msg1, msg2, msg3],
 			chatRecord: makeChat(chatID),
-			chatMessagesData: {
-				messages: [msg1, msg2, msg3],
-				queued_messages: [],
-				has_more: false,
-			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason: vi.fn(),
 			clearChatErrorReason: vi.fn(),
 		};
@@ -4404,12 +3992,6 @@ describe("store/cache desync protection", () => {
 
 		rerender({
 			...initialOptions,
-			chatMessages: [msg1, msg2, optimisticReplacement],
-			chatMessagesData: {
-				messages: [msg1, msg2, optimisticReplacement],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		// WS is connected — REST prop changes are ignored.
@@ -4421,12 +4003,6 @@ describe("store/cache desync protection", () => {
 
 		rerender({
 			...initialOptions,
-			chatMessages: [msg1, msg2, authoritativeReplacement],
-			chatMessagesData: {
-				messages: [msg1, msg2, authoritativeReplacement],
-				queued_messages: [],
-				has_more: false,
-			},
 		});
 
 		// Same: the authoritative replacement is also ignored.
@@ -4456,14 +4032,7 @@ describe("parse errors", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -4511,14 +4080,7 @@ describe("parse errors", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -4587,14 +4149,7 @@ describe("parse errors", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
-					chatMessagesData: {
-						messages: [existingMessage],
-						queued_messages: [],
-						has_more: false,
-					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
