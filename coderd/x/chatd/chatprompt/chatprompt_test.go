@@ -9,6 +9,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -333,11 +334,11 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 	require.Equal(t, []string{"toolu_local"}, resultIDs)
 }
 
-// TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
-// provider-executed tool results that end up after the wrong assistant
-// message (because they were persisted in a later step) are dropped
-// rather than triggering synthetic tool_use injection.
-func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
+// TestReattachProviderExecutedToolResults_FromLaterStepToolRows
+// verifies that provider-executed tool results persisted in a later
+// step are reattached to the assistant turn that owns the
+// provider-executed tool call.
+func TestReattachProviderExecutedToolResults_FromLaterStepToolRows(t *testing.T) {
 	t.Parallel()
 
 	// Step 1: assistant calls spawn_agent x2 + web_search (PE).
@@ -387,11 +388,10 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 		},
 	})
 
-	// The provider-executed result C is persisted in step 2's batch.
 	resultC := mustMarshalToolResult(t,
 		"srvtoolu_C", "web_search",
 		json.RawMessage(`{}`),
-		false, false, true, // provider_executed = true
+		false, false, true,
 	)
 	resultD := mustMarshalToolResult(t,
 		"toolu_D", "wait_agent",
@@ -405,32 +405,20 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	)
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
-		// Step 1
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: step1Assistant},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultA},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultB},
-		// Step 2
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: step2Assistant},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultC},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultD},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultE},
-		// User follow-up
 		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
 			fantasy.TextContent{Text: "?"},
 		})},
 	})
 	require.NoError(t, err)
 
-	// Expected message sequence:
-	// [0] assistant [tool_use A, B, C(PE)]
-	// [1] tool [result A]
-	// [2] tool [result B]
-	// [3] assistant [text, tool_use D, E]
-	// [4] tool [result D]
-	// [5] tool [result E]
-	// [6] user ["?"]
 	require.Len(t, prompt, 7, "expected 7 messages after repair")
-
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[2].Role)
@@ -439,25 +427,240 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	require.Equal(t, fantasy.MessageRoleTool, prompt[5].Role)
 	require.Equal(t, fantasy.MessageRoleUser, prompt[6].Role)
 
-	// Verify step 1 has no synthetic error for C.
+	require.Equal(t, []string{"srvtoolu_C"}, extractToolResultIDs(t, prompt[0]))
 	step1ToolIDs := extractToolResultIDs(t, prompt[1], prompt[2])
 	require.ElementsMatch(t, []string{"toolu_A", "toolu_B"}, step1ToolIDs)
-
-	// Verify step 2 tool results contain only D and E (C is dropped).
 	step2ToolIDs := extractToolResultIDs(t, prompt[4], prompt[5])
 	require.ElementsMatch(t, []string{"toolu_D", "toolu_E"}, step2ToolIDs)
 
-	// Verify no synthetic assistant messages were injected.
 	for i, msg := range prompt {
-		if msg.Role == fantasy.MessageRoleAssistant {
-			for _, part := range msg.Content {
-				tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
-				if ok && tc.Input == "{}" && tc.ToolCallID == "srvtoolu_C" {
-					t.Errorf("message[%d]: unexpected synthetic tool_use for srvtoolu_C", i)
-				}
+		if msg.Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		for _, part := range msg.Content {
+			tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && tc.Input == "{}" && tc.ToolCallID == "srvtoolu_C" {
+				t.Errorf("message[%d]: unexpected synthetic tool_use for srvtoolu_C", i)
 			}
 		}
 	}
+}
+
+func TestReattachProviderExecutedToolResults_Basic(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_abc",
+			ToolName:         "web_search",
+			Input:            `{"query":"test"}`,
+			ProviderExecuted: true,
+		},
+	})
+	result := mustMarshalToolResult(t,
+		"srvtoolu_abc", "web_search",
+		json.RawMessage(`{"results":"cached"}`),
+		false, false, true,
+	)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: result},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "srvtoolu_abc", tc.ToolCallID)
+	require.True(t, tc.ProviderExecuted)
+
+	tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[0].Content[1])
+	require.True(t, ok)
+	require.Equal(t, "srvtoolu_abc", tr.ToolCallID)
+	require.True(t, tr.ProviderExecuted)
+}
+
+func TestReattachProviderExecutedToolResults_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_inline",
+			ToolName:         "web_search",
+			Input:            `{"query":"already inline"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.ToolResultContent{
+			ToolCallID:       "srvtoolu_inline",
+			ToolName:         "web_search",
+			Result:           fantasy.ToolResultOutputContentText{Text: `{"results":"cached"}`},
+			ProviderExecuted: true,
+		},
+		fantasy.TextContent{Text: "Inline result stays put."},
+	})
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 3)
+	require.Equal(t, []string{"srvtoolu_inline"}, extractToolResultIDs(t, prompt[0]))
+}
+
+func TestReattachProviderExecutedToolResults_PreservesMetadata(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_meta",
+			ToolName:         "web_search",
+			Input:            `{"query":"metadata"}`,
+			ProviderExecuted: true,
+		},
+	})
+	result := mustMarshalToolResultWithMetadata(t,
+		"srvtoolu_meta", "web_search",
+		json.RawMessage(`{"results":"cached"}`),
+		false, false, true,
+		fantasy.ProviderMetadata{
+			"openai": &fantasyopenai.ProviderMetadata{
+				AcceptedPredictionTokens: 7,
+				RejectedPredictionTokens: 3,
+			},
+		},
+	)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: result},
+	})
+	require.NoError(t, err)
+
+	tr := findToolResultPart(t, prompt[0], "srvtoolu_meta")
+	require.True(t, tr.ProviderExecuted)
+	metadata, ok := tr.ProviderOptions["openai"].(*fantasyopenai.ProviderMetadata)
+	require.True(t, ok)
+	require.EqualValues(t, 7, metadata.AcceptedPredictionTokens)
+	require.EqualValues(t, 3, metadata.RejectedPredictionTokens)
+}
+
+func TestReattachProviderExecutedToolResults_MixedResults(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_mix",
+			ToolName:         "web_search",
+			Input:            `{"query":"mixed"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.ToolCallContent{
+			ToolCallID: "toolu_read",
+			ToolName:   "read_file",
+			Input:      `{"path":"main.go"}`,
+		},
+	})
+
+	providerExecutedPart := chatprompt.ToolResultToPart(
+		"srvtoolu_mix", "web_search",
+		json.RawMessage(`{"results":"cached"}`),
+		false, false,
+	)
+	providerExecutedPart.ProviderExecuted = true
+	localPart := chatprompt.ToolResultToPart(
+		"toolu_read", "read_file",
+		json.RawMessage(`{"contents":"package main"}`),
+		false, false,
+	)
+	mixedResults := mustMarshalParts(t, []codersdk.ChatMessagePart{providerExecutedPart, localPart})
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: mixedResults},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, prompt, 2)
+	require.Equal(t, []string{"srvtoolu_mix"}, extractToolResultIDs(t, prompt[0]))
+	require.Equal(t, []string{"toolu_read"}, extractToolResultIDs(t, prompt[1]))
+}
+
+func TestReattachProviderExecutedToolResults_MultiTurn(t *testing.T) {
+	t.Parallel()
+
+	firstAssistant := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu/one",
+			ToolName:         "web_search",
+			Input:            `{"query":"one"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.TextContent{Text: "first"},
+	})
+	secondAssistant := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu:two",
+			ToolName:         "web_search",
+			Input:            `{"query":"two"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.TextContent{Text: "second"},
+	})
+	secondResult := mustMarshalToolResult(t,
+		"srvtoolu:two", "web_search",
+		json.RawMessage(`{"results":"two"}`),
+		false, false, true,
+	)
+	firstResult := mustMarshalToolResult(t,
+		"srvtoolu/one", "web_search",
+		json.RawMessage(`{"results":"one"}`),
+		false, false, true,
+	)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: firstAssistant},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: secondAssistant},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: secondResult},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: firstResult},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, prompt, 2)
+	require.Equal(t, []string{"srvtoolu_one"}, extractToolResultIDs(t, prompt[0]))
+	require.Equal(t, []string{"srvtoolu_two"}, extractToolResultIDs(t, prompt[1]))
+}
+
+func TestReattachProviderExecutedToolResults_MissingResult(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_missing",
+			ToolName:         "web_search",
+			Input:            `{"query":"missing"}`,
+			ProviderExecuted: true,
+		},
+	})
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+			fantasy.TextContent{Text: "follow up"},
+		})},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, prompt, 2)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
+	require.Empty(t, extractToolResultIDs(t, prompt[0]))
 }
 
 // TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage verifies
@@ -574,15 +777,12 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 }
 
 // TestProviderExecutedResult_LegacyToolRow verifies backward
-// compatibility: PE tool results that were stored as separate
-// tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes — orphaned PE results are dropped, and
-// matching PE results in the same step work via the existing
-// injectMissingToolUses logic.
+// compatibility: provider-executed tool results stored as separate
+// tool-role rows are reattached to the assistant turn that owns the
+// provider-executed tool call.
 func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	t.Parallel()
 
-	// Assistant with PE web_search + regular tool call.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_WS",
@@ -598,11 +798,10 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 		fantasy.TextContent{Text: "Results."},
 	})
 
-	// Legacy: PE result stored as separate tool-role message.
 	peResult := mustMarshalToolResult(t,
 		"srvtoolu_WS", "web_search",
 		json.RawMessage(`{"results":"cached"}`),
-		false, false, true, // providerExecuted = true
+		false, false, true,
 	)
 	execResult := mustMarshalToolResult(t,
 		"toolu_exec", "execute",
@@ -620,16 +819,12 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// The PE tool result should be dropped by injectMissingToolUses,
-	// leaving: assistant, tool(exec), user.
-	require.Len(t, prompt, 3, "expected 3 messages after PE result is dropped")
+	require.Len(t, prompt, 3)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleUser, prompt[2].Role)
-
-	// Tool message should only contain the exec result, not the PE one.
-	toolIDs := extractToolResultIDs(t, prompt[1])
-	require.Equal(t, []string{"toolu_exec"}, toolIDs)
+	require.Equal(t, []string{"srvtoolu_WS"}, extractToolResultIDs(t, prompt[0]))
+	require.Equal(t, []string{"toolu_exec"}, extractToolResultIDs(t, prompt[1]))
 }
 
 // TestSDKPartsNeverProduceFantasyEnvelopeShape guards the structural
@@ -1434,6 +1629,20 @@ func mustMarshalToolResult(t *testing.T, toolCallID, toolName string, result jso
 	return raw
 }
 
+func mustMarshalToolResultWithMetadata(t *testing.T, toolCallID, toolName string, result json.RawMessage, isError, isMedia, providerExecuted bool, providerMetadata fantasy.ProviderMetadata) pqtype.NullRawMessage {
+	t.Helper()
+	raw, err := chatprompt.MarshalToolResult(toolCallID, toolName, result, isError, isMedia, providerExecuted, providerMetadata)
+	require.NoError(t, err)
+	return raw
+}
+
+func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.NullRawMessage {
+	t.Helper()
+	raw, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	return raw
+}
+
 func extractToolResultIDs(t *testing.T, msgs ...fantasy.Message) []string {
 	t.Helper()
 	var ids []string
@@ -1446,6 +1655,18 @@ func extractToolResultIDs(t *testing.T, msgs ...fantasy.Message) []string {
 		}
 	}
 	return ids
+}
+
+func findToolResultPart(t *testing.T, msg fantasy.Message, toolCallID string) fantasy.ToolResultPart {
+	t.Helper()
+	for _, part := range msg.Content {
+		tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+		if ok && tr.ToolCallID == toolCallID {
+			return tr
+		}
+	}
+	require.FailNowf(t, "missing tool result", "expected tool result %q in message", toolCallID)
+	return fantasy.ToolResultPart{}
 }
 
 func TestNulEscapeRoundTrip(t *testing.T) {

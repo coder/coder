@@ -197,6 +197,7 @@ func ConvertMessagesWithFiles(
 		}
 	}
 	prompt = injectMissingToolResults(prompt)
+	prompt = reattachProviderExecutedToolResults(prompt, logger)
 	prompt = injectMissingToolUses(
 		prompt,
 		toolNameByCallID,
@@ -893,6 +894,146 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		}
 	}
 	return result
+}
+
+type providerExecutedToolCallLocation struct {
+	messageIndex int
+	partIndex    int
+}
+
+func reattachProviderExecutedToolResults(
+	prompt []fantasy.Message,
+	logger slog.Logger,
+) []fantasy.Message {
+	result := append([]fantasy.Message(nil), prompt...)
+	callLocations := make(map[string]providerExecutedToolCallLocation)
+	assistantResultIDs := make(map[int]map[string]struct{})
+
+	for i, msg := range result {
+		if msg.Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		for j, part := range msg.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ProviderExecuted {
+				toolCallID := sanitizeToolCallID(toolCall.ToolCallID)
+				if toolCallID != "" {
+					callLocations[toolCallID] = providerExecutedToolCallLocation{
+						messageIndex: i,
+						partIndex:    j,
+					}
+				}
+			}
+			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok {
+				continue
+			}
+			toolCallID := sanitizeToolCallID(toolResult.ToolCallID)
+			if toolCallID == "" {
+				continue
+			}
+			if assistantResultIDs[i] == nil {
+				assistantResultIDs[i] = make(map[string]struct{})
+			}
+			assistantResultIDs[i][toolCallID] = struct{}{}
+		}
+	}
+
+	insertedByAssistant := make(map[int]map[int]int)
+	for i, msg := range result {
+		if msg.Role != fantasy.MessageRoleTool {
+			continue
+		}
+
+		kept := make([]fantasy.MessagePart, 0, len(msg.Content))
+		changed := false
+		for _, part := range msg.Content {
+			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok || !toolResult.ProviderExecuted {
+				kept = append(kept, part)
+				continue
+			}
+
+			toolCallID := sanitizeToolCallID(toolResult.ToolCallID)
+			if toolCallID == "" {
+				kept = append(kept, part)
+				continue
+			}
+
+			location, ok := callLocations[toolCallID]
+			if !ok {
+				logger.Warn(context.Background(),
+					"provider-executed tool result has no matching tool call",
+					slog.F("tool_call_id", toolCallID),
+				)
+				kept = append(kept, part)
+				continue
+			}
+
+			if _, ok := assistantResultIDs[location.messageIndex][toolCallID]; ok {
+				changed = true
+				continue
+			}
+
+			if insertedByAssistant[location.messageIndex] == nil {
+				insertedByAssistant[location.messageIndex] = make(map[int]int)
+			}
+			insertAt := location.partIndex + 1 + insertionOffset(
+				insertedByAssistant[location.messageIndex],
+				location.partIndex,
+			)
+			result[location.messageIndex].Content = insertMessagePart(
+				result[location.messageIndex].Content,
+				insertAt,
+				toolResult,
+			)
+			if assistantResultIDs[location.messageIndex] == nil {
+				assistantResultIDs[location.messageIndex] = make(map[string]struct{})
+			}
+			assistantResultIDs[location.messageIndex][toolCallID] = struct{}{}
+			insertedByAssistant[location.messageIndex][location.partIndex]++
+			changed = true
+		}
+		if changed {
+			result[i].Content = kept
+		}
+	}
+
+	repaired := make([]fantasy.Message, 0, len(result))
+	for _, msg := range result {
+		if msg.Role == fantasy.MessageRoleTool && len(msg.Content) == 0 {
+			continue
+		}
+		repaired = append(repaired, msg)
+	}
+	return repaired
+}
+
+func insertionOffset(inserted map[int]int, partIndex int) int {
+	var offset int
+	for insertedPartIndex, count := range inserted {
+		if insertedPartIndex <= partIndex {
+			offset += count
+		}
+	}
+	return offset
+}
+
+func insertMessagePart(
+	parts []fantasy.MessagePart,
+	index int,
+	part fantasy.MessagePart,
+) []fantasy.MessagePart {
+	if index < 0 {
+		index = 0
+	}
+	if index > len(parts) {
+		index = len(parts)
+	}
+	parts = append(parts, nil)
+	copy(parts[index+1:], parts[index:])
+	parts[index] = part
+	return parts
 }
 
 func injectMissingToolUses(
