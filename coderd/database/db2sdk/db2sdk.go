@@ -857,6 +857,19 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatRoleActions returns the policy.Actions that a ChatRole grants.
+// A nil slice means "not a writable role" (the delete sentinel, the
+// zero value, or any unknown string). Callers performing writes must
+// validate the role explicitly and reject anything other than the
+// known roles; do not treat "ChatRoleActions returned nil" as a
+// "remove this entry" signal.
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return nil
+}
+
 func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	switch role {
 	case codersdk.WorkspaceRoleAdmin:
