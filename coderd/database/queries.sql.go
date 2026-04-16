@@ -1376,8 +1376,11 @@ WITH cursor_pos AS (
 ),
 session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
-	-- A pre-aggregated subquery for prompts keeps the join one-to-one with
-	-- aibridge_interceptions so COUNT(*) for thread tallies is not inflated.
+	-- A lateral correlated subquery for prompts keeps the join one-to-one
+	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
+	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
+	-- index makes this an index-only lookup per interception row rather than
+	-- a full-table-scan GROUP BY over all prompts.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
@@ -1388,11 +1391,13 @@ session_page AS (
 		COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)) AS sort_at
 	FROM
 		aibridge_interceptions ai
-	LEFT JOIN (
-		SELECT interception_id, MAX(created_at) AS latest_prompt_at
+	LEFT JOIN LATERAL (
+		SELECT created_at AS latest_prompt_at
 		FROM aibridge_user_prompts
-		GROUP BY interception_id
-	) pr ON pr.interception_id = ai.id
+		WHERE interception_id = ai.id
+		ORDER BY created_at DESC
+		LIMIT 1
+	) pr ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
