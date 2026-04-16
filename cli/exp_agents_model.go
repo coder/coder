@@ -24,6 +24,7 @@ const (
 	overlayNone tuiOverlay = iota
 	overlayModelPicker
 	overlayDiffDrawer
+	overlayAskUserQuestion
 )
 
 type (
@@ -190,6 +191,113 @@ func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (m *expChatsTUIModel) handleAskUserQuestionKey(msg tea.KeyMsg) tea.Cmd {
+	state := m.chat.pendingAskUserQuestion
+	if state == nil || state.Submitting || len(state.Questions) == 0 {
+		return nil
+	}
+	if state.CurrentIndex < 0 || state.CurrentIndex >= len(state.Questions) {
+		return nil
+	}
+
+	if state.OtherMode {
+		switch msg.Type {
+		case tea.KeyEsc:
+			state.OtherMode = false
+			state.OtherInput.Blur()
+			return nil
+		case tea.KeyEnter:
+			answer := strings.TrimSpace(state.OtherInput.Value())
+			if answer == "" {
+				return nil
+			}
+			return m.recordAskAnswer(answer, "", true)
+		default:
+			var cmd tea.Cmd
+			state.OtherInput, cmd = state.OtherInput.Update(msg)
+			return cmd
+		}
+	}
+
+	question := state.Questions[state.CurrentIndex]
+	optionCount := len(question.Options) + 1
+	switch msg.String() {
+	case "up", "k":
+		state.OptionCursor--
+		if state.OptionCursor < 0 {
+			state.OptionCursor = optionCount - 1
+		}
+	case "down", "j":
+		state.OptionCursor++
+		if state.OptionCursor >= optionCount {
+			state.OptionCursor = 0
+		}
+	case "left", "h":
+		if state.CurrentIndex == 0 {
+			return nil
+		}
+		state.CurrentIndex--
+		state.OptionCursor = 0
+		state.OtherMode = false
+		state.OtherInput.Blur()
+		state.Error = nil
+		if len(state.Answers) > state.CurrentIndex {
+			state.Answers = state.Answers[:state.CurrentIndex]
+		}
+	case "enter":
+		state.Error = nil
+		if state.OptionCursor < len(question.Options) {
+			option := question.Options[state.OptionCursor]
+			answer := strings.TrimSpace(option.Value)
+			if answer == "" {
+				answer = option.Label
+			}
+			return m.recordAskAnswer(answer, option.Label, false)
+		}
+		state.OtherMode = true
+		state.OtherInput.SetValue("")
+		state.OtherInput.Focus()
+	}
+
+	return nil
+}
+
+func (m *expChatsTUIModel) recordAskAnswer(answer, optionLabel string, freeform bool) tea.Cmd {
+	state := m.chat.pendingAskUserQuestion
+	if state == nil || len(state.Questions) == 0 {
+		return nil
+	}
+	if state.CurrentIndex < 0 || state.CurrentIndex >= len(state.Questions) {
+		return nil
+	}
+
+	question := state.Questions[state.CurrentIndex]
+	if len(state.Answers) > state.CurrentIndex {
+		state.Answers = state.Answers[:state.CurrentIndex]
+	}
+
+	state.Answers = append(state.Answers, askQuestionAnswer{
+		Header:      question.Header,
+		Question:    question.Question,
+		Answer:      answer,
+		OptionLabel: optionLabel,
+		Freeform:    freeform,
+	})
+	state.OtherMode = false
+	state.OtherInput.Blur()
+	state.OtherInput.SetValue("")
+	state.OptionCursor = 0
+	state.Error = nil
+
+	if state.CurrentIndex+1 < len(state.Questions) {
+		state.CurrentIndex++
+		return nil
+	}
+
+	state.Submitting = true
+	return submitAskUserQuestionCmd(m.client.Client, m.chat.activeChatID, m.chat.chatGeneration, state)
+}
+
 func (m *expChatsTUIModel) openChatCmd(chatID *uuid.UUID) tea.Cmd {
 	m.currentView = viewChat
 	m.chat.stopStream()
@@ -300,6 +408,9 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Handle overlays first so their keys do not leak to the underlying
 		// view.
+		if m.overlay == overlayAskUserQuestion {
+			return m, m.handleAskUserQuestionKey(msg)
+		}
 		if m.overlay == overlayModelPicker {
 			if isOverlayCloseKey(msg) {
 				m.overlay = overlayNone
@@ -331,6 +442,23 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.toggleModelPickerCmd()
 	case toggleDiffDrawerMsg:
 		return m, m.toggleDiffDrawerCmd()
+	case showAskUserQuestionMsg:
+		m.chat.pendingAskUserQuestion = msg.state
+		m.overlay = overlayAskUserQuestion
+		return m.updateChild(msg, viewChat)
+	case hideAskUserQuestionMsg:
+		if m.overlay == overlayAskUserQuestion {
+			m.overlay = overlayNone
+		}
+		return m.updateChild(msg, viewChat)
+	case toolResultsSubmittedMsg:
+		if msg.err == nil && m.chat.matchesGeneration(msg.generation) && msg.chatID == m.chat.activeChatID {
+			m.chat.pendingAskUserQuestion = nil
+			if m.overlay == overlayAskUserQuestion {
+				m.overlay = overlayNone
+			}
+		}
+		return m.updateChild(msg, viewChat)
 	case chatsListedMsg:
 		return m.updateChild(msg, viewList)
 	case chatOpenedMsg, chatHistoryMsg, chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg, gitChangesMsg, diffContentsMsg:
@@ -357,6 +485,10 @@ func (m expChatsTUIModel) View() string {
 	}
 	base := m.styles.title.Render("Coder Chats") + "\n" + body
 	switch m.overlay {
+	case overlayAskUserQuestion:
+		if m.chat.pendingAskUserQuestion != nil {
+			base += "\n" + renderAskUserQuestion(m.styles, m.chat.pendingAskUserQuestion, m.width, m.height)
+		}
 	case overlayModelPicker:
 		if m.catalog == nil {
 			base += "\n" + m.renderOverlay("Select Model", m.styles.dimmedText.Render("Loading models..."))

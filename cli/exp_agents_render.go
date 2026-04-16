@@ -421,6 +421,83 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 	return renderOverlayFrame(styles, width, strings.Join(content, "\n"))
 }
 
+func renderAskUserQuestion(styles tuiStyles, state *askUserQuestionState, width, height int) string {
+	if state == nil || len(state.Questions) == 0 {
+		return ""
+	}
+	if state.CurrentIndex < 0 || state.CurrentIndex >= len(state.Questions) {
+		return ""
+	}
+
+	innerWidth := contentWidth(width, 6)
+	question := state.Questions[state.CurrentIndex]
+	sections := []string{styles.title.Render(fmt.Sprintf("Plan Question %d/%d", state.CurrentIndex+1, len(state.Questions)))}
+	if question.Header != "" {
+		sections = append(sections, styles.subtitle.Render(sanitizeTerminalRenderableText(question.Header)))
+	}
+	sections = append(sections, wrapPreservingNewlines(sanitizeTerminalRenderableText(question.Question), innerWidth))
+
+	if state.Submitting {
+		sections = append(sections, styles.dimmedText.Render("Submitting answers..."))
+		return renderOverlayFrame(styles, width, sections...)
+	}
+
+	optionLines := make([]string, 0, len(question.Options)+3)
+	for i, option := range question.Options {
+		label := strings.TrimSpace(sanitizeTerminalRenderableText(option.Label))
+		if label == "" {
+			label = "(empty option)"
+		}
+		label = styles.truncate(label, max(innerWidth-2, 0))
+		row := "  " + label
+		if i == state.OptionCursor {
+			row = styles.selectedItem.Render("> " + label)
+		}
+		optionLines = append(optionLines, row)
+	}
+
+	otherLabel := styles.truncate("Other (type custom answer)", max(innerWidth-2, 0))
+	otherRow := "  " + otherLabel
+	if state.OptionCursor == len(question.Options) {
+		otherRow = styles.selectedItem.Render("> " + otherLabel)
+	}
+	optionLines = append(optionLines, otherRow)
+	if state.OtherMode {
+		optionLines = append(optionLines, "", state.OtherInput.View())
+	}
+	sections = append(sections, strings.Join(optionLines, "\n"))
+
+	if state.Error != nil {
+		sections = append(sections, styles.errorText.Render(wrapPreservingNewlines(
+			"Error: "+sanitizeTerminalRenderableText(state.Error.Error()),
+			innerWidth,
+		)))
+	}
+
+	longHelpParts := []string{"↑/↓ navigate", "enter select"}
+	shortHelpParts := []string{"↑↓", "↵"}
+	compactHelpParts := []string{"↑↓", "↵"}
+	if state.CurrentIndex > 0 {
+		longHelpParts = append(longHelpParts, "←/h back")
+		shortHelpParts = append(shortHelpParts, "←/h")
+		compactHelpParts = append(compactHelpParts, "←")
+	}
+	if state.OtherMode {
+		longHelpParts = append(longHelpParts, "esc cancel input")
+		shortHelpParts = append(shortHelpParts, "esc input")
+		compactHelpParts = append(compactHelpParts, "esc")
+	}
+	sections = append(sections, styles.helpText.Render(fitHelpText(
+		innerWidth,
+		strings.Join(longHelpParts, " | "),
+		strings.Join(shortHelpParts, " │ "),
+		strings.Join(compactHelpParts, " "),
+	)))
+
+	_ = height
+	return renderOverlayFrame(styles, width, sections...)
+}
+
 //nolint:revive // Signature is dictated by the chat TUI view code.
 func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, expandedBlocks map[int]bool, composerFocused bool, width int, renderers ...*glamour.TermRenderer) string {
 	if len(blocks) == 0 {

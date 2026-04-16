@@ -96,12 +96,6 @@ type (
 	toggleDiffDrawerMsg  struct{}
 )
 
-// These remain wired up when the overlay input flow lands.
-var (
-	_ = hideAskUserQuestionMsg{}
-	_ = submitAskUserQuestionCmd
-)
-
 func scheduleStreamRetry(generation uint64, delay time.Duration) tea.Cmd {
 	return tea.Tick(delay, func(time.Time) tea.Msg {
 		return streamRetryMsg{generation: generation}
