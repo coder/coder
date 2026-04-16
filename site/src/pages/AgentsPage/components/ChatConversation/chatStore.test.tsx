@@ -3930,6 +3930,139 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		);
 		expect(overlapping).toEqual([]);
 	});
+
+	// Regression test: WS snapshot for a mid-stream chat contains
+	// message_part events for ALREADY-COMMITTED messages (the server
+	// buffer accumulates across the entire processChat run without
+	// clearing on intermediate commits). When the snapshot also
+	// delivers those committed messages as durable "message" events,
+	// the client must not render the same content twice — once as
+	// streaming output (LiveStreamTail) and once as committed
+	// messages (ConversationTimeline).
+	it("does not show duplicate content when WS snapshot replays parts for already-committed messages", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-snapshot-dup";
+		const userMsg = makeMessage(chatID, 1, "user", "help me");
+		// Assistant message already committed to DB and fetched via REST.
+		const committedAssistant = makeMessage(
+			chatID,
+			2,
+			"assistant",
+			"I will create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		// REST already delivered both messages.
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg, committedAssistant],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [userMsg, committedAssistant],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 2);
+		});
+
+		act(() => {
+			mockSocket.emitOpen();
+		});
+
+		// Simulate the WS snapshot for a mid-stream chat.
+		// The server buffer contains message_part events from the
+		// ENTIRE processChat run, including parts for the assistant
+		// message that was already committed (id=2). The snapshot
+		// also includes a new in-flight assistant turn (not yet
+		// committed). This is the exact server behavior — the
+		// buffer is never cleared on intermediate commits.
+		act(() => {
+			mockSocket.emitDataBatch([
+				// Status: chat is running
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
+				// Buffered parts for the ALREADY-COMMITTED message
+				// (id=2). These are stale — the message is already
+				// in the store from REST.
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "I will create a workspace" },
+					},
+				},
+				// Buffered parts for the NEW in-flight assistant
+				// turn (not yet committed).
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "Now listing templates" },
+					},
+				},
+			]);
+		});
+
+		// Wait for the scheduled parts flush (setTimeout(0)).
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+		});
+
+		// BUG ASSERTION: The stream state should only contain
+		// the NEW in-flight content, not the already-committed
+		// message's content. If the stream shows
+		// "I will create a workspace" AND that text is also in
+		// the committed message (id=2), the user sees it twice.
+		//
+		// The committed assistant message (id=2) is rendered by
+		// ConversationTimeline. If LiveStreamTail ALSO renders
+		// "I will create a workspace" from the stale buffered
+		// parts, the content is visually duplicated.
+		const streamBlocks = result.current.streamState?.blocks ?? [];
+		const streamText = streamBlocks
+			.filter((b: { type: string }) => b.type === "response")
+			.map((b: { text?: string }) => b.text)
+			.join("");
+
+		// The stream should NOT contain text from the committed
+		// message. It should only have the new in-flight content.
+		expect(streamText).not.toContain("I will create a workspace");
+		expect(streamText).toContain("Now listing templates");
+
+		// The committed message must still be in the durable store.
+		expect(result.current.orderedIDs).toContain(2);
+		expect(result.current.messagesByID.get(2)?.content).toEqual([
+			{ type: "text", text: "I will create a workspace" },
+		]);
+	});
 });
 
 describe("partsBuf cleanup on reconnect (Bug 2)", () => {
