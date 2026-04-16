@@ -454,6 +454,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								</div>
 								<Field label="Icon">
 									<IconField
+										label=""
 										value={form.values.iconURL}
 										onChange={(e) => {
 											form.setFieldValue("iconURL", e.target.value);
