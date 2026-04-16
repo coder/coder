@@ -1322,12 +1322,14 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id, client_type
-FROM chats
-WHERE updated_at > @updated_after;
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created

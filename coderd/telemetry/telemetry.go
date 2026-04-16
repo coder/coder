@@ -2187,8 +2187,12 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 		c.Mode = &mode
 	}
 	c.ClientType = string(dbChat.ClientType)
+	if dbChat.PullRequestState.Valid {
+		c.PullRequestState = &dbChat.PullRequestState.String
+	}
 	return c
 }
+
 
 // ConvertChatMessageSummary converts a database chat message
 // summary row to a telemetry ChatMessageSummary.
@@ -2361,7 +2365,9 @@ type Chat struct {
 	Archived          bool       `json:"archived"`
 	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
 	ClientType        string     `json:"client_type"`
+	PullRequestState  *string    `json:"pull_request_state"`
 }
+
 
 // ChatMessageSummary contains per-chat aggregated message metrics
 // for telemetry. Individual message content is never included.

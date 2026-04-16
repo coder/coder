@@ -6665,12 +6665,14 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id, client_type
-FROM chats
-WHERE updated_at > $1
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > $1
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -6686,6 +6688,7 @@ type GetChatsUpdatedAfterRow struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	ClientType        ChatClientType `db:"client_type" json:"client_type"`
+	PullRequestState  sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 }
 
 // Retrieves chats updated after the given timestamp for telemetry
@@ -6713,6 +6716,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.Archived,
 			&i.LastModelConfigID,
 			&i.ClientType,
+			&i.PullRequestState,
 		); err != nil {
 			return nil, err
 		}

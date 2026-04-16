@@ -1670,6 +1670,16 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Associate a PR with the root chat so PullRequestState is populated.
+	rootChatNow := dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:           rootChat.ID,
+		PullRequestState: sql.NullString{String: "merged", Valid: true},
+		RefreshedAt:      rootChatNow,
+		StaleAt:          rootChatNow,
+	})
+	require.NoError(t, err)
+
 	// Insert messages for root chat: 2 user, 2 assistant, 1 tool.
 	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              rootChat.ID,
@@ -1773,7 +1783,11 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, "computer_use", *foundRoot.Mode)
 	assert.False(t, foundRoot.Archived)
 	assert.Equal(t, "ui", foundRoot.ClientType)
+	require.NotNil(t, foundRoot.PullRequestState)
+	assert.Equal(t, "merged", *foundRoot.PullRequestState)
+
 	// Child chat assertions.
+
 	assert.Equal(t, childChat.ID, foundChild.ID)
 	assert.Equal(t, user.ID, foundChild.OwnerID)
 	assert.True(t, foundChild.HasParent)
@@ -1785,7 +1799,10 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Nil(t, foundChild.Mode)
 	assert.False(t, foundChild.Archived)
 	assert.Equal(t, "ui", foundChild.ClientType)
+	assert.Nil(t, foundChild.PullRequestState)
+
 	// --- Assert ChatMessageSummaries ---
+
 	require.Len(t, snapshot.ChatMessageSummaries, 2)
 
 	summaryMap := make(map[uuid.UUID]telemetry.ChatMessageSummary)
@@ -1902,6 +1919,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "Chat " + state,
 			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
 		})
 		require.NoError(t, chatErr)
 		now := dbtime.Now()
@@ -1934,6 +1952,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 		LastModelConfigID: modelCfg.ID,
 		Title:             "Chat no PR",
 		Status:            database.ChatStatusRunning,
+		ClientType:        database.ChatClientTypeUi,
 	})
 	require.NoError(t, err)
 	now := dbtime.Now()
