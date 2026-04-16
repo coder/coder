@@ -242,8 +242,8 @@ func TestExpAgents(t *testing.T) {
 					updatedModel, cmd := model.Update(tt.msg)
 					updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 					require.Equal(t, viewChat, updated.currentView)
-					require.Equal(t, 39, updated.chat.height)
-					require.Equal(t, 33, updated.chat.viewport.Height)
+					require.Equal(t, 40, updated.chat.height)
+					require.Equal(t, 34, updated.chat.viewport.Height)
 					if tt.draft {
 						require.True(t, updated.chat.draft)
 						require.False(t, updated.chat.loading)
@@ -1897,6 +1897,7 @@ func TestExpAgents(t *testing.T) {
 					if tt.viewChat {
 						model.currentView = viewChat
 						model.chat.loading = false
+						model.chat, _ = model.chat.Update(model.childWindowSizeMsg())
 						chat := testChat(codersdk.ChatStatusCompleted)
 						model.chat.chat, model.chat.chatStatus = &chat, chat.Status
 						model.chat.messages = overflowingMessages(tt.messageCount)
@@ -1918,6 +1919,7 @@ func TestExpAgents(t *testing.T) {
 			model := applyWindowSize(t, newTestTUIModel(), 40, 18)
 			model.currentView = viewChat
 			model.chat.loading = false
+			model.chat, _ = model.chat.Update(model.childWindowSizeMsg())
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.chat = &chat
 			model.chat.chatStatus = chat.Status

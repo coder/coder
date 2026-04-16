@@ -129,7 +129,11 @@ func (m expChatsTUIModel) loadChatCmd(chatID uuid.UUID, generation uint64) []tea
 }
 
 func (m expChatsTUIModel) childWindowSizeMsg() tea.WindowSizeMsg {
-	return tea.WindowSizeMsg{Width: m.width, Height: max(0, m.height-1)}
+	h := m.height
+	if m.currentView == viewList {
+		h = max(0, h-1)
+	}
+	return tea.WindowSizeMsg{Width: m.width, Height: h}
 }
 
 func (m *expChatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
