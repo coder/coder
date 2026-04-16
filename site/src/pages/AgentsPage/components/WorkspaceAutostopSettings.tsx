@@ -4,9 +4,14 @@ import { useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { AdminBadge } from "./AdminBadge";
 import { DurationField } from "./DurationField/DurationField";
+import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "./TemporarySavedState";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -37,6 +42,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 }) => {
 	// ── Toggle state (fires immediate mutations, not a form submit) ──
 	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	// ── Derived state ──
 	const serverTTLMs = workspaceTTLData?.workspace_ttl_ms ?? 0;
@@ -63,6 +69,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 				{ workspace_ttl_ms: values.workspace_ttl_ms },
 				{
 					onSuccess: () => {
+						showSavedState();
 						setAutostopToggled(null);
 						helpers.resetForm();
 					},
@@ -111,19 +118,14 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 	const fieldError = form.errors.workspace_ttl_ms;
 
 	return (
-		<form className="space-y-2" onSubmit={form.handleSubmit}>
-			<div className="flex items-center gap-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Workspace Autostop Fallback
-				</h3>
-				<AdminBadge />
-			</div>
+		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<div className="flex items-center justify-between gap-4">
-				<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-					Set a default autostop for agent-created workspaces that don't have
-					one defined in their template. Template-defined autostop rules always
-					take precedence. Active conversations will extend the stop time.
-				</p>
+				<div className="flex items-center gap-2">
+					<h3 className="m-0 text-sm font-semibold text-content-primary">
+						Workspace Autostop Fallback
+					</h3>
+					<AdminBadge />
+				</div>
 				<Switch
 					checked={isAutostopEnabled}
 					onCheckedChange={handleToggleAutostop}
@@ -131,6 +133,11 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
 				/>
 			</div>
+			<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+				Set a default autostop for agent-created workspaces that don't have one
+				defined in their template. Template-defined autostop rules always take
+				precedence. Active conversations will extend the stop time.
+			</p>
 			{isAutostopEnabled && (
 				<DurationField
 					valueMs={form.values.workspace_ttl_ms}
@@ -142,16 +149,24 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 				/>
 			)}
 			{isAutostopEnabled && (
-				<div className="flex justify-end">
-					<Button
-						size="sm"
-						type="submit"
-						disabled={
-							isSavingWorkspaceTTL || !form.dirty || Boolean(fieldError)
-						}
-					>
-						Save
-					</Button>
+				<div className="mt-2 flex min-h-6 justify-end">
+					{(form.dirty || isSavedVisible || isSavingWorkspaceTTL) &&
+						(isSavedVisible ? (
+							<TemporarySavedState />
+						) : (
+							<Button
+								size="xs"
+								type="submit"
+								disabled={
+									isSavingWorkspaceTTL || !form.dirty || Boolean(fieldError)
+								}
+							>
+								{isSavingWorkspaceTTL && (
+									<Spinner loading className="h-4 w-4" />
+								)}
+								Save
+							</Button>
+						))}
 				</div>
 			)}
 			{isSaveWorkspaceTTLError && (

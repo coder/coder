@@ -285,7 +285,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const modelConfigsUnavailable = modelConfigsData === null;
 
 	return (
-		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
+		<div className={cn("flex min-h-full flex-col", className)}>
 			{isLoading && (
 				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
 					<Spinner className="h-4 w-4" loading />
@@ -294,7 +294,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			)}
 
 			{/* Content */}
-			<div className="flex flex-1 flex-col">
+			<div className="flex flex-1 flex-col gap-8">
 				{section === "providers" ? (
 					<ProvidersSection
 						sectionLabel={sectionLabel}

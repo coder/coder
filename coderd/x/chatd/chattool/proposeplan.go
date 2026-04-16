@@ -19,6 +19,7 @@ type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
+	IsPlanTurn       bool
 }
 
 // ProposePlanArgs are the arguments for the propose_plan tool.
@@ -36,6 +37,21 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 			"Pass the absolute file path to the plan. Important: use the chat-specific absolute plan path, not a generic path like PLAN.md in the home directory. "+
 			"The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if options.IsPlanTurn {
+				planPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				path := strings.TrimSpace(args.Path)
+				switch {
+				case path == "":
+					args.Path = planPath
+				case path != planPath:
+					return fantasy.NewTextErrorResponse("during plan turns, propose_plan path must be " + planPath), nil
+				default:
+					args.Path = path
+				}
+			}
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -89,6 +105,9 @@ func executeProposePlanTool(
 	data, err := io.ReadAll(rc)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
+	if len(data) == 0 || strings.TrimSpace(string(data)) == "" {
+		return fantasy.NewTextErrorResponse("plan file is empty; write your plan to " + requestedPath + " before proposing"), nil
 	}
 	if int64(len(data)) > maxProposePlanSize {
 		return fantasy.NewTextErrorResponse("plan file exceeds 32 KiB size limit"), nil

@@ -1,11 +1,11 @@
 package chattool
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"charm.land/fantasy"
@@ -22,9 +22,7 @@ const listTemplatesPageSize = 10
 
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
-	DB                 database.Store
 	OwnerID            uuid.UUID
-	OrganizationID     uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
@@ -37,7 +35,7 @@ type listTemplatesArgs struct {
 // The agent uses this to discover templates before creating a workspace.
 // Results are ordered by number of active developers (most popular first)
 // and paginated at 10 per page.
-func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
+func ListTemplates(organizationID uuid.UUID, db database.Store, options ListTemplatesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+
@@ -46,18 +44,18 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.DB == nil {
+			if db == nil {
 				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
-			ctx, err := asOwner(ctx, options.DB, options.OwnerID)
+			ctx, err := asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			filterParams := database.GetTemplatesWithFilterParams{
 				Deleted:        false,
-				OrganizationID: options.OrganizationID,
+				OrganizationID: organizationID,
 				Deprecated: sql.NullBool{
 					Bool:  false,
 					Valid: true,
@@ -75,7 +73,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			if len(allowlist) > 0 {
 				filterParams.IDs = slices.Collect(maps.Keys(allowlist))
 			}
-			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)
+			templates, err := db.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -87,7 +85,8 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 			ownerCounts := make(map[uuid.UUID]int64)
 			if len(templateIDs) > 0 {
-				rows, countErr := options.DB.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
+				rows, countErr := db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
+
 				if countErr == nil {
 					for _, row := range rows {
 						ownerCounts[row.TemplateID] = row.UniqueOwnersSum
@@ -96,10 +95,9 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			// Sort by active developer count descending.
-			sort.SliceStable(templates, func(i, j int) bool {
-				return ownerCounts[templates[i].ID] > ownerCounts[templates[j].ID]
+			slices.SortStableFunc(templates, func(a, b database.Template) int {
+				return cmp.Compare(ownerCounts[b.ID], ownerCounts[a.ID])
 			})
-
 			// Paginate.
 			page := args.Page
 			if page < 1 {

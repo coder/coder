@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -145,6 +147,7 @@ type Server struct {
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
+	metrics      *chatloop.Metrics
 	recordingSem chan struct{}
 
 	// Configuration
@@ -786,6 +789,8 @@ type CreateOptions struct {
 	Title              string
 	ModelConfigID      uuid.UUID
 	ChatMode           database.NullChatMode
+	PlanMode           database.NullChatPlanMode
+	ClientType         database.ChatClientType
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
@@ -813,6 +818,7 @@ type SendMessageOptions struct {
 	Content       []codersdk.ChatMessagePart
 	ModelConfigID *uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
+	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
 }
 
@@ -875,7 +881,16 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
+	// Resolve the deployment prompt before opening the transaction so
+	// chat creation does not hold one DB connection while waiting for
+	// another pool checkout.
+	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
+	effectivePlanMode := opts.PlanMode
+	opts.ClientType = cmp.Or(opts.ClientType, database.ChatClientTypeApi)
+	if !opts.ClientType.Valid() {
+		return database.Chat{}, xerrors.Errorf("invalid client_type: %q", opts.ClientType)
+	}
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
 		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
@@ -898,6 +913,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			PlanMode:          effectivePlanMode,
+			ClientType:        opts.ClientType,
 			// Chats created with an initial user message start pending.
 			// Waiting is reserved for idle chats with no pending work.
 			Status:       database.ChatStatusPending,
@@ -915,7 +932,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 		userPrompt := SanitizePromptText(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
@@ -1035,6 +1051,8 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
+	requestedPlanMode := opts.PlanMode
+
 	var (
 		result            SendMessageResult
 		queuedMessagesSDK []codersdk.ChatQueuedMessage
@@ -1049,6 +1067,16 @@ func (p *Server) SendMessage(
 		// Enforce usage limits before queueing or inserting.
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
+		}
+
+		if requestedPlanMode != nil {
+			lockedChat, err = tx.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+				PlanMode: *requestedPlanMode,
+				ID:       opts.ChatID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat plan mode: %w", err)
+			}
 		}
 
 		modelConfigID := lockedChat.LastModelConfigID
@@ -2697,6 +2725,7 @@ type Config struct {
 	WebpushDispatcher              webpush.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
+	PrometheusRegistry             prometheus.Registerer
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -2764,6 +2793,11 @@ func New(cfg Config) *Server {
 		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
 		heartbeatRegistry:              make(map[uuid.UUID]*heartbeatEntry),
+	}
+	if cfg.PrometheusRegistry != nil {
+		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+	} else {
+		p.metrics = chatloop.NopMetrics()
 	}
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
@@ -4024,7 +4058,7 @@ func (p *Server) trackWorkspaceUsage(
 		// approx. 333 CTE queries/second. A cheap fix for this could
 		// be to heartbeat every Nth query. Leaving as potential future
 		// low-hanging fruit if needed.
-		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{})
+		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{}, workspacestats.ActivityBumpReasonChatHeartbeat)
 	}
 	return wsID
 }
@@ -4032,6 +4066,9 @@ func (p *Server) trackWorkspaceUsage(
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
+
+	p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Inc()
+	defer p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Dec()
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -4243,6 +4280,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
+	p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Dec()
+	p.metrics.Chats.WithLabelValues(chatloop.StateStreaming).Inc()
+	defer func() {
+		p.metrics.Chats.WithLabelValues(chatloop.StateStreaming).Dec()
+		p.metrics.Chats.WithLabelValues(chatloop.StateWaiting).Inc()
+	}()
 	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
@@ -4345,6 +4388,336 @@ type runChatResult struct {
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 
+func allowedPlanToolNames(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+) []string {
+	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
+	isRootChat := !parentChatID.Valid
+	builtinPlanPolicy := map[string]bool{
+		"read_file":                true,
+		"write_file":               isRootChat,
+		"edit_files":               isRootChat,
+		"execute":                  true,
+		"process_output":           true,
+		"process_list":             false,
+		"process_signal":           false,
+		"list_templates":           isRootChat,
+		"read_template":            isRootChat,
+		"create_workspace":         isRootChat,
+		"start_workspace":          isRootChat,
+		"propose_plan":             isRootChat,
+		"spawn_agent":              isRootChat,
+		"wait_agent":               isRootChat,
+		"message_agent":            false,
+		"close_agent":              false,
+		"spawn_computer_use_agent": false,
+		"read_skill":               true,
+		"read_skill_file":          true,
+		"ask_user_question":        isRootChat,
+	}
+	if !isPlanModeTurn {
+		toolNames := make([]string, 0, len(allTools))
+		for _, tool := range allTools {
+			toolNames = append(toolNames, tool.Info().Name)
+		}
+		return toolNames
+	}
+
+	toolNames := make([]string, 0, len(allTools))
+	for _, tool := range allTools {
+		name := tool.Info().Name
+		if builtinPlanPolicy[name] {
+			toolNames = append(toolNames, name)
+		}
+	}
+	return toolNames
+}
+
+func stopAfterPlanTools(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) map[string]struct{} {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return nil
+	}
+	stopTools := map[string]struct{}{
+		"propose_plan": {},
+	}
+	if !parentChatID.Valid {
+		stopTools["ask_user_question"] = struct{}{}
+	}
+	return stopTools
+}
+
+type systemPromptPlanContext struct {
+	mode                 database.NullChatPlanMode
+	planModeInstructions string
+	isRootChat           bool
+}
+
+// buildSystemPrompt applies system-level prompt injections in the
+// canonical order. It is used by both the initial prompt assembly
+// and the ReloadMessages callback to keep them in sync.
+func buildSystemPrompt(
+	prompt []fantasy.Message,
+	subagentInstruction string,
+	instruction string,
+	skills []chattool.SkillMeta,
+	userPrompt string,
+	planContext systemPromptPlanContext,
+) []fantasy.Message {
+	if subagentInstruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
+	}
+	if instruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if userPrompt != "" {
+		prompt = chatprompt.InsertSystem(prompt, userPrompt)
+	}
+	isPlanModeTurn := planContext.mode.Valid && planContext.mode.ChatPlanMode == database.ChatPlanModePlan
+	if isPlanModeTurn {
+		if planContext.isRootChat {
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			if planContext.planModeInstructions != "" {
+				prompt = chatprompt.InsertSystem(prompt, planContext.planModeInstructions)
+			}
+		} else {
+			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
+		}
+	}
+	return prompt
+}
+
+type rootChatToolsOptions struct {
+	chat            database.Chat
+	modelConfigID   uuid.UUID
+	workspaceCtx    *turnWorkspaceContext
+	workspaceMu     *sync.Mutex
+	instruction     *string
+	skills          *[]chattool.SkillMeta
+	resolvePlanPath func(context.Context) (string, string, error)
+	isPlanModeTurn  bool
+}
+
+func (p *Server) loadPlanModeInstructions(
+	ctx context.Context,
+	mode database.NullChatPlanMode,
+	logger slog.Logger,
+) string {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return ""
+	}
+
+	// Plan-mode instructions live in deployment config, but chat workers do
+	// not carry a deployment-config actor during background execution.
+	//nolint:gocritic // Required to read deployment config during background chat processing.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
+	if err != nil {
+		logger.Warn(ctx,
+			"failed to fetch plan mode instructions",
+			slog.Error(err),
+		)
+		return ""
+	}
+
+	return fetched
+}
+
+func (p *Server) appendRootChatTools(
+	ctx context.Context,
+	tools []fantasy.AgentTool,
+	opts rootChatToolsOptions,
+) []fantasy.AgentTool {
+	onChatUpdated := func(updatedChat database.Chat) {
+		opts.workspaceCtx.selectWorkspace(updatedChat)
+		// Notify the frontend immediately so it can start streaming
+		// build logs before the tool completes.
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+
+		// When a workspace is first attached mid-turn (e.g. via
+		// create_workspace), fetch and persist instruction files
+		// immediately so the LLM has AGENTS.md context for the remainder
+		// of this turn. The persisted marker prevents redundant fetches on
+		// subsequent turns.
+		if *opts.instruction == "" && updatedChat.WorkspaceID.Valid {
+			newInstruction, discoveredSkills, persistErr := p.persistInstructionFiles(
+				ctx,
+				updatedChat,
+				opts.modelConfigID,
+				opts.workspaceCtx.getWorkspaceAgent,
+				opts.workspaceCtx.getWorkspaceConn,
+			)
+			if persistErr != nil {
+				p.logger.Warn(ctx, "failed to persist instruction files on workspace attach",
+					slog.F("chat_id", updatedChat.ID),
+					slog.Error(persistErr),
+				)
+			} else {
+				*opts.instruction = newInstruction
+				if len(discoveredSkills) > 0 {
+					*opts.skills = discoveredSkills
+				}
+			}
+		}
+	}
+
+	tools = append(tools,
+		chattool.ListTemplates(opts.chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+			OwnerID:            opts.chat.OwnerID,
+			AllowedTemplateIDs: p.chatTemplateAllowlist,
+		}),
+		chattool.ReadTemplate(opts.chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+			OwnerID:            opts.chat.OwnerID,
+			AllowedTemplateIDs: p.chatTemplateAllowlist,
+		}),
+		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+			OwnerID:                        opts.chat.OwnerID,
+			ChatID:                         opts.chat.ID,
+			CreateFn:                       p.createWorkspaceFn,
+			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+			WorkspaceMu:                    opts.workspaceMu,
+			OnChatUpdated:                  onChatUpdated,
+			Logger:                         p.logger,
+			AllowedTemplateIDs:             p.chatTemplateAllowlist,
+		}),
+		chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:            p.db,
+			OwnerID:       opts.chat.OwnerID,
+			ChatID:        opts.chat.ID,
+			StartFn:       p.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:   opts.workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+		}),
+	)
+	if opts.isPlanModeTurn {
+		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
+			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,
+			ResolvePlanPath:  opts.resolvePlanPath,
+			IsPlanTurn:       opts.isPlanModeTurn,
+			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
+				return p.storePlanSnapshotFile(ctx, opts.workspaceCtx, name, mediaType, data)
+			},
+		}))
+	}
+
+	return append(tools, p.subagentTools(ctx, func() database.Chat {
+		return opts.chat
+	})...)
+}
+
+func (p *Server) storePlanSnapshotFile(
+	ctx context.Context,
+	workspaceCtx *turnWorkspaceContext,
+	name string,
+	mediaType string,
+	data []byte,
+) (uuid.UUID, error) {
+	chatSnapshot := workspaceCtx.currentChatSnapshot()
+	if !chatSnapshot.WorkspaceID.Valid {
+		return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+	}
+
+	ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
+	}
+
+	row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        chatSnapshot.OwnerID,
+		OrganizationID: ws.OrganizationID,
+		Name:           name,
+		Mimetype:       mediaType,
+		Data:           data,
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
+	}
+
+	// Cap enforcement and dedup are handled atomically in SQL.
+	// rejected > 0 means the cap was exceeded.
+	rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatSnapshot.ID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      []uuid.UUID{row.ID},
+	})
+	switch {
+	case err != nil:
+		p.logger.Error(ctx, "failed to link file to chat",
+			slog.F("chat_id", chatSnapshot.ID),
+			slog.F("file_id", row.ID),
+			slog.Error(err),
+		)
+	case rejected > 0:
+		p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+			slog.F("chat_id", chatSnapshot.ID),
+			slog.F("file_id", row.ID),
+			slog.F("max_file_links", codersdk.MaxChatFileIDs),
+		)
+	}
+
+	return row.ID, nil
+}
+
+func appendDynamicTools(
+	ctx context.Context,
+	logger slog.Logger,
+	tools []fantasy.AgentTool,
+	raw pqtype.NullRawMessage,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+) ([]fantasy.AgentTool, map[string]bool, error) {
+	if mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan {
+		return tools, nil, nil
+	}
+
+	dynamicToolNames, err := parseDynamicToolNames(raw)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse dynamic tool names: %w", err)
+	}
+	if len(dynamicToolNames) == 0 {
+		return tools, dynamicToolNames, nil
+	}
+
+	var dynamicToolDefs []codersdk.DynamicTool
+	if raw.Valid {
+		if err := json.Unmarshal(raw.RawMessage, &dynamicToolDefs); err != nil {
+			return nil, nil, xerrors.Errorf("unmarshal dynamic tools: %w", err)
+		}
+	}
+
+	activeToolNames := make(map[string]struct{}, len(tools))
+	for _, name := range allowedPlanToolNames(tools, mode, parentChatID) {
+		activeToolNames[name] = struct{}{}
+	}
+	for _, t := range tools {
+		info := t.Info()
+		if _, active := activeToolNames[info.Name]; !active {
+			continue
+		}
+		if dynamicToolNames[info.Name] {
+			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
+				slog.F("tool_name", info.Name))
+			delete(dynamicToolNames, info.Name)
+		}
+	}
+
+	var filteredDefs []codersdk.DynamicTool
+	for _, dt := range dynamicToolDefs {
+		if dynamicToolNames[dt.Name] {
+			filteredDefs = append(filteredDefs, dt)
+		}
+	}
+
+	return append(tools, dynamicToolsFromSDK(logger, filteredDefs)...), dynamicToolNames, nil
+}
+
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -4358,6 +4731,7 @@ func (p *Server) runChat(
 		providerKeys chatprovider.ProviderAPIKeys
 		callConfig   codersdk.ChatModelCallConfig
 		messages     []database.ChatMessage
+		err          error
 	)
 
 	// Load MCP server configs and user tokens in parallel with
@@ -4425,6 +4799,14 @@ func (p *Server) runChat(
 	if err := g.Wait(); err != nil {
 		return result, err
 	}
+
+	// Capture the current turn's mode from the chat plan mode so prompt
+	// and tool behavior can be resolved consistently for the rest of the
+	// turn.
+	currentPlanMode := chat.PlanMode
+	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
+	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
+
 	chainInfo := resolveChainMode(messages)
 	result.PushSummaryModel = model
 	result.ProviderKeys = providerKeys
@@ -4693,9 +5075,23 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
-	if chat.ParentChatID.Valid {
-		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
+	isRootChat := !chat.ParentChatID.Valid
+	subagentInstruction := ""
+	if !isRootChat {
+		subagentInstruction = defaultSubagentInstruction
 	}
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		skills,
+		resolvedUserPrompt,
+		systemPromptPlanContext{
+			mode:                 currentPlanMode,
+			planModeInstructions: planModeInstructions,
+			isRootChat:           isRootChat,
+		},
+	)
 	if mcpCleanup != nil {
 		defer mcpCleanup()
 	}
@@ -4710,17 +5106,8 @@ func (p *Server) runChat(
 		}
 	}
 
-	if instruction != "" {
-		prompt = chatprompt.InsertSystem(prompt, instruction)
-	}
+	instructionInjected := instruction != ""
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
-	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
-		prompt = chatprompt.InsertSystem(prompt, skillIndex)
-	}
-	if resolvedUserPrompt != "" {
-		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
-	}
-
 	// Use the model config's context_limit as a fallback when the LLM
 	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
@@ -5020,6 +5407,7 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
+	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5027,10 +5415,12 @@ func (p *Server) runChat(
 		chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
+			IsPlanTurn:       isPlanModeTurn,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			ResolvePlanPath:  resolvePlanPathForTools,
+			IsPlanTurn:       isPlanModeTurn,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -5045,111 +5435,24 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
+	if allowAskUserQuestion {
+		tools = append(tools, chattool.NewAskUserQuestionTool())
+	}
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
-	// create workspaces or spawn further subagents — they should
+	// create workspaces or spawn further subagents. They should
 	// focus on completing their delegated task.
-	if !chat.ParentChatID.Valid {
-		// Workspace provisioning tools.
-		onChatUpdated := func(updatedChat database.Chat) {
-			workspaceCtx.selectWorkspace(updatedChat)
-			// Notify the frontend immediately so it can
-			// start streaming build logs before the tool
-			// completes.
-			p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
-		}
-		tools = append(tools,
-			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				OrganizationID:     chat.OrganizationID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: p.chatTemplateAllowlist,
-			}),
-			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-				DB:                             p.db,
-				OwnerID:                        chat.OwnerID,
-				OrganizationID:                 chat.OrganizationID,
-				ChatID:                         chat.ID,
-				CreateFn:                       p.createWorkspaceFn,
-				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-				WorkspaceMu:                    &workspaceMu,
-				OnChatUpdated:                  onChatUpdated,
-				Logger:                         p.logger,
-				AllowedTemplateIDs:             p.chatTemplateAllowlist,
-			}),
-			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-				DB:            p.db,
-				OwnerID:       chat.OwnerID,
-				ChatID:        chat.ID,
-				StartFn:       p.startWorkspaceFn,
-				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu:   &workspaceMu,
-				OnChatUpdated: onChatUpdated,
-				Logger:        p.logger,
-			}),
-		)
-		// Plan presentation tool.
-		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
-				workspaceCtx.chatStateMu.Lock()
-				chatSnapshot := *workspaceCtx.currentChat
-				workspaceCtx.chatStateMu.Unlock()
-
-				if !chatSnapshot.WorkspaceID.Valid {
-					return uuid.Nil, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
-				}
-
-				ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
-				if err != nil {
-					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
-				}
-
-				row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
-					OwnerID:        chatSnapshot.OwnerID,
-					OrganizationID: ws.OrganizationID,
-					Name:           name,
-					Mimetype:       mediaType,
-					Data:           data,
-				})
-				if err != nil {
-					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
-				}
-
-				// Cap enforcement and dedup are handled atomically
-				// in SQL. rejected > 0 = cap exceeded.
-				rejected, err := p.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-					ChatID:       chatSnapshot.ID,
-					MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-					FileIds:      []uuid.UUID{row.ID},
-				})
-				switch {
-				case err != nil:
-					p.logger.Error(ctx, "failed to link file to chat",
-						slog.F("chat_id", chatSnapshot.ID),
-						slog.F("file_id", row.ID),
-						slog.Error(err),
-					)
-				case rejected > 0:
-					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
-						slog.F("chat_id", chatSnapshot.ID),
-						slog.F("file_id", row.ID),
-						slog.F("max_file_links", codersdk.MaxChatFileIDs),
-					)
-				}
-				return row.ID, nil
-			},
-		}))
-		tools = append(tools, p.subagentTools(ctx, func() database.Chat {
-			return chat
-		})...)
+	if isRootChat {
+		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+			chat:            chat,
+			modelConfigID:   modelConfig.ID,
+			workspaceCtx:    &workspaceCtx,
+			workspaceMu:     &workspaceMu,
+			instruction:     &instruction,
+			skills:          &skills,
+			resolvePlanPath: resolvePlanPathForTools,
+			isPlanModeTurn:  isPlanModeTurn,
+		})
 	}
 
 	// Append skill tools when the workspace has skills.
@@ -5166,53 +5469,45 @@ func (p *Server) runChat(
 		)
 	}
 
+	// Record builtin tool names before appending MCP tools
+	// so the metrics layer can bound label cardinality.
+	builtinToolNames := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		builtinToolNames[t.Info().Name] = true
+	}
+
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
-	tools = append(tools, mcpTools...)
-	tools = append(tools, workspaceMCPTools...)
-
+	if !isPlanModeTurn {
+		tools = append(tools, mcpTools...)
+		tools = append(tools, workspaceMCPTools...)
+	}
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
-	// are never executed by the chatloop — the client handles
+	// are never executed by the chatloop. The client handles
 	// execution via POST /tool-results.
-	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
+	var dynamicToolNames map[string]bool
+	tools, dynamicToolNames, err = appendDynamicTools(
+		ctx,
+		logger,
+		tools,
+		chat.DynamicTools,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
 	if err != nil {
-		return result, xerrors.Errorf("parse dynamic tool names: %w", err)
-	}
-	// Unmarshal the full definitions separately so we can
-	// build the filtered list below. parseDynamicToolNames
-	// already validated the JSON, so this cannot fail.
-	var dynamicToolDefs []codersdk.DynamicTool
-	if chat.DynamicTools.Valid {
-		if err := json.Unmarshal(chat.DynamicTools.RawMessage, &dynamicToolDefs); err != nil {
-			return result, xerrors.Errorf("unmarshal dynamic tools: %w", err)
-		}
-	}
-	for _, t := range tools {
-		info := t.Info()
-		if dynamicToolNames[info.Name] {
-			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
-				slog.F("tool_name", info.Name))
-			delete(dynamicToolNames, info.Name)
-		}
+		return result, err
 	}
 
-	var filteredDefs []codersdk.DynamicTool
-	for _, dt := range dynamicToolDefs {
-		if dynamicToolNames[dt.Name] {
-			filteredDefs = append(filteredDefs, dt)
-		}
-	}
-	tools = append(tools, dynamicToolsFromSDK(p.logger, filteredDefs)...)
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
-	if callConfig.ProviderOptions != nil {
+	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 	}
 
-	if isComputerUse {
+	if !isPlanModeTurn && isComputerUse {
 		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
 		providerTools = append(providerTools, chatloop.ProviderTool{
 			Definition: chattool.ComputerUseProviderTool(
@@ -5240,7 +5535,8 @@ func (p *Server) runChat(
 	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
 		chainInfo.contributingTrailingUserCount > 0 &&
-		chainInfo.modelConfigID == modelConfig.ID
+		chainInfo.modelConfigID == modelConfig.ID &&
+		!isPlanModeTurn
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
@@ -5249,9 +5545,14 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:    model,
-		Messages: prompt,
-		Tools:    tools, MaxSteps: maxChatSteps,
+		Model:            model,
+		Messages:         prompt,
+		Tools:            tools,
+		ActiveTools:      allowedPlanToolNames(tools, currentPlanMode, chat.ParentChatID),
+		StopAfterTools:   stopAfterPlanTools(currentPlanMode, chat.ParentChatID),
+		MaxSteps:         maxChatSteps,
+		Metrics:          p.metrics,
+		BuiltinToolNames: builtinToolNames,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: providerOptions,
@@ -5284,20 +5585,37 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
-			if chat.ParentChatID.Valid {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
+			// Re-derive instruction and skills from the reloaded
+			// messages so that any context added during the
+			// chatloop (e.g. via persistInstructionFiles when
+			// the agent changes) is picked up after compaction.
+			// The captured instruction takes priority; fall
+			// back to persisted DB content otherwise.
+			reloadedInstruction := instruction
+			if reloadedInstruction == "" {
+				reloadedInstruction = instructionFromContextFiles(reloadedMsgs)
 			}
-			if instruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			if reloadedInstruction != "" {
+				instructionInjected = true
 			}
-			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
-			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
+			reloadedSkills := skillsFromParts(reloadedMsgs)
+			if len(reloadedSkills) == 0 {
+				reloadedSkills = skills
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
-			if reloadUserPrompt != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
-			}
+			reloadedPrompt = buildSystemPrompt(
+				reloadedPrompt,
+				subagentInstruction,
+				reloadedInstruction,
+				reloadedSkills,
+				reloadUserPrompt,
+				systemPromptPlanContext{
+					mode:                 currentPlanMode,
+					planModeInstructions: planModeInstructions,
+					isRootChat:           isRootChat,
+				},
+			)
+			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
@@ -5309,7 +5627,17 @@ func (p *Server) runChat(
 		DisableChainMode: func() {
 			chainModeActive = false
 		},
-
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			if instructionInjected || instruction == "" {
+				return nil
+			}
+			instructionInjected = true
+			result := chatprompt.InsertSystem(msgs, instruction)
+			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+				result = chatprompt.InsertSystem(result, skillIndex)
+			}
+			return result
+		},
 		OnRetry: func(
 			attempt int,
 			retryErr error,
@@ -5337,6 +5665,9 @@ func (p *Server) runChat(
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},
 	})
+	if errors.Is(err, chatloop.ErrStopAfterTool) {
+		err = nil
+	}
 	if errors.Is(err, chatloop.ErrDynamicToolCall) {
 		// The stream event is published in processChat's
 		// defer after the DB status transitions to
@@ -5702,39 +6033,37 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 	return lastID, found
 }
 
-// persistInstructionFiles reads instruction files and discovers
-// skills from the workspace agent, persisting both as message
-// parts. This is called once when a workspace is first attached
-// to a chat (or when the agent changes). Returns the formatted
-// instruction string and skill index for injection into the
-// current turn's prompt.
-func (p *Server) persistInstructionFiles(
+// fetchWorkspaceContext retrieves fresh instruction files and
+// skills from the workspace agent without persisting. It handles
+// agent connection, context configuration fetching, content
+// sanitization, and metadata stamping. Returns the workspace
+// agent, the stamped parts, discovered skills, and whether the
+// workspace connection succeeded. A nil agent means the chat has
+// no valid workspace or the agent lookup failed;
+// workspaceConnOK is false in that case.
+func (p *Server) fetchWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
-	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (instruction string, skills []chattool.SkillMeta, err error) {
+) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, nil
+		return nil, nil, nil, false
 	}
 
-	agent, err := getWorkspaceAgent(ctx)
-	if err != nil {
-		return "", nil, nil
+	loadedAgent, agentErr := getWorkspaceAgent(ctx)
+	if agentErr != nil {
+		return nil, nil, nil, false
 	}
 
-	directory := agent.ExpandedDirectory
+	directory := loadedAgent.ExpandedDirectory
 	if directory == "" {
-		directory = agent.Directory
+		directory = loadedAgent.Directory
 	}
 
 	// Fetch context configuration from the agent. Parts
 	// arrive pre-populated with context-file and skill entries
 	// so we don't need additional round-trips.
-	var workspaceConnOK bool
-	var agentParts []codersdk.ChatMessagePart
-
 	if getWorkspaceConn != nil {
 		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
 		defer cancel()
@@ -5765,21 +6094,15 @@ func (p *Server) persistInstructionFiles(
 	// Stamp server-side fields and sanitize content. The
 	// agent cannot know its own UUID, OS metadata, or
 	// directory — those are added here at the trust boundary.
-	var discoveredSkills []chattool.SkillMeta
-	var hasContent, hasContextFilePart bool
-	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
+	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
 
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
 		switch agentParts[i].Type {
 		case codersdk.ChatMessagePartTypeContextFile:
-			hasContextFilePart = true
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
-			agentParts[i].ContextFileOS = agent.OperatingSystem
+			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
-			if agentParts[i].ContextFileContent != "" {
-				hasContent = true
-			}
 		case codersdk.ChatMessagePartTypeSkill:
 			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
 				Name:        agentParts[i].SkillName,
@@ -5788,6 +6111,49 @@ func (p *Server) persistInstructionFiles(
 				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
 			})
 		}
+	}
+
+	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
+}
+
+// persistInstructionFiles fetches AGENTS.md instruction files and
+// skills from the workspace agent, persisting both as message
+// parts. This is called once when a workspace is first attached
+// to a chat (or when the agent changes). Returns the formatted
+// instruction string and skill index for injection into the
+// current turn's prompt.
+func (p *Server) persistInstructionFiles(
+	ctx context.Context,
+	chat database.Chat,
+	modelConfigID uuid.UUID,
+	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
+) (instruction string, skills []chattool.SkillMeta, err error) {
+	agent, agentParts, discoveredSkills, workspaceConnOK := p.fetchWorkspaceContext(
+		ctx, chat, getWorkspaceAgent, getWorkspaceConn,
+	)
+	// Defensive guard: fetchWorkspaceContext returns nil when the
+	// chat has no valid workspace or the agent lookup fails. It's
+	// cheaper to guard here than push the precondition up to all
+	// callers.
+	if agent == nil {
+		return "", nil, nil
+	}
+
+	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
+	hasContent := false
+	hasContextFilePart := false
+	for _, part := range agentParts {
+		if part.Type == codersdk.ChatMessagePartTypeContextFile {
+			hasContextFilePart = true
+			if part.ContextFileContent != "" {
+				hasContent = true
+			}
+		}
+	}
+	directory := agent.ExpandedDirectory
+	if directory == "" {
+		directory = agent.Directory
 	}
 
 	if !hasContent {

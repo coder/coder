@@ -2017,6 +2017,31 @@
 							"path": "reference/cli/schedule_stop.md"
 						},
 						{
+							"title": "secret",
+							"description": "Manage secrets",
+							"path": "reference/cli/secret.md"
+						},
+						{
+							"title": "secret create",
+							"description": "Create a secret",
+							"path": "reference/cli/secret_create.md"
+						},
+						{
+							"title": "secret update",
+							"description": "Update a secret",
+							"path": "reference/cli/secret_update.md"
+						},
+						{
+							"title": "secret list",
+							"description": "List secrets, or show one by name",
+							"path": "reference/cli/secret_list.md"
+						},
+						{
+							"title": "secret delete",
+							"description": "Delete a secret",
+							"path": "reference/cli/secret_delete.md"
+						},
+						{
 							"title": "server",
 							"description": "Start a Coder server",
 							"path": "reference/cli/server.md"

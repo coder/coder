@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -47,6 +50,7 @@ type SubscriptionCacheInvalidator interface {
 type options struct {
 	clock                quartz.Clock
 	subscriptionCacheTTL time.Duration
+	httpClient           *http.Client
 }
 
 // Option configures optional behavior for a Webpusher.
@@ -65,6 +69,15 @@ func WithClock(clock quartz.Clock) Option {
 func WithSubscriptionCacheTTL(ttl time.Duration) Option {
 	return func(o *options) {
 		o.subscriptionCacheTTL = ttl
+	}
+}
+
+// WithHTTPClient overrides the default SSRF-safe HTTP client used to deliver
+// push notifications. This is intended for tests that need to deliver to
+// localhost test servers.
+func WithHTTPClient(client *http.Client) Option {
+	return func(o *options) {
+		o.httpClient = client
 	}
 }
 
@@ -89,6 +102,9 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 	}
 	if cfg.subscriptionCacheTTL <= 0 {
 		cfg.subscriptionCacheTTL = defaultSubscriptionCacheTTL
+	}
+	if cfg.httpClient == nil {
+		cfg.httpClient = newSSRFSafeHTTPClient()
 	}
 
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
@@ -121,6 +137,7 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 		subscriptionCacheTTL:    cfg.subscriptionCacheTTL,
 		subscriptionCache:       make(map[uuid.UUID]cachedSubscriptions),
 		subscriptionGenerations: make(map[uuid.UUID]uint64),
+		httpClient:              cfg.httpClient,
 	}, nil
 }
 
@@ -141,6 +158,12 @@ type Webpusher struct {
 	// the message payload.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
+
+	// httpClient is an SSRF-safe HTTP client that rejects connections to
+	// private, loopback, and link-local IP addresses at dial time. This
+	// closes the DNS rebinding TOCTOU gap where a hostname passes URL
+	// validation but resolves to a private IP when the connection is made.
+	httpClient *http.Client
 
 	clock quartz.Clock
 
@@ -338,6 +361,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		Endpoint: endpoint,
 		Keys:     keys,
 	}, &webpush.Options{
+		HTTPClient:      n.httpClient,
 		Subscriber:      n.vapidSub,
 		VAPIDPublicKey:  n.VAPIDPublicKey,
 		VAPIDPrivateKey: n.VAPIDPrivateKey,
@@ -405,6 +429,37 @@ func (n *NoopWebpusher) Test(context.Context, codersdk.WebpushSubscription) erro
 
 func (*NoopWebpusher) PublicKey() string {
 	return ""
+}
+
+// newSSRFSafeHTTPClient returns an HTTP client that rejects connections to
+// private, loopback, link-local, multicast, and unspecified IP addresses.
+// This prevents DNS rebinding attacks where a hostname passes URL-level
+// validation but resolves to an internal IP at dial time.
+func newSSRFSafeHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Control: func(_ string, address string, _ syscall.RawConn) error {
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						return xerrors.Errorf("split host/port: %w", err)
+					}
+					ip, err := netip.ParseAddr(host)
+					if err != nil {
+						return xerrors.Errorf("parse resolved IP: %w", err)
+					}
+					if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+						ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
+						ip.IsUnspecified() {
+						return xerrors.Errorf(
+							"webpush endpoint resolved to non-public address %s", ip.String(),
+						)
+					}
+					return nil
+				},
+			}).DialContext,
+		},
+	}
 }
 
 // RegenerateVAPIDKeys regenerates the VAPID keys and deletes all existing

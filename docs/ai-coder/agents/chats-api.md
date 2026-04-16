@@ -56,7 +56,8 @@ The response is the newly created `Chat` object:
   "pin_order": 0,
   "mcp_server_ids": [],
   "labels": {},
-  "has_unread": false
+  "has_unread": false,
+  "client_type": "api"
 }
 ```
 
@@ -89,6 +90,7 @@ A typical integration follows three steps:
 | `model_config_id` | `uuid`              | no       | Override the default model configuration.       |
 | `mcp_server_ids`  | `uuid[]`            | no       | Attach MCP servers to this chat.                |
 | `labels`          | `map[string]string` | no       | Key-value labels for the chat (max 50).         |
+| `client_type`     | `string`            | no       | `"ui"` or `"api"`. Defaults to `"api"`.         |
 
 Each `ChatInputPart` has a `type` field. The simplest form is a text part:
 

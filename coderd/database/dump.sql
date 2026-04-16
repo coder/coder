@@ -270,6 +270,11 @@ CREATE TYPE build_reason AS ENUM (
     'task_resume'
 );
 
+CREATE TYPE chat_client_type AS ENUM (
+    'ui',
+    'api'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -285,6 +290,10 @@ CREATE TYPE chat_message_visibility AS ENUM (
 
 CREATE TYPE chat_mode AS ENUM (
     'computer_use'
+);
+
+CREATE TYPE chat_plan_mode AS ENUM (
+    'plan'
 );
 
 CREATE TYPE chat_status AS ENUM (
@@ -1470,7 +1479,9 @@ CREATE TABLE chats (
     last_read_message_id bigint,
     last_injected_context jsonb,
     dynamic_tools jsonb,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    plan_mode chat_plan_mode,
+    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL
 );
 
 CREATE TABLE connection_logs (

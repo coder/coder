@@ -97,26 +97,36 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 }
 
 func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
+	var planMode database.NullChatPlanMode
+	if currentChat != nil {
+		planMode = currentChat().PlanMode
+	}
+
+	spawnAgentDescription := "Spawn a delegated child agent to work on a clearly scoped, " +
+		"independent task in parallel. Use this when the task is " +
+		"self-contained and would benefit from a separate agent " +
+		"(e.g. fixing a specific bug, writing a single module, " +
+		"running a migration). Do NOT use for simple or quick " +
+		"operations you can handle directly with execute, " +
+		"read_file, or write_file - for example, reading a group " +
+		"of files and outputting them verbatim does not need a " +
+		"subagent. Reserve subagents for tasks that require " +
+		"intellectual work such as code analysis, writing new " +
+		"code, or complex refactoring. Be careful when running " +
+		"parallel subagents: if two subagents modify the same " +
+		"files they will conflict with each other, so ensure " +
+		"parallel subagent tasks are independent. " +
+		"The child agent receives the same workspace tools but " +
+		"cannot spawn its own subagents. After spawning, use " +
+		"wait_agent to collect the result."
+	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
+		spawnAgentDescription += " During plan mode, spawned agents may use shell commands for exploration, such as cloning repositories, searching code, and running inspection commands, but they must not implement changes or intentionally modify workspace files."
+	}
+
 	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"spawn_agent",
-			"Spawn a delegated child agent to work on a clearly scoped, "+
-				"independent task in parallel. Use this when the task is "+
-				"self-contained and would benefit from a separate agent "+
-				"(e.g. fixing a specific bug, writing a single module, "+
-				"running a migration). Do NOT use for simple or quick "+
-				"operations you can handle directly with execute, "+
-				"read_file, or write_file - for example, reading a group "+
-				"of files and outputting them verbatim does not need a "+
-				"subagent. Reserve subagents for tasks that require "+
-				"intellectual work such as code analysis, writing new "+
-				"code, or complex refactoring. Be careful when running "+
-				"parallel subagents: if two subagents modify the same "+
-				"files they will conflict with each other, so ensure "+
-				"parallel subagent tasks are independent. "+
-				"The child agent receives the same workspace tools but "+
-				"cannot spawn its own subagents. After spawning, use "+
-				"wait_agent to collect the result.",
+			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -131,11 +141,12 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				childChat, err := p.createChildSubagentChat(
+				childChat, err := p.createChildSubagentChatWithOptions(
 					ctx,
 					parent,
 					args.Prompt,
 					args.Title,
+					childSubagentChatOptions{},
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -400,8 +411,9 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 }
 
 type childSubagentChatOptions struct {
-	chatMode     database.NullChatMode
-	systemPrompt string
+	chatMode              database.NullChatMode
+	systemPrompt          string
+	modelConfigIDOverride *uuid.UUID
 }
 
 func (p *Server) createChildSubagentChat(
@@ -438,8 +450,13 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if parent.RootChatID.Valid {
 		rootChatID = parent.RootChatID.UUID
 	}
-	if parent.LastModelConfigID == uuid.Nil {
-		return database.Chat{}, xerrors.New("parent chat model config id is required")
+
+	modelConfigID := parent.LastModelConfigID
+	if opts.modelConfigIDOverride != nil {
+		modelConfigID = *opts.modelConfigIDOverride
+	}
+	if modelConfigID == uuid.Nil {
+		return database.Chat{}, xerrors.New("model config is required")
 	}
 
 	mcpServerIDs := parent.MCPServerIDs
@@ -452,6 +469,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	// Resolve the deployment prompt before opening the transaction so
+	// child chat creation does not hold one DB connection while waiting
+	// for another pool checkout.
+	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	var child database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -467,9 +488,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 			AgentID:           parent.AgentID,
 			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
-			LastModelConfigID: parent.LastModelConfigID,
+			LastModelConfigID: modelConfigID,
 			Title:             title,
 			Mode:              opts.chatMode,
+			PlanMode:          parent.PlanMode,
+			ClientType:        parent.ClientType,
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
 			Labels: pqtype.NullRawMessage{
@@ -482,7 +505,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("insert child chat: %w", err)
 		}
 
-		deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
 		if insertedChat.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -512,7 +534,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 				database.ChatMessageRoleSystem,
 				deploymentContent,
 				database.ChatMessageVisibilityModel,
-				parent.LastModelConfigID,
+				modelConfigID,
 				chatprompt.CurrentContentVersion,
 			))
 		}
@@ -527,7 +549,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 				database.ChatMessageRoleSystem,
 				childSystemPromptContent,
 				database.ChatMessageVisibilityModel,
-				parent.LastModelConfigID,
+				modelConfigID,
 				chatprompt.CurrentContentVersion,
 			))
 		}
@@ -535,7 +557,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			database.ChatMessageRoleSystem,
 			workspaceAwarenessContent,
 			database.ChatMessageVisibilityModel,
-			parent.LastModelConfigID,
+			modelConfigID,
 			chatprompt.CurrentContentVersion,
 		))
 		if _, err := tx.InsertChatMessages(ctx, systemParams); err != nil {
@@ -562,7 +584,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			database.ChatMessageRoleUser,
 			userContent,
 			database.ChatMessageVisibilityBoth,
-			parent.LastModelConfigID,
+			modelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCreatedBy(parent.OwnerID))
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {

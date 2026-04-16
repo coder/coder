@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -60,9 +61,7 @@ type AgentConnFunc func(
 
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
-	DB                             database.Store
 	OwnerID                        uuid.UUID
-	OrganizationID                 uuid.UUID
 	ChatID                         uuid.UUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -84,7 +83,7 @@ type createWorkspaceArgs struct {
 // workspace that is building or running, it returns the existing
 // workspace instead of creating a new one. A mutex prevents parallel
 // calls from creating duplicate workspaces.
-func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
+func CreateWorkspace(organizationID uuid.UUID, db database.Store, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
 		"Create a new workspace from a template. Requires a "+
@@ -95,6 +94,9 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if db == nil {
+				return fantasy.NewTextErrorResponse("database is not configured"), nil
+			}
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
 			}
@@ -122,7 +124,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			// Check for an existing workspace on the chat.
-			check := options.checkExistingWorkspace(ctx)
+			check := options.checkExistingWorkspace(ctx, db)
 			if check.Err != nil {
 				if check.FailedBuildID != uuid.Nil {
 					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
@@ -135,50 +137,44 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			ownerID := options.OwnerID
 
 			// Set up dbauthz context for DB lookups.
-			if options.DB != nil {
-				ownerCtx, ownerErr := asOwner(ctx, options.DB, ownerID)
-				if ownerErr != nil {
-					return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
-				}
-				ctx = ownerCtx
+			ownerCtx, ownerErr := asOwner(ctx, db, ownerID)
+			if ownerErr != nil {
+				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
+			ctx = ownerCtx
 
 			// Verify the template belongs to the same org as the
 			// chat. Without this check the tool could silently
 			// bind a cross-org workspace to the chat.
-			if options.DB != nil && options.OrganizationID != uuid.Nil {
-				tmpl, tmplErr := options.DB.GetTemplateByID(ctx, templateID)
-				if tmplErr != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("look up template: %w", tmplErr).Error(),
-					), nil
-				}
-				if tmpl.OrganizationID != options.OrganizationID {
-					return fantasy.NewTextErrorResponse(
-						"template belongs to a different organization than this chat; " +
-							"use list_templates to find templates in the correct organization",
-					), nil
-				}
+			tmpl, tmplErr := db.GetTemplateByID(ctx, templateID)
+			if tmplErr != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("look up template: %w", tmplErr).Error(),
+				), nil
+			}
+			if tmpl.OrganizationID != organizationID {
+				return fantasy.NewTextErrorResponse(
+					"template belongs to a different organization than this chat; " +
+						"use list_templates to find templates in the correct organization",
+				), nil
 			}
 
 			var ttlMs *int64
-			if options.DB != nil {
-				raw, err := options.DB.GetChatWorkspaceTTL(ctx)
-				if err != nil {
-					options.Logger.Error(ctx, "failed to read chat workspace TTL setting, using template default",
-						slog.Error(err),
+			raw, err := db.GetChatWorkspaceTTL(ctx)
+			if err != nil {
+				options.Logger.Error(ctx, "failed to read chat workspace TTL setting, using template default",
+					slog.Error(err),
+				)
+			} else {
+				d, parseErr := codersdk.ParseChatWorkspaceTTL(raw)
+				if parseErr != nil {
+					options.Logger.Warn(ctx, "invalid chat workspace TTL setting, using template default",
+						slog.F("raw", raw),
+						slog.Error(parseErr),
 					)
-				} else {
-					d, parseErr := codersdk.ParseChatWorkspaceTTL(raw)
-					if parseErr != nil {
-						options.Logger.Warn(ctx, "invalid chat workspace TTL setting, using template default",
-							slog.F("raw", raw),
-							slog.Error(parseErr),
-						)
-					} else if d > 0 {
-						ms := d.Milliseconds()
-						ttlMs = &ms
-					}
+				} else if d > 0 {
+					ms := d.Milliseconds()
+					ttlMs = &ms
 				}
 			}
 
@@ -187,21 +183,9 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				TTLMillis:  ttlMs,
 			}
 
-			// Resolve workspace name. This does a second
-			// GetTemplateByID when no name is provided; the first
-			// is the org-validation check above. Consolidating
-			// them would couple the security gate to the
-			// name-fallback path, and the cost is negligible next
-			// to the workspace build that follows.
 			name := strings.TrimSpace(args.Name)
 			if name == "" {
-				seed := "workspace"
-				if options.DB != nil {
-					if t, lookupErr := options.DB.GetTemplateByID(ctx, templateID); lookupErr == nil {
-						seed = t.Name
-					}
-				}
-				name = generatedWorkspaceName(seed)
+				name = generatedWorkspaceName(tmpl.Name)
 			} else if err := codersdk.NameValid(name); err != nil {
 				name = generatedWorkspaceName(name)
 			}
@@ -227,8 +211,8 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// later fails. The checkExistingWorkspace recovery
 			// path handles failed workspaces by allowing
 			// re-creation.
-			if options.DB != nil && options.ChatID != uuid.Nil {
-				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			if options.ChatID != uuid.Nil {
+				updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
@@ -258,14 +242,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// come online so subsequent tools can use the
 			// workspace immediately.
 			buildID := workspace.LatestBuild.ID
-			if options.DB != nil && buildID != uuid.Nil {
-				if err := waitForBuild(ctx, options.DB, buildID); err != nil {
+			if buildID != uuid.Nil {
+				if err := waitForBuild(ctx, db, buildID); err != nil {
 					return buildToolResponse(newBuildError(
 						xerrors.Errorf("workspace build failed: %w", err).Error(),
 						buildID,
 					)), nil
 				}
 			}
+
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
@@ -275,28 +260,39 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
 			workspaceAgentID := uuid.Nil
-			if options.DB != nil {
-				agents, agentErr := options.DB.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-				if agentErr == nil {
-					if len(agents) == 0 {
-						result["agent_status"] = "no_agent"
+			agents, agentErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			if agentErr == nil {
+				if len(agents) == 0 {
+					result["agent_status"] = "no_agent"
+				} else {
+					selected, selectErr := agentselect.FindChatAgent(agents)
+					if selectErr != nil {
+						result["agent_status"] = "selection_error"
+						result["agent_error"] = selectErr.Error()
 					} else {
-						selected, selectErr := agentselect.FindChatAgent(agents)
-						if selectErr != nil {
-							result["agent_status"] = "selection_error"
-							result["agent_error"] = selectErr.Error()
-						} else {
-							workspaceAgentID = selected.ID
-						}
+						workspaceAgentID = selected.ID
 					}
 				}
 			}
 
 			// Wait for the agent to come online and startup scripts to finish.
 			if workspaceAgentID != uuid.Nil {
-				agentStatus := waitForAgentReady(ctx, options.DB, workspaceAgentID, options.AgentConnFn)
+				agentStatus := waitForAgentReady(ctx, db, workspaceAgentID, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
+				}
+			}
+
+			// Re-fire after the agent is fully ready so callers
+			// can load instruction files (AGENTS.md) from the
+			// running agent. This must happen after
+			// waitForAgentReady — firing earlier (e.g. right
+			// after waitForBuild) races with the agent startup
+			// and the connection usually times out before the
+			// agent is reachable.
+			if options.OnChatUpdated != nil {
+				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
 				}
 			}
 
@@ -326,12 +322,12 @@ type existingWorkspaceResult struct {
 // (workspace is dead or missing).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
+	db database.Store,
 ) existingWorkspaceResult {
-	if o.DB == nil || o.ChatID == uuid.Nil {
+	if o.ChatID == uuid.Nil {
 		return existingWorkspaceResult{}
 	}
 
-	db := o.DB
 	chatID := o.ChatID
 	agentConnFn := o.AgentConnFn
 	agentInactiveDisconnectTimeout := o.AgentInactiveDisconnectTimeout
@@ -442,7 +438,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				)
 				selected = agents[0]
 			}
-			status := selected.Status(agentInactiveDisconnectTimeout)
+			status := selected.Status(dbtime.Now(), agentInactiveDisconnectTimeout)
 			result := map[string]any{
 				"created":        false,
 				"workspace_name": ws.Name,

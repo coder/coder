@@ -3650,7 +3650,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The base URL of the OpenAI API.",
 			Flag:        "aibridge-openai-base-url",
 			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
+			Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
@@ -3660,7 +3660,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
-			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3670,7 +3670,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The base URL of the Anthropic API.",
 			Flag:        "aibridge-anthropic-base-url",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
-			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
+			Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_base_url",
@@ -3680,7 +3680,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
-			Value:       &c.AI.BridgeConfig.Anthropic.Key,
+			Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3691,7 +3691,7 @@ Write out the current server config as YAML to stdout.`,
 				"over CODER_AIBRIDGE_BEDROCK_REGION.",
 			Flag:    "aibridge-bedrock-base-url",
 			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
-			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Value:   &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
 			Default: "",
 			Group:   &deploymentGroupAIBridge,
 			YAML:    "bedrock_base_url",
@@ -3702,7 +3702,7 @@ Write out the current server config as YAML to stdout.`,
 				"'https://bedrock-runtime.<region>.amazonaws.com'.",
 			Flag:    "aibridge-bedrock-region",
 			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Value:   &c.AI.BridgeConfig.LegacyBedrock.Region,
 			Default: "",
 			Group:   &deploymentGroupAIBridge,
 			YAML:    "bedrock_region",
@@ -3712,7 +3712,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
-			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3722,7 +3722,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key-secret",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
-			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3732,7 +3732,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The model to use when making requests to the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-model",
 			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
-			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
 			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_model",
@@ -3742,7 +3742,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 			Flag:        "aibridge-bedrock-small-fastmodel",
 			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
-			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
 			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_small_fast_model",
@@ -3810,6 +3810,16 @@ Write out the current server config as YAML to stdout.`,
 			Default: "false",
 			Group:   &deploymentGroupAIBridge,
 			YAML:    "send_actor_headers",
+		},
+		{
+			Name:        "AI Bridge Allow BYOK",
+			Description: "Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+			Flag:        "aibridge-allow-byok",
+			Env:         "CODER_AIBRIDGE_ALLOW_BYOK",
+			Value:       &c.AI.BridgeConfig.AllowBYOK,
+			Default:     "true",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "allow_byok",
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
@@ -3940,17 +3950,15 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key_file",
 		},
 		{
-			Name: "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
-				"Requests to other domains will be tunneled directly without decryption. " +
-				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
-			Flag:    "aibridge-proxy-domain-allowlist",
-			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
-			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
-			Hidden:  true,
-			Group:   &deploymentGroupAIBridgeProxy,
-			YAML:    "domain_allowlist",
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Deprecated: This value is now derived automatically from the configured AI Bridge providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
@@ -4047,10 +4055,16 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
+	// Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	Providers []AIBridgeProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -4058,6 +4072,7 @@ type AIBridgeConfig struct {
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
@@ -4084,6 +4099,29 @@ type AIBridgeBedrockConfig struct {
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
 	Model           serpent.String `json:"model" typescript:",notnull"`
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
+}
+
+// AIBridgeProviderConfig represents a single AI Bridge provider instance,
+// parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+// This follows the same indexed pattern as ExternalAuthConfig.
+type AIBridgeProviderConfig struct {
+	// Type is the provider type: "openai", "anthropic", or "copilot".
+	Type string `json:"type"`
+	// Name is the unique instance identifier used for routing.
+	// Defaults to Type if not provided.
+	Name string `json:"name"`
+	// Key is the API key for authenticating with the upstream provider.
+	Key string `json:"-"`
+	// BaseURL is the base URL of the upstream provider API.
+	BaseURL string `json:"base_url"`
+
+	// Bedrock fields (only applicable when Type == "anthropic").
+	BedrockBaseURL         string `json:"-"`
+	BedrockRegion          string `json:"bedrock_region,omitempty"`
+	BedrockAccessKey       string `json:"-"`
+	BedrockAccessKeySecret string `json:"-"`
+	BedrockModel           string `json:"bedrock_model,omitempty"`
+	BedrockSmallFastModel  string `json:"bedrock_small_fast_model,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {
