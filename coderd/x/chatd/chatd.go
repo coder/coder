@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -886,8 +887,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	effectivePlanMode := opts.PlanMode
-	if opts.ClientType == "" {
-		opts.ClientType = database.ChatClientTypeApi
+	opts.ClientType = cmp.Or(opts.ClientType, database.ChatClientTypeApi)
+	if !opts.ClientType.Valid() {
+		return database.Chat{}, xerrors.Errorf("invalid client_type: %q", opts.ClientType)
 	}
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -912,7 +914,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
 			PlanMode:          effectivePlanMode,
-			ClientType:        opts.ClientType, // Chats created with an initial user message start pending.
+			ClientType:        opts.ClientType,
+			// Chats created with an initial user message start pending.
 			// Waiting is reserved for idle chats with no pending work.
 			Status:       database.ChatStatusPending,
 			MCPServerIDs: opts.MCPServerIDs,
