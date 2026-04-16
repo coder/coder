@@ -2,6 +2,7 @@ package derphealth
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/netip"
@@ -40,19 +41,24 @@ type ReportOptions struct {
 	Dismissed bool
 
 	DERPMap *tailcfg.DERPMap
+
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 type Report healthsdk.DERPHealthReport
 
 type RegionReport struct {
 	healthsdk.DERPRegionReport
-	mu sync.Mutex
+	mu            sync.Mutex
+	derpTLSConfig *tls.Config
 }
 
 type NodeReport struct {
 	healthsdk.DERPNodeReport
 	mu            sync.Mutex
 	clientCounter int
+	derpTLSConfig *tls.Config
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
@@ -74,6 +80,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 				DERPRegionReport: healthsdk.DERPRegionReport{
 					Region: region,
 				},
+				derpTLSConfig: opts.DERPTLSConfig,
 			}
 		)
 		go func() {
@@ -103,8 +110,9 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 		mu.Unlock()
 	}
 	nc := &netcheck.Client{
-		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
-		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
+		PortMapper:    portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
+		Logf:          tslogger.WithPrefix(ncLogf, "netcheck: "),
+		DERPTLSConfig: opts.DERPTLSConfig,
 	}
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
@@ -159,6 +167,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 					Healthy: true,
 					Node:    node,
 				},
+				derpTLSConfig: r.derpTLSConfig,
 			}
 		)
 
@@ -474,6 +483,10 @@ func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphtt
 		err := xerrors.Errorf("create derp client: %w", err)
 		r.writeClientErr(id, err)
 		return nil, id, err
+	}
+
+	if r.derpTLSConfig != nil {
+		client.TLSConfig = r.derpTLSConfig
 	}
 
 	go func() {
