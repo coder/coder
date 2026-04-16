@@ -161,26 +161,28 @@ export const UserCompactionThresholdSettings: FC<
 	}
 
 	const handleSaveAll = () => {
-		const saves = dirtyRows.map(async ({ modelConfigId, value }) => {
+		const saves = dirtyRows.map(({ modelConfigId, value }) => {
 			clearRowError(modelConfigId);
 			addPending(modelConfigId);
-			try {
-				await onSaveThreshold(modelConfigId, value);
-				clearDraft(modelConfigId);
-				clearRowError(modelConfigId);
-				return true;
-			} catch (error: unknown) {
-				setRowErrors((currentErrors) => ({
-					...currentErrors,
-					[modelConfigId]: getErrorMessage(
-						error,
-						"Failed to save compaction threshold.",
-					),
-				}));
-				return false;
-			} finally {
-				removePending(modelConfigId);
-			}
+			return onSaveThreshold(modelConfigId, value)
+				.then(() => {
+					clearDraft(modelConfigId);
+					clearRowError(modelConfigId);
+					return true;
+				})
+				.catch((error: unknown) => {
+					setRowErrors((currentErrors) => ({
+						...currentErrors,
+						[modelConfigId]: getErrorMessage(
+							error,
+							"Failed to save compaction threshold.",
+						),
+					}));
+					return false;
+				})
+				.finally(() => {
+					removePending(modelConfigId);
+				});
 		});
 		void Promise.all(saves).then((results) => {
 			if (results.length > 0 && results.every(Boolean)) {
