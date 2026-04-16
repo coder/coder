@@ -55,6 +55,10 @@ jobs:
     env:
       CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+      # Optional: UUID of a cheap/fast chat model config to use instead of
+      # the deployment default.  Resolve via:
+      #   GET /api/experimental/chats/model-configs
+      DOC_CHECK_MODEL_CONFIG_ID: ${{ secrets.DOC_CHECK_MODEL_CONFIG_ID }}
     permissions:
       contents: read
       pull-requests: write
@@ -231,12 +235,20 @@ jobs:
 
           echo "Creating chat session..."
 
+          # Build the request body, optionally pinning a cheaper model.
+          BODY=$(jq -n --arg prompt "${CHAT_PROMPT}" \
+            '{content: [{type: "text", text: $prompt}]}')
+          if [[ -n "${DOC_CHECK_MODEL_CONFIG_ID:-}" ]]; then
+            BODY=$(echo "${BODY}" | jq --arg id "${DOC_CHECK_MODEL_CONFIG_ID}" \
+              '. + {model_config_id: $id}')
+            echo "Using model config: ${DOC_CHECK_MODEL_CONFIG_ID}"
+          fi
+
           RESPONSE=$(curl --silent --fail-with-body \
             -X POST \
             -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg prompt "${CHAT_PROMPT}" \
-              '{content: [{type: "text", text: $prompt}]}')" \
+            -d "${BODY}" \
             "${CODER_URL}/api/experimental/chats")
 
           CHAT_ID=$(echo "${RESPONSE}" | jq -r '.id')
