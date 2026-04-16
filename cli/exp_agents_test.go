@@ -1057,7 +1057,7 @@ func TestExpAgents(t *testing.T) {
 		t.Run("StreamEventErrorShowsInView", func(t *testing.T) {
 			t.Parallel()
 			model := newTestChatViewModel(nil)
-			model = mustChatViewUpdate(t, model, tea.WindowSizeMsg{Width: 80, Height: 12})
+			model = mustChatViewUpdate(t, model, tea.WindowSizeMsg{Width: 120, Height: 12})
 			model.loading = false
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat = &chat
@@ -1080,7 +1080,7 @@ func TestExpAgents(t *testing.T) {
 			model.loading = true
 			model.metadataResolved = false
 			model.historyResolved = false
-			model = mustChatViewUpdate(t, model, tea.WindowSizeMsg{Width: 80, Height: 12})
+			model = mustChatViewUpdate(t, model, tea.WindowSizeMsg{Width: 120, Height: 12})
 			view := plainText(model.View())
 			require.Contains(t, view, "New Chat (draft)")
 			require.Contains(t, view, "Loading chat...")
