@@ -102,6 +102,12 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteChatACLByID(ctx context.Context, id uuid.UUID) error
+	// Clears every chat ACL in an organization, optionally preserving
+	// chats owned by service accounts so the 'service_accounts' org
+	// mode can leave shared bots untouched while clearing human-owned
+	// shares. Mirrors DeleteWorkspaceACLsByOrganization.
+	DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
 	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
@@ -255,6 +261,11 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	// Returns the ACL stored on the chat row itself (not the effective
+	// ACL from chats_with_acl). The read path for authorization uses
+	// chats_with_acl / the handler-level overlay; this query backs the
+	// ACL-management endpoints, which always operate on the root chat.
+	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
@@ -955,6 +966,10 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	// Writes the ACL on the given chat row. Callers must have refused
+	// the request earlier if the chat is a sub-chat; this query does
+	// not enforce that.
+	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

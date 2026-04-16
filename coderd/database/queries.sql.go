@@ -5172,6 +5172,51 @@ func (q *sqlQuerier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uui
 	return err
 }
 
+const deleteChatACLByID = `-- name: DeleteChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl  = '{}'::jsonb,
+    group_acl = '{}'::jsonb
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatACLByID, id)
+	return err
+}
+
+const deleteChatACLsByOrganization = `-- name: DeleteChatACLsByOrganization :exec
+UPDATE
+    chats
+SET
+    user_acl  = '{}'::jsonb,
+    group_acl = '{}'::jsonb
+WHERE
+    organization_id = $1::uuid
+    AND (
+        NOT $2::boolean
+        OR owner_id NOT IN (
+            SELECT id FROM users WHERE is_service_account = true
+        )
+    )
+`
+
+type DeleteChatACLsByOrganizationParams struct {
+	OrganizationID         uuid.UUID `db:"organization_id" json:"organization_id"`
+	ExcludeServiceAccounts bool      `db:"exclude_service_accounts" json:"exclude_service_accounts"`
+}
+
+// Clears every chat ACL in an organization, optionally preserving
+// chats owned by service accounts so the 'service_accounts' org
+// mode can leave shared bots untouched while clearing human-owned
+// shares. Mirrors DeleteWorkspaceACLsByOrganization.
+func (q *sqlQuerier) DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatACLsByOrganization, arg.OrganizationID, arg.ExcludeServiceAccounts)
+	return err
+}
+
 const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
 `
@@ -5300,6 +5345,32 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 		return nil, err
 	}
 	return items, nil
+}
+
+const getChatACLByID = `-- name: GetChatACLByID :one
+SELECT
+    user_acl  AS users,
+    group_acl AS groups
+FROM
+    chats
+WHERE
+    id = $1::uuid
+`
+
+type GetChatACLByIDRow struct {
+	Users  WorkspaceACL `db:"users" json:"users"`
+	Groups WorkspaceACL `db:"groups" json:"groups"`
+}
+
+// Returns the ACL stored on the chat row itself (not the effective
+// ACL from chats_with_acl). The read path for authorization uses
+// chats_with_acl / the handler-level overlay; this query backs the
+// ACL-management endpoints, which always operate on the root chat.
+func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatACLByID, id)
+	var i GetChatACLByIDRow
+	err := row.Scan(&i.Users, &i.Groups)
+	return i, err
 }
 
 const getChatByID = `-- name: GetChatByID :one
@@ -7634,6 +7705,30 @@ WHERE
 
 func (q *sqlQuerier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, unpinChatByID, id)
+	return err
+}
+
+const updateChatACLByID = `-- name: UpdateChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl  = $1,
+    group_acl = $2
+WHERE
+    id = $3::uuid
+`
+
+type UpdateChatACLByIDParams struct {
+	UserACL  WorkspaceACL `db:"user_acl" json:"user_acl"`
+	GroupACL WorkspaceACL `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID    `db:"id" json:"id"`
+}
+
+// Writes the ACL on the given chat row. Callers must have refused
+// the request earlier if the chat is a sub-chat; this query does
+// not enforce that.
+func (q *sqlQuerier) UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatACLByID, arg.UserACL, arg.GroupACL, arg.ID)
 	return err
 }
 

@@ -32,7 +32,14 @@ var _ database.Store = (*querier)(nil)
 const wrapname = "dbauthz.querier"
 
 // ErrNoActor is returned if no actor is present in the context.
+// ErrNoActor is returned if no actor is present in the context.
 var ErrNoActor = xerrors.Errorf("no authorization actor in context")
+
+// ErrChatACLSubChat is returned when an ACL write targets a sub-chat.
+// Chat ACLs live on root chats only; sub-chats inherit via the
+// chats_with_acl view. Handlers surface this as a 400 with the root
+// chat id, per the design in the chat-acl-sharing plan §3.5.
+var ErrChatACLSubChat = xerrors.New("chat acl can only be set on root chats")
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
@@ -1860,6 +1867,30 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
+	fetch := func(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+		chat, err := q.db.GetChatByID(ctx, id)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if chat.RootChatID.Valid || chat.ParentChatID.Valid {
+			return database.Chat{}, ErrChatACLSubChat
+		}
+		return chat, nil
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteChatACLByID)(ctx, id)
+}
+
+func (q *querier) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
+	// Reconciling all chat ACLs in an organization is a system
+	// operation: it runs from the org settings handler under an
+	// AsSystemRestricted context, same as the workspace equivalent.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteChatACLsByOrganization(ctx, arg)
+}
+
 func (q *querier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -2547,6 +2578,17 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	return q.db.GetChatACLByID(ctx, id)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -5968,6 +6010,20 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateChatACLByIDParams) (database.Chat, error) {
+		chat, err := q.db.GetChatByID(ctx, arg.ID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if chat.RootChatID.Valid || chat.ParentChatID.Valid {
+			return database.Chat{}, ErrChatACLSubChat
+		}
+		return chat, nil
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

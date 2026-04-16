@@ -218,6 +218,59 @@ FROM
 WHERE
     id = @id::uuid;
 
+-- name: GetChatACLByID :one
+-- Returns the ACL stored on the chat row itself (not the effective
+-- ACL from chats_with_acl). The read path for authorization uses
+-- chats_with_acl / the handler-level overlay; this query backs the
+-- ACL-management endpoints, which always operate on the root chat.
+SELECT
+    user_acl  AS users,
+    group_acl AS groups
+FROM
+    chats
+WHERE
+    id = @id::uuid;
+
+-- name: UpdateChatACLByID :exec
+-- Writes the ACL on the given chat row. Callers must have refused
+-- the request earlier if the chat is a sub-chat; this query does
+-- not enforce that.
+UPDATE
+    chats
+SET
+    user_acl  = @user_acl,
+    group_acl = @group_acl
+WHERE
+    id = @id::uuid;
+
+-- name: DeleteChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl  = '{}'::jsonb,
+    group_acl = '{}'::jsonb
+WHERE
+    id = @id::uuid;
+
+-- name: DeleteChatACLsByOrganization :exec
+-- Clears every chat ACL in an organization, optionally preserving
+-- chats owned by service accounts so the 'service_accounts' org
+-- mode can leave shared bots untouched while clearing human-owned
+-- shares. Mirrors DeleteWorkspaceACLsByOrganization.
+UPDATE
+    chats
+SET
+    user_acl  = '{}'::jsonb,
+    group_acl = '{}'::jsonb
+WHERE
+    organization_id = @organization_id::uuid
+    AND (
+        NOT @exclude_service_accounts::boolean
+        OR owner_id NOT IN (
+            SELECT id FROM users WHERE is_service_account = true
+        )
+    );
+
 -- name: GetChatMessageByID :one
 SELECT
     *
