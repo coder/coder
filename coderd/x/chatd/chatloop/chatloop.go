@@ -437,11 +437,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
-				// Always attach the canonical provider so both the
-				// metric and the user callback see the same classified
-				// error. Record the metric before invoking the user
-				// callback so a panic in user code cannot drop the
-				// sample.
+				// Normalize the provider in classified before the user
+				// callback so its payload carries the canonical provider.
+				// RecordStreamRetry reads only classified.Kind; the
+				// provider label on the sample comes from the outer
+				// `provider` local (the source of truth for this step).
+				// Record before invoking OnRetry so a panic in the user
+				// callback cannot drop the sample we just collected.
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if opts.OnRetry != nil {
@@ -633,7 +635,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
-				opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
+				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}

@@ -34,7 +34,7 @@ type Metrics struct {
 	TTFTSeconds         *prometheus.HistogramVec
 	CompactionTotal     *prometheus.CounterVec
 	StepsTotal          *prometheus.CounterVec
-	StreamRetries       *prometheus.CounterVec
+	StreamRetriesTotal  *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -88,11 +88,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "steps_total",
 			Help:      "Total agentic loop steps across all chats.",
 		}, []string{"provider", "model"}),
-		StreamRetries: factory.NewCounterVec(prometheus.CounterOpts{
+		StreamRetriesTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stream_retries_total",
-			Help:      "Total LLM stream retries, labeled by classified error kind.",
+			Help:      "Total LLM stream retries.",
 		}, []string{"provider", "model", "kind"}),
 	}
 }
@@ -125,19 +125,14 @@ func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err e
 }
 
 // RecordStreamRetry increments the stream_retries_total counter for
-// the given provider/model/classified error. Empty kinds are
-// normalized to KindGeneric as defense-in-depth against callers
-// that construct a ClassifiedError literal without going through
-// chaterror.Classify. It is a no-op when m is nil.
+// the given provider/model/classified error. The caller must have
+// obtained classified via chaterror.Classify (or .WithProvider),
+// which guarantees a non-empty Kind. It is a no-op when m is nil.
 func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror.ClassifiedError) {
 	if m == nil {
 		return
 	}
-	kind := classified.Kind
-	if kind == "" {
-		kind = chaterror.KindGeneric
-	}
-	m.StreamRetries.WithLabelValues(provider, model, kind).Inc()
+	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
 }
 
 // EstimatePromptSize returns a cheap byte-size estimate of a

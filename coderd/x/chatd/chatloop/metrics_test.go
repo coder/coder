@@ -32,7 +32,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.PromptSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5")
-	m.StreamRetries.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout)
+	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.CompactionTotal.WithLabelValues("openai", "gpt-5", "error").Inc()
 	m.CompactionTotal.WithLabelValues("google", "gemini-2.5-pro", "timeout").Inc()
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5").Inc()
-	m.StreamRetries.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout).Inc()
+	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout).Inc()
 
 	// Nil-receiver guard for RecordStreamRetry mirrors the existing
 	// RecordCompaction nil guard.
@@ -282,21 +282,21 @@ func TestRecordCompaction(t *testing.T) {
 func TestRecordStreamRetry(t *testing.T) {
 	t.Parallel()
 
-	// One row per chaterror.Kind* constant plus an empty-kind
-	// defense-in-depth case. Empty kinds normalize to KindGeneric.
+	// One row per chaterror.Kind* constant. Production callers always
+	// reach RecordStreamRetry through chaterror.Classify, which
+	// guarantees Kind is non-empty, so no empty-string case is
+	// needed.
 	tests := []struct {
-		name     string
-		kind     string
-		wantKind string
+		name string
+		kind string
 	}{
-		{name: "overloaded", kind: chaterror.KindOverloaded, wantKind: chaterror.KindOverloaded},
-		{name: "rate_limit", kind: chaterror.KindRateLimit, wantKind: chaterror.KindRateLimit},
-		{name: "timeout", kind: chaterror.KindTimeout, wantKind: chaterror.KindTimeout},
-		{name: "startup_timeout", kind: chaterror.KindStartupTimeout, wantKind: chaterror.KindStartupTimeout},
-		{name: "auth", kind: chaterror.KindAuth, wantKind: chaterror.KindAuth},
-		{name: "config", kind: chaterror.KindConfig, wantKind: chaterror.KindConfig},
-		{name: "generic", kind: chaterror.KindGeneric, wantKind: chaterror.KindGeneric},
-		{name: "empty_normalized_to_generic", kind: "", wantKind: chaterror.KindGeneric},
+		{name: "overloaded", kind: chaterror.KindOverloaded},
+		{name: "rate_limit", kind: chaterror.KindRateLimit},
+		{name: "timeout", kind: chaterror.KindTimeout},
+		{name: "startup_timeout", kind: chaterror.KindStartupTimeout},
+		{name: "auth", kind: chaterror.KindAuth},
+		{name: "config", kind: chaterror.KindConfig},
+		{name: "generic", kind: chaterror.KindGeneric},
 	}
 
 	for _, tt := range tests {
@@ -327,7 +327,7 @@ func TestRecordStreamRetry(t *testing.T) {
 				}
 				assert.Equal(t, "test-provider", labels["provider"])
 				assert.Equal(t, "test-model", labels["model"])
-				assert.Equal(t, tt.wantKind, labels["kind"])
+				assert.Equal(t, tt.kind, labels["kind"])
 			}
 			assert.True(t, found, "stream_retries_total metric not found")
 		})
@@ -515,14 +515,14 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	assert.True(t, found, "stream_retries_total metric not found")
 }
 
-// TestRun_StreamRetry_CancelledDoesNotIncrement pins the invariant
+// TestRun_StreamRetry_CanceledDoesNotIncrement pins the invariant
 // that canceled streams never increment stream_retries_total.
 // chaterror.Classify routes context.Canceled to
 // ClassifiedError{Retryable: false}, so chatretry.Retry returns
 // immediately without calling onRetry. This test guards against
 // future classification changes that could silently introduce
 // misleading retry samples.
-func TestRun_StreamRetry_CancelledDoesNotIncrement(t *testing.T) {
+func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()

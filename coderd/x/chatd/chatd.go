@@ -4813,9 +4813,11 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
-	// Snapshot the original chat model so the goroutine doesn't
-	// race with the model = cuModel reassignment below.
+	// Snapshot the original chat model and logger so the
+	// goroutine doesn't race with the model = cuModel reassignment
+	// or the logger = logger.With(...) enrichment below.
 	titleModel := result.PushSummaryModel
+	titleLogger := logger
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
@@ -4826,7 +4828,7 @@ func (p *Server) runChat(
 			titleModel,
 			providerKeys,
 			generatedTitle,
-			logger,
+			titleLogger,
 		)
 	}()
 

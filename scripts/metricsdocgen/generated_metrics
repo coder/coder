@@ -241,7 +241,7 @@ coderd_chatd_prompt_size_bytes{provider="",model=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider="",model=""} 0
-# HELP coderd_chatd_stream_retries_total Total LLM stream retries, labeled by classified error kind.
+# HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
 coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool execution result.
