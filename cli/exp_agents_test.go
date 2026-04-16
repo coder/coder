@@ -1642,11 +1642,15 @@ func TestExpAgents(t *testing.T) {
 			model := newTestChatViewModel(nil)
 			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
 			model.loading = false
-			require.Contains(t, plainText(model.View()), "mode: code")
+			execView := model.View()
+			require.Contains(t, plainText(execView), "mode: exec")
+			require.Contains(t, execView, model.styles.modeBadgeExec.Render("exec"))
 
 			model.planMode = codersdk.ChatPlanModePlan
-			view := plainText(model.View())
+			planView := model.View()
+			view := plainText(planView)
 			require.Contains(t, view, "mode: plan")
+			require.Contains(t, planView, model.styles.modeBadgePlan.Render("plan"))
 			require.Contains(t, view, "shift+tab: switch mode")
 		})
 

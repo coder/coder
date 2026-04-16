@@ -18,6 +18,8 @@ type tuiStyles struct {
 	searchInput   lipgloss.Style
 	separator     lipgloss.Style
 	helpText      lipgloss.Style
+	modeBadgeExec lipgloss.Style
+	modeBadgePlan lipgloss.Style
 	userMessage   lipgloss.Style
 	assistantMsg  lipgloss.Style
 	reasoning     lipgloss.Style
@@ -51,6 +53,8 @@ func newTUIStyles(renderers ...*lipgloss.Renderer) tuiStyles {
 			BorderBottom(true),
 		separator:     renderer.NewStyle().Faint(true),
 		helpText:      renderer.NewStyle().Faint(true),
+		modeBadgeExec: renderer.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "42"}),
+		modeBadgePlan: renderer.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "130", Dark: "214"}),
 		userMessage:   renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("6")),
 		assistantMsg:  renderer.NewStyle(),
 		reasoning:     renderer.NewStyle().Faint(true).Italic(true),

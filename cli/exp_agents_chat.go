@@ -1303,9 +1303,11 @@ func (m chatViewModel) View() string {
 
 	composerView := m.styles.composerStyle.Width(max(10, viewWidth-2)).Render(m.composer.View())
 
-	modeLabel := "code"
+	modeLabel := "exec"
+	modeBadgeStyle := m.styles.modeBadgeExec
 	if m.planMode == codersdk.ChatPlanModePlan {
 		modeLabel = "plan"
+		modeBadgeStyle = m.styles.modeBadgePlan
 	}
 	longHelpParts := []string{"mode: " + modeLabel, "shift+tab: switch mode", "tab: switch focus", "esc: back"}
 	shortHelpParts := []string{"mode: " + modeLabel, "⇧tab mode", "tab focus", "esc back"}
@@ -1328,12 +1330,39 @@ func (m chatViewModel) View() string {
 	shortHelpParts = append(shortHelpParts, "ctrl+p", "ctrl+d")
 	compactHelpParts = append(compactHelpParts, "^P", "^D")
 
-	helpRow := m.styles.helpText.Render(fitHelpText(
-		viewWidth,
+	renderHelpRow := func(candidates ...string) string {
+		helpText := fitHelpText(viewWidth, candidates...)
+		prefix := ""
+		switch {
+		case strings.HasPrefix(helpText, "mode: "):
+			prefix = "mode: "
+		case strings.HasPrefix(helpText, "mode:"):
+			prefix = "mode:"
+		default:
+			return m.styles.helpText.Render(helpText)
+		}
+
+		labelStart := len(prefix)
+		labelEnd := len(helpText)
+		if idx := strings.IndexAny(helpText[labelStart:], " |│"); idx >= 0 {
+			labelEnd = labelStart + idx
+		}
+		if labelStart == labelEnd {
+			return m.styles.helpText.Render(helpText)
+		}
+
+		rendered := m.styles.helpText.Render(helpText[:labelStart]) + modeBadgeStyle.Render(helpText[labelStart:labelEnd])
+		if labelEnd < len(helpText) {
+			rendered += m.styles.helpText.Render(helpText[labelEnd:])
+		}
+		return rendered
+	}
+
+	helpRow := renderHelpRow(
 		strings.Join(longHelpParts, " | "),
 		strings.Join(shortHelpParts, " │ "),
 		strings.Join(compactHelpParts, " "),
-	))
+	)
 	separator := m.styles.separator.Render(strings.Repeat("─", max(viewWidth, 1)))
 	composerHeight := lipgloss.Height(composerView)
 	statusBarHeight := 0
