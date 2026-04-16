@@ -400,7 +400,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				className="flex flex-1 flex-col"
 				autoComplete="off"
 			>
-				<div className="space-y-5">
+				<div className="space-y-6">
 					{" "}
 					{/* ── Identity row: slug + description side by side ── */}
 					<div className="grid items-start gap-5 sm:grid-cols-2">
@@ -453,7 +453,7 @@ const ServerForm: FC<ServerFormProps> = ({
 						/>
 					</Field>
 					{/* ── Connection row: URL + transport side by side ── */}
-					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<hr className="!my-0 border-0 border-t border-solid border-border" />
 					<div className="grid items-start gap-5 sm:grid-cols-[1fr_auto]">
 						<Field
 							label="Server URL"
@@ -495,7 +495,7 @@ const ServerForm: FC<ServerFormProps> = ({
 						</Field>
 					</div>
 					{/* ── Authentication ── */}
-					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<hr className="!my-0 border-0 border-t border-solid border-border" />
 					<Field
 						label="Authentication"
 						htmlFor={`${formId}-auth`}
@@ -731,7 +731,7 @@ const ServerForm: FC<ServerFormProps> = ({
 						</div>
 					)}
 					{/* ── Availability ── */}
-					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<hr className="!my-0 border-0 border-t border-solid border-border" />
 					<Field
 						label="Availability"
 						htmlFor={`${formId}-availability`}
@@ -765,11 +765,16 @@ const ServerForm: FC<ServerFormProps> = ({
 						</Select>
 					</Field>{" "}
 					{/* ── Tool governance row ── */}
-					<hr className="!my-2 border-0 border-t border-solid border-border" />
-					<div className="flex items-center justify-between">
-						<div>
-							<Label htmlFor={`${formId}-model-intent`}>Model intent</Label>
-							<p className="text-sm text-content-secondary">
+					<hr className="!my-0 border-0 border-t border-solid border-border" />
+					<div className="flex items-start justify-between gap-4">
+						<div className="min-w-0 space-y-1">
+							<Label
+								htmlFor={`${formId}-model-intent`}
+								className="text-sm font-medium text-content-primary"
+							>
+								Model intent
+							</Label>
+							<p className="m-0 text-xs text-content-secondary">
 								Require the model to describe each tool call's purpose in
 								natural language, shown as a status label in the UI.
 							</p>
@@ -835,7 +840,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				</div>
 
 				{/* Footer — pushed to bottom, matches ProviderForm */}
-				<div className="mt-auto pt-6">
+				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
 						{isEditing ? (
