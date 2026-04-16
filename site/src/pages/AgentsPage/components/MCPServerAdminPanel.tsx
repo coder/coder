@@ -452,18 +452,16 @@ const ServerForm: FC<ServerFormProps> = ({
 										/>
 									</Field>
 								</div>
-								<Field label="Icon">
-									<IconField
-										value={form.values.iconURL}
-										onChange={(e) => {
-											form.setFieldValue("iconURL", e.target.value);
-										}}
-										onPickEmoji={(value) => {
-											form.setFieldValue("iconURL", value);
-										}}
-										disabled={isDisabled}
-									/>
-								</Field>
+								<IconField
+									value={form.values.iconURL}
+									onChange={(e) => {
+										form.setFieldValue("iconURL", e.target.value);
+									}}
+									onPickEmoji={(value) => {
+										form.setFieldValue("iconURL", value);
+									}}
+									disabled={isDisabled}
+								/>
 								<div className="grid items-start gap-4 sm:grid-cols-[1fr_auto]">
 									<Field label="Server URL" htmlFor={`${formId}-url`} required>
 										<Input
