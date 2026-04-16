@@ -158,6 +158,19 @@ export const waitForPendingChatSettingsSyncs = async (
 	}
 };
 
+/** @internal Exported for testing. */
+export const filterWorkspaceOptionsByOrganization = (
+	workspaceOptions: readonly TypesGen.Workspace[],
+	organizationID: string | undefined,
+): readonly TypesGen.Workspace[] => {
+	if (!organizationID) {
+		return [];
+	}
+	return workspaceOptions.filter(
+		(workspace) => workspace.organization_id === organizationID,
+	);
+};
+
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -613,6 +626,10 @@ const AgentChatPage: FC = () => {
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspaceOptions = filterWorkspaceOptionsByOrganization(
+		workspacesQuery.data?.workspaces ?? [],
+		chatQuery.data?.organization_id,
+	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
 	// MCP server selection state.
@@ -1382,7 +1399,7 @@ const AgentChatPage: FC = () => {
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
 			isInterruptPending={isInterruptPending}
-			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspaceOptions={workspaceOptions}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={handleWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
