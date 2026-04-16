@@ -35,8 +35,8 @@ function compareFileTreeEntries(
 	if (isFolder(contentA) === isFolder(contentB)) {
 		return keyA.localeCompare(keyB);
 	}
-	// Either A or B is a folder, and the other is a file. Put whichever one
-	// is a folder first.
+	// Either A or B is a folder, and the other is a file. Put whichever one is a
+	// folder first.
 	return isFolder(contentA) ? -1 : 1;
 }
 
@@ -62,8 +62,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	onSelect,
 	Label,
 }) => {
-	const defaultExpanded = activePath ? expandablePaths(activePath) : [];
-
 	const buildTreeItems = (
 		label: string,
 		filename: string,
@@ -107,7 +105,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			return (
 				<FolderNode
 					key={currentPath}
-					defaultOpen={defaultExpanded.includes(currentPath)}
 					label={labelContent}
 					icon={<Icon className="size-3 shrink-0 text-current" />}
 					isHidden={isHiddenFile}
@@ -195,12 +192,10 @@ const FileNode: FC<TreeNodeProps> = ({
 };
 
 interface FolderNodeProps extends TreeNodeProps {
-	defaultOpen: boolean;
 	children: React.ReactNode;
 }
 
 const FolderNode: FC<FolderNodeProps> = ({
-	defaultOpen,
 	label,
 	icon,
 	isHidden,
@@ -211,7 +206,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 	onRename,
 	children,
 }) => {
-	const [open, setOpen] = useState(defaultOpen);
+	const [open, setOpen] = useState(true);
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
