@@ -405,57 +405,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{" "}
-					{/* ── Identity row: slug + description side by side ── */}
-					<div className="grid items-start gap-5 sm:grid-cols-2">
-						{" "}
-						<Field
-							label="Slug"
-							htmlFor={`${formId}-slug`}
-							required
-							description="URL-safe identifier."
-						>
-							<Input
-								id={`${formId}-slug`}
-								className="h-9 text-[13px]"
-								value={form.values.slug}
-								onChange={(e) => {
-									form.setFieldValue("slugTouched", true);
-									form.setFieldValue("slug", e.target.value);
-								}}
-								placeholder="e.g. sentry"
-								disabled={isDisabled}
-							/>
-						</Field>
-						<Field
-							label="Description"
-							htmlFor={`${formId}-desc`}
-							description="Brief summary of what this server provides."
-						>
-							<Input
-								id={`${formId}-desc`}
-								className="h-9 text-[13px]"
-								{...form.getFieldProps("description")}
-								placeholder="Optional description"
-								disabled={isDisabled}
-							/>
-						</Field>
-					</div>
-					<Field
-						label="Icon"
-						description="Pick an emoji or paste an image URL."
-					>
-						<IconField
-							value={form.values.iconURL}
-							onChange={(e) => {
-								form.setFieldValue("iconURL", e.target.value);
-							}}
-							onPickEmoji={(value) => {
-								form.setFieldValue("iconURL", value);
-							}}
-							disabled={isDisabled}
-						/>
-					</Field>
 					{/* ── Connection section ── */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
@@ -468,7 +417,7 @@ const ServerForm: FC<ServerFormProps> = ({
 									Connection
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
-									Server endpoint and transport protocol.
+									Endpoint, identity, and transport settings.
 								</p>
 							</div>
 							{showConnection ? (
@@ -479,13 +428,44 @@ const ServerForm: FC<ServerFormProps> = ({
 						</button>
 						{showConnection && (
 							<div className="space-y-5 pt-3">
-								<div className="grid items-start gap-5 sm:grid-cols-[1fr_auto]">
-									<Field
-										label="Server URL"
-										htmlFor={`${formId}-url`}
-										required
-										description="The endpoint URL for this MCP server."
-									>
+								<div className="grid items-start gap-5 sm:grid-cols-2">
+									<Field label="Slug" htmlFor={`${formId}-slug`} required>
+										<Input
+											id={`${formId}-slug`}
+											className="h-9 text-[13px]"
+											value={form.values.slug}
+											onChange={(e) => {
+												form.setFieldValue("slugTouched", true);
+												form.setFieldValue("slug", e.target.value);
+											}}
+											placeholder="e.g. sentry"
+											disabled={isDisabled}
+										/>
+									</Field>
+									<Field label="Description" htmlFor={`${formId}-desc`}>
+										<Input
+											id={`${formId}-desc`}
+											className="h-9 text-[13px]"
+											{...form.getFieldProps("description")}
+											placeholder="Optional description"
+											disabled={isDisabled}
+										/>
+									</Field>
+								</div>
+								<Field label="Icon">
+									<IconField
+										value={form.values.iconURL}
+										onChange={(e) => {
+											form.setFieldValue("iconURL", e.target.value);
+										}}
+										onPickEmoji={(value) => {
+											form.setFieldValue("iconURL", value);
+										}}
+										disabled={isDisabled}
+									/>
+								</Field>
+								<div className="grid items-start gap-4 sm:grid-cols-[1fr_auto]">
+									<Field label="Server URL" htmlFor={`${formId}-url`} required>
 										<Input
 											id={`${formId}-url`}
 											className="h-9 text-[13px]"
