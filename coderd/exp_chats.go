@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -1500,6 +1501,26 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// pickChatAgentForWatch returns the agent the chat should talk to. It
+// prefers the agent pinned on the chat record (set by chatd when the
+// chat first resolves its workspace agent) and falls back to
+// agentselect.FindChatAgent so devcontainer sub-agents are preferred
+// over the host agent.
+func pickChatAgentForWatch(
+	chat database.Chat,
+	agents []database.WorkspaceAgent,
+) (database.WorkspaceAgent, error) {
+	if chat.AgentID.Valid {
+		for _, a := range agents {
+			if a.ID == chat.AgentID.UUID {
+				return a, nil
+			}
+		}
+		// Pinned agent is no longer in the latest build; fall through.
+	}
+	return agentselect.FindChatAgent(agents)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1532,10 +1553,19 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	selectedAgent, err := pickChatAgentForWatch(chat, agents)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to select workspace agent for chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		selectedAgent,
 		nil,
 		nil,
 		nil,
@@ -1559,7 +1589,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, selectedAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1693,10 +1723,19 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	selectedAgent, err := pickChatAgentForWatch(chat, agents)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to select workspace agent for chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		selectedAgent,
 		nil,
 		nil,
 		nil,
@@ -1720,7 +1759,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, selectedAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",

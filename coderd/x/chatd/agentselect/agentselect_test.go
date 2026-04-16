@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 )
 
 func TestFindChatAgent(t *testing.T) {
@@ -108,36 +108,64 @@ func TestFindChatAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "ChildAgentSuffixIgnored",
+			name: "SubAgentPreferredOverRoot",
 			agents: []database.WorkspaceAgent{
-				newRootAgent("alpha", 1),
-				newChildAgent("child-coderd-chat", 0),
-				newRootAgent("bravo", 0),
+				newRootAgent("host", 0),
+				newChildAgent("devcontainer", 1),
 			},
-			wantIndex: 2,
+			wantIndex: 1,
 		},
 		{
-			name: "ChildAgentSuffixIgnoredWithRootMatch",
+			name: "SubAgentSuffixMatchWins",
 			agents: []database.WorkspaceAgent{
 				newRootAgent("alpha", 0),
-				newChildAgent("child-coderd-chat", 1),
-				newRootAgent("root-coderd-chat", 2),
+				newChildAgent("dev-coderd-chat", 1),
 			},
-			wantIndex: 2,
+			wantIndex: 1,
+		},
+		{
+			name: "RootSuffixMatchWinsOverSubAgent",
+			agents: []database.WorkspaceAgent{
+				newChildAgent("alpha", 1),
+				newRootAgent("dev-coderd-chat", 0),
+			},
+			wantIndex: 1,
+		},
+		{
+			name: "MultipleSubAgentsSortedDeterministically",
+			agents: []database.WorkspaceAgent{
+				newChildAgent("zeta", 0),
+				newChildAgent("alpha", 0),
+			},
+			wantIndex: 1,
+		},
+		{
+			name: "OnlySubAgents",
+			agents: []database.WorkspaceAgent{
+				newChildAgent("zeta", 0),
+				newChildAgent("alpha", 0),
+			},
+			wantIndex: 1,
+		},
+		{
+			name: "MultipleSuffixMatchesAcrossRootAndSubAgentError",
+			agents: []database.WorkspaceAgent{
+				newRootAgent("alpha-coderd-chat", 0),
+				newChildAgent("beta-coderd-chat", 1),
+			},
+			wantErrContains: []string{
+				fmt.Sprintf(
+					"multiple agents match the chat suffix %q",
+					agentselect.Suffix,
+				),
+				"alpha-coderd-chat",
+				"beta-coderd-chat",
+				"only one agent should use this suffix",
+			},
 		},
 		{
 			name:   "EmptyAgentList",
 			agents: []database.WorkspaceAgent{},
-			wantErrContains: []string{
-				"no eligible workspace agents found",
-			},
-		},
-		{
-			name: "OnlyChildAgents",
-			agents: []database.WorkspaceAgent{
-				newChildAgent("alpha", 0),
-				newChildAgent("beta-coderd-chat", 1),
-			},
 			wantErrContains: []string{
 				"no eligible workspace agents found",
 			},
