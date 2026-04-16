@@ -94,8 +94,10 @@ proxy between AI Gateway and AWS Bedrock.
 
 ### GitHub Copilot
 
-Configure a `copilot` provider using the
-[indexed provider format](#multiple-instances-of-the-same-provider).
+GitHub Copilot offers three plans — Individual, Business, and Enterprise —
+each with its own API endpoint. Configure one or more `copilot` providers
+using the [indexed provider format](#multiple-instances-of-the-same-provider)
+depending on which plans your organization uses.
 Copilot providers use OAuth app installations for authentication rather than
 static API keys.
 
