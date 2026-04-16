@@ -1,5 +1,4 @@
 import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { type FC, useState } from "react";
@@ -10,6 +9,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	calcDuration,
 	formatTime,
@@ -99,7 +99,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	return (
-		<div className="rounded-lg border-solid bg-surface-primary">
+		<div className="rounded-lg border border-solid bg-surface-primary">
 			<div className="flex items-center justify-between px-4 py-1.5 relative">
 				<Button
 					disabled={isLoading}

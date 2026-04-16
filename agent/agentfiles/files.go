@@ -14,7 +14,6 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -328,7 +327,7 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
-	resolved, err := api.resolveSymlink(path)
+	resolved, err := api.resolvePath(path)
 	if err != nil {
 		return http.StatusInternalServerError, xerrors.Errorf("resolve symlink %q: %w", path, err)
 	}
@@ -447,7 +446,7 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 		return http.StatusBadRequest, nil, xerrors.New("must specify at least one edit")
 	}
 
-	resolved, err := api.resolveSymlink(path)
+	resolved, err := api.resolvePath(path)
 	if err != nil {
 		return http.StatusInternalServerError, nil, xerrors.Errorf("resolve symlink %q: %w", path, err)
 	}
@@ -554,52 +553,6 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	}
 
 	return 0, nil
-}
-
-// resolveSymlink resolves a path through any symlinks so that
-// subsequent operations (such as atomic rename) target the real
-// file instead of replacing the symlink itself.
-//
-// The filesystem must implement afero.Lstater and afero.LinkReader
-// for resolution to occur; if it does not (e.g. MemMapFs), the
-// path is returned unchanged.
-func (api *API) resolveSymlink(path string) (string, error) {
-	const maxDepth = 10
-
-	lstater, hasLstat := api.filesystem.(afero.Lstater)
-	if !hasLstat {
-		return path, nil
-	}
-	reader, hasReadlink := api.filesystem.(afero.LinkReader)
-	if !hasReadlink {
-		return path, nil
-	}
-
-	for range maxDepth {
-		info, _, err := lstater.LstatIfPossible(path)
-		if err != nil {
-			// If the file does not exist yet (new file write),
-			// there is nothing to resolve.
-			if errors.Is(err, os.ErrNotExist) {
-				return path, nil
-			}
-			return "", err
-		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			return path, nil
-		}
-
-		target, err := reader.ReadlinkIfPossible(path)
-		if err != nil {
-			return "", err
-		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(path), target)
-		}
-		path = target
-	}
-
-	return "", xerrors.Errorf("too many levels of symlinks resolving %q", path)
 }
 
 // fuzzyReplace attempts to find `search` inside `content` and replace it

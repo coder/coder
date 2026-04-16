@@ -35,7 +35,7 @@ func TestChatParam(t *testing.T) {
 		return r, user
 	}
 
-	insertChat := func(t *testing.T, db database.Store, ownerID uuid.UUID) database.Chat {
+	insertChat := func(t *testing.T, db database.Store, ownerID, organizationID uuid.UUID) database.Chat {
 		t.Helper()
 
 		_, err := db.InsertChatProvider(context.Background(), database.InsertChatProviderParams{
@@ -63,6 +63,7 @@ func TestChatParam(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
+			OrganizationID:    organizationID,
 			Status:            database.ChatStatusWaiting,
 			OwnerID:           ownerID,
 			WorkspaceID:       uuid.NullUUID{},
@@ -147,7 +148,8 @@ func TestChatParam(t *testing.T) {
 		})
 
 		r, user := setupAuthentication(db)
-		chat := insertChat(t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		chat := insertChat(t, db, user.ID, org.ID)
 
 		chi.RouteContext(r.Context()).URLParams.Add("chat", chat.ID.String())
 		rw := httptest.NewRecorder()

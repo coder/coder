@@ -128,6 +128,7 @@ const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
@@ -159,6 +160,9 @@ const BehaviorRouteElement = () => {
 				include_default_system_prompt: true,
 				default_system_prompt: "You are Coder, an AI coding assistant...",
 			}}
+			planModeInstructionsData={{
+				plan_mode_instructions: "",
+			}}
 			userPromptData={{ custom_prompt: "" }}
 			desktopEnabledData={{ enable_desktop: false }}
 			workspaceTTLData={{ workspace_ttl_ms: 0 }}
@@ -173,6 +177,9 @@ const BehaviorRouteElement = () => {
 			onSaveSystemPrompt={fn()}
 			isSavingSystemPrompt={false}
 			isSaveSystemPromptError={false}
+			onSavePlanModeInstructions={fn()}
+			isSavingPlanModeInstructions={false}
+			isSavePlanModeInstructionsError={false}
 			onSaveUserPrompt={fn()}
 			isSavingUserPrompt={false}
 			isSaveUserPromptError={false}

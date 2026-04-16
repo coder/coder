@@ -86,6 +86,7 @@ const (
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
 	envAgentAuth      = "CODER_AGENT_AUTH"
+	envAgentName      = "CODER_AGENT_NAME"
 	envURL            = "CODER_URL"
 )
 
@@ -789,6 +790,7 @@ type AgentAuth struct {
 	agentTokenFile string
 	agentURL       url.URL
 	agentAuth      string
+	agentName      string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -821,6 +823,13 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Default:     "token",
 		Value:       serpent.StringOf(&a.agentAuth),
 		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Name",
+		Description: "The name of the agent to authenticate as (only applicable for instance identity).",
+		Flag:        "agent-name",
+		Env:         envAgentName,
+		Value:       serpent.StringOf(&a.agentName),
+		Hidden:      hidden,
 	})
 }
 
@@ -830,6 +839,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 	agentURL := a.agentURL
 	if agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
+	}
+
+	var iiOpts []agentsdk.InstanceIdentityOption
+	if a.agentName != "" {
+		iiOpts = append(iiOpts, agentsdk.WithInstanceIdentityAgentName(a.agentName))
 	}
 
 	switch a.agentAuth {
@@ -850,11 +864,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		}
 		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
 	case "google-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil)), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil, iiOpts...)), nil
 	case "aws-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity(iiOpts...)), nil
 	case "azure-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity(iiOpts...)), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
 	}
@@ -1624,8 +1638,8 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 	return transport, nil
 }
 
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
+// PrintDeprecatedOptions loops through all command options, and
+// prints a warning for usage of deprecated options.
 func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
@@ -1640,11 +1654,22 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 					continue
 				}
 
+				// Verify that this deprecated option was itself
+				// the source of the value. Serpent propagates
+				// ValueSource across all options that share the
+				// same Value pointer, so a new option being set
+				// can make a deprecated sibling appear set when
+				// it was not.
+				source := deprecatedOptionDirectSource(inv, opt)
+				if source == serpent.ValueSourceNone {
+					continue
+				}
+
 				var warnStr strings.Builder
-				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+				_, _ = warnStr.WriteString(translateSource(source, opt))
 				_, _ = warnStr.WriteString(" is deprecated, please use ")
 				for i, use := range opt.UseInstead {
-					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
+					_, _ = warnStr.WriteString(translateSource(source, use))
 					if i != len(opt.UseInstead)-1 {
 						_, _ = warnStr.WriteString(" and ")
 					}
@@ -1659,6 +1684,34 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 			return next(inv)
 		}
 	}
+}
+
+// deprecatedOptionDirectSource returns the source by which a deprecated
+// option was directly set, ignoring any propagated ValueSource from
+// sibling options that share the same Value pointer.
+func deprecatedOptionDirectSource(inv *serpent.Invocation, opt serpent.Option) serpent.ValueSource {
+	if opt.Flag != "" {
+		fl := inv.ParsedFlags().Lookup(opt.Flag)
+		if fl != nil && fl.Changed {
+			return serpent.ValueSourceFlag
+		}
+	}
+
+	if opt.Env != "" {
+		_, exists := inv.Environ.Lookup(opt.Env)
+		if exists {
+			return serpent.ValueSourceEnv
+		}
+	}
+
+	if opt.ValueSource == serpent.ValueSourceYAML {
+		// There is no straightforward way to check whether a
+		// specific YAML key was present in the config file, so
+		// we conservatively assume the deprecated key was used.
+		return serpent.ValueSourceYAML
+	}
+
+	return serpent.ValueSourceNone
 }
 
 // translateSource provides the name of the source of the option, depending on the

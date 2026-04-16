@@ -18,6 +18,7 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
@@ -44,6 +45,8 @@ const AgentCreatePage: FC = () => {
 		workspaceId,
 		model,
 		mcpServerIds,
+		organizationId,
+		planMode,
 	}: CreateChatOptions) => {
 		const modelConfigID = model || nilUUID;
 		const content: TypesGen.ChatInputPart[] = [];
@@ -56,11 +59,13 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 		const createdChat = await createMutation.mutateAsync({
+			organization_id: organizationId,
 			content,
 			workspace_id: workspaceId,
 			model_config_id: modelConfigID,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+			plan_mode: planMode === "plan" ? "plan" : undefined,
 		});
 
 		if (modelConfigID !== nilUUID) {
@@ -68,7 +73,7 @@ const AgentCreatePage: FC = () => {
 		} else {
 			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
-		navigate(`/agents/${createdChat.id}`);
+		navigate(buildAgentChatPath({ chatId: createdChat.id }));
 	};
 
 	return (

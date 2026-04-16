@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -584,6 +586,101 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+export const PlanFirstMenuItem: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toBeInTheDocument();
+	},
+};
+
+export const PlanningIndicator: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+	},
+};
+
+export const PlanFirstCheckedState: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+	},
+};
+
+export const DetailPageWorkspacePicker: Story = {
+	args: {
+		workspaceOptions: [
+			{
+				id: "ws-detail",
+				name: "agents-workspace",
+				owner_name: "mike",
+			},
+		],
+		selectedWorkspaceId: "ws-detail",
+		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-detail",
+			name: "agents-workspace",
+			route: "/@mike/agents-workspace",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
+		expect(
+			canvas.queryByRole("button", {
+				name: "Remove workspace agents-workspace",
+			}),
+		).not.toBeInTheDocument();
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		await userEvent.click(moreOptionsButton);
+		await waitFor(() => {
+			const plusMenuId = moreOptionsButton.getAttribute("aria-controls");
+			if (!plusMenuId) {
+				throw new Error("Expected More options to control a menu dialog.");
+			}
+
+			const plusMenu = canvasElement.ownerDocument.getElementById(plusMenuId);
+			if (!(plusMenu instanceof HTMLElement)) {
+				throw new Error("Expected More options menu dialog to render.");
+			}
+
+			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
+		});
+	},
+};
+
 const confluenceMCP = makeMCPServer({
 	id: "mcp-confluence",
 	display_name: "Confluence Cloud",
@@ -726,5 +823,43 @@ export const ContextNearLimit: Story = {
 				},
 			] as TypesGen.ChatMessagePart[],
 		},
+	},
+};
+
+/** Long workspace name at iPhone SE width — verifies truncation. */
+export const LongWorkspaceNameMobile: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		workspace: {
+			...MockWorkspace,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "test-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The workspace pill button should be present.
+		const pill = await canvas.findByRole("button", {
+			name: /workspace menu/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		// The toolbar row should not cause horizontal overflow.
+		const toolbar = pill.closest(
+			".flex.items-center.justify-between",
+		) as HTMLElement;
+		if (toolbar?.parentElement) {
+			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
+				toolbar.parentElement.clientWidth,
+			);
+		}
 	},
 };

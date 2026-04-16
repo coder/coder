@@ -21,7 +21,7 @@ import {
 type OrganizationAutocompleteProps = {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
-	options: Organization[];
+	options: readonly Organization[];
 	id?: string;
 	required?: boolean;
 };
