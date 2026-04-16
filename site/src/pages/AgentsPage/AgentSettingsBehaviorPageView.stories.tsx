@@ -18,7 +18,6 @@ const baseProps = {
 	planModeInstructionsData: {
 		plan_mode_instructions: "",
 	} as TypesGen.ChatPlanModeInstructionsResponse,
-	exploreModelOverrideData: {} as TypesGen.ChatExploreModelOverrideResponse,
 	userPromptData: { custom_prompt: "" } as TypesGen.UserChatCustomPrompt,
 	desktopEnabledData: {
 		enable_desktop: false,
@@ -28,6 +27,11 @@ const baseProps = {
 	} as TypesGen.ChatWorkspaceTTLResponse,
 	isWorkspaceTTLLoading: false,
 	isWorkspaceTTLLoadError: false,
+	retentionDaysData: {
+		retention_days: 30,
+	} as TypesGen.ChatRetentionDaysResponse,
+	isRetentionDaysLoading: false,
+	isRetentionDaysLoadError: false,
 	modelConfigsData: [] as TypesGen.ChatModelConfig[],
 	modelConfigsError: undefined as unknown,
 	isLoadingModelConfigs: false,
@@ -38,14 +42,14 @@ const baseProps = {
 	isSaveSystemPromptError: false,
 	isSavingPlanModeInstructions: false,
 	isSavePlanModeInstructionsError: false,
-	isSavingExploreModelOverride: false,
-	isSaveExploreModelOverrideError: false,
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
 	isSavingWorkspaceTTL: false,
 	isSaveWorkspaceTTLError: false,
+	isSavingRetentionDays: false,
+	isSaveRetentionDaysError: false,
 };
 
 const meta = {
@@ -55,10 +59,10 @@ const meta = {
 		...baseProps,
 		onSaveSystemPrompt: fn(),
 		onSavePlanModeInstructions: fn(),
-		onSaveExploreModelOverride: fn(),
 		onSaveUserPrompt: fn(),
 		onSaveDesktopEnabled: fn(),
 		onSaveWorkspaceTTL: fn(),
+		onSaveRetentionDays: fn(),
 		onSaveThreshold: fn(),
 		onResetThreshold: fn(),
 	},
@@ -164,105 +168,6 @@ export const AdminWithDefaultToggleOff: Story = {
 		expect(
 			canvas.getByText(/only the additional instructions below are used/i),
 		).toBeInTheDocument();
-	},
-};
-
-export const ExploreModelOverrideSetting: Story = {
-	args: {
-		exploreModelOverrideData: {
-			model_config_id: "model-explore-1",
-		},
-		modelConfigsData: [
-			{
-				id: "model-explore-1",
-				provider: "openai",
-				model: "gpt-4.1-mini",
-				display_name: "GPT 4.1 Mini",
-				enabled: true,
-				is_default: false,
-				context_limit: 1_000_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-			{
-				id: "model-explore-2",
-				provider: "anthropic",
-				model: "claude-sonnet-4",
-				display_name: "Claude Sonnet 4",
-				enabled: true,
-				is_default: false,
-				context_limit: 200_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-		] as TypesGen.ChatModelConfig[],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("Explore subagent model");
-
-		const trigger = canvas.getByRole("combobox", {
-			name: /use chat default|gpt 4.1 mini/i,
-		});
-		await userEvent.click(trigger);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("option", { name: "Claude Sonnet 4" }),
-		);
-
-		const form = trigger.closest("form");
-		if (!(form instanceof HTMLFormElement)) {
-			throw new Error("Expected Explore model selector to live inside a form.");
-		}
-		const saveButton = within(form).getByRole("button", { name: "Save" });
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-		await waitFor(() => {
-			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
-				{ model_config_id: "model-explore-2" },
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const ExploreModelOverrideFallsBackToModelName: Story = {
-	args: {
-		exploreModelOverrideData: {
-			model_config_id: "model-explore-empty-name",
-		},
-		modelConfigsData: [
-			{
-				id: "model-explore-empty-name",
-				provider: "anthropic",
-				model: "claude-sonnet-4-20250514",
-				display_name: "",
-				enabled: true,
-				is_default: false,
-				context_limit: 200_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-		] as TypesGen.ChatModelConfig[],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = await canvas.findByRole("combobox", {
-			name: /claude-sonnet-4-20250514/i,
-		});
-		expect(trigger).toHaveTextContent("claude-sonnet-4-20250514");
-		await userEvent.click(trigger);
-		const body = within(canvasElement.ownerDocument.body);
-		expect(
-			await body.findByRole("option", {
-				name: "claude-sonnet-4-20250514",
-			}),
-		).toBeVisible();
 	},
 };
 

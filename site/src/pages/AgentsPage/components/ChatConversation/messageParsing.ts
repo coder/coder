@@ -20,6 +20,7 @@ const appendText = (current: string, next: string): string => {
 
 const isSubagentToolName = (name: string): boolean =>
 	name === "spawn_agent" ||
+	name === "spawn_explore_agent" ||
 	name === "spawn_computer_use_agent" ||
 	name === "wait_agent" ||
 	name === "message_agent";
@@ -332,6 +333,7 @@ export const buildSubagentTitles = (
 		for (const tool of parsed.tools) {
 			if (
 				tool.name !== "spawn_agent" &&
+				tool.name !== "spawn_explore_agent" &&
 				tool.name !== "spawn_computer_use_agent"
 			) {
 				continue;

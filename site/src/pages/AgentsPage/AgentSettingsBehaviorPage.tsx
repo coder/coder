@@ -2,7 +2,6 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatDesktopEnabled,
-	chatExploreModelOverride,
 	chatModelConfigs,
 	chatPlanModeInstructions,
 	chatRetentionDays,
@@ -11,7 +10,6 @@ import {
 	chatWorkspaceTTL,
 	deleteUserCompactionThreshold,
 	updateChatDesktopEnabled,
-	updateChatExploreModelOverride,
 	updateChatPlanModeInstructions,
 	updateChatRetentionDays,
 	updateChatSystemPrompt,
@@ -40,14 +38,6 @@ const AgentSettingsBehaviorPage: FC = () => {
 	});
 	const savePlanModeInstructionsMutation = useMutation(
 		updateChatPlanModeInstructions(queryClient),
-	);
-
-	const exploreModelOverrideQuery = useQuery({
-		...chatExploreModelOverride(),
-		enabled: permissions.editDeploymentConfig,
-	});
-	const saveExploreModelOverrideMutation = useMutation(
-		updateChatExploreModelOverride(queryClient),
 	);
 
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
@@ -97,7 +87,6 @@ const AgentSettingsBehaviorPage: FC = () => {
 			canSetSystemPrompt={permissions.editDeploymentConfig}
 			systemPromptData={systemPromptQuery.data}
 			planModeInstructionsData={planModeInstructionsQuery.data}
-			exploreModelOverrideData={exploreModelOverrideQuery.data}
 			userPromptData={userPromptQuery.data}
 			desktopEnabledData={desktopEnabledQuery.data}
 			workspaceTTLData={workspaceTTLQuery.data}
@@ -117,9 +106,6 @@ const AgentSettingsBehaviorPage: FC = () => {
 			onSavePlanModeInstructions={savePlanModeInstructionsMutation.mutate}
 			isSavingPlanModeInstructions={savePlanModeInstructionsMutation.isPending}
 			isSavePlanModeInstructionsError={savePlanModeInstructionsMutation.isError}
-			onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
-			isSavingExploreModelOverride={saveExploreModelOverrideMutation.isPending}
-			isSaveExploreModelOverrideError={saveExploreModelOverrideMutation.isError}
 			onSaveUserPrompt={saveUserPromptMutation.mutate}
 			isSavingUserPrompt={saveUserPromptMutation.isPending}
 			isSaveUserPromptError={saveUserPromptMutation.isError}

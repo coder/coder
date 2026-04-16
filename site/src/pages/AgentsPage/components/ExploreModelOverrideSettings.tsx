@@ -25,6 +25,7 @@ interface ExploreModelOverrideSettingsProps {
 	) => void;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	showHeader?: boolean;
 }
 
 const toModelSelectorOption = (
@@ -47,6 +48,7 @@ export const ExploreModelOverrideSettings: FC<
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	showHeader = true,
 }) => {
 	const hasLoadedExploreModelOverride = exploreModelOverrideData !== undefined;
 	const enabledModelOptions = modelConfigs
@@ -87,16 +89,20 @@ export const ExploreModelOverrideSettings: FC<
 
 	return (
 		<form className="space-y-2" onSubmit={form.handleSubmit}>
-			<div className="flex items-center gap-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Explore subagent model
-				</h3>
-				<AdminBadge />
-			</div>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-				Optional deployment-wide model override for read-only Explore subagents
-				spawned with <code>spawn_explore_agent</code>.
-			</p>
+			{showHeader && (
+				<>
+					<div className="flex items-center gap-2">
+						<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+							Explore subagent model
+						</h3>
+						<AdminBadge />
+					</div>
+					<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+						Optional deployment-wide model override for read-only Explore
+						subagents spawned with <code>spawn_explore_agent</code>.
+					</p>
+				</>
+			)}
 			<div className="rounded-lg border border-border bg-surface-primary px-3 py-2">
 				<ModelSelector
 					options={enabledModelOptions}
