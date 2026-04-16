@@ -101,14 +101,15 @@ const OrganizationMembersPage: FC = () => {
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
-				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
 				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
-				addMember={async (user: User) => {
-					await addMemberMutation.mutateAsync(user.id);
+				addMembers={async (users: User[]) => {
+					await Promise.all(
+						users.map((user) => addMemberMutation.mutateAsync(user.id)),
+					);
 					void membersQuery.refetch();
 				}}
 				removeMember={setMemberToDelete}
