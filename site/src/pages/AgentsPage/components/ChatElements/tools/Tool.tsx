@@ -388,7 +388,8 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 
 	// Prefer diffs from the tool result (ed_script path) over
 	// synthetic diffs built from search/replace args.
-	const resultText = typeof result === "string" ? result : "";
+	const resultText =
+		typeof result === "string" ? result : rec ? asString(rec.output) : "";
 	const resultDiffs = parseEditFilesResultDiffs(resultText);
 	let editDiffs: (FileDiffMetadata | null)[];
 	if (resultDiffs.length > 0) {

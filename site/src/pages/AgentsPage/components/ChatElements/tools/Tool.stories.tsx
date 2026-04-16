@@ -890,18 +890,20 @@ export const EditFilesEdScript: Story = {
 				},
 			],
 		},
-		result: [
-			"--- a//home/coder/project/main.go",
-			"+++ b//home/coder/project/main.go",
-			"@@ -1,5 +1,5 @@",
-			" package main",
-			" ",
-			" func main() {",
-			'-\tfmt.Println("hello")',
-			'+\tfmt.Println("goodbye")',
-			" }",
-			"",
-		].join("\n"),
+		result: {
+			output: [
+				"--- a//home/coder/project/main.go",
+				"+++ b//home/coder/project/main.go",
+				"@@ -1,5 +1,5 @@",
+				" package main",
+				" ",
+				" func main() {",
+				'-\tfmt.Println("hello")',
+				'+\tfmt.Println("goodbye")',
+				" }",
+				"",
+			].join("\n"),
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

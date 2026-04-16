@@ -599,7 +599,7 @@ func (api *API) applyEdScript(ctx context.Context, path, origPath, script string
 	// Copy original to temp file in the isolated directory.
 	src, err := os.Open(path)
 	if err != nil {
-		return "", xerrors.Errorf("open %s: %w", path, err)
+		return "", xerrors.Errorf("open %s: %w", origPath, err)
 	}
 	tmpFile, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, origMode)
 	if err != nil {
@@ -610,7 +610,7 @@ func (api *API) applyEdScript(ctx context.Context, path, origPath, script string
 	_ = src.Close()
 	_ = tmpFile.Close()
 	if err != nil {
-		return "", xerrors.Errorf("copy %s to temp: %w", path, err)
+		return "", xerrors.Errorf("copy %s to temp: %w", origPath, err)
 	}
 
 	// Build the ed script: prepend H (verbose errors), append
@@ -631,9 +631,9 @@ func (api *API) applyEdScript(ctx context.Context, path, origPath, script string
 	if err := cmd.Run(); err != nil {
 		output := strings.TrimSpace(combinedOut.String())
 		if output != "" {
-			return "", xerrors.Errorf("ed script failed on %s: %s", path, output)
+			return "", xerrors.Errorf("ed script failed on %s: %s", origPath, output)
 		}
-		return "", xerrors.Errorf("ed script failed on %s: %w", path, err)
+		return "", xerrors.Errorf("ed script failed on %s: %w", origPath, err)
 	}
 
 	// Compute unified diff between original and edited temp.
@@ -664,7 +664,7 @@ func (api *API) applyEdScript(ctx context.Context, path, origPath, script string
 
 	// Rename temp over original (atomic on same filesystem).
 	if err := os.Rename(tmpPath, path); err != nil {
-		return "", xerrors.Errorf("rename temp to %s: %w", path, err)
+		return "", xerrors.Errorf("rename temp to %s: %w", origPath, err)
 	}
 
 	return diffStr, nil

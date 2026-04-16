@@ -1953,6 +1953,38 @@ func TestEditFiles_EdScript(t *testing.T) {
 		// File untouched.
 		require.Equal(t, "content\n", readFile(t, path))
 	})
+
+	t.Run("DuplicateSearchReplacePath", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "dup-sr.txt", "content\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path, Edits: []workspacesdk.FileEdit{{Search: "content", Replace: "a"}}},
+				{Path: path, Edits: []workspacesdk.FileEdit{{Search: "content", Replace: "b"}}},
+			},
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		var got codersdk.Error
+		err := json.NewDecoder(w.Body).Decode(&got)
+		require.NoError(t, err)
+		require.Contains(t, got.Error(), "duplicate file path")
+	})
+
+	t.Run("CrossModeDuplicatePath", func(t *testing.T) {
+		t.Parallel()
+		path := writeFile(t, "dup-cross.txt", "content\n")
+		w := runEditFiles(t, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{Path: path, Edits: []workspacesdk.FileEdit{{Search: "content", Replace: "a"}}},
+				{Path: path, EdScript: "1s/content/b/"},
+			},
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		var got codersdk.Error
+		err := json.NewDecoder(w.Body).Decode(&got)
+		require.NoError(t, err)
+		require.Contains(t, got.Error(), "duplicate file path")
+	})
 }
 
 func TestEditFiles_EdScript_PreservesPermissions(t *testing.T) {
