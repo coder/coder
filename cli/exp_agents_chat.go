@@ -291,9 +291,6 @@ type chatViewModel struct {
 	modelPickerCursor int
 }
 
-// buildAskUserQuestionToolResult is wired up by the overlay submit flow.
-var _ = buildAskUserQuestionToolResult
-
 func modelOverrideUUID(modelOverride *string) *uuid.UUID {
 	if modelOverride == nil {
 		return nil
