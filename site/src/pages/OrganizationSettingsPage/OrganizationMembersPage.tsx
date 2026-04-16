@@ -114,6 +114,9 @@ const OrganizationMembersPage: FC = () => {
 				members={members}
 				membersQuery={membersQuery}
 				addMembers={async (users: User[]) => {
+					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
+					// to add all users in a single request instead of N individual calls.
+					// See branch jakehwll/devex-112-organizations-batch-endpoint.
 					await Promise.all(
 						users.map((user) => addMemberMutation.mutateAsync(user.id)),
 					);
