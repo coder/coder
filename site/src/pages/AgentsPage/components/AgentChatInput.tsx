@@ -193,7 +193,7 @@ const ToolBadge: FC<{
 						)}
 					>
 						{badge.statusIcon}
-						{badge.name}
+						<span className="truncate">{badge.name}</span>
 					</Link>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
@@ -205,7 +205,7 @@ const ToolBadge: FC<{
 		return (
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
-				{badge.name}
+				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
 					<button
 						type="button"

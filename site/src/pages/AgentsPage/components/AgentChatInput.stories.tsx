@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -726,5 +727,43 @@ export const ContextNearLimit: Story = {
 				},
 			] as TypesGen.ChatMessagePart[],
 		},
+	},
+};
+
+/** Long workspace name at iPhone SE width — verifies truncation. */
+export const LongWorkspaceNameMobile: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		workspace: {
+			...MockWorkspace,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "test-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The workspace pill button should be present.
+		const pill = await canvas.findByRole("button", {
+			name: /workspace menu/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		// The toolbar row should not cause horizontal overflow.
+		const toolbar = pill.closest(
+			".flex.items-center.justify-between",
+		) as HTMLElement;
+		if (toolbar?.parentElement) {
+			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
+				toolbar.parentElement.clientWidth,
+			);
+		}
 	},
 };
