@@ -226,17 +226,17 @@ func TestExpAgentsRender(t *testing.T) {
 			assert func(t *testing.T, output string)
 		}{
 			{name: "ShowsHumanizedToolNameAndContext", part: codersdk.ChatMessagePart{ToolName: "github__get_pull_request", Args: rawJSON(`{"owner":"openclaw","repo":"openclaw","pull_number":58036}`)}, width: 60, assert: func(t *testing.T, output string) {
-				require.Contains(t, output, "  ⏳ get pull request")
+				require.Contains(t, output, "  ○ get pull request")
 				require.Contains(t, output, "(openclaw/openclaw)")
 			}},
 			{name: "ShowsTruncatedCommandPreview", part: codersdk.ChatMessagePart{ToolName: "coder_execute_command", Args: rawJSON(`{"command":"ls -la /tmp/with/a/very/long/path"}`)}, width: 30, assert: func(t *testing.T, output string) {
-				require.Contains(t, output, "⏳ execute command")
+				require.Contains(t, output, "○ execute command")
 				require.Contains(t, output, `"ls -la`)
 				require.Contains(t, output, "…")
 			}},
 			{name: "ContextCompactionRendersBanner", part: codersdk.ChatMessagePart{ToolName: contextCompactionToolName}, width: 40, assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "🗜️  Context compacted")
-				require.NotContains(t, output, "⏳")
+				require.NotContains(t, output, pendingToolIcon)
 			}},
 		} {
 			tt := tt
@@ -415,7 +415,7 @@ func TestExpAgentsRender(t *testing.T) {
 				name:              "Reasoning",
 				block:             chatBlock{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "line1\nline2\nline3\nline4"},
 				width:             40,
-				collapsedWant:     []string{"💭 line1"},
+				collapsedWant:     []string{"thinking: line1"},
 				collapsedLines:    3,
 				collapsedLastLine: "line3…",
 				expandedWant:      []string{"line4"},
@@ -426,9 +426,9 @@ func TestExpAgentsRender(t *testing.T) {
 				name:           "ToolCall",
 				block:          chatBlock{kind: blockToolCall, toolName: "read_file", args: `{"path":"very/long/path.txt","recursive":true}`},
 				width:          60,
-				collapsedWant:  []string{"⏳ read file", "(very/long/path.txt)"},
+				collapsedWant:  []string{"○ read file", "(very/long/path.txt)"},
 				collapsedAvoid: []string{"\n", "args:"},
-				expandedWant:   []string{"⏳ read file", "args:", `{"path":"very/long/path.txt","recursive":true}`, "\n"},
+				expandedWant:   []string{"○ read file", "args:", `{"path":"very/long/path.txt","recursive":true}`, "\n"},
 			},
 			{
 				name:           "ToolResult",
@@ -442,7 +442,7 @@ func TestExpAgentsRender(t *testing.T) {
 				name:          "CollapsedToolCallShowsRunCount",
 				block:         chatBlock{kind: blockToolCall, toolName: "github__get_pull_request", args: `{"owner":"openclaw","repo":"openclaw"}`, collapsedCount: 3},
 				width:         80,
-				collapsedWant: []string{"⏳ get pull request..."},
+				collapsedWant: []string{"○ get pull request..."},
 			},
 			{
 				name:          "CollapsedToolResultShowsRunCount",
@@ -486,12 +486,21 @@ func TestExpAgentsRender(t *testing.T) {
 
 			output := plainText(renderChatBlocks(styles, blocks, -1, map[int]bool{}, true, 60))
 			require.Contains(t, output, "You: hello")
-			require.Contains(t, output, "💭 thinking")
+			require.Contains(t, output, "thinking: thinking")
 			require.Contains(t, output, "✓ read file")
 			require.Contains(t, output, "done")
-			require.Less(t, strings.Index(output, "You: hello"), strings.Index(output, "💭 thinking"))
-			require.Less(t, strings.Index(output, "💭 thinking"), strings.Index(output, "✓ read file"))
+			require.Less(t, strings.Index(output, "You: hello"), strings.Index(output, "thinking: thinking"))
+			require.Less(t, strings.Index(output, "thinking: thinking"), strings.Index(output, "✓ read file"))
 			require.Less(t, strings.Index(output, "✓ read file"), strings.LastIndex(output, "done"))
+		})
+
+		t.Run("SelectedBlockUsesLeftBorderIndicator", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "assistant reply"}}
+
+			output := plainText(renderChatBlocks(styles, blocks, 0, map[int]bool{}, false, 60))
+			require.Contains(t, output, "│ assistant reply")
 		})
 
 		t.Run("CollapsesConsecutiveSameNameToolResults", func(t *testing.T) {

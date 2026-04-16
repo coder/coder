@@ -40,14 +40,18 @@ func newTUIStyles(renderers ...*lipgloss.Renderer) tuiStyles {
 	}
 
 	return tuiStyles{
-		title:        renderer.NewStyle().Bold(true),
-		subtitle:     renderer.NewStyle().Faint(true),
-		statusBar:    renderer.NewStyle(),
-		statusBadge:  renderer.NewStyle().Padding(0, 1),
-		selectedItem: renderer.NewStyle().Bold(true),
-		normalItem:   renderer.NewStyle(),
-		dimmedText:   renderer.NewStyle().Faint(true),
-		errorText:    renderer.NewStyle().Foreground(lipgloss.Color("1")),
+		title:       renderer.NewStyle().Bold(true),
+		subtitle:    renderer.NewStyle().Faint(true),
+		statusBar:   renderer.NewStyle(),
+		statusBadge: renderer.NewStyle().Padding(0, 1),
+		selectedItem: renderer.NewStyle().
+			BorderLeft(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.AdaptiveColor{Light: "63", Dark: "63"}).
+			PaddingLeft(1),
+		normalItem: renderer.NewStyle(),
+		dimmedText: renderer.NewStyle().Faint(true),
+		errorText:  renderer.NewStyle().Foreground(lipgloss.Color("1")),
 		searchInput: renderer.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderBottom(true),

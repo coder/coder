@@ -527,6 +527,13 @@ func (m chatViewModel) spinnerLabel() string {
 	return "Thinking..."
 }
 
+// spinnerVisibleInViewport reports whether the transient spinner line is
+// currently visible. When it is offscreen we can skip spinner-only transcript
+// refreshes and avoid scroll artifacts while preserving the next visible frame.
+func (m chatViewModel) spinnerVisibleInViewport() bool {
+	return m.viewport.AtBottom()
+}
+
 func (m chatViewModel) startSpinnerIfNeeded(wasSpinnerActive spinnerState, cmd tea.Cmd) tea.Cmd {
 	if bool(wasSpinnerActive) || !m.spinnerActive() {
 		return cmd
@@ -877,7 +884,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		m.syncViewportContent()
+		if m.spinnerVisibleInViewport() {
+			m.syncViewportContent()
+		}
 		return m, cmd
 
 	case tea.KeyMsg:

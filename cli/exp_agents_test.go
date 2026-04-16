@@ -305,6 +305,35 @@ func TestExpAgents(t *testing.T) {
 				assertReturnToList(t, model)
 			})
 		})
+		t.Run("ChatViewOmitsListHeaderAndLoadingSpinner", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+			model = mustTUIModel(t, updatedModel, cmd)
+			model.currentView = viewChat
+			model.list.loading = true
+			model.chat.loading = false
+
+			chat := testChat(codersdk.ChatStatusCompleted)
+			chat.Title = "Existing chat"
+			model.chat.chat = &chat
+			model.chat.chatStatus = chat.Status
+			model.chat.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: "assistant reply",
+				}),
+			}
+			model.chat.rebuildBlocks()
+
+			view := plainText(model.View())
+			firstLine, _, _ := strings.Cut(view, "\n")
+			require.Contains(t, firstLine, "Existing chat")
+			require.NotContains(t, view, "Coder Chats")
+			require.NotContains(t, view, "Loading chats")
+		})
+
 		t.Run("ReopensModelPickerAfterClosing", func(t *testing.T) {
 			t.Parallel()
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
@@ -2241,6 +2270,34 @@ func TestExpAgents(t *testing.T) {
 				})
 			}
 		})
+	})
+
+	t.Run("SpinnerTickOnlyRefreshesWhenVisible", func(t *testing.T) {
+		t.Parallel()
+
+		model := newTestChatViewModel(nil)
+		model = mustChatViewUpdate(t, model, tea.WindowSizeMsg{Width: 80, Height: 10})
+		chat := testChat(codersdk.ChatStatusRunning)
+		model.chat = &chat
+		model.chatStatus = chat.Status
+		model.messages = overflowingMessages(18)
+		model.rebuildBlocks()
+
+		visibleTranscript := model.lastTranscript
+		updated, cmd := model.Update(model.spinner.Tick())
+		require.NotNil(t, cmd)
+		require.NotEqual(t, visibleTranscript, updated.lastTranscript)
+
+		updated.viewport.LineUp(3)
+		updated.autoFollow = false
+		require.False(t, updated.viewport.AtBottom())
+
+		hiddenTranscript := updated.lastTranscript
+		hiddenYOffset := updated.viewport.YOffset
+		updated, cmd = updated.Update(updated.spinner.Tick())
+		require.NotNil(t, cmd)
+		require.Equal(t, hiddenTranscript, updated.lastTranscript)
+		require.Equal(t, hiddenYOffset, updated.viewport.YOffset)
 	})
 
 	t.Run("AskUserQuestion", func(t *testing.T) {

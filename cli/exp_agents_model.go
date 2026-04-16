@@ -479,11 +479,14 @@ func (m expChatsTUIModel) View() string {
 	if m.quitting {
 		return ""
 	}
-	body := m.list.View()
+
+	var base string
 	if m.currentView == viewChat {
-		body = m.chat.View()
+		base = m.chat.View()
+	} else {
+		base = m.styles.title.Render("Coder Chats") + "\n" + m.list.View()
 	}
-	base := m.styles.title.Render("Coder Chats") + "\n" + body
+
 	switch m.overlay {
 	case overlayAskUserQuestion:
 		if m.chat.pendingAskUserQuestion != nil {

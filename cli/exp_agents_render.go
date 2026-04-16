@@ -21,6 +21,8 @@ const (
 	toolBlockIndent           = "  "
 	toolDetailIndent          = "    "
 	toolSummaryFallbackWidth  = 48
+	pendingToolIcon           = "○"
+	reasoningPrefix           = "thinking: "
 )
 
 func compactTranscriptJSON(raw json.RawMessage) string {
@@ -247,7 +249,7 @@ func renderToolCallBlock(styles tuiStyles, block chatBlock, width int) string {
 	return renderToolLine(
 		styles,
 		styles.toolPending,
-		"⏳",
+		pendingToolIcon,
 		toolDisplayLabel(block.toolName, block.kind, block.collapsedCount),
 		summarizeToolContent(block.toolName, block.args),
 		width,
@@ -733,7 +735,7 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 			return wrapPreservingNewlines(sanitizeTerminalRenderableText(block.text), width)
 		}
 	case blockReasoning:
-		content := wrapPreservingNewlines("💭 "+sanitizeTerminalRenderableText(block.text), width)
+		content := wrapPreservingNewlines(reasoningPrefix+sanitizeTerminalRenderableText(block.text), width)
 		if !expanded {
 			content = clampLines(content, 3)
 		}
@@ -742,7 +744,7 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, re
 		if !expanded {
 			return renderToolCallBlock(styles, block, width)
 		}
-		return renderExpandedToolBlock(styles, styles.toolPending, "⏳", block.toolName, block.args, "", width)
+		return renderExpandedToolBlock(styles, styles.toolPending, pendingToolIcon, block.toolName, block.args, "", width)
 	case blockToolResult:
 		if !expanded {
 			return renderToolResultBlock(styles, block, width)
