@@ -33,7 +33,7 @@ const toModelSelectorOption = (
 	id: modelConfig.id,
 	provider: modelConfig.provider,
 	model: modelConfig.model,
-	displayName: modelConfig.display_name,
+	displayName: modelConfig.display_name.trim() || modelConfig.model,
 	contextLimit: modelConfig.context_limit,
 });
 
