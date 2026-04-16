@@ -1,7 +1,6 @@
 import { LoaderIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -59,26 +58,18 @@ export const ProposePlanTool: React.FC<{
 	const effectiveError = isError || Boolean(fetchError);
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
-	const [isSubmitting, setIsSubmitting] = useState(false);
+	const implementPlanMutation = useMutation({
+		mutationFn: async () => {
+			if (!onImplementPlan) return;
+			await onImplementPlan();
+		},
+	});
 	const canImplementPlan =
 		status === "completed" &&
 		!effectiveError &&
 		!fetchLoading &&
 		hasDisplayContent &&
 		Boolean(onImplementPlan);
-
-	const handleImplementPlanClick = async () => {
-		if (!onImplementPlan || isSubmitting) {
-			return;
-		}
-		setIsSubmitting(true);
-		try {
-			await onImplementPlan();
-			setIsSubmitting(false);
-		} catch {
-			setIsSubmitting(false);
-		}
-	};
 
 	return (
 		<div className="w-full">
@@ -116,17 +107,21 @@ export const ProposePlanTool: React.FC<{
 										variant="subtle"
 										size="sm"
 										onClick={() => {
-											void handleImplementPlanClick();
+											implementPlanMutation.mutate();
 										}}
-										disabled={isSubmitting}
+										disabled={
+											!canImplementPlan || implementPlanMutation.isPending
+										}
 										aria-label="Implement plan"
 									>
-										{isSubmitting ? (
+										{implementPlanMutation.isPending ? (
 											<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
 										) : (
 											<PlayIcon />
 										)}
-										{isSubmitting ? "Implementing..." : "Implement"}
+										{implementPlanMutation.isPending
+											? "Implementing..."
+											: "Implement"}
 									</Button>
 								</TooltipTrigger>
 								<TooltipContent>Implement plan</TooltipContent>
