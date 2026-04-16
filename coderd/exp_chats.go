@@ -160,31 +160,58 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	// The encoder is only written from the SubscribeWithErr callback,
-	// which delivers serially per subscription. Do not add a second
-	// write path without introducing synchronization.
+	// The encoder is written from both subscription callbacks, so we
+	// serialize with a mutex. SubscribeWithErr callbacks deliver
+	// serially per subscription, but the owner channel and the
+	// watchlist channel are independent subscriptions that can fire
+	// concurrently.
 	encoder := json.NewEncoder(wsNetConn)
+	var encoderMu sync.Mutex
+	writeWatchEvent := func(ctx context.Context, payload codersdk.ChatWatchEvent) {
+		encoderMu.Lock()
+		encodeErr := encoder.Encode(payload)
+		encoderMu.Unlock()
+		if encodeErr != nil {
+			logger.Debug(ctx, "failed to send chat watch event", slog.Error(encodeErr))
+			cancel()
+		}
+	}
 
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
-		pubsub.HandleChatWatchEvent(
-			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
-				if err != nil {
-					logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
-					return
-				}
-				if err := encoder.Encode(payload); err != nil {
-					logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
-					cancel()
-					return
-				}
-			},
-		))
+	ownerCallback := pubsub.HandleChatWatchEvent(
+		func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
+			if err != nil {
+				logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
+				return
+			}
+			writeWatchEvent(ctx, payload)
+		},
+	)
+	cancelOwner, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID), ownerCallback)
 	if err != nil {
 		logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
 		return
 	}
-	defer cancelSubscribe()
+	defer cancelOwner()
+
+	// Watchlist channel carries dual-published lifecycle events for
+	// chats the viewer can see via ACL sharing but does not own.
+	watchlistCallback := pubsub.HandleChatWatchEvent(
+		func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
+			if err != nil {
+				logger.Error(ctx, "chat watchlist event subscription error", slog.Error(err))
+				return
+			}
+			writeWatchEvent(ctx, payload)
+		},
+	)
+	cancelWatchlist, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchlistChannel(apiKey.UserID), watchlistCallback)
+	if err != nil {
+		logger.Error(ctx, "failed to subscribe to chat watchlist events", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
+		return
+	}
+	defer cancelWatchlist()
 
 	<-ctx.Done()
 }
@@ -2433,6 +2460,45 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// messages are actively streaming.
 	api.markChatAsRead(ctx, chatID)
 	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+
+	// ACL invalidation: any successful PATCH/DELETE on the chat ACL
+	// or a deployment-level kill-switch flip publishes on these
+	// channels. When we receive one we re-run the authz check on the
+	// chat through dbauthz and close the socket with 4403 if it now
+	// fails. This is a pubsub-driven invalidation, not a timer: the
+	// invariant is that authz is re-checked exactly when an ACL
+	// invalidation is received. Do not add a polling fallback.
+	if api.Pubsub != nil {
+		aclInvalidated := func(_ context.Context, _ []byte, subErr error) {
+			if subErr != nil {
+				logger.Warn(ctx, "chat acl invalidation subscription error", slog.Error(subErr))
+				return
+			}
+			// Re-authz through the request context so the caller's
+			// actor is used. A denied read means access was revoked.
+			if _, authErr := api.Database.GetChatByID(ctx, chatID); authErr != nil {
+				logger.Debug(ctx, "chat access revoked, closing stream", slog.Error(authErr))
+				// 4403 is a private close code the frontend maps to
+				// "permission revoked". Must match site/src.
+				_ = conn.Close(websocket.StatusCode(4403), "permission revoked")
+				cancel()
+			}
+		}
+		cancelACL, err := api.Pubsub.SubscribeWithErr(
+			pubsub.ChatACLInvalidationChannel(chatID), aclInvalidated)
+		if err != nil {
+			logger.Warn(ctx, "failed to subscribe to chat acl invalidation", slog.Error(err))
+		} else {
+			defer cancelACL()
+		}
+		cancelBroadcast, err := api.Pubsub.SubscribeWithErr(
+			pubsub.ChatACLBroadcastChannel, aclInvalidated)
+		if err != nil {
+			logger.Warn(ctx, "failed to subscribe to chat acl broadcast", slog.Error(err))
+		} else {
+			defer cancelBroadcast()
+		}
+	}
 
 	encoder := json.NewEncoder(wsNetConn)
 

@@ -119,8 +119,11 @@ type sqlcQuerier interface {
 	// Clears every chat ACL in an organization, optionally preserving
 	// chats owned by service accounts so the 'service_accounts' org
 	// mode can leave shared bots untouched while clearing human-owned
-	// shares. Mirrors DeleteWorkspaceACLsByOrganization.
-	DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error
+	// shares. Returns the ids of affected chats so callers can publish
+	// per-chat ACL invalidation messages after the transaction commits.
+	// Mirrors DeleteWorkspaceACLsByOrganization but with the RETURNING id
+	// addition that chats specifically need for stream invalidation.
+	DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) ([]uuid.UUID, error)
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
 	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error

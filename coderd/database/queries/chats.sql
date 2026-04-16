@@ -252,11 +252,14 @@ SET
 WHERE
     id = @id::uuid;
 
--- name: DeleteChatACLsByOrganization :exec
+-- name: DeleteChatACLsByOrganization :many
 -- Clears every chat ACL in an organization, optionally preserving
 -- chats owned by service accounts so the 'service_accounts' org
 -- mode can leave shared bots untouched while clearing human-owned
--- shares. Mirrors DeleteWorkspaceACLsByOrganization.
+-- shares. Returns the ids of affected chats so callers can publish
+-- per-chat ACL invalidation messages after the transaction commits.
+-- Mirrors DeleteWorkspaceACLsByOrganization but with the RETURNING id
+-- addition that chats specifically need for stream invalidation.
 UPDATE
     chats
 SET
@@ -269,7 +272,8 @@ WHERE
         OR owner_id NOT IN (
             SELECT id FROM users WHERE is_service_account = true
         )
-    );
+    )
+RETURNING id;
 
 -- name: GetChatMessageByID :one
 SELECT

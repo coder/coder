@@ -5243,7 +5243,7 @@ func (q *sqlQuerier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
-const deleteChatACLsByOrganization = `-- name: DeleteChatACLsByOrganization :exec
+const deleteChatACLsByOrganization = `-- name: DeleteChatACLsByOrganization :many
 UPDATE
     chats
 SET
@@ -5257,6 +5257,7 @@ WHERE
             SELECT id FROM users WHERE is_service_account = true
         )
     )
+RETURNING id
 `
 
 type DeleteChatACLsByOrganizationParams struct {
@@ -5267,10 +5268,31 @@ type DeleteChatACLsByOrganizationParams struct {
 // Clears every chat ACL in an organization, optionally preserving
 // chats owned by service accounts so the 'service_accounts' org
 // mode can leave shared bots untouched while clearing human-owned
-// shares. Mirrors DeleteWorkspaceACLsByOrganization.
-func (q *sqlQuerier) DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatACLsByOrganization, arg.OrganizationID, arg.ExcludeServiceAccounts)
-	return err
+// shares. Returns the ids of affected chats so callers can publish
+// per-chat ACL invalidation messages after the transaction commits.
+// Mirrors DeleteWorkspaceACLsByOrganization but with the RETURNING id
+// addition that chats specifically need for stream invalidation.
+func (q *sqlQuerier) DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, deleteChatACLsByOrganization, arg.OrganizationID, arg.ExcludeServiceAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec

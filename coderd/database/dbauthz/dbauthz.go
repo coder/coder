@@ -1903,12 +1903,12 @@ func (q *querier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteChatACLByID)(ctx, id)
 }
 
-func (q *querier) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
+func (q *querier) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) ([]uuid.UUID, error) {
 	// Reconciling all chat ACLs in an organization is a system
 	// operation: it runs from the org settings handler under an
 	// AsSystemRestricted context, same as the workspace equivalent.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.DeleteChatACLsByOrganization(ctx, arg)
 }
