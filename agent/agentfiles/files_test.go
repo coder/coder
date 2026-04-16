@@ -1614,6 +1614,65 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	require.Equal(t, "goodbye world", string(data))
 }
 
+func TestEditFiles_EdScript_FollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("red"); err != nil {
+		t.Skip("red (restricted ed) not available, install ed package")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil, agentexec.DefaultExecer)
+
+	realPath := filepath.Join(dir, "real.txt")
+	require.NoError(t, os.WriteFile(realPath, []byte("hello world\n"), 0o600))
+
+	linkPath := filepath.Join(dir, "link.txt")
+	require.NoError(t, os.Symlink(realPath, linkPath))
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	body := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path:     linkPath,
+			EdScript: "1s/hello/goodbye/",
+		}},
+	}
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(body))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Symlink preserved.
+	fi, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Mode()&os.ModeSymlink, "symlink was replaced")
+
+	// Real file has the edited content.
+	data, err := os.ReadFile(realPath)
+	require.NoError(t, err)
+	require.Equal(t, "goodbye world\n", string(data))
+
+	// Response uses the original (symlink) path, not the resolved path.
+	var resp workspacesdk.FileEditResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp.Diffs, 1)
+	require.Equal(t, linkPath, resp.Diffs[0].Path)
+	require.Contains(t, resp.Diffs[0].Diff, "-hello world")
+	require.Contains(t, resp.Diffs[0].Diff, "+goodbye world")
+}
+
 func TestEditFiles_EdScript(t *testing.T) {
 	t.Parallel()
 

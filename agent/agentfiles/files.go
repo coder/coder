@@ -550,7 +550,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		diffs = append(diffs, workspacesdk.FileEditDiff{
-			Path: entry.path,
+			Path: entry.origPath,
 			Diff: diff,
 		})
 	}
