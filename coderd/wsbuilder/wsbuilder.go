@@ -262,6 +262,11 @@ func (b Builder) BuildMetrics(m *Metrics) Builder {
 	return b
 }
 
+// ErrParameterValidation is a sentinel indicating that a workspace
+// build failed because a template-version parameter could not be
+// validated (missing required value, immutable change, etc.).
+var ErrParameterValidation = xerrors.New("parameter validation failed")
+
 type BuildError struct {
 	// Status is a suitable HTTP status code
 	Status  int
@@ -929,7 +934,7 @@ func (b *Builder) getClassicParameters() (names, values []string, err error) {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), xerrors.Errorf("%w: %w", ErrParameterValidation, err)}
 		}
 
 		names = append(names, templateVersionParameter.Name)

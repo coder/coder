@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -47,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
@@ -2643,6 +2645,25 @@ func (api *API) chatStartWorkspace(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
 
+	updatedToActiveVersion := false
+	if req.Transition == codersdk.WorkspaceTransitionStart {
+		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
+		}
+
+		templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+		if templateAccessControl.RequireActiveVersion {
+			latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
+			}
+
+			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
+			req.TemplateVersionID = template.ActiveVersionID
+		}
+	}
+
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
@@ -2662,10 +2683,25 @@ func (api *API) chatStartWorkspace(
 		audit.WorkspaceBuildBaggage{},
 	)
 	if err != nil {
+		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI.",
+				Detail:  err.Error(),
+			})
+		}
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
 
 	return apiBuild, nil
+}
+
+func isChatStartWorkspaceManualUpdateRequiredError(err error) bool {
+	var diagnosticErr *dynamicparameters.DiagnosticError
+	if errors.As(err, &diagnosticErr) {
+		return true
+	}
+
+	return errors.Is(err, wsbuilder.ErrParameterValidation)
 }
 
 func chatWorkspaceAuditStatus(err error) int {
