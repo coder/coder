@@ -32,45 +32,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-// AgentConnectionMetrics holds Prometheus metrics for the agent
-// connection monitor. It is nil when Prometheus is not enabled.
-type AgentConnectionMetrics struct {
-	FirstConnectionDuration *prometheus.HistogramVec
-}
-
-// NewAgentConnectionMetrics creates and registers agent connection
-// metrics.
-func NewAgentConnectionMetrics(reg prometheus.Registerer) *AgentConnectionMetrics {
-	m := &AgentConnectionMetrics{
-		FirstConnectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: "coderd",
-			Subsystem: "agents",
-			Name:      "first_connection_seconds",
-			Help:      "Duration from agent creation to first connection in seconds.",
-			Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
-		}, []string{"template_name", "agent_name", "username", "workspace_name"}),
-	}
-	reg.MustRegister(m.FirstConnectionDuration)
-	return m
-}
-
-// EmitAgentFirstConnection records the duration from agent creation
-// to first connection.
-func (m *AgentConnectionMetrics) EmitAgentFirstConnection(
-	duration time.Duration,
-	templateName string,
-	agentName string,
-	username string,
-	workspaceName string,
-) {
-	m.FirstConnectionDuration.WithLabelValues(
-		templateName,
-		agentName,
-		username,
-		workspaceName,
-	).Observe(duration.Seconds())
-}
-
 // @Summary Workspace agent RPC API
 // @ID workspace-agent-rpc-api
 // @Security CoderSessionToken
@@ -298,7 +259,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		replicaID:         api.ID,
 		updater:           api,
 		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
-		metrics:           api.agentConnectionMetrics,
+		metrics:           api.workspaceAgentRPCMetrics,
 		logger: api.Logger.With(
 			slog.F("workspace_id", workspaceBuild.WorkspaceID),
 			slog.F("agent_id", workspaceAgent.ID),
@@ -332,7 +293,7 @@ type agentConnectionMonitor struct {
 	updater        workspaceUpdater
 	logger         slog.Logger
 	pingPeriod     time.Duration
-	metrics        *AgentConnectionMetrics
+	metrics        *WorkspaceAgentRPCMetrics
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -400,23 +361,11 @@ func (m *agentConnectionMonitor) init() {
 		}
 		if m.metrics != nil {
 			duration := now.Sub(m.workspaceAgent.CreatedAt)
-			if duration < 0 {
-				m.logger.Warn(context.Background(),
-					"negative agent first connection duration, possible clock skew",
-					slog.F("agent_id", m.workspaceAgent.ID),
-					slog.F("created_at", m.workspaceAgent.CreatedAt),
-					slog.F("first_connected_at", now),
-					slog.F("duration", duration),
-				)
-			} else {
-				m.metrics.EmitAgentFirstConnection(
-					duration,
-					m.workspace.TemplateName,
-					m.workspaceAgent.Name,
-					m.workspace.OwnerUsername,
-					m.workspace.Name,
-				)
-			}
+			m.metrics.ObserveAgentFirstConnection(
+				duration,
+				m.workspace.TemplateName,
+				m.workspaceAgent.Name,
+			)
 		}
 	}
 	m.lastConnectedAt = sql.NullTime{
@@ -557,4 +506,51 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 		return xerrors.New("build is outdated")
 	}
 	return nil
+}
+
+// WorkspaceAgentRPCMetrics holds Prometheus metrics for the agent
+// connection monitor. It is nil when Prometheus is not enabled.
+type WorkspaceAgentRPCMetrics struct {
+	logger                  slog.Logger
+	FirstConnectionDuration *prometheus.HistogramVec
+}
+
+// NewWorkspaceAgentRPCMetrics creates and registers agent connection
+// metrics.
+func NewWorkspaceAgentRPCMetrics(reg prometheus.Registerer, logger slog.Logger) *WorkspaceAgentRPCMetrics {
+	m := &WorkspaceAgentRPCMetrics{
+		logger: logger,
+		FirstConnectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Subsystem: "agents",
+			Name:      "first_connection_seconds",
+			Help:      "Duration from agent creation to first connection in seconds.",
+			Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
+		}, []string{"template_name", "agent_name"}),
+	}
+	reg.MustRegister(m.FirstConnectionDuration)
+	return m
+}
+
+// ObserveAgentFirstConnection records the duration from agent creation
+// to first connection. Negative durations are logged as warnings and
+// not recorded, since they indicate clock skew.
+func (m *WorkspaceAgentRPCMetrics) ObserveAgentFirstConnection(
+	duration time.Duration,
+	templateName string,
+	agentName string,
+) {
+	if duration < 0 {
+		m.logger.Warn(context.Background(),
+			"negative agent first connection duration, possible clock skew",
+			slog.F("template_name", templateName),
+			slog.F("agent_name", agentName),
+			slog.F("duration", duration),
+		)
+		return
+	}
+	m.FirstConnectionDuration.WithLabelValues(
+		templateName,
+		agentName,
+	).Observe(duration.Seconds())
 }
