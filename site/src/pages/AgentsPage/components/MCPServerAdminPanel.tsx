@@ -163,8 +163,10 @@ const ServerList: FC<ServerListProps> = ({
 		/>
 
 		{servers.length === 0 ? (
-			<div className="rounded-lg border border-dashed border-border bg-surface-primary p-6 text-center text-[13px] text-content-secondary">
-				No MCP servers configured yet. Add a server to get started.
+			<div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+				<p className="m-0 text-sm text-content-secondary">
+					No MCP servers configured yet.
+				</p>
 			</div>
 		) : (
 			<div>
@@ -873,6 +875,7 @@ const ServerForm: FC<ServerFormProps> = ({
 // ── Main Panel ─────────────────────────────────────────────────
 
 interface MCPServerAdminPanelProps {
+	className?: string;
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
@@ -898,6 +901,7 @@ interface MCPServerAdminPanelProps {
 }
 
 export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
+	className,
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
@@ -970,32 +974,41 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	};
 
 	if (isLoadingServers) {
-		return <Spinner loading className="h-4 w-4" />;
+		return (
+			<div className="flex items-center gap-1.5 text-xs text-content-secondary">
+				<Spinner className="h-4 w-4" loading />
+				Loading
+			</div>
+		);
 	}
 
 	return (
-		<div className="flex min-h-full flex-col space-y-3">
-			{!isFormView ? (
-				<ServerList
-					servers={servers}
-					onSelect={(server) => setSearchParams({ server: server.id })}
-					onAdd={() => setSearchParams({ server: "new" })}
-					sectionLabel={sectionLabel}
-					sectionDescription={sectionDescription}
-					sectionBadge={sectionBadge}
-				/>
-			) : (
-				<ServerForm
-					key={serverId}
-					server={isCreating ? null : editingServer}
-					isSaving={isCreatingServer || isUpdatingServer}
-					isDeleting={isDeletingServer}
-					onSave={handleSave}
-					onDelete={handleDelete}
-					onBack={() => setSearchParams({})}
-				/>
-			)}
+		<div className={cn("flex min-h-full flex-col", className)}>
+			{/* Content */}
+			<div className="flex flex-1 flex-col gap-8">
+				{!isFormView ? (
+					<ServerList
+						servers={servers}
+						onSelect={(server) => setSearchParams({ server: server.id })}
+						onAdd={() => setSearchParams({ server: "new" })}
+						sectionLabel={sectionLabel}
+						sectionDescription={sectionDescription}
+						sectionBadge={sectionBadge}
+					/>
+				) : (
+					<ServerForm
+						key={serverId}
+						server={isCreating ? null : editingServer}
+						isSaving={isCreatingServer || isUpdatingServer}
+						isDeleting={isDeletingServer}
+						onSave={handleSave}
+						onDelete={handleDelete}
+						onBack={() => setSearchParams({})}
+					/>
+				)}
+			</div>
 
+			{/* Errors — rendered at the bottom */}
 			{serversError && <ErrorAlert error={serversError} />}
 			{createError && <ErrorAlert error={createError} />}
 			{updateError && <ErrorAlert error={updateError} />}
