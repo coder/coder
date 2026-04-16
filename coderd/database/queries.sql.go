@@ -24906,63 +24906,6 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 	return i, err
 }
 
-const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
-SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
-FROM
-	workspace_agents
-WHERE
-	auth_instance_id = $1 :: TEXT
-	-- Filter out deleted sub agents.
-	AND deleted = FALSE
-	-- Filter out sub agents, they do not authenticate with auth_instance_id.
-	AND parent_id IS NULL
-ORDER BY
-	created_at DESC
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
-	var i WorkspaceAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.Architecture,
-		&i.EnvironmentVariables,
-		&i.OperatingSystem,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-		&i.Directory,
-		&i.Version,
-		&i.LastConnectedReplicaID,
-		&i.ConnectionTimeoutSeconds,
-		&i.TroubleshootingURL,
-		&i.MOTDFile,
-		&i.LifecycleState,
-		&i.ExpandedDirectory,
-		&i.LogsLength,
-		&i.LogsOverflowed,
-		&i.StartedAt,
-		&i.ReadyAt,
-		pq.Array(&i.Subsystems),
-		pq.Array(&i.DisplayApps),
-		&i.APIVersion,
-		&i.DisplayOrder,
-		&i.ParentID,
-		&i.APIKeyScope,
-		&i.Deleted,
-	)
-	return i, err
-}
-
 const getWorkspaceAgentLifecycleStateByID = `-- name: GetWorkspaceAgentLifecycleStateByID :one
 SELECT
 	lifecycle_state,

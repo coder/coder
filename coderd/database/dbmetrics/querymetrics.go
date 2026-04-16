@@ -2704,14 +2704,6 @@ func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UU
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByInstanceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByInstanceID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)

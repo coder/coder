@@ -4244,22 +4244,6 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 	return q.db.GetWorkspaceAgentByID(ctx, id)
 }
 
-// GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
-// but this will fail. Need to figure out what AuthInstanceID is, and if it
-// is essentially an auth token. But the caller using this function is not
-// an authenticated user. So this authz check will fail.
-func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	agent, err := q.db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	return agent, nil
-}
-
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {

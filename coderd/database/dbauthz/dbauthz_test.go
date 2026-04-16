@@ -2801,14 +2801,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().BatchUpdateWorkspaceAgentMetadata(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate).Returns()
 	}))
-	s.Run("GetWorkspaceAgentByInstanceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		w := testutil.Fake(s.T(), faker, database.Workspace{})
-		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
-		authInstanceID := "instance-id"
-		dbm.EXPECT().GetWorkspaceAgentByInstanceID(gomock.Any(), authInstanceID).Return(agt, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
-		check.Args(authInstanceID).Asserts(w, policy.ActionRead).Returns(agt)
-	}))
 	s.Run("GetWorkspaceAgentsByInstanceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})

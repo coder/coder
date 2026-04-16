@@ -213,8 +213,10 @@ func TestSubAgentAPI(t *testing.T) {
 
 		// Double-check: looking up by the parent's instance ID must
 		// still return the parent, not the sub-agent.
-		lookedUp, err := db.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), parentAgent.AuthInstanceID.String)
+		agents, err := db.GetWorkspaceAgentsByInstanceID(dbauthz.AsSystemRestricted(ctx), parentAgent.AuthInstanceID.String)
 		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		lookedUp := agents[0]
 		assert.Equal(t, parentAgent.ID, lookedUp.ID, "instance ID lookup should still return the parent agent")
 	})
 
