@@ -781,6 +781,21 @@ export const setChatGroupRole = (
 	};
 };
 
+export const clearChatACL = (
+	queryClient: QueryClient,
+): MutationOptions<void, unknown, { chatId: string }> => {
+	return {
+		mutationFn: async ({ chatId }) => {
+			return API.experimental.deleteChatACL(chatId);
+		},
+		onSuccess: async (_res, { chatId }) => {
+			await queryClient.invalidateQueries({
+				queryKey: chatACLKey(chatId),
+			});
+		},
+	};
+};
+
 const chatSystemPromptKey = ["chat-system-prompt"] as const;
 
 export const chatSystemPrompt = () => ({

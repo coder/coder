@@ -1,8 +1,14 @@
-import { EllipsisVertical, Share2Icon, UserPlusIcon } from "lucide-react";
+import {
+	EllipsisVertical,
+	Share2Icon,
+	Trash2Icon,
+	UserPlusIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatACL,
+	clearChatACL,
 	setChatGroupRole,
 	setChatUserRole,
 } from "#/api/queries/chats";
@@ -56,13 +62,17 @@ export const ChatSharePopover: FC<ChatSharePopoverProps> = ({
 	const removeUserMutation = useMutation(setChatUserRole(queryClient));
 	const removeGroupMutation = useMutation(setChatGroupRole(queryClient));
 
+	const clearACLMutation = useMutation(clearChatACL(queryClient));
+
 	const users = aclQuery.data?.users ?? [];
 	const groups = aclQuery.data?.groups ?? [];
 
 	const isAddPending = addUserMutation.isPending || addGroupMutation.isPending;
 	const hasAddError = addUserMutation.isError || addGroupMutation.isError;
 	const hasRemoveError =
-		removeUserMutation.isError || removeGroupMutation.isError;
+		removeUserMutation.isError ||
+		removeGroupMutation.isError ||
+		clearACLMutation.isError;
 
 	const handleAdd = () => {
 		if (!selectedOption) return;
@@ -101,6 +111,16 @@ export const ChatSharePopover: FC<ChatSharePopoverProps> = ({
 		<TableBody>
 			{aclQuery.isLoading ? (
 				<TableLoader />
+			) : aclQuery.isError ? (
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="Failed to load sharing info"
+							description="An error occurred. Please try again."
+							isCompact
+						/>
+					</TableCell>
+				</TableRow>
 			) : users.length === 0 && groups.length === 0 ? (
 				<TableRow>
 					<TableCell colSpan={999}>
@@ -211,19 +231,16 @@ export const ChatSharePopover: FC<ChatSharePopoverProps> = ({
 				<p className="mb-4 text-sm text-content-secondary">
 					Add users or groups who can view this chat (read-only).
 				</p>
-
 				{hasAddError && (
 					<p className="mb-2 text-xs text-content-destructive">
 						Failed to add member. Please try again.
 					</p>
 				)}
-
 				{hasRemoveError && (
 					<p className="mb-2 text-xs text-content-destructive">
 						Failed to remove member. Please try again.
 					</p>
 				)}
-
 				<form
 					action={handleAdd}
 					className="flex flex-row items-center gap-2 mb-4"
@@ -241,13 +258,28 @@ export const ChatSharePopover: FC<ChatSharePopoverProps> = ({
 						Add member
 					</Button>
 				</form>
-
 				<div>
 					<Table>{tableHeader}</Table>
 					<div className="max-h-60 overflow-y-auto">
 						<Table>{tableBody}</Table>
 					</div>
 				</div>
+				{users.length + groups.length > 0 && (
+					<div className="mt-3 flex justify-end">
+						<Button
+							variant="outline"
+							size="sm"
+							className="text-content-destructive hover:text-content-destructive"
+							disabled={clearACLMutation.isPending}
+							onClick={() => clearACLMutation.mutate({ chatId })}
+						>
+							<Spinner loading={clearACLMutation.isPending}>
+								<Trash2Icon className="size-icon-sm" />
+							</Spinner>
+							Unshare all
+						</Button>
+					</div>
+				)}{" "}
 			</PopoverContent>
 		</Popover>
 	);
