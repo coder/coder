@@ -2193,7 +2193,6 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 	return c
 }
 
-
 // ConvertChatMessageSummary converts a database chat message
 // summary row to a telemetry ChatMessageSummary.
 func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow) ChatMessageSummary {
@@ -2367,7 +2366,6 @@ type Chat struct {
 	ClientType        string     `json:"client_type"`
 	PullRequestState  *string    `json:"pull_request_state"`
 }
-
 
 // ChatMessageSummary contains per-chat aggregated message metrics
 // for telemetry. Individual message content is never included.

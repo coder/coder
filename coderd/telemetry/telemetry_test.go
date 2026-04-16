@@ -1911,7 +1911,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Helper to create a chat and upsert its diff status.
-	insertChatWithPR := func(state, prURL string) uuid.UUID {
+	insertChatWithDiffStatus := func(prURL, state string) uuid.UUID {
 		t.Helper()
 		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
@@ -1935,14 +1935,13 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	}
 
 	// Insert: 1 merged, 1 open, 1 closed (each with unique URLs).
-	insertChatWithPR("merged", "https://github.com/org/repo/pull/1")
-	openChatID := insertChatWithPR("open", "https://github.com/org/repo/pull/2")
-	insertChatWithPR("closed", "https://github.com/org/repo/pull/3")
-
-	// Create a forked chat referencing the same PR URL as the merged
-	// one. The query deduplicates by URL, so this should NOT inflate
-	// the merged count.
-	insertChatWithPR("merged", "https://github.com/org/repo/pull/1")
+	// For pull/1, first insert an older chat with stale "open" state,
+	// then a newer chat with refreshed "merged" state. The dedup
+	// query orders by cds.updated_at DESC, so "merged" should win.
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/1", "open")
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/1", "merged")
+	openChatID := insertChatWithDiffStatus("https://github.com/org/repo/pull/2", "open")
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/3", "closed")
 
 	// Insert a chat with NULL pull_request_state (no PR yet).
 	// This should be excluded from all counts.

@@ -937,7 +937,7 @@ WHERE
 -- name: GetChatDiffStatusSummary :one
 -- Returns aggregate PR counts across all agent chats for telemetry.
 -- Deduplicates by PR URL so forked chats referencing the same pull
--- request are counted once (using the most recent chat's state).
+-- request are counted once (using the most recently refreshed state).
 -- Total is derived from the three recognized state buckets and
 -- always equals open + merged + closed; other non-NULL states are
 -- intentionally excluded from these aggregates.
@@ -947,12 +947,10 @@ WITH deduped AS (
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
     WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
 )
 SELECT
-    (COUNT(*) FILTER (WHERE pull_request_state = 'open') +
-     COUNT(*) FILTER (WHERE pull_request_state = 'merged') +
-     COUNT(*) FILTER (WHERE pull_request_state = 'closed'))::bigint AS total,
+    COUNT(*)::bigint AS total,
     COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
     COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
     COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
