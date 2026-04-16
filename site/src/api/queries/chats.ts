@@ -444,6 +444,7 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			  }
 			| undefined,
 	) => {
+		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
 		if (!previousChat) {
 			return;

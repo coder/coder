@@ -26,6 +26,7 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatPlanMode,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -196,6 +197,34 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState(chatMessagesKey(otherChatId))?.isInvalidated,
 			"other chat's chatMessagesKey should NOT be invalidated",
 		).not.toBe(true);
+	});
+});
+
+describe("updateChatPlanMode optimistic update", () => {
+	it("invalidates the chat list on error without a detail cache", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId)]);
+
+		const mutation = updateChatPlanMode(queryClient);
+		const context = await mutation.onMutate({
+			chatId,
+			planMode: "plan",
+		});
+
+		expect(context?.previousChat).toBeUndefined();
+		expect(readInfiniteChats(queryClient)?.[0].plan_mode).toBe("plan");
+
+		mutation.onError(
+			new Error("server error"),
+			{ chatId, planMode: "plan" },
+			context,
+		);
+
+		expect(
+			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
+			"chat list should be invalidated when rollback lacks detail cache",
+		).toBe(true);
 	});
 });
 
