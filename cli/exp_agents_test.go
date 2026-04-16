@@ -2689,8 +2689,6 @@ func TestExpAgents(t *testing.T) {
 				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion, secondQuestion})
 				state.CurrentIndex = 1
 				state.OptionCursor = 1
-				state.OtherMode = true
-				state.OtherInput.Focus()
 				state.Error = xerrors.New("temporary error")
 				state.Answers = []askQuestionAnswer{{
 					Header:      firstQuestion.Header,
