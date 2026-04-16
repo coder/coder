@@ -78,7 +78,6 @@ There is a Homebrew formula for the Docker command and a Homebrew cask of Docker
 Desktop if you prefer:
 
    ```shell
-   brew install docker
    brew install --cask docker-desktop
    ```
 
