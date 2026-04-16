@@ -237,7 +237,7 @@ func secretValue(inv *serpent.Invocation, value string) (string, bool, error) {
 	}
 
 	if stdinProvided {
-		warnSuspiciousTrailingNewline(inv.Stderr, stdinValue, inv.Args[0])
+		warnSuspiciousTrailingNewline(inv.Stderr, stdinValue)
 		return stdinValue, true, nil
 	}
 
@@ -279,18 +279,12 @@ func hasSuspiciousTrailingNewline(value string) bool {
 	}
 }
 
-func warnSuspiciousTrailingNewline(w io.Writer, value string, secretName string) {
+func warnSuspiciousTrailingNewline(w io.Writer, value string) {
 	if !hasSuspiciousTrailingNewline(value) {
 		return
 	}
 
-	cliui.Warn(
-		w,
-		"stdin ends with a trailing newline.",
-		"Using echo often appends an unintended newline to the secret value.",
-		"Use printf %s or echo -n if you do not want to store the newline.",
-		fmt.Sprintf(`To replace it, run: printf %%s "$UPDATED_VALUE" | coder secret update %s`, secretName),
-	)
+	cliui.Warn(w, "secret value from stdin ends with a trailing newline")
 }
 
 type secretListRow struct {

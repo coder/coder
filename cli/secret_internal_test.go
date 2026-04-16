@@ -69,23 +69,15 @@ func TestTrailingNewlineWarnings(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
-		warnSuspiciousTrailingNewline(&stderr, "token\n", "api-key")
-		require.Contains(t, stderr.String(), "stdin ends with a trailing newline")
-	})
-
-	t.Run("IncludesUpdateCommand", func(t *testing.T) {
-		t.Parallel()
-
-		var stderr bytes.Buffer
-		warnSuspiciousTrailingNewline(&stderr, "token\n", "api-key")
-		require.Contains(t, stderr.String(), `coder secret update api-key`)
+		warnSuspiciousTrailingNewline(&stderr, "token\n")
+		require.Contains(t, stderr.String(), "secret value from stdin ends with a trailing newline")
 	})
 
 	t.Run("DoesNotWarnForMultiline", func(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
-		warnSuspiciousTrailingNewline(&stderr, "line1\nline2\n", "api-key")
+		warnSuspiciousTrailingNewline(&stderr, "line1\nline2\n")
 		require.Empty(t, stderr.String())
 	})
 
@@ -99,8 +91,7 @@ func TestTrailingNewlineWarnings(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "token\n", got)
-		require.Contains(t, stderr.String(), "stdin ends with a trailing newline")
-		require.Contains(t, stderr.String(), `coder secret update`)
+		require.Contains(t, stderr.String(), "secret value from stdin ends with a trailing newline")
 	})
 
 	t.Run("SecretValueDoesNotWarnForMultiline", func(t *testing.T) {
