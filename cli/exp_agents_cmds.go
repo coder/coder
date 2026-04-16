@@ -35,6 +35,11 @@ type (
 		chat       codersdk.Chat
 		err        error
 	}
+	chatPlanModeUpdatedMsg struct {
+		generation uint64
+		chatID     uuid.UUID
+		err        error
+	}
 	messageSentMsg struct {
 		generation uint64
 		chatID     uuid.UUID

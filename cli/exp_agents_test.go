@@ -673,11 +673,13 @@ func TestExpAgents(t *testing.T) {
 			diffStatus := &codersdk.ChatDiffStatus{ChatID: uuid.New()}
 			chat := testChat(codersdk.ChatStatusRunning)
 			chat.DiffStatus = diffStatus
+			chat.PlanMode = codersdk.ChatPlanModePlan
 			updated, cmd := setup(false, true).Update(chatOpenedMsg{chat: chat})
 			require.NotNil(t, cmd)
 			require.Equal(t, chat.ID, updated.chat.ID)
 			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
 			require.Equal(t, diffStatus, updated.diffStatus)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
 			require.False(t, updated.loading)
 			require.Nil(t, updated.err)
 			updated, cmd = setup(false, true).Update(chatOpenedMsg{err: xerrors.New("open failed")})
@@ -1473,6 +1475,7 @@ func TestExpAgents(t *testing.T) {
 				}
 				model.loading = false
 				model.modelOverride = &modelOverride
+				model.planMode = codersdk.ChatPlanModePlan
 				model.composer.SetValue("hello")
 				updated, cmd := model.sendMessage()
 				require.NotNil(t, cmd)
@@ -1484,6 +1487,7 @@ func TestExpAgents(t *testing.T) {
 					require.NotNil(t, createReq)
 					require.NotNil(t, createReq.ModelConfigID)
 					require.Equal(t, modelConfigID, *createReq.ModelConfigID)
+					require.Equal(t, codersdk.ChatPlanModePlan, createReq.PlanMode)
 					require.Equal(t, createdChat.ID, msg.chat.ID)
 					return
 				}
@@ -1493,9 +1497,43 @@ func TestExpAgents(t *testing.T) {
 				require.NotNil(t, messageReq)
 				require.NotNil(t, messageReq.ModelConfigID)
 				require.Equal(t, modelConfigID, *messageReq.ModelConfigID)
+				require.NotNil(t, messageReq.PlanMode)
+				require.Equal(t, codersdk.ChatPlanModePlan, *messageReq.PlanMode)
 			})
 		}
 	})
+	t.Run("ChatView/SendMessageExplicitlyClearsPlanMode", func(t *testing.T) {
+		t.Parallel()
+		chat := testChat(codersdk.ChatStatusCompleted)
+		var messageReq *codersdk.CreateChatMessageRequest
+		client := newTestExperimentalClient(t, func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			switch {
+			case req.Method == http.MethodPost && req.URL.Path == fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID):
+				messageReq = new(codersdk.CreateChatMessageRequest)
+				require.NoError(t, json.NewDecoder(req.Body).Decode(messageReq))
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.CreateChatMessageResponse{}))
+			default:
+				t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+			}
+		})
+		model := newTestChatViewModel(client)
+		model.setChat(chat)
+		model.loading = false
+		model.composer.SetValue("hello")
+
+		updated, cmd := model.sendMessage()
+		require.NotNil(t, cmd)
+		require.Empty(t, updated.composer.Value())
+
+		msg, ok := mustMsg(t, cmd).(messageSentMsg)
+		require.True(t, ok)
+		require.NoError(t, msg.err)
+		require.NotNil(t, messageReq)
+		require.NotNil(t, messageReq.PlanMode)
+		require.Empty(t, *messageReq.PlanMode)
+	})
+
 	t.Run("ChatView/ChatCreatedPromotesDraft", func(t *testing.T) {
 		t.Parallel()
 		model := newTestChatViewModel(nil)
@@ -1598,6 +1636,33 @@ func TestExpAgents(t *testing.T) {
 			require.Contains(t, view, "ctrl+x: interrupt")
 			require.NotContains(t, view, "ctrl+i: interrupt")
 		})
+
+		t.Run("ViewShowsPlanModeBadge", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+			model.loading = false
+			require.Contains(t, plainText(model.View()), "mode: code")
+
+			model.planMode = codersdk.ChatPlanModePlan
+			view := plainText(model.View())
+			require.Contains(t, view, "mode: plan")
+			require.Contains(t, view, "shift+tab: switch mode")
+		})
+
+		t.Run("PlanModeUpdateErrorKeepsLocalModeAndShowsBanner", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+			model.setChat(testChat(codersdk.ChatStatusCompleted))
+			model.planMode = codersdk.ChatPlanModePlan
+
+			updated, cmd := model.Update(chatPlanModeUpdatedMsg{err: xerrors.New("update failed")})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
+			require.EqualError(t, updated.err, "update failed")
+			require.Contains(t, plainText(updated.View()), "update failed")
+		})
 	})
 
 	t.Run("ChatView/Keyboard", func(t *testing.T) {
@@ -1632,6 +1697,84 @@ func TestExpAgents(t *testing.T) {
 					require.True(t, tt.assert(mustMsg(t, cmd)))
 				})
 			}
+		})
+
+		t.Run("ShiftTabTogglesPlanMode", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model.composer.SetValue("draft")
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
+			require.Equal(t, "draft", updated.composer.Value())
+
+			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+			require.Nil(t, cmd)
+			require.Empty(t, updated.planMode)
+			require.Equal(t, "draft", updated.composer.Value())
+		})
+
+		t.Run("TabOnlySwitchesComposerFocus", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model.planMode = codersdk.ChatPlanModePlan
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
+			require.False(t, updated.composerFocused)
+		})
+
+		t.Run("ShiftTabDraftChatDefersPlanModePersistence", func(t *testing.T) {
+			t.Parallel()
+			model := newTestChatViewModel(nil)
+			model.draft = true
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
+		})
+
+		t.Run("ShiftTabExistingChatUpdatesPlanModeImmediately", func(t *testing.T) {
+			t.Parallel()
+			chat := testChat(codersdk.ChatStatusCompleted)
+			var requests []codersdk.UpdateChatRequest
+			client := newTestExperimentalClient(t, func(rw http.ResponseWriter, req *http.Request) {
+				switch {
+				case req.Method == http.MethodPatch && req.URL.Path == fmt.Sprintf("/api/experimental/chats/%s", chat.ID):
+					var updateReq codersdk.UpdateChatRequest
+					require.NoError(t, json.NewDecoder(req.Body).Decode(&updateReq))
+					requests = append(requests, updateReq)
+					rw.WriteHeader(http.StatusNoContent)
+				default:
+					t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
+				}
+			})
+			model := newTestChatViewModel(client)
+			model.setChat(chat)
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+			require.NotNil(t, cmd)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
+
+			msg, ok := mustMsg(t, cmd).(chatPlanModeUpdatedMsg)
+			require.True(t, ok)
+			require.NoError(t, msg.err)
+			require.Len(t, requests, 1)
+			require.NotNil(t, requests[0].PlanMode)
+			require.Equal(t, codersdk.ChatPlanModePlan, *requests[0].PlanMode)
+
+			updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+			require.NotNil(t, cmd)
+			require.Empty(t, updated.planMode)
+
+			msg, ok = mustMsg(t, cmd).(chatPlanModeUpdatedMsg)
+			require.True(t, ok)
+			require.NoError(t, msg.err)
+			require.Len(t, requests, 2)
+			require.NotNil(t, requests[1].PlanMode)
+			require.Empty(t, *requests[1].PlanMode)
 		})
 
 		t.Run("CtrlPFromListViewDoesNotOpenModelPicker", func(t *testing.T) {

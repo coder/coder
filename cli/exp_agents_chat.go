@@ -145,6 +145,7 @@ type chatViewModel struct {
 	intentionalClose    bool
 	creatingChat        bool
 	pendingComposerText string
+	planMode            codersdk.ChatPlanMode
 
 	streaming     bool
 	streamCloser  io.Closer
@@ -372,6 +373,24 @@ func availableChatModels(catalog codersdk.ChatModelsResponse) []codersdk.ChatMod
 	return models
 }
 
+func (m chatViewModel) togglePlanMode() codersdk.ChatPlanMode {
+	if m.planMode == codersdk.ChatPlanModePlan {
+		return ""
+	}
+	return codersdk.ChatPlanModePlan
+}
+
+func (m chatViewModel) updatePlanModeCmd() tea.Cmd {
+	mode := m.planMode
+	return apiCmd(func() (struct{}, error) {
+		return struct{}{}, m.client.UpdateChat(m.ctx, m.chat.ID, codersdk.UpdateChatRequest{
+			PlanMode: &mode,
+		})
+	}, func(_ struct{}, err error) tea.Msg {
+		return chatPlanModeUpdatedMsg{generation: m.chatGeneration, chatID: m.chat.ID, err: err}
+	})
+}
+
 // sendMessage trims the composer, builds the content, and dispatches
 // a create-chat or send-message command.
 func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
@@ -404,6 +423,7 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 			Content:       content,
 			WorkspaceID:   m.workspaceID,
 			ModelConfigID: modelConfigID,
+			PlanMode:      m.planMode,
 		}
 		m.creatingChat = true
 		return m, apiCmd(func() (codersdk.Chat, error) {
@@ -420,9 +440,11 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		})
 	}
 
+	mode := m.planMode
 	req := codersdk.CreateChatMessageRequest{
 		Content:       content,
 		ModelConfigID: modelConfigID,
+		PlanMode:      &mode,
 	}
 	return m, apiCmd(func() (codersdk.CreateChatMessageResponse, error) {
 		if req.ModelConfigID == nil && m.modelOverride != nil {
@@ -685,6 +707,13 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
+		if msg.Type == tea.KeyShiftTab || msg.String() == "shift+tab" || msg.String() == "backtab" {
+			m.planMode = m.togglePlanMode()
+			if !m.draft && m.chat != nil {
+				return m, m.updatePlanModeCmd()
+			}
+			return m, nil
+		}
 		if msg.String() == "tab" {
 			m.composerFocused = !m.composerFocused
 			if m.composerFocused {
@@ -763,8 +792,18 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		} else {
 			m.metadataErr = nil
 			m.setChat(msg.chat)
+			m.planMode = m.chat.PlanMode
 		}
 		return m.finishLoading(wasSpinnerActive)
+
+	case chatPlanModeUpdatedMsg:
+		if !m.matchesGeneration(msg.generation) {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.err = msg.err
+		}
+		return m, nil
 
 	case chatHistoryMsg:
 		if !m.matchesGeneration(msg.generation) {
@@ -978,9 +1017,13 @@ func (m chatViewModel) View() string {
 
 	composerView := m.styles.composerStyle.Width(max(10, viewWidth-2)).Render(m.composer.View())
 
-	longHelpParts := []string{"tab: switch focus", "esc: back"}
-	shortHelpParts := []string{"tab focus", "esc back"}
-	compactHelpParts := []string{"tab", "esc"}
+	modeLabel := "code"
+	if m.planMode == codersdk.ChatPlanModePlan {
+		modeLabel = "plan"
+	}
+	longHelpParts := []string{"mode: " + modeLabel, "shift+tab: switch mode", "tab: switch focus", "esc: back"}
+	shortHelpParts := []string{"mode: " + modeLabel, "⇧tab mode", "tab focus", "esc back"}
+	compactHelpParts := []string{"mode:" + modeLabel, "⇧tab", "tab", "esc"}
 	if m.composerFocused {
 		longHelpParts = append(longHelpParts, "enter: send")
 		shortHelpParts = append(shortHelpParts, "↵ send")
