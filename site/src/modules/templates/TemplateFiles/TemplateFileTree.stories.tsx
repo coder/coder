@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { action } from "storybook/actions";
 import { chromatic } from "#/testHelpers/chromatic";
 import type { FileTree } from "#/utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
@@ -27,6 +27,8 @@ const meta: Meta<typeof TemplateFileTree> = {
 	args: {
 		fileTree,
 		activePath: "main.tf",
+		onDelete: action("delete"),
+		onRename: action("rename"),
 	},
 	decorators: [
 		(Story) => {
@@ -65,13 +67,6 @@ export const GroupEmptyFolders: Story = {
 				},
 			},
 		},
-	},
-};
-
-export const WithActions: Story = {
-	args: {
-		onRename: fn(),
-		onDelete: fn(),
 	},
 };
 

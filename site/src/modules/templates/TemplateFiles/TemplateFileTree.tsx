@@ -1,7 +1,7 @@
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
-	EllipsisVerticalIcon,
+	EllipsisIcon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -157,8 +157,8 @@ interface TreeNodeProps {
 	isActive: boolean;
 	depth: number;
 	onClick: () => void;
-	onDelete?: (() => void) | false;
-	onRename?: (() => void) | false;
+	onDelete?: () => void;
+	onRename?: () => void;
 }
 
 const nodeClasses =
@@ -174,7 +174,6 @@ const FileNode: FC<TreeNodeProps> = ({
 	onDelete,
 	onRename,
 }) => {
-	const hasActions = onRename || onDelete;
 	return (
 		<div className="group/row relative flex items-center">
 			<button
@@ -190,7 +189,7 @@ const FileNode: FC<TreeNodeProps> = ({
 				{icon}
 				<span className="truncate">{label}</span>
 			</button>
-			{hasActions && <MoreMenu onRename={onRename} onDelete={onDelete} />}
+			<MoreMenu onRename={onRename} onDelete={onDelete} />
 		</div>
 	);
 };
@@ -213,7 +212,6 @@ const FolderNode: FC<FolderNodeProps> = ({
 	children,
 }) => {
 	const [open, setOpen] = useState(defaultOpen);
-	const hasActions = onRename || onDelete;
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
@@ -247,7 +245,7 @@ const FolderNode: FC<FolderNodeProps> = ({
 						<span className="truncate">{label}</span>
 					</button>
 				</CollapsibleTrigger>
-				{hasActions && <MoreMenu onRename={onRename} onDelete={onDelete} />}
+				<MoreMenu onRename={onRename} onDelete={onDelete} />
 			</div>
 			<CollapsibleContent>{children}</CollapsibleContent>
 		</Collapsible>
@@ -255,11 +253,15 @@ const FolderNode: FC<FolderNodeProps> = ({
 };
 
 interface MoreMenuProps {
-	onRename?: (() => void) | false;
-	onDelete?: (() => void) | false;
+	onRename?: () => void;
+	onDelete?: () => void;
 }
 
 const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+	if (!onRename && !onDelete) {
+		return null;
+	}
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -275,7 +277,7 @@ const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 					)}
 					onClick={(e) => e.stopPropagation()}
 				>
-					<EllipsisVerticalIcon className="size-4" />
+					<EllipsisIcon className="size-4" />
 					<span className="sr-only">File actions</span>
 				</Button>
 			</DropdownMenuTrigger>
