@@ -16,6 +16,24 @@ type Server struct {
 
 func helper(context.Context, Store) {}
 
+func helperWithDB(ctx context.Context, db Store) {
+	_, _ = db.GetUser(ctx)
+}
+
+func shadowingOK(ctx context.Context, db Store) error {
+	return db.InTx(func(db Store) error {
+		_, _ = db.GetUser(ctx)
+		return nil
+	}, nil)
+}
+
+func pkgFuncOK(ctx context.Context, db Store) error {
+	return db.InTx(func(tx Store) error {
+		helperWithDB(ctx, tx)
+		return nil
+	}, nil)
+}
+
 func (s *Server) directMisuse(ctx context.Context) error {
 	return s.db.InTx(func(tx Store) error {
 		_, _ = s.db.GetUser(ctx) // want "outer store 's.db' used inside InTx; use transaction store 'tx' instead"
@@ -33,6 +51,13 @@ func (s *Server) passThroughMisuse(ctx context.Context) error {
 func (s *Server) indirectMisuse(ctx context.Context) error {
 	return s.db.InTx(func(tx Store) error {
 		s.getConfig(ctx) // want "call to 's.getConfig' inside InTx uses outer store 's.db'; pass 'tx' through the helper or hoist the call"
+		return nil
+	}, nil)
+}
+
+func (s *Server) suppressedCase(ctx context.Context) error {
+	return s.db.InTx(func(tx Store) error {
+		_, _ = s.db.GetUser(ctx) //intxcheck:ignore
 		return nil
 	}, nil)
 }
