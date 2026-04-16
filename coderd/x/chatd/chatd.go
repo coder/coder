@@ -3675,6 +3675,10 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
+// The event is published to the owner's channel and, for shared
+// chats, also to every resolvable viewer's watchlist channel so the
+// /chats/watch subscriber on their replica receives it. See
+// coderd/pubsub/chatwatchlist.go for the dual-publish invariant.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
@@ -3706,6 +3710,99 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 			slog.Error(err),
 		)
 	}
+	p.publishChatWatchlist(chat, payload, kind)
+}
+
+// publishChatWatchlist publishes a chat lifecycle event to every
+// viewer resolvable from the chat's ACL. Viewers are the union of
+// direct user_acl keys and members of each group in group_acl.
+// Owners are excluded so we do not double-publish to them (they
+// already received the event on the owner channel). Errors on
+// individual publishes are logged and swallowed: a failed watchlist
+// publish only delays a single viewer's sidebar update.
+func (p *Server) publishChatWatchlist(chat database.Chat, payload []byte, kind codersdk.ChatWatchEventKind) {
+	if p.pubsub == nil {
+		return
+	}
+	if len(chat.UserACL) == 0 && len(chat.GroupACL) == 0 {
+		return
+	}
+
+	viewers := p.resolveChatViewers(chat)
+	for viewerID := range viewers {
+		if err := p.pubsub.Publish(coderdpubsub.ChatWatchlistChannel(viewerID), payload); err != nil {
+			p.logger.Warn(context.Background(), "failed to publish chat watchlist event",
+				slog.F("chat_id", chat.ID),
+				slog.F("viewer_id", viewerID),
+				slog.F("kind", kind),
+				slog.Error(err),
+			)
+		}
+	}
+}
+
+// resolveChatViewers returns the set of viewer user IDs for a chat:
+// direct entries in user_acl plus the members of every group in
+// group_acl. The chat's owner is excluded because owners receive
+// lifecycle events on the owner channel. Invalid UUID strings in the
+// ACL are logged and skipped; a malformed ACL row must not abort
+// publishing for the rest of the ACL.
+func (p *Server) resolveChatViewers(chat database.Chat) map[uuid.UUID]struct{} {
+	viewers := make(map[uuid.UUID]struct{}, len(chat.UserACL))
+	for userIDStr := range chat.UserACL {
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			p.logger.Warn(context.Background(), "invalid user uuid in chat user_acl",
+				slog.F("chat_id", chat.ID),
+				slog.F("raw", userIDStr),
+				slog.Error(err),
+			)
+			continue
+		}
+		if userID == chat.OwnerID {
+			continue
+		}
+		viewers[userID] = struct{}{}
+	}
+
+	if len(chat.GroupACL) == 0 {
+		return viewers
+	}
+
+	// nolint:gocritic // System context so we can enumerate group
+	// members regardless of who triggered the publish. Everyone in a
+	// group in the ACL is a legitimate viewer.
+	sysCtx := dbauthz.AsSystemRestricted(context.Background())
+	for groupIDStr := range chat.GroupACL {
+		groupID, err := uuid.Parse(groupIDStr)
+		if err != nil {
+			p.logger.Warn(context.Background(), "invalid group uuid in chat group_acl",
+				slog.F("chat_id", chat.ID),
+				slog.F("raw", groupIDStr),
+				slog.Error(err),
+			)
+			continue
+		}
+		members, err := p.db.GetGroupMembersByGroupID(sysCtx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       groupID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			p.logger.Warn(context.Background(), "failed to resolve group members for chat watchlist",
+				slog.F("chat_id", chat.ID),
+				slog.F("group_id", groupID),
+				slog.Error(err),
+			)
+			continue
+		}
+		for _, m := range members {
+			if m.UserID == chat.OwnerID {
+				continue
+			}
+			viewers[m.UserID] = struct{}{}
+		}
+	}
+	return viewers
 }
 
 // pendingToStreamToolCalls converts a slice of chatloop pending
@@ -3751,6 +3848,7 @@ func (p *Server) publishChatActionRequired(chat database.Chat, pending []chatloo
 			slog.Error(err),
 		)
 	}
+	p.publishChatWatchlist(chat, payload, codersdk.ChatWatchEventKindActionRequired)
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for

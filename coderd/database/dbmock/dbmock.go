@@ -716,11 +716,12 @@ func (mr *MockStoreMockRecorder) DeleteChatACLByID(ctx, id any) *gomock.Call {
 }
 
 // DeleteChatACLsByOrganization mocks base method.
-func (m *MockStore) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
+func (m *MockStore) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteChatACLsByOrganization", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteChatACLsByOrganization indicates an expected call of DeleteChatACLsByOrganization.

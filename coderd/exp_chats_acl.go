@@ -15,12 +15,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // chatACL returns the ACL on a chat, hydrated with display info for
 // each user and group. Authorization is ActionRead on the chat; shared
 // viewers can inspect the ACL they were added to.
@@ -173,7 +174,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 
-	err := api.Database.InTx(func(tx database.Store) error {
+		err := api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat by ID: %w", err)
@@ -217,9 +218,15 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish ACL invalidation after the transaction commits so open
+	// /stream subscribers re-run authz and close if access was revoked.
+	// Errors here are non-fatal: a missed publish only delays the
+	// re-authz until the next connect, and logging from the handler
+	// makes the failure visible.
+	publishChatACLInvalidation(ctx, api.Pubsub, api.Logger, chat.ID)
+
 	rw.WriteHeader(http.StatusNoContent)
 }
-
 // deleteChatACL clears both ACLs on the chat.
 func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -248,6 +255,8 @@ func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	publishChatACLInvalidation(ctx, api.Pubsub, api.Logger, chat.ID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -433,3 +442,37 @@ func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, ch
 	return true
 }
 
+
+// publishChatACLInvalidation publishes a per-chat ACL invalidation so
+// that any open live stream for the chat re-runs authz and closes if
+// the caller no longer has access. Callers invoke this after the ACL
+// write has committed; the payload is a single byte because
+// subscribers re-read the chat via dbauthz on every message.
+//
+// Errors here are intentionally non-fatal: a missed publish delays the
+// re-authz until the next connect. The log line makes the failure
+// visible without failing the caller's HTTP response.
+func publishChatACLInvalidation(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, chatID uuid.UUID) {
+	if ps == nil {
+		return
+	}
+	if err := ps.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{}); err != nil {
+		logger.Warn(ctx, "failed to publish chat acl invalidation",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// publishChatACLBroadcast publishes the deployment-wide ACL
+// invalidation. Used when DisableChatSharing flips to true at runtime
+// so every open live stream re-authzes and closes if access is now
+// denied. See coderdpubsub.ChatACLBroadcastChannel.
+func publishChatACLBroadcast(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger) {
+	if ps == nil {
+		return
+	}
+	if err := ps.Publish(coderdpubsub.ChatACLBroadcastChannel, []byte{}); err != nil {
+		logger.Warn(ctx, "failed to publish chat acl broadcast", slog.Error(err))
+	}
+}

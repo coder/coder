@@ -451,7 +451,7 @@ func (s *MethodTestSuite) TestChats() {
 				OrganizationID:         uuid.New(),
 				ExcludeServiceAccounts: false,
 			}
-			dbm.EXPECT().DeleteChatACLsByOrganization(gomock.Any(), arg).Return(nil).AnyTimes()
+			dbm.EXPECT().DeleteChatACLsByOrganization(gomock.Any(), arg).Return([]uuid.UUID{}, nil).AnyTimes()
 			check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 		}))
 		s.Run("ChatHasVisibleToolParts", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

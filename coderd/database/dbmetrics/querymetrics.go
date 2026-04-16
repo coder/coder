@@ -440,12 +440,12 @@ func (m queryMetricsStore) DeleteChatACLByID(ctx context.Context, id uuid.UUID) 
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
+func (m queryMetricsStore) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.DeleteChatACLsByOrganization(ctx, arg)
+	r0, r1 := m.s.DeleteChatACLsByOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatACLsByOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatACLsByOrganization").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {

@@ -5,14 +5,17 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
@@ -101,6 +104,7 @@ func (api *API) patchChatSharingSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
+	var invalidatedChatIDs []uuid.UUID
 	err := api.Database.InTx(func(tx database.Store) error {
 		// nolint:gocritic // System context required to look up and
 		// reconcile the system roles; callers only need
@@ -157,7 +161,7 @@ func (api *API) patchChatSharingSettings(rw http.ResponseWriter, r *http.Request
 		// ACLs on chats owned by service accounts so bots can stay
 		// shared. Mirrors the workspace reconcile path.
 		if org.ShareableChatOwners != database.ShareableChatOwnersEveryone {
-			err = tx.DeleteChatACLsByOrganization(sysCtx, database.DeleteChatACLsByOrganizationParams{
+			ids, err := tx.DeleteChatACLsByOrganization(sysCtx, database.DeleteChatACLsByOrganizationParams{
 				OrganizationID:         org.ID,
 				ExcludeServiceAccounts: org.ShareableChatOwners == database.ShareableChatOwnersServiceAccounts,
 			})
@@ -165,6 +169,7 @@ func (api *API) patchChatSharingSettings(rw http.ResponseWriter, r *http.Request
 				return xerrors.Errorf("delete chat ACLs for organization %s: %w",
 					org.ID, err)
 			}
+			invalidatedChatIDs = ids
 		}
 
 		return nil
@@ -175,6 +180,20 @@ func (api *API) patchChatSharingSettings(rw http.ResponseWriter, r *http.Request
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// Publish ACL invalidation for every affected chat so open live
+	// streams re-authz and close the websocket for viewers that just
+	// lost access. We do this after the transaction commits so a
+	// subscriber cannot re-authz against stale data. Publish errors
+	// are logged and swallowed.
+	for _, chatID := range invalidatedChatIDs {
+		if err := api.AGPL.Pubsub.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{}); err != nil {
+			api.Logger.Warn(ctx, "failed to publish chat acl invalidation after org reconcile",
+				slog.F("chat_id", chatID),
+				slog.Error(err),
+			)
+		}
 	}
 
 	aReq.New = org
