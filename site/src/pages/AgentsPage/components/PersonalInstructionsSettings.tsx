@@ -68,7 +68,7 @@ export const PersonalInstructionsSettings: FC<
 			<h3 className="m-0 text-sm font-semibold text-content-primary">
 				Personal Instructions
 			</h3>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+			<p className="m-0 text-xs text-content-secondary">
 				Applied to all your conversations. Only visible to you.
 			</p>
 			<TextareaAutosize

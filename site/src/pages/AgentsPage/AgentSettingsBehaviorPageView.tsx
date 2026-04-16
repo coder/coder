@@ -134,7 +134,7 @@ export const AgentSettingsBehaviorPageView: FC<
 		isSavingSystemPrompt || isSavingUserPrompt || isSavingPlanModeInstructions;
 
 	return (
-		<div className="flex flex-col gap-10">
+		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Behavior"
 				description="Custom instructions that shape how the agent responds in your conversations."
@@ -168,14 +168,12 @@ export const AgentSettingsBehaviorPageView: FC<
 						isSaveSystemPromptError={isSaveSystemPromptError}
 						isAnyPromptSaving={isAnyPromptSaving}
 					/>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<PlanModeInstructionsSettings
 						planModeInstructionsData={planModeInstructionsData}
 						onSavePlanModeInstructions={onSavePlanModeInstructions}
 						isSavePlanModeInstructionsError={isSavePlanModeInstructionsError}
 						isAnyPromptSaving={isAnyPromptSaving}
 					/>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<VirtualDesktopSettings
 						desktopEnabledData={desktopEnabledData}
 						onSaveDesktopEnabled={onSaveDesktopEnabled}
