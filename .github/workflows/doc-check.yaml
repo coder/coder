@@ -55,10 +55,7 @@ jobs:
     env:
       CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-      # Optional: UUID of a cheap/fast chat model config to use instead of
-      # the deployment default.  Resolve via:
-      #   GET /api/experimental/chats/model-configs
-      DOC_CHECK_MODEL_CONFIG_ID: ${{ secrets.DOC_CHECK_MODEL_CONFIG_ID }}
+
     permissions:
       contents: read
       pull-requests: write
@@ -220,6 +217,29 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       # ------------------------------------------------------------------
+      # Resolve a cheap model config ID (haiku) from the deployment.
+      # ------------------------------------------------------------------
+      - name: Resolve Haiku model config
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: resolve-model
+        run: |
+          set -euo pipefail
+
+          MODEL_CONFIG_ID=$(
+            curl --silent --fail-with-body \
+              -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+              "${CODER_URL}/api/experimental/chats/model-configs" \
+            | jq -r '[ .[] | select(.enabled and (.model | ascii_downcase | test("haiku"))) ] | first | .id // empty'
+          )
+
+          if [[ -n "${MODEL_CONFIG_ID}" ]]; then
+            echo "Resolved haiku model config: ${MODEL_CONFIG_ID}"
+            echo "model_config_id=${MODEL_CONFIG_ID}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::No enabled haiku model config found — using deployment default"
+          fi
+
+      # ------------------------------------------------------------------
       # Create a chat via the Coder Chat API.
       # The Chat API creates a lightweight chat session — no workspace
       # provisioning or dedicated GitHub Action checkout required.
@@ -230,18 +250,19 @@ jobs:
         continue-on-error: true
         env:
           CHAT_PROMPT: ${{ steps.extract-context.outputs.chat_prompt }}
+          MODEL_CONFIG_ID: ${{ steps.resolve-model.outputs.model_config_id }}
         run: |
           set -euo pipefail
 
           echo "Creating chat session..."
 
-          # Build the request body, optionally pinning a cheaper model.
+          # Build the request body, pinning to haiku if resolved.
           BODY=$(jq -n --arg prompt "${CHAT_PROMPT}" \
             '{content: [{type: "text", text: $prompt}]}')
-          if [[ -n "${DOC_CHECK_MODEL_CONFIG_ID:-}" ]]; then
-            BODY=$(echo "${BODY}" | jq --arg id "${DOC_CHECK_MODEL_CONFIG_ID}" \
+          if [[ -n "${MODEL_CONFIG_ID:-}" ]]; then
+            BODY=$(echo "${BODY}" | jq --arg id "${MODEL_CONFIG_ID}" \
               '. + {model_config_id: $id}')
-            echo "Using model config: ${DOC_CHECK_MODEL_CONFIG_ID}"
+            echo "Using model config: ${MODEL_CONFIG_ID}"
           fi
 
           RESPONSE=$(curl --silent --fail-with-body \
