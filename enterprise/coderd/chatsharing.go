@@ -188,7 +188,7 @@ func (api *API) patchChatSharingSettings(rw http.ResponseWriter, r *http.Request
 	// subscriber cannot re-authz against stale data. Publish errors
 	// are logged and swallowed.
 	for _, chatID := range invalidatedChatIDs {
-		if err := api.AGPL.Pubsub.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{0}); err != nil {
+		if err := api.AGPL.Pubsub.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{}); err != nil {
 			api.Logger.Warn(ctx, "failed to publish chat acl invalidation after org reconcile",
 				slog.F("chat_id", chatID),
 				slog.Error(err),

@@ -456,7 +456,7 @@ func publishChatACLInvalidation(ctx context.Context, ps pubsub.Pubsub, logger sl
 	if ps == nil {
 		return
 	}
-	if err := ps.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{0}); err != nil {
+	if err := ps.Publish(coderdpubsub.ChatACLInvalidationChannel(chatID), []byte{}); err != nil {
 		logger.Warn(ctx, "failed to publish chat acl invalidation",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
@@ -472,7 +472,7 @@ func publishChatACLBroadcast(ctx context.Context, ps pubsub.Pubsub, logger slog.
 	if ps == nil {
 		return
 	}
-	if err := ps.Publish(coderdpubsub.ChatACLBroadcastChannel, []byte{0}); err != nil {
+	if err := ps.Publish(coderdpubsub.ChatACLBroadcastChannel, []byte{}); err != nil {
 		logger.Warn(ctx, "failed to publish chat acl broadcast", slog.Error(err))
 	}
 }
