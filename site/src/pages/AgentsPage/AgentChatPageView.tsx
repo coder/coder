@@ -168,6 +168,13 @@ interface AgentChatPageViewProps {
 	desktopChatId?: string;
 
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+
+	// Sharing / read-only state. The chat is optional during the
+	// initial render pass but is always set by the time the main view
+	// renders.
+	chat?: TypesGen.Chat;
+	canShare?: boolean;
+	isReadOnly?: boolean;
 }
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
@@ -231,6 +238,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPAuthComplete,
 	desktopChatId,
 	lastInjectedContext,
+	chat,
+	canShare = false,
+	isReadOnly = false,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -356,11 +366,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+								chat={chat}
+								canShare={canShare}
 							/>
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="h-4 w-4 shrink-0" />
 									This agent has been archived and is read-only.
+								</div>
+							)}
+							{isReadOnly && !isArchived && (
+								<div
+									data-testid="chat-readonly-banner"
+									className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary"
+								>
+									Read only — shared by the chat owner.
 								</div>
 							)}
 							<div

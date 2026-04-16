@@ -15,6 +15,7 @@ import {
 	watchWorkspace,
 } from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
@@ -43,6 +44,8 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { type ChatPermissions, chatChecks } from "#/modules/chats/permissions";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -600,6 +603,22 @@ const AgentChatPage: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const { user: currentUser } = useAuthenticated();
+	// Only owners have `share`/`update` on a chat. We gate the Share
+	// button and the read-only banner off the authz response so the
+	// UI matches what the backend will accept. Compute checks from
+	// the current chat, falling back to a no-op placeholder when the
+	// chat hasn't loaded yet so the authz query key stays stable.
+	const chatPermissionsQuery = useQuery({
+		...checkAuthorization<ChatPermissions>({
+			checks: chatQuery.data ? chatChecks(chatQuery.data) : {},
+		}),
+		enabled: Boolean(chatQuery.data),
+	});
+	const canShare = Boolean(chatPermissionsQuery.data?.shareChat);
+	const isReadOnly = Boolean(
+		chatQuery.data && chatQuery.data.owner_id !== currentUser.id,
+	);
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -941,7 +960,7 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending;
+		!hasModelOptions || isArchived || isChatSettingsPending || isReadOnly;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1428,6 +1447,9 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			lastInjectedContext={chatQuery.data?.last_injected_context}
+			chat={chatQuery.data}
+			canShare={canShare}
+			isReadOnly={isReadOnly}
 		/>
 	);
 };

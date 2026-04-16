@@ -70,6 +70,8 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	sharedFilter?: "owned" | "include" | "only";
+	onSharedFilterChange?: (filter: "owned" | "include" | "only") => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -106,6 +108,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	sharedFilter,
+	onSharedFilterChange,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -188,6 +192,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isFetchingNextPage={isFetchingNextPage}
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
+					sharedFilter={sharedFilter}
+					onSharedFilterChange={onSharedFilterChange}
 					onCollapse={onCollapseSidebar}
 					isAdmin={isAgentsAdmin}
 				/>
