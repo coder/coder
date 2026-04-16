@@ -205,14 +205,17 @@ func buildAskUserQuestionToolResult(state *askUserQuestionState) (json.RawMessag
 }
 
 func findPendingAskUserQuestion(messages []codersdk.ChatMessage) (*askUserQuestionState, error) {
-	resolvedToolCalls := make(map[string]struct{})
+	answeredToolCalls := make(map[string]struct{})
 	for i := len(messages) - 1; i >= 0; i-- {
 		for j := len(messages[i].Content) - 1; j >= 0; j-- {
 			part := messages[i].Content[j]
 			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolCallID == "" {
 				continue
 			}
-			resolvedToolCalls[part.ToolCallID] = struct{}{}
+			if !toolResultHasAnswers(part.Result) {
+				continue
+			}
+			answeredToolCalls[part.ToolCallID] = struct{}{}
 		}
 	}
 
@@ -222,7 +225,7 @@ func findPendingAskUserQuestion(messages []codersdk.ChatMessage) (*askUserQuesti
 			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ToolName != "ask_user_question" {
 				continue
 			}
-			if _, ok := resolvedToolCalls[part.ToolCallID]; ok {
+			if _, ok := answeredToolCalls[part.ToolCallID]; ok {
 				continue
 			}
 			return parseAskUserQuestionArgs(part.ToolCallID, part.Args)
@@ -231,6 +234,23 @@ func findPendingAskUserQuestion(messages []codersdk.ChatMessage) (*askUserQuesti
 
 	//nolint:nilnil // Nil state and nil error mean no pending tool call was found.
 	return nil, nil
+}
+
+// toolResultHasAnswers returns true when the tool result payload contains an
+// "answers" field, which indicates the user submitted answers for an
+// ask_user_question tool call.
+func toolResultHasAnswers(result json.RawMessage) bool {
+	if len(result) == 0 {
+		return false
+	}
+
+	var shape struct {
+		Answers json.RawMessage `json:"answers"`
+	}
+	if err := json.Unmarshal(result, &shape); err != nil {
+		return false
+	}
+	return len(shape.Answers) > 0
 }
 
 type chatViewModel struct {

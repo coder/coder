@@ -2464,7 +2464,21 @@ func TestExpAgents(t *testing.T) {
 				require.Nil(t, state)
 			})
 
-			t.Run("MatchedToolCallReturnsNil", func(t *testing.T) {
+			t.Run("ServerToolResultStillReturnsPendingState", func(t *testing.T) {
+				t.Parallel()
+
+				messages := []codersdk.ChatMessage{
+					message(toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
+					message(toolResultPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
+				}
+				state, err := findPendingAskUserQuestion(messages)
+				require.NoError(t, err)
+				require.NotNil(t, state)
+				require.Equal(t, "tool-1", state.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion}, state.Questions)
+			})
+
+			t.Run("UserAnsweredToolCallReturnsNil", func(t *testing.T) {
 				t.Parallel()
 
 				messages := []codersdk.ChatMessage{
@@ -2582,6 +2596,7 @@ func TestExpAgents(t *testing.T) {
 				model.chat, model.activeChatID, model.chatStatus = &chat, chat.ID, chat.Status
 				model.messages = []codersdk.ChatMessage{
 					message(toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
+					message(toolResultPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
 				}
 
 				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
