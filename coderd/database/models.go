@@ -1287,6 +1287,61 @@ func AllChatModeValues() []ChatMode {
 	}
 }
 
+type ChatPlanMode string
+
+const (
+	ChatPlanModePlan ChatPlanMode = "plan"
+)
+
+func (e *ChatPlanMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatPlanMode(s)
+	case string:
+		*e = ChatPlanMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatPlanMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatPlanMode struct {
+	ChatPlanMode ChatPlanMode `json:"chat_plan_mode"`
+	Valid        bool         `json:"valid"` // Valid is true if ChatPlanMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatPlanMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatPlanMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatPlanMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatPlanMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatPlanMode), nil
+}
+
+func (e ChatPlanMode) Valid() bool {
+	switch e {
+	case ChatPlanModePlan:
+		return true
+	}
+	return false
+}
+
+func AllChatPlanModeValues() []ChatPlanMode {
+	return []ChatPlanMode{
+		ChatPlanModePlan,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -4247,6 +4302,7 @@ type Chat struct {
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 }
 
 type ChatDebugRun struct {

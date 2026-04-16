@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ammario/tlru"
+	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -170,6 +171,25 @@ func (s Subject) SafeRoleNames() []RoleIdentifier {
 		return []RoleIdentifier{}
 	}
 	return s.Roles.Names()
+}
+
+// HasOrganizationMembership reports whether the subject has explicit
+// membership in organizationID through an org-scoped role. Site-wide roles
+// alone do not count as organization membership.
+func (s Subject) HasOrganizationMembership(organizationID uuid.UUID) (bool, error) {
+	roles, err := s.Roles.Expand()
+	if err != nil {
+		return false, xerrors.Errorf("expand user authorization roles: %w", err)
+	}
+
+	organizationIDString := organizationID.String()
+	for _, role := range roles {
+		if _, ok := role.ByOrgID[organizationIDString]; ok {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 type Authorizer interface {

@@ -1172,3 +1172,119 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 	}
 	require.True(t, found, "chat should be visible in list")
 }
+
+func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: func() *codersdk.DeploymentValues {
+				v := coderdtest.DeploymentValues(t)
+				v.Experiments = []string{string(codersdk.ExperimentAgents)}
+				return v
+			}(),
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+
+	// Set up a chat provider and model config.
+	provider, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		BaseURL:     "https://example.com",
+	})
+	require.NoError(t, err)
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:             provider.Provider,
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Test Model",
+		IsDefault:            ptr.Ref(true),
+		ContextLimit:         ptr.Ref(int64(1000)),
+		CompressionThreshold: ptr.Ref(int32(70)),
+	})
+	require.NoError(t, err)
+
+	// Create a second (non-default) org.
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+	// Create a regular member with agents access in the second org.
+	memberClientRaw, member := coderdtest.CreateAnotherUser(
+		t, client, firstUser.OrganizationID, rbac.RoleAgentsAccess(),
+	)
+	_, err = client.PostOrganizationMember(ctx, secondOrg.ID, member.Username)
+	require.NoError(t, err)
+	memberExp := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Member creates a chat in the second org.
+	memberChat, err := memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: secondOrg.ID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello from member",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, secondOrg.ID, memberChat.OrganizationID)
+
+	// Create an org admin in the second org with agents access.
+	adminClientRaw, _ := coderdtest.CreateAnotherUser(
+		t, client, firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAdmin(secondOrg.ID), rbac.RoleAgentsAccess(),
+	)
+	adminExp := codersdk.NewExperimentalClient(adminClientRaw)
+
+	// Admin creates a chat in the second org.
+	adminChat, err := adminExp.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: secondOrg.ID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello from admin",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, secondOrg.ID, adminChat.OrganizationID)
+
+	// Admin lists chats -- should only see their own chat.
+	// TODO: The handler currently filters by OwnerID (the
+	// authenticated user), so org admins cannot see other
+	// users' chats even though RBAC would allow it. If the
+	// handler gains an owner filter parameter, update this
+	// test to verify cross-user visibility.
+	adminChats, err := adminExp.ListChats(ctx, nil)
+	require.NoError(t, err)
+
+	var foundAdmin, foundMember bool
+	for _, c := range adminChats {
+		if c.ID == adminChat.ID {
+			foundAdmin = true
+		}
+		if c.ID == memberChat.ID {
+			foundMember = true
+		}
+	}
+	require.True(t, foundAdmin, "admin should see own chat")
+	require.False(t, foundMember, "admin should NOT see member chat (OwnerID filter)")
+
+	// Positive control: member can list their own chat.
+	memberChats, err := memberExp.ListChats(ctx, nil)
+	require.NoError(t, err)
+	var memberSeeOwn bool
+	for _, c := range memberChats {
+		if c.ID == memberChat.ID {
+			memberSeeOwn = true
+		}
+	}
+	require.True(t, memberSeeOwn, "member should see own chat")
+}

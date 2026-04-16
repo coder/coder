@@ -2,7 +2,8 @@ import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -48,6 +49,8 @@ interface ChatPageTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -58,11 +61,17 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -86,7 +95,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
 			<div
 				data-testid="chat-timeline-wrapper"
-				className="mx-auto flex w-full max-w-3xl flex-col gap-2 py-6"
+				className={cn(
+					"mx-auto flex w-full flex-col gap-2 py-6",
+					chatWidthClass(chatFullWidth),
+				)}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
@@ -98,6 +110,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
@@ -124,6 +139,8 @@ export type PendingAttachment = {
 };
 
 interface ChatPageInputProps {
+	// Organization that owns this chat. Used to scope file uploads.
+	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (
@@ -142,6 +159,8 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -177,10 +196,20 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	workspaceOptions: readonly TypesGen.Workspace[];
+	selectedWorkspaceId: string | null;
+	onWorkspaceChange: (workspaceId: string | null) => void;
+	isWorkspaceLoading: boolean;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	organizationId,
 	store,
 	compressionThreshold,
 	onSend,
@@ -196,6 +225,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	planModeEnabled,
+	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -214,7 +245,16 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	workspaceOptions,
+	selectedWorkspaceId,
+	onWorkspaceChange,
+	isWorkspaceLoading,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -257,8 +297,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const { organizations } = useDashboard();
-	const organizationId = organizations[0]?.id;
 	const {
 		attachments,
 		textContents,
@@ -385,12 +423,23 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			planModeEnabled={planModeEnabled}
+			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
+			workspaceOptions={workspaceOptions}
+			selectedWorkspaceId={selectedWorkspaceId}
+			onWorkspaceChange={onWorkspaceChange}
+			isWorkspaceLoading={isWorkspaceLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+			chatId={chatId}
+			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
+			folder={folder}
 		/>
 	);
 
@@ -401,9 +450,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	return (
 		<div>
 			{inputElement}
-			<div className="px-3 pt-1 text-2xs text-content-secondary">
-				{modelSelectorHelp}
-			</div>
+			{modelSelectorHelp && (
+				<div className="px-3 pt-1 text-2xs text-content-secondary">
+					{modelSelectorHelp}
+				</div>
+			)}
 		</div>
 	);
 };

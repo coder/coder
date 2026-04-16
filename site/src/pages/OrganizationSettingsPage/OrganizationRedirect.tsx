@@ -10,25 +10,25 @@ const OrganizationRedirect: FC = () => {
 		organizationPermissionsByOrganizationId: organizationPermissions,
 	} = useOrganizationSettings();
 
-	const sortedOrganizations = [...organizations].sort(
-		(a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0),
-	);
-
 	// Redirect /organizations => /organizations/some-organization-name
-	// If they can edit the default org, we should redirect to the default.
-	// If they cannot edit the default, we should redirect to the first org that
-	// they can edit.
-	const editableOrg = sortedOrganizations.find((org) =>
-		canEditOrganization(organizationPermissions[org.id]),
-	);
+	// Prefer the editable default org, then any editable org, then
+	// any viewable org. This replaces the previous [...organizations]
+	// .sort() approach with direct lookups to avoid copying the array.
+	const defaultOrg = organizations.find((org) => org.is_default);
+	const editableOrg =
+		(defaultOrg &&
+			canEditOrganization(organizationPermissions[defaultOrg.id]) &&
+			defaultOrg) ||
+		organizations.find((org) =>
+			canEditOrganization(organizationPermissions[org.id]),
+		);
 	if (editableOrg) {
 		return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
 	}
-	// If they cannot edit any org, just redirect to an org they can read.
-	if (sortedOrganizations.length > 0) {
-		return (
-			<Navigate to={`/organizations/${sortedOrganizations[0].name}`} replace />
-		);
+	// If they cannot edit any org, just redirect to one they can read.
+	const viewableOrg = defaultOrg ?? organizations[0];
+	if (viewableOrg) {
+		return <Navigate to={`/organizations/${viewableOrg.name}`} replace />;
 	}
 	return <EmptyState message="No organizations found" />;
 };

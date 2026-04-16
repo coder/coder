@@ -134,7 +134,17 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 						build.ID,
 					)), nil
 				}
-				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
+				resp, respErr := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
+				// Re-fire after the agent is fully ready so
+				// callers can load instruction files (AGENTS.md).
+				// This must happen after waitForAgentAndRespond —
+				// firing earlier races with agent startup.
+				if options.OnChatUpdated != nil {
+					if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
+						options.OnChatUpdated(latest)
+					}
+				}
+				return resp, respErr
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
@@ -190,7 +200,17 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				)), nil
 			}
 
-			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+			resp, respErr := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+			// Re-fire after the agent is fully ready so
+			// callers can load instruction files (AGENTS.md).
+			// This must happen after waitForAgentAndRespond —
+			// firing earlier races with agent startup.
+			if options.OnChatUpdated != nil {
+				if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
+				}
+			}
+			return resp, respErr
 		})
 }
 

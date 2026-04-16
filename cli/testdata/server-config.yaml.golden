@@ -816,6 +816,10 @@ aibridge:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
+  # Allow users to provide their own LLM API keys or subscriptions. When disabled,
+  # only centralized key authentication is permitted.
+  # (default: true, type: bool)
+  allow_byok: true
   # Enable the circuit breaker to protect against cascading failures from upstream
   # AI provider rate limits (429, 503, 529 overloaded).
   # (default: false, type: bool)
@@ -858,21 +862,11 @@ aibridgeproxy:
   # clients.
   # (default: <unset>, type: string)
   key_file: ""
-  # Comma-separated list of AI provider domains for which HTTPS traffic will be
-  # decrypted and routed through AI Bridge. Requests to other domains will be
-  # tunneled directly without decryption. Supported domains: api.anthropic.com,
-  # api.openai.com, api.individual.githubcopilot.com,
-  # api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.
-  # (default:
-  # api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com,
-  # type: string-array)
-  domain_allowlist:
-    - api.anthropic.com
-    - api.openai.com
-    - api.individual.githubcopilot.com
-    - api.business.githubcopilot.com
-    - api.enterprise.githubcopilot.com
-    - chatgpt.com
+  # Deprecated: This value is now derived automatically from the configured AI
+  # Bridge providers' base URLs. Setting this value has no effect. This option will
+  # be removed in a future release.
+  # (default: <unset>, type: string-array)
+  domain_allowlist: []
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)

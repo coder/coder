@@ -817,6 +817,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		UpdatedAt:         now,
 		Archived:          true,
 		PinOrder:          1,
+		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
 		LastInjectedContext: pqtype.NullRawMessage{
