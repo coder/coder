@@ -4446,6 +4446,12 @@ func stopAfterPlanTools(mode database.NullChatPlanMode, parentChatID uuid.NullUU
 	return stopTools
 }
 
+type systemPromptPlanContext struct {
+	mode                 database.NullChatPlanMode
+	planModeInstructions string
+	isRootChat           bool
+}
+
 // buildSystemPrompt applies system-level prompt injections in the
 // canonical order. It is used by both the initial prompt assembly
 // and the ReloadMessages callback to keep them in sync.
@@ -4455,8 +4461,7 @@ func buildSystemPrompt(
 	instruction string,
 	skills []chattool.SkillMeta,
 	userPrompt string,
-	planModeInstructions string,
-	mode database.NullChatPlanMode,
+	planContext systemPromptPlanContext,
 ) []fantasy.Message {
 	if subagentInstruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
@@ -4470,11 +4475,11 @@ func buildSystemPrompt(
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
 	}
-	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
-	if isPlanModeTurn {
+	isPlanModeTurn := planContext.mode.Valid && planContext.mode.ChatPlanMode == database.ChatPlanModePlan
+	if isPlanModeTurn && planContext.isRootChat {
 		prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
-		if planModeInstructions != "" {
-			prompt = chatprompt.InsertSystem(prompt, planModeInstructions)
+		if planContext.planModeInstructions != "" {
+			prompt = chatprompt.InsertSystem(prompt, planContext.planModeInstructions)
 		}
 	}
 	return prompt
@@ -4863,8 +4868,11 @@ func (p *Server) runChat(
 		instruction,
 		skills,
 		resolvedUserPrompt,
-		planModeInstructions,
-		currentPlanMode,
+		systemPromptPlanContext{
+			mode:                 currentPlanMode,
+			planModeInstructions: planModeInstructions,
+			isRootChat:           isRootChat,
+		},
 	)
 	if mcpCleanup != nil {
 		defer mcpCleanup()
@@ -5516,8 +5524,11 @@ func (p *Server) runChat(
 				reloadedInstruction,
 				reloadedSkills,
 				reloadUserPrompt,
-				planModeInstructions,
-				currentPlanMode,
+				systemPromptPlanContext{
+					mode:                 currentPlanMode,
+					planModeInstructions: planModeInstructions,
+					isRootChat:           isRootChat,
+				},
 			)
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if chainModeActive {

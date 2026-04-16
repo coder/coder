@@ -381,6 +381,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	var toolsMu sync.Mutex
 	toolsByCall := make([][]string, 0, 2)
+	requestsByCall := make([]recordedOpenAIRequest, 0, 2)
 
 	var callCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -394,6 +395,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		}
 		toolsMu.Lock()
 		toolsByCall = append(toolsByCall, names)
+		requestsByCall = append(requestsByCall, recordOpenAIRequest(req))
 		toolsMu.Unlock()
 
 		if callCount.Add(1) == 1 {
@@ -451,22 +453,29 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	toolsMu.Lock()
 	recorded := append([][]string(nil), toolsByCall...)
+	recordedRequests := append([]recordedOpenAIRequest(nil), requestsByCall...)
 	toolsMu.Unlock()
 
 	require.GreaterOrEqual(t, len(recorded), 2,
 		"expected at least 2 streamed LLM calls (root + subagent)")
+	require.Len(t, recordedRequests, len(recorded))
 
 	var rootCalls, childCalls [][]string
-	for _, tools := range recorded {
+	var rootRequests, childRequests []recordedOpenAIRequest
+	for i, tools := range recorded {
 		if slice.Contains(tools, "spawn_agent") {
 			rootCalls = append(rootCalls, tools)
+			rootRequests = append(rootRequests, recordedRequests[i])
 			continue
 		}
 		childCalls = append(childCalls, tools)
+		childRequests = append(childRequests, recordedRequests[i])
 	}
 
 	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
 	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
+	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
+	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
 	require.Contains(t, rootCalls[0], "ask_user_question",
 		"root plan-mode chat should have ask_user_question")
 	require.Contains(t, rootCalls[0], "write_file",
@@ -479,6 +488,9 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		"plan-mode subagent should NOT have write_file")
 	require.NotContains(t, childCalls[0], "edit_files",
 		"plan-mode subagent should NOT have edit_files")
+	require.True(t, requestHasSystemSubstring(rootRequests[0], "You are in Plan Mode."))
+	require.False(t, requestHasSystemSubstring(childRequests[0], "You are in Plan Mode."))
+	require.False(t, requestHasSystemSubstring(childRequests[0], "When the plan is ready, call propose_plan"))
 }
 
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
