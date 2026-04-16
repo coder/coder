@@ -282,6 +282,10 @@ type sqlcQuerier interface {
 	GetChatDesktopEnabled(ctx context.Context) (bool, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	// Returns aggregate PR counts across all agent chats for telemetry.
+	// Deduplicates by PR URL so forked chats referencing the same pull
+	// request are counted once (using the most recent chat's state).
+	// Total is derived from the three state buckets so it always equals
+	// open + merged + closed, even if new states are introduced later.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)

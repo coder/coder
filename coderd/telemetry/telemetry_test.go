@@ -1868,7 +1868,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Merged)
 	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Closed)
 
-	// Set up minimal FK chain: provider → model config → chat.
+	// Set up minimal FK chain: provider -> model config -> chat.
 	user := dbgen.User(t, db, database.User{})
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
@@ -1894,7 +1894,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Helper to create a chat and upsert its diff status.
-	insertChatWithPRState := func(state string) {
+	insertChatWithPR := func(state, prURL string) uuid.UUID {
 		t.Helper()
 		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
@@ -1907,18 +1907,24 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 		now := dbtime.Now()
 		_, chatErr = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chat.ID,
+			Url:              sql.NullString{String: prURL, Valid: prURL != ""},
 			PullRequestState: sql.NullString{String: state, Valid: true},
 			RefreshedAt:      now,
 			StaleAt:          now,
 		})
 		require.NoError(t, chatErr)
+		return chat.ID
 	}
 
-	// Insert: 2 merged, 1 open, 1 closed.
-	insertChatWithPRState("merged")
-	insertChatWithPRState("merged")
-	insertChatWithPRState("open")
-	insertChatWithPRState("closed")
+	// Insert: 1 merged, 1 open, 1 closed (each with unique URLs).
+	insertChatWithPR("merged", "https://github.com/org/repo/pull/1")
+	openChatID := insertChatWithPR("open", "https://github.com/org/repo/pull/2")
+	insertChatWithPR("closed", "https://github.com/org/repo/pull/3")
+
+	// Create a forked chat referencing the same PR URL as the merged
+	// one. The query deduplicates by URL, so this should NOT inflate
+	// the merged count.
+	insertChatWithPR("merged", "https://github.com/org/repo/pull/1")
 
 	// Insert a chat with NULL pull_request_state (no PR yet).
 	// This should be excluded from all counts.
@@ -1940,9 +1946,30 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
 
+	// 3 unique PRs (deduped by URL), not 4 chat_diff_statuses rows.
 	require.NotNil(t, snapshot.ChatDiffStatusSummary)
-	assert.Equal(t, int64(4), snapshot.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(3), snapshot.ChatDiffStatusSummary.Total)
 	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Open)
-	assert.Equal(t, int64(2), snapshot.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Merged)
 	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Closed)
+
+	// Transition the "open" PR to "merged" via upsert on the same
+	// chat_id. The aggregate should reflect the new state.
+	now = dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:           openChatID,
+		Url:              sql.NullString{String: "https://github.com/org/repo/pull/2", Valid: true},
+		PullRequestState: sql.NullString{String: "merged", Valid: true},
+		RefreshedAt:      now,
+		StaleAt:          now,
+	})
+	require.NoError(t, err)
+
+	_, snapshot2 := collectSnapshot(ctx, t, db, nil)
+
+	require.NotNil(t, snapshot2.ChatDiffStatusSummary)
+	assert.Equal(t, int64(3), snapshot2.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(0), snapshot2.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(2), snapshot2.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(1), snapshot2.ChatDiffStatusSummary.Closed)
 }

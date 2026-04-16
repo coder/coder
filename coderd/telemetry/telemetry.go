@@ -2395,8 +2395,9 @@ type ChatModelConfig struct {
 }
 
 // ChatDiffStatusSummary contains aggregate PR counts across all
-// agent chats. Each field counts chat_diff_statuses rows with a
-// non-NULL pull_request_state.
+// agent chats. Total counts unique PRs with a known state
+// (open + merged + closed). Open, Merged, and Closed break that
+// total down by state.
 type ChatDiffStatusSummary struct {
 	Total  int64 `json:"total"`
 	Open   int64 `json:"open"`
