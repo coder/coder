@@ -5815,7 +5815,7 @@ WITH deduped AS (
         cds.pull_request_state
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
-    WHERE cds.pull_request_state IS NOT NULL
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
     ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
 )
 SELECT
@@ -5838,8 +5838,9 @@ type GetChatDiffStatusSummaryRow struct {
 // Returns aggregate PR counts across all agent chats for telemetry.
 // Deduplicates by PR URL so forked chats referencing the same pull
 // request are counted once (using the most recent chat's state).
-// Total is derived from the three state buckets so it always equals
-// open + merged + closed, even if new states are introduced later.
+// Total is derived from the three recognized state buckets and
+// always equals open + merged + closed; other non-NULL states are
+// intentionally excluded from these aggregates.
 func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatDiffStatusSummary)
 	var i GetChatDiffStatusSummaryRow
