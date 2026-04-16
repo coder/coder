@@ -148,17 +148,39 @@ func TestChatLoop_MessageCacheNotSetForNonAnthropic(t *testing.T) {
 func TestChatLoop_MessageCacheClearedOnCompaction(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-
 	var capture callCapture
+	// sentinelPlanted is set once we inject a marker entry into
+	// the cache during step 0. After compaction, Clear() should
+	// remove it before step 1 runs.
+	var sentinelPlanted atomic.Bool
 	model := &chattest.FakeModel{
 		ProviderName: fantasyanthropic.Name,
 		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 			step := capture.record(call)
-			if step == 0 {
+			mc, ok := extractMessageCache(t, call)
+			require.True(t, ok, "step %d: cache should be present", step)
+			mmc := mc.(*mapMessageCache)
+
+			switch step {
+			case 0:
+				// Plant a sentinel so we can detect whether
+				// Clear() runs before the next step.
+				mmc.Set(9999, json.RawMessage(`{"sentinel":true}`))
+				sentinelPlanted.Store(true)
 				// High usage triggers compaction (80/100 = 80% > 70%).
 				return streamTextStop("initial", fantasy.Usage{InputTokens: 80, TotalTokens: 85}), nil
+			default:
+				// After compaction + Clear(), the sentinel should
+				// be gone and the cache should be empty.
+				require.True(t, sentinelPlanted.Load(),
+					"sentinel should have been planted in step 0")
+				_, hasSentinel := mmc.Get(9999)
+				assert.False(t, hasSentinel,
+					"sentinel entry should have been cleared by compaction")
+				assert.Empty(t, mmc.entries,
+					"cache should be empty after compaction Clear()")
+				return streamTextStop("after compaction", fantasy.Usage{InputTokens: 20, TotalTokens: 25}), nil
 			}
-			return streamTextStop("after compaction", fantasy.Usage{InputTokens: 20, TotalTokens: 25}), nil
 		},
 		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 			return &fantasy.Response{
@@ -189,22 +211,7 @@ func TestChatLoop_MessageCacheClearedOnCompaction(t *testing.T) {
 
 	capture.mu.Lock()
 	defer capture.mu.Unlock()
-
 	require.GreaterOrEqual(t, capture.count, 2, "expected at least 2 stream calls")
-
-	// Both steps should carry a MessageCache.
-	for i, call := range capture.calls {
-		_, ok := extractMessageCache(t, call)
-		require.True(t, ok, "step %d: cache should be present", i)
-	}
-
-	// The cache instance is the same object, but Clear() should
-	// have been called between steps. We verify indirectly: the
-	// cache is a *mapMessageCache and should have no stale entries
-	// from step 0 by the time step 1 completes (compaction
-	// replaced the message history).
-	mc, _ := extractMessageCache(t, capture.calls[0])
-	_ = mc // Cache was cleared; no stale entries survive.
 }
 
 // TestChatLoop_MessageCachePopulatedByProvider uses a real fantasy
