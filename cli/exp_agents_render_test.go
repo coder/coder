@@ -755,6 +755,91 @@ func TestExpAgentsRender(t *testing.T) {
 			tt.assert(t, renderPrefixedBlock(tt.prefix, tt.input, tt.width))
 		}
 	})
+
+	t.Run("RenderAskUserQuestion", func(t *testing.T) {
+		t.Parallel()
+
+		firstQuestion := parsedAskQuestion{
+			Header:   "Review plan",
+			Question: "Which plan should we use?",
+			Options: []parsedAskOption{
+				{Label: "Fast path", Value: "fast"},
+				{Label: "Safe path", Value: "safe"},
+			},
+		}
+		secondQuestion := parsedAskQuestion{
+			Header:   "Risk",
+			Question: "How much risk is acceptable?",
+			Options:  []parsedAskOption{{Label: "Low", Value: "low"}},
+		}
+		renderPlain := func(state *askUserQuestionState, width, height int) string {
+			return plainText(renderAskUserQuestion(styles, state, width, height))
+		}
+
+		t.Run("BasicRenderShowsQuestionOptionsAndHelp", func(t *testing.T) {
+			t.Parallel()
+
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			output := renderPlain(state, 100, 20)
+
+			require.Contains(t, output, "Plan Question 1/1")
+			require.Contains(t, output, firstQuestion.Header)
+			require.Contains(t, output, firstQuestion.Question)
+			require.Contains(t, output, "Fast path")
+			require.Contains(t, output, "Safe path")
+			require.Contains(t, output, "Other (type custom answer)")
+			require.Contains(t, output, "↑/↓ navigate")
+			require.Contains(t, output, "enter select")
+		})
+
+		t.Run("SelectedOptionShowsCursor", func(t *testing.T) {
+			t.Parallel()
+
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			state.OptionCursor = 1
+			output := renderPlain(state, 100, 20)
+
+			require.Contains(t, output, "> Safe path")
+			require.NotContains(t, output, "> Fast path")
+		})
+
+		t.Run("MultipleQuestionsShowProgress", func(t *testing.T) {
+			t.Parallel()
+
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion, secondQuestion, firstQuestion})
+			state.CurrentIndex = 1
+			output := renderPlain(state, 100, 20)
+
+			require.Contains(t, output, "Plan Question 2/3")
+			require.Contains(t, output, secondQuestion.Header)
+			require.Contains(t, output, secondQuestion.Question)
+		})
+
+		t.Run("FreeformInputIsVisible", func(t *testing.T) {
+			t.Parallel()
+
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			state.OptionCursor = len(firstQuestion.Options)
+			state.OtherMode = true
+			state.OtherInput.Focus()
+			state.OtherInput.SetValue("Need a custom plan")
+			output := renderPlain(state, 100, 20)
+
+			require.Contains(t, output, "Need a custom plan")
+			require.Contains(t, output, "esc cancel input")
+		})
+
+		t.Run("NarrowTerminalDoesNotPanic", func(t *testing.T) {
+			t.Parallel()
+
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			var output string
+			require.NotPanics(t, func() {
+				output = renderPlain(state, 18, 6)
+			})
+			require.NotEmpty(t, strings.TrimSpace(output))
+		})
+	})
 }
 
 func plainText(text string) string {

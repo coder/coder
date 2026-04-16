@@ -2225,6 +2225,546 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
+	t.Run("AskUserQuestion", func(t *testing.T) {
+		t.Parallel()
+		mustAskArgs := func(t testing.TB, questions ...parsedAskQuestion) string {
+			t.Helper()
+			payloadQuestions := make([]map[string]any, 0, len(questions))
+			for _, question := range questions {
+				options := make([]map[string]string, 0, len(question.Options))
+				for _, option := range question.Options {
+					options = append(options, map[string]string{
+						"label": option.Label,
+						"value": option.Value,
+					})
+				}
+				payloadQuestions = append(payloadQuestions, map[string]any{
+					"header":   question.Header,
+					"question": question.Question,
+					"options":  options,
+				})
+			}
+			output, err := json.Marshal(map[string]any{"questions": payloadQuestions})
+			require.NoError(t, err)
+			return string(output)
+		}
+		askToolCall := func(t testing.TB, toolCallID string, questions ...parsedAskQuestion) codersdk.ChatStreamToolCall {
+			t.Helper()
+			return codersdk.ChatStreamToolCall{
+				ToolCallID: toolCallID,
+				ToolName:   "ask_user_question",
+				Args:       mustAskArgs(t, questions...),
+			}
+		}
+		message := func(parts ...codersdk.ChatMessagePart) codersdk.ChatMessage {
+			return codersdk.ChatMessage{Content: parts}
+		}
+		toolCallPart := func(toolCallID, toolName, args string) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Args:       rawJSON(args),
+			}
+		}
+		toolResultPart := func(toolCallID, toolName, result string) codersdk.ChatMessagePart {
+			return codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Result:     rawJSON(result),
+			}
+		}
+		firstQuestion := parsedAskQuestion{
+			Header:   "Review plan",
+			Question: "What should happen next?",
+			Options: []parsedAskOption{
+				{Label: "Approve", Value: "approve"},
+				{Label: "Reject", Value: "reject"},
+			},
+		}
+		secondQuestion := parsedAskQuestion{
+			Header:   "Reason",
+			Question: "Why?",
+			Options: []parsedAskOption{
+				{Label: "Speed", Value: "speed"},
+				{Label: "Quality", Value: "quality"},
+			},
+		}
+
+		t.Run("ParseToolCall", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("ValidJSONWithOptions", func(t *testing.T) {
+				t.Parallel()
+
+				state, err := parseAskUserQuestionToolCall(askToolCall(t, "tool-1", firstQuestion, secondQuestion))
+				require.NoError(t, err)
+				require.Equal(t, "tool-1", state.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion, secondQuestion}, state.Questions)
+				require.Empty(t, state.Answers)
+				require.Zero(t, state.CurrentIndex)
+				require.Zero(t, state.OptionCursor)
+			})
+
+			t.Run("EmptyOrMissingQuestionsReturnsError", func(t *testing.T) {
+				t.Parallel()
+
+				for _, tt := range []struct {
+					name string
+					args string
+				}{
+					{name: "MissingQuestions", args: `{}`},
+					{name: "EmptyQuestions", args: `{"questions":[]}`},
+				} {
+					tt := tt
+					t.Run(tt.name, func(t *testing.T) {
+						t.Parallel()
+
+						state, err := parseAskUserQuestionToolCall(codersdk.ChatStreamToolCall{
+							ToolCallID: "tool-1",
+							ToolName:   "ask_user_question",
+							Args:       tt.args,
+						})
+						require.Nil(t, state)
+						require.ErrorContains(t, err, "at least one question")
+					})
+				}
+			})
+
+			t.Run("MalformedJSONReturnsError", func(t *testing.T) {
+				t.Parallel()
+
+				state, err := parseAskUserQuestionToolCall(codersdk.ChatStreamToolCall{
+					ToolCallID: "tool-1",
+					ToolName:   "ask_user_question",
+					Args:       `{"questions":[`,
+				})
+				require.Nil(t, state)
+				require.ErrorContains(t, err, "parse ask_user_question args")
+			})
+		})
+
+		t.Run("BuildToolResult", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("AnswersMarshalToJSON", func(t *testing.T) {
+				t.Parallel()
+
+				output, err := buildAskUserQuestionToolResult(&askUserQuestionState{
+					Answers: []askQuestionAnswer{{
+						Header:      firstQuestion.Header,
+						Question:    firstQuestion.Question,
+						Answer:      "approve",
+						OptionLabel: "Approve",
+						Freeform:    false,
+					}},
+				})
+				require.NoError(t, err)
+				require.JSONEq(t, `{"answers":[{"header":"Review plan","question":"What should happen next?","answer":"approve","option_label":"Approve","freeform":false}]}`, string(output))
+			})
+
+			t.Run("NoAnswersUsesEmptyArray", func(t *testing.T) {
+				t.Parallel()
+
+				output, err := buildAskUserQuestionToolResult(&askUserQuestionState{})
+				require.NoError(t, err)
+				require.JSONEq(t, `{"answers":[]}`, string(output))
+			})
+		})
+
+		t.Run("FindPending", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("NoMessagesReturnsNil", func(t *testing.T) {
+				t.Parallel()
+
+				state, err := findPendingAskUserQuestion(nil)
+				require.NoError(t, err)
+				require.Nil(t, state)
+			})
+
+			t.Run("MatchedToolCallReturnsNil", func(t *testing.T) {
+				t.Parallel()
+
+				messages := []codersdk.ChatMessage{
+					message(toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
+					message(toolResultPart("tool-1", "ask_user_question", `{"answers":[{"answer":"approve"}]}`)),
+				}
+				state, err := findPendingAskUserQuestion(messages)
+				require.NoError(t, err)
+				require.Nil(t, state)
+			})
+
+			t.Run("UnmatchedToolCallReturnsParsedState", func(t *testing.T) {
+				t.Parallel()
+
+				messages := []codersdk.ChatMessage{
+					message(toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion, secondQuestion))),
+					message(codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "assistant reply"}),
+				}
+				state, err := findPendingAskUserQuestion(messages)
+				require.NoError(t, err)
+				require.NotNil(t, state)
+				require.Equal(t, "tool-1", state.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion, secondQuestion}, state.Questions)
+			})
+
+			t.Run("NonAskUserQuestionToolCallReturnsNil", func(t *testing.T) {
+				t.Parallel()
+
+				messages := []codersdk.ChatMessage{
+					message(toolCallPart("tool-1", "search_docs", `{"query":"overlay"}`)),
+				}
+				state, err := findPendingAskUserQuestion(messages)
+				require.NoError(t, err)
+				require.Nil(t, state)
+			})
+		})
+
+		t.Run("HandleStreamEventActionRequired", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("AskUserQuestionShowsOverlay", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
+					Type: codersdk.ChatStreamEventTypeActionRequired,
+					ActionRequired: &codersdk.ChatStreamActionRequired{
+						ToolCalls: []codersdk.ChatStreamToolCall{askToolCall(t, "tool-1", firstQuestion)},
+					},
+				})
+				require.NotNil(t, updated.pendingAskUserQuestion)
+				require.Equal(t, "tool-1", updated.pendingAskUserQuestion.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion}, updated.pendingAskUserQuestion.Questions)
+				showMsg, ok := mustMsg(t, cmd).(showAskUserQuestionMsg)
+				require.True(t, ok)
+				require.Same(t, updated.pendingAskUserQuestion, showMsg.state)
+			})
+
+			t.Run("NonAskUserQuestionToolCallIsIgnored", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
+					Type: codersdk.ChatStreamEventTypeActionRequired,
+					ActionRequired: &codersdk.ChatStreamActionRequired{
+						ToolCalls: []codersdk.ChatStreamToolCall{{
+							ToolCallID: "tool-1",
+							ToolName:   "search_docs",
+							Args:       `{"query":"overlay"}`,
+						}},
+					},
+				})
+				require.Nil(t, updated.pendingAskUserQuestion)
+				require.Nil(t, cmd)
+			})
+
+			t.Run("MalformedArgsReturnErrorEvent", func(t *testing.T) {
+				t.Parallel()
+
+				model := newTestChatViewModel(nil)
+				model.activeChatID = uuid.New()
+				model.chatGeneration = 7
+				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
+					Type: codersdk.ChatStreamEventTypeActionRequired,
+					ActionRequired: &codersdk.ChatStreamActionRequired{
+						ToolCalls: []codersdk.ChatStreamToolCall{{
+							ToolCallID: "tool-1",
+							ToolName:   "ask_user_question",
+							Args:       `{"questions":[`,
+						}},
+					},
+				})
+				require.Nil(t, updated.pendingAskUserQuestion)
+				streamMsg, ok := mustMsg(t, cmd).(chatStreamEventMsg)
+				require.True(t, ok)
+				require.Equal(t, uint64(7), streamMsg.generation)
+				require.Equal(t, model.activeChatID, streamMsg.chatID)
+				require.Equal(t, codersdk.ChatStreamEventTypeError, streamMsg.event.Type)
+				require.NotNil(t, streamMsg.event.Error)
+				require.Contains(t, streamMsg.event.Error.Message, "failed to parse ask_user_question")
+
+				updated = mustChatViewUpdate(t, updated, streamMsg)
+				require.EqualError(t, updated.err, "stream error: "+streamMsg.event.Error.Message)
+			})
+		})
+
+		t.Run("OverlayLifecycle", func(t *testing.T) {
+			t.Parallel()
+
+			newOverlayState := func() *askUserQuestionState {
+				return newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			}
+
+			t.Run("ShowOpensOverlay", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				model := newTestTUIModel()
+				model.currentView = viewChat
+
+				updatedModel, cmd := model.Update(showAskUserQuestionMsg{state: state})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayAskUserQuestion, updated.overlay)
+				require.Same(t, state, updated.chat.pendingAskUserQuestion)
+			})
+
+			t.Run("HideClosesOverlay", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+
+				updatedModel, cmd := model.Update(hideAskUserQuestionMsg{})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayNone, updated.overlay)
+				require.Same(t, state, updated.chat.pendingAskUserQuestion)
+			})
+
+			t.Run("EscapeDoesNotCloseOverlay", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+
+				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayAskUserQuestion, updated.overlay)
+				require.Same(t, state, updated.chat.pendingAskUserQuestion)
+			})
+
+			t.Run("SuccessfulSubmitClearsOverlay", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+				model.chat.activeChatID = uuid.New()
+				model.chat.chatGeneration = 11
+
+				updatedModel, cmd := model.Update(toolResultsSubmittedMsg{
+					generation: 11,
+					chatID:     model.chat.activeChatID,
+				})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayNone, updated.overlay)
+				require.Nil(t, updated.chat.pendingAskUserQuestion)
+			})
+
+			t.Run("SubmitErrorKeepsOverlayOpen", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				state.Submitting = true
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+				model.chat.activeChatID = uuid.New()
+				model.chat.chatGeneration = 11
+
+				updatedModel, cmd := model.Update(toolResultsSubmittedMsg{
+					generation: 11,
+					chatID:     model.chat.activeChatID,
+					err:        xerrors.New("submit failed"),
+				})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayAskUserQuestion, updated.overlay)
+				require.NotNil(t, updated.chat.pendingAskUserQuestion)
+				require.False(t, updated.chat.pendingAskUserQuestion.Submitting)
+				require.EqualError(t, updated.chat.pendingAskUserQuestion.Error, "submit failed")
+			})
+
+			t.Run("StaleSubmitIsIgnored", func(t *testing.T) {
+				t.Parallel()
+
+				state := newOverlayState()
+				state.Submitting = true
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+				model.chat.activeChatID = uuid.New()
+				model.chat.chatGeneration = 11
+
+				updatedModel, cmd := model.Update(toolResultsSubmittedMsg{
+					generation: 10,
+					chatID:     model.chat.activeChatID,
+				})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayAskUserQuestion, updated.overlay)
+				require.Same(t, state, updated.chat.pendingAskUserQuestion)
+				require.True(t, updated.chat.pendingAskUserQuestion.Submitting)
+				require.NoError(t, updated.chat.pendingAskUserQuestion.Error)
+			})
+		})
+
+		t.Run("KeyHandling", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("UpAndDownNavigateOptions", func(t *testing.T) {
+				t.Parallel()
+
+				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+				model := newTestTUIModel()
+				model.chat.pendingAskUserQuestion = state
+
+				require.Nil(t, model.handleAskUserQuestionKey(tea.KeyMsg{Type: tea.KeyDown}))
+				require.Equal(t, 1, state.OptionCursor)
+				require.Nil(t, model.handleAskUserQuestionKey(tea.KeyMsg{Type: tea.KeyUp}))
+				require.Zero(t, state.OptionCursor)
+				require.Nil(t, model.handleAskUserQuestionKey(tea.KeyMsg{Type: tea.KeyUp}))
+				require.Equal(t, len(firstQuestion.Options), state.OptionCursor)
+			})
+
+			t.Run("EnterOnOptionRecordsAnswerAndAdvances", func(t *testing.T) {
+				t.Parallel()
+
+				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion, secondQuestion})
+				state.OptionCursor = 1
+				model := newTestTUIModel()
+				model.chat.pendingAskUserQuestion = state
+
+				cmd := model.handleAskUserQuestionKey(tea.KeyMsg{Type: tea.KeyEnter})
+				require.Nil(t, cmd)
+				require.Len(t, state.Answers, 1)
+				require.Equal(t, askQuestionAnswer{
+					Header:      firstQuestion.Header,
+					Question:    firstQuestion.Question,
+					Answer:      "reject",
+					OptionLabel: "Reject",
+					Freeform:    false,
+				}, state.Answers[0])
+				require.Equal(t, 1, state.CurrentIndex)
+				require.Zero(t, state.OptionCursor)
+			})
+
+			t.Run("EnterOnOtherEntersFreeformMode", func(t *testing.T) {
+				t.Parallel()
+
+				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+				state.OptionCursor = len(firstQuestion.Options)
+				model := newTestTUIModel()
+				model.chat.pendingAskUserQuestion = state
+
+				cmd := model.handleAskUserQuestionKey(tea.KeyMsg{Type: tea.KeyEnter})
+				require.Nil(t, cmd)
+				require.True(t, state.OtherMode)
+				require.Empty(t, state.OtherInput.Value())
+			})
+
+			t.Run("EscapeInFreeformModeExitsOnlyInput", func(t *testing.T) {
+				t.Parallel()
+
+				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+				state.OtherMode = true
+				state.OtherInput.Focus()
+				state.OtherInput.SetValue("typed answer")
+				model := newTestTUIModel()
+				model.currentView = viewChat
+				model.overlay = overlayAskUserQuestion
+				model.chat.pendingAskUserQuestion = state
+
+				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+				updated := mustTUIModel(t, updatedModel, cmd)
+				require.Equal(t, overlayAskUserQuestion, updated.overlay)
+				require.NotNil(t, updated.chat.pendingAskUserQuestion)
+				require.False(t, updated.chat.pendingAskUserQuestion.OtherMode)
+				require.Equal(t, "typed answer", updated.chat.pendingAskUserQuestion.OtherInput.Value())
+			})
+
+			t.Run("LeftOrHMovesBackToPreviousQuestion", func(t *testing.T) {
+				t.Parallel()
+
+				state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion, secondQuestion})
+				state.CurrentIndex = 1
+				state.OptionCursor = 1
+				state.OtherMode = true
+				state.OtherInput.Focus()
+				state.Error = xerrors.New("temporary error")
+				state.Answers = []askQuestionAnswer{{
+					Header:      firstQuestion.Header,
+					Question:    firstQuestion.Question,
+					Answer:      "approve",
+					OptionLabel: "Approve",
+					Freeform:    false,
+				}}
+				model := newTestTUIModel()
+				model.chat.pendingAskUserQuestion = state
+
+				cmd := model.handleAskUserQuestionKey(keyRunes("h"))
+				require.Nil(t, cmd)
+				require.Zero(t, state.CurrentIndex)
+				require.Zero(t, state.OptionCursor)
+				require.False(t, state.OtherMode)
+				require.Nil(t, state.Error)
+				require.Empty(t, state.Answers)
+			})
+		})
+
+		t.Run("RecordAskAnswer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), failingExperimentalClient(), nil, nil, nil)
+			model.chat.activeChatID = uuid.New()
+			model.chat.chatGeneration = 4
+			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+			state.OtherMode = true
+			state.OtherInput.Focus()
+			state.OtherInput.SetValue("custom answer")
+			model.chat.pendingAskUserQuestion = state
+
+			cmd := model.recordAskAnswer("custom answer", "", true)
+			require.NotNil(t, cmd)
+			require.True(t, state.Submitting)
+			require.Len(t, state.Answers, 1)
+			require.Equal(t, askQuestionAnswer{
+				Header:   firstQuestion.Header,
+				Question: firstQuestion.Question,
+				Answer:   "custom answer",
+				Freeform: true,
+			}, state.Answers[0])
+			require.False(t, state.OtherMode)
+			require.Empty(t, state.OtherInput.Value())
+		})
+
+		t.Run("ComposerBlocksEnterWhileQuestionPending", func(t *testing.T) {
+			t.Parallel()
+
+			baseline := newTestChatViewModel(failingExperimentalClient())
+			baseline.draft = true
+			baseline.loading = false
+			baseline.composer.SetValue("send this")
+
+			updated, cmd := baseline.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			require.NotNil(t, cmd)
+			require.True(t, updated.creatingChat)
+			require.Empty(t, updated.composer.Value())
+
+			blocked := newTestChatViewModel(failingExperimentalClient())
+			blocked.draft = true
+			blocked.loading = false
+			blocked.composer.SetValue("send this")
+			blocked.pendingAskUserQuestion = newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
+
+			updated, cmd = blocked.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			require.Nil(t, cmd)
+			require.False(t, updated.creatingChat)
+			require.Equal(t, "send this", updated.composer.Value())
+			require.Empty(t, updated.pendingComposerText)
+		})
+	})
+
 	t.Run("ChatList", func(t *testing.T) {
 		t.Parallel()
 		newChat := func(status codersdk.ChatStatus, title string, parent *uuid.UUID) codersdk.Chat {
