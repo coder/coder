@@ -5407,6 +5407,16 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
+	// Enrich the scoped logger with provider/model so every
+	// downstream log line from this turn carries them (including
+	// the OnRetry warning and compaction errors). Bind once after
+	// the cuModel swap; slog.Logger.With appends rather than
+	// deduping, so binding twice would produce duplicate fields.
+	logger = logger.With(
+		slog.F("provider", model.Provider()),
+		slog.F("model", model.Model()),
+	)
+
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
@@ -5655,6 +5665,7 @@ func (p *Server) runChat(
 			logger.Warn(ctx, "retrying LLM stream",
 				slog.F("attempt", attempt),
 				slog.F("delay", delay.String()),
+				slog.F("kind", classified.Kind),
 				slog.Error(retryErr),
 			)
 			payload := chaterror.StreamRetryPayload(attempt, delay, classified)
