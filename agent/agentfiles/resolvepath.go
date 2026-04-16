@@ -79,7 +79,16 @@ func (api *API) resolvePath(path string) (string, error) {
 		switch {
 		case err == nil:
 			if info.Mode()&os.ModeSymlink == 0 {
-				return path, nil
+				dir := filepath.Dir(path)
+				if dir == path {
+					return path, nil
+				}
+
+				resolvedDir, err := resolve(dir, depth)
+				if err != nil {
+					return "", err
+				}
+				return filepath.Join(resolvedDir, filepath.Base(path)), nil
 			}
 
 			target, err := targetReader.ReadlinkIfPossible(path)

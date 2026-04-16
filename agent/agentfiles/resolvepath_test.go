@@ -89,3 +89,42 @@ func TestResolvePath_FollowsSymlinkedParentForMissingFile(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.Equal(t, resolvedPath, resp.ResolvedPath)
 }
+
+func TestResolvePath_FollowsSymlinkedParentForExistingFile(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	realPlansDir := filepath.Join(dir, "real-plans")
+	err := os.MkdirAll(realPlansDir, 0o755)
+	require.NoError(t, err)
+
+	resolvedPath := filepath.Join(realPlansDir, "PLAN.md")
+	err = afero.WriteFile(osFs, resolvedPath, []byte("plan"), 0o644)
+	require.NoError(t, err)
+
+	linkPlansDir := filepath.Join(dir, "link-plans")
+	err = os.Symlink(realPlansDir, linkPlansDir)
+	require.NoError(t, err)
+
+	requestedPath := filepath.Join(linkPlansDir, "PLAN.md")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/resolve-path?path=%s", requestedPath), nil)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp workspacesdk.ResolvePathResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Equal(t, resolvedPath, resp.ResolvedPath)
+}
