@@ -137,6 +137,16 @@ breakdowns.
 
 See [Spend Management](./usage-insights.md) for details.
 
+### PR Insights
+
+PR Insights tracks pull requests created by Coder Agents and surfaces
+analytics on PR activity, merge rates, and cost efficiency. The system
+automatically fetches PR metadata from configured GitHub external auth
+providers.
+
+See [PR Insights](./pr-insights.md) for configuration details, including
+requirements for GitHub Enterprise deployments.
+
 ### Data retention
 
 Administrators can configure a retention period for archived conversations.

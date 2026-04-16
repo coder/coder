@@ -244,7 +244,14 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_EXTERNAL_AUTH_0_API_BASE_URL="https://github.example.com/api/v3"
 ```
+
+`API_BASE_URL` is required for features like
+[PR Insights](../../ai-coder/agents/platform-controls/pr-insights.md) that use
+the GitHub API to fetch repository and pull request metadata. Without it, Coder
+defaults to `https://api.github.com` and cannot match URLs from your GitHub
+Enterprise instance.
 
 When configuring your GitHub Enterprise OAuth application, set the
 [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
