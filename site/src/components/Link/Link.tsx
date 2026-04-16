@@ -22,7 +22,7 @@ const linkVariants = cva(
 	},
 );
 
-type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
+export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
 	VariantProps<typeof linkVariants> & {
 		asChild?: boolean;
 		showExternalIcon?: boolean;
@@ -34,14 +34,21 @@ export const Link: React.FC<LinkProps> = ({
 	children,
 	size,
 	asChild,
-	showExternalIcon = true,
+	showExternalIcon,
 	...props
 }) => {
 	const Comp = asChild ? Slot.Root : "a";
+	// When composing with asChild, Radix Slot expects a Slottable child if
+	// there are multiple visual children (e.g. link text + icon). Without
+	// Slottable, SlotClone can throw React.Children.only errors.
+	// Default: show the external icon on plain anchors only; internal
+	// RouterLink compositions opt in with showExternalIcon={true}.
+	const effectiveShowExternalIcon = showExternalIcon ?? !asChild;
+
 	return (
 		<Comp className={cn(linkVariants({ size }), className)} {...props}>
 			<Slot.Slottable>{children}</Slot.Slottable>
-			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+			{effectiveShowExternalIcon && <SquareArrowOutUpRightIcon />}
 		</Comp>
 	);
 };

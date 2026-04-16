@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -22,6 +21,7 @@ import {
 	HelpPopoverContent,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -159,33 +159,37 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 				{quota && quota.budget > 0 && (
 					<Link
-						component={RouterLink}
+						asChild
+						showExternalIcon={false}
 						className="text-inherit"
-						to={
-							showOrganizations
-								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
-								: "/workspaces"
-						}
 						title={
 							showOrganizations
 								? `See affected workspaces for ${orgDisplayName}`
 								: "See affected workspaces"
 						}
 					>
-						<TopbarData>
-							<TopbarIcon>
-								<CircleDollarSign
-									className="size-icon-sm"
-									aria-label="Daily usage"
-								/>
-							</TopbarIcon>
+						<RouterLink
+							to={
+								showOrganizations
+									? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
+									: "/workspaces"
+							}
+						>
+							<TopbarData>
+								<TopbarIcon>
+									<CircleDollarSign
+										className="size-icon-sm"
+										aria-label="Daily usage"
+									/>
+								</TopbarIcon>
 
-							<span>
-								{workspace.latest_build.daily_cost}{" "}
-								<span className="text-content-secondary">credits of</span>{" "}
-								{quota.budget}
-							</span>
-						</TopbarData>
+								<span>
+									{workspace.latest_build.daily_cost}{" "}
+									<span className="text-content-secondary">credits of</span>{" "}
+									{quota.budget}
+								</span>
+							</TopbarData>
+						</RouterLink>
 					</Link>
 				)}
 
@@ -195,16 +199,18 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							<TrashIcon />
 						</TopbarIcon>
 						<Link
-							component={RouterLink}
-							to={`${templateLink}/settings/schedule`}
+							asChild
+							showExternalIcon={false}
 							title="Schedule settings"
 							className="text-inherit"
 						>
-							{workspace.deleting_at ? (
-								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
-							) : (
-								"Deletion soon"
-							)}
+							<RouterLink to={`${templateLink}/settings/schedule`}>
+								{workspace.deleting_at ? (
+									<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
+								) : (
+									"Deletion soon"
+								)}
+							</RouterLink>
 						</Link>
 					</TopbarData>
 				)}
@@ -305,12 +311,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 				<AvatarData
 					title={
 						orgPageUrl ? (
-							<Link
-								component={RouterLink}
-								to={orgPageUrl}
-								className="text-inherit"
-							>
-								{orgName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink to={orgPageUrl}>{orgName}</RouterLink>
 							</Link>
 						) : (
 							orgName
@@ -370,21 +372,19 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 				<HelpPopoverContent align="center">
 					<AvatarData
 						title={
-							<Link
-								component={RouterLink}
-								to={rootTemplateUrl}
-								className="text-inherit"
-							>
-								{templateDisplayName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink to={rootTemplateUrl}>
+									{templateDisplayName}
+								</RouterLink>
 							</Link>
 						}
 						subtitle={
-							<Link
-								component={RouterLink}
-								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-								className="text-inherit"
-							>
-								Version: {latestBuildVersionName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink
+									to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
+								>
+									Version: {latestBuildVersionName}
+								</RouterLink>
 							</Link>
 						}
 						avatar={

@@ -1,10 +1,10 @@
-import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import { Link } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,

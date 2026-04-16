@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link, { type LinkProps } from "@mui/material/Link";
 import dayjs, { type Dayjs } from "dayjs";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { type FC, type ReactNode, useRef, useState } from "react";
@@ -14,6 +13,7 @@ import {
 import type { Template, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { TopbarData, TopbarIcon } from "#/components/FullPageLayout/Topbar";
+import { Link, type LinkProps } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -21,6 +21,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
+import { cn } from "#/utils/cn";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -270,14 +271,20 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 };
 
-const ScheduleSettingsLink: React.FC<LinkProps> = ({ ...props }) => {
+const ScheduleSettingsLink: React.FC<LinkProps> = ({
+	children,
+	className,
+	...props
+}) => {
 	return (
-		<Link
-			component={RouterLink}
-			to="settings/schedule"
-			className="text-inherit [&::first-letter]:uppercase"
-			{...props}
-		/>
+		<Link asChild showExternalIcon={false} {...props}>
+			<RouterLink
+				to="settings/schedule"
+				className={cn("text-inherit [&::first-letter]:uppercase", className)}
+			>
+				{children}
+			</RouterLink>
+		</Link>
 	);
 };
 

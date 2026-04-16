@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import { ExternalLinkIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
@@ -10,6 +9,7 @@ import type { Template } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { MenuSearch } from "#/components/Menu/MenuSearch";
 import { OverflowY } from "#/components/OverflowY/OverflowY";
@@ -44,8 +44,8 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 		emptyState = (
 			<SearchEmpty>
 				No templates yet.{" "}
-				<Link to="/templates" component={RouterLink}>
-					Create one now.
+				<Link asChild showExternalIcon={false}>
+					<RouterLink to="/templates">Create one now.</RouterLink>
 				</Link>
 			</SearchEmpty>
 		);

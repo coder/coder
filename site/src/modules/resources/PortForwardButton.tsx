@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import FormControl from "@mui/material/FormControl";
-import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
@@ -41,6 +40,7 @@ import {
 	HelpPopoverText,
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,
@@ -354,21 +354,21 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							>
 								<Stack direction="row" gap={3}>
 									<Link
-										underline="none"
 										css={styles.portLink}
 										href={url}
 										target="_blank"
 										rel="noreferrer"
+										className="no-underline"
 									>
 										<RadioIcon className="size-icon-sm" />
 										{port.port}
 									</Link>
 									<Link
-										underline="none"
 										css={styles.portLink}
 										href={url}
 										target="_blank"
 										rel="noreferrer"
+										className="no-underline"
 									>
 										{label}
 									</Link>
@@ -441,11 +441,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									alignItems="center"
 								>
 									<Link
-										underline="none"
 										css={styles.portLink}
 										href={url}
 										target="_blank"
 										rel="noreferrer"
+										className="no-underline"
 									>
 										{share.share_level === "public" ? (
 											<LockOpenIcon className="size-icon-sm" />

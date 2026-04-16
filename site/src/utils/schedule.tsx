@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
@@ -140,10 +139,7 @@ export const autostopDisplay = (
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
-					<Link component={RouterLink} to="settings/schedule">
-						schedule settings
-					</Link>
-					.
+					<RouterLink to="settings/schedule">schedule settings</RouterLink>.
 				</span>
 			);
 		}

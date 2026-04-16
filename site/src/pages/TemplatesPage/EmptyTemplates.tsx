@@ -1,9 +1,9 @@
-import Link from "@mui/material/Link";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Link } from "#/components/Link/Link";
 import { Stack } from "#/components/Stack/Stack";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";

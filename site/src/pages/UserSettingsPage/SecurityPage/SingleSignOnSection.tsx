@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -15,6 +14,7 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
 import { Stack } from "#/components/Stack/Stack";
 import { docs } from "#/utils/docs";
 import { Section } from "../Section";

@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
@@ -31,6 +30,7 @@ import {
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";

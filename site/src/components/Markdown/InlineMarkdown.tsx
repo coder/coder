@@ -1,7 +1,7 @@
-import Link from "@mui/material/Link";
 import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
+import { Link } from "#/components/Link/Link";
 
 interface InlineMarkdownProps {
 	/**

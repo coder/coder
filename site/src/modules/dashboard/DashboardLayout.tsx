@@ -1,9 +1,9 @@
-import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { InfoIcon } from "lucide-react";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";

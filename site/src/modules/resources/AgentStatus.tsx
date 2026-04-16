@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
@@ -14,6 +13,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -70,7 +70,7 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 					{troubleshootingURL && (
 						<>
 							{" "}
-							<Link target="_blank" rel="noreferrer" href={troubleshootingURL}>
+							<Link href={troubleshootingURL} target="_blank" rel="noreferrer">
 								Troubleshoot
 							</Link>
 						</>

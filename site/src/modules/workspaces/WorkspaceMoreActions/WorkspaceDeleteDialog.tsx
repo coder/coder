@@ -1,14 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { Link as RouterLink } from "react-router";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 interface WorkspaceDeleteDialogProps {
@@ -117,10 +118,12 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 									<p className="info">This workspace is related to a task</p>
 									<span className="text-xs mt-1 block">
 										Deleting this workspace will also delete{" "}
-										<Link
-											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-										>
-											this task
+										<Link asChild showExternalIcon={false}>
+											<RouterLink
+												to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+											>
+												this task
+											</RouterLink>
 										</Link>
 										.
 									</span>

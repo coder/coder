@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { templateVersion } from "#/api/queries/templates";
@@ -17,6 +17,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
@@ -108,12 +109,14 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 						</div>
 						<div>
 							{activeVersion ? (
-								<Link
-									href={`${versionLink}/versions/${activeVersion.name}`}
-									target="_blank"
-									css={{ color: theme.palette.primary.light }}
-								>
-									{activeVersion.name}
+								<Link asChild showExternalIcon={false}>
+									<RouterLink
+										to={`${versionLink}/versions/${activeVersion.name}`}
+										target="_blank"
+										css={{ color: theme.palette.primary.light }}
+									>
+										{activeVersion.name}
+									</RouterLink>
 								</Link>
 							) : (
 								<Skeleton variant="text" height={20} width={100} />

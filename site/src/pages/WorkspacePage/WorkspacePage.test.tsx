@@ -612,7 +612,7 @@ describe("WorkspacePage", () => {
 
 	describe("Navigation to other pages", () => {
 		it("Shows a quota link when quota budget is greater than 0. Link navigates user to /workspaces route with the URL params populated with the corresponding organization", async () => {
-			vi.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce({
+			vi.spyOn(API, "getWorkspaceQuota").mockResolvedValue({
 				budget: 25,
 				credits_consumed: 2,
 			});

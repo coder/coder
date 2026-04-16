@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
-import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
@@ -8,6 +7,7 @@ import uFuzzy from "ufuzzy";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,

@@ -1,5 +1,5 @@
-import Link from "@mui/material/Link";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Link } from "#/components/Link/Link";
 import { FileUpload } from "./FileUpload";
 
 const meta: Meta<typeof FileUpload> = {

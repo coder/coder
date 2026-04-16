@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
 import { Pill } from "#/components/Pill/Pill";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
@@ -42,12 +42,13 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
 				<span css={styles.description}>
 					{example.description}{" "}
-					<Link
-						component={RouterLink}
-						to={`/starter-templates/${example.id}`}
-						className="inline-block text-[13px] mt-1"
-					>
-						Read more
+					<Link asChild>
+						<RouterLink
+							to={`/starter-templates/${example.id}`}
+							className="inline-block text-[13px] mt-1"
+						>
+							Read more
+						</RouterLink>
 					</Link>
 				</span>
 			</div>

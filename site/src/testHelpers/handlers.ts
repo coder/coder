@@ -310,6 +310,13 @@ export const handlers = [
 		return HttpResponse.json(MockWorkspaceQuota);
 	}),
 
+	http.get(
+		"/api/v2/organizations/:organizationName/members/:username/workspace-quota",
+		() => {
+			return HttpResponse.json(MockWorkspaceQuota);
+		},
+	),
+
 	http.get("/api/v2/appearance", () => {
 		return HttpResponse.json(M.MockAppearanceConfig);
 	}),
