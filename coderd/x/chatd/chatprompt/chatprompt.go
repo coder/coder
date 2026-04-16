@@ -901,6 +901,12 @@ type providerExecutedToolCallLocation struct {
 	partIndex    int
 }
 
+// reattachProviderExecutedToolResults moves provider-executed tool results
+// from tool-role messages back into the assistant turns that own them. It
+// matches results to provider-executed tool calls by sanitized tool call ID,
+// and it is idempotent, so results that are already inline are not inserted
+// again. Unmatched results are left in place for the fallback filter in
+// injectMissingToolUses.
 func reattachProviderExecutedToolResults(
 	prompt []fantasy.Message,
 	logger slog.Logger,
@@ -987,6 +993,10 @@ func reattachProviderExecutedToolResults(
 				insertAt,
 				toolResult,
 			)
+			logger.Debug(context.Background(),
+				"reattached provider-executed tool result",
+				slog.F("tool_call_id", toolCallID),
+			)
 			if assistantResultIDs[location.messageIndex] == nil {
 				assistantResultIDs[location.messageIndex] = make(map[string]struct{})
 			}
@@ -1060,13 +1070,14 @@ func injectMissingToolUses(
 			continue
 		}
 
-		// Provider-executed tool results (e.g. web_search) may be
-		// persisted in a later step than the assistant message that
-		// initiated the tool call. When that happens they appear as
-		// orphans after the wrong assistant message. Filter them
-		// out before matching — the provider will re-execute the
-		// tool, and the search results are already captured in the
-		// subsequent assistant message's sources/text.
+		// reattachProviderExecutedToolResults already moved any
+		// provider-executed tool results, for example web_search,
+		// back to their owning assistant turns when a matching tool
+		// call was found. Filter out any provider-executed results
+		// that remain here as a fallback for unmatched cases, such
+		// as when no matching assistant tool call was found. They
+		// cannot be replayed without a matching server_tool_use
+		// block.
 		toolResults := make([]fantasy.ToolResultPart, 0, len(allToolResults))
 		for _, tr := range allToolResults {
 			if !tr.ProviderExecuted {
@@ -1074,7 +1085,8 @@ func injectMissingToolUses(
 			}
 		}
 		if len(toolResults) == 0 {
-			// All results were provider-executed; drop the message.
+			// All remaining results were unmatched provider-executed.
+			// Safe to drop the message.
 			continue
 		}
 
@@ -1581,7 +1593,7 @@ func decodeNulInString(s string) string {
 				_, _ = b.WriteRune(0)
 				i++
 			default:
-				// Unpaired sentinel — preserve as-is.
+				// Unpaired sentinel, preserve as-is.
 				_, _ = b.WriteRune(runes[i])
 			}
 		} else {
