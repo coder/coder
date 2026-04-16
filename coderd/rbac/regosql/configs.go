@@ -50,6 +50,26 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+// ChatConverter maps Rego authorization paths onto the chats relation.
+// GetChats aliases chats_with_acl AS chats, so the SQL column references
+// use the same "chats." prefix as for the base table. The ACL columns
+// on the view are COALESCE'd to the root chat's ACL for sub-chats, so
+// shared viewers see every chat in a shared tree without a handler-
+// level re-resolve step.
+func ChatConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("chats.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.StringVarMatcher("chats.owner_id :: text", []string{"input", "object", "owner"}),
+	)
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "chats.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "chats.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+
+	return matcher
+}
+
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),

@@ -43,6 +43,26 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Sub-chats inherit their root chat's ACL for authorization.
+			// Overlay the root's user_acl / group_acl onto the sub-chat
+			// row here so downstream RBACObject() sees the effective
+			// ACL. Writes still target the chats table directly; the
+			// overlay is read-only. Orphaned sub-chats (root was
+			// deleted, root_chat_id is NULL) keep their own empty ACL
+			// by design.
+			if chat.RootChatID.Valid {
+				root, rootErr := db.GetChatByID(ctx, chat.RootChatID.UUID)
+				if rootErr == nil {
+					chat.UserACL = root.UserACL
+					chat.GroupACL = root.GroupACL
+				}
+				// If the root lookup fails (row gone, transient error,
+				// or authz denial) we leave the sub-chat's own empty
+				// ACL in place. Authz downstream then rejects the
+				// request unless the caller owns the chat — the
+				// correct default posture.
+			}
+
 			ctx = context.WithValue(ctx, chatParamContextKey{}, chat)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
