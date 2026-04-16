@@ -24,6 +24,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import type { useFilter } from "#/components/Filter/Filter";
+import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";
 import { MultiUserSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
@@ -52,6 +54,7 @@ interface OrganizationMembersPageViewProps {
 	canEditMembers: boolean;
 	canViewMembers: boolean;
 	error: unknown;
+	filterProps: { filter: ReturnType<typeof useFilter> };
 	isUpdatingMemberRoles: boolean;
 	showAISeatColumn?: boolean;
 	me: User;
@@ -78,6 +81,7 @@ export const OrganizationMembersPageView: FC<
 	canEditMembers,
 	canViewMembers,
 	error,
+	filterProps,
 	isUpdatingMemberRoles,
 	showAISeatColumn,
 	me,
@@ -96,12 +100,10 @@ export const OrganizationMembersPageView: FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				{canEditMembers && (
-					<div className="flex justify-end">
-						<AddUsersDialog onSubmit={addMembers} />
-					</div>
-				)}
-
+				<div className="flex flex-row justify-between">
+					<UsersFilter {...filterProps} />
+					{canEditMembers && <AddUsersDialog onSubmit={addMembers} />}
+				</div>
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
 						<TriangleAlert className="size-icon-sm" />

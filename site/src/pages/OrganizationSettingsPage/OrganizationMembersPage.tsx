@@ -17,6 +17,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -46,6 +47,11 @@ const OrganizationMembersPage: FC = () => {
 	const membersQuery = usePaginatedQuery(
 		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
+	const filterProps = useFilter({
+		searchParams: searchParamsResult[0],
+		onSearchParamsChange: searchParamsResult[1],
+		onUpdate: membersQuery.goToFirstPage,
+	});
 
 	const members = membersQuery.data?.members.map(
 		(member: OrganizationMemberWithUserData) => {
@@ -93,6 +99,7 @@ const OrganizationMembersPage: FC = () => {
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
 				canViewMembers={organizationPermissions.viewMembers}
+				filterProps={{ filter: filterProps }}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??

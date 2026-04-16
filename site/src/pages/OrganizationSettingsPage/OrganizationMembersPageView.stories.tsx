@@ -17,6 +17,16 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 	args: {
 		canEditMembers: true,
 		error: undefined,
+		filterProps: {
+			filter: {
+				query: "",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: false,
+			},
+		},
 		isUpdatingMemberRoles: false,
 		canViewMembers: true,
 		me: MockUserOwner,
