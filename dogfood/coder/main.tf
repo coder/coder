@@ -136,7 +136,7 @@ locals {
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "ubuntu-latest"
+  default     = "codercom/oss-dogfood:latest"
   description = "The Docker image used to run your workspace."
   option {
     icon  = "/icon/coder.svg"
