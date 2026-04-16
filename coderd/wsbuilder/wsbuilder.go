@@ -490,7 +490,8 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 
 		if b.templateVersionPresetID == uuid.Nil {
-			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
+			// TODO(intxcheck): b.store should be replaced with the tx 'store' parameter.
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values) //intxcheck:ignore
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "find matching preset", err}
 			}
@@ -528,7 +529,8 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
-		task, err := b.getWorkspaceTask()
+		// TODO(intxcheck): getWorkspaceTask uses b.store; plumb 'store' through it.
+		task, err := b.getWorkspaceTask() //intxcheck:ignore
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}

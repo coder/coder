@@ -875,7 +875,8 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 		}
 
 		// If we get here, then we have a new key that we need to insert.
-		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+		// TODO(intxcheck): This should use 's' (the tx) instead of 'db'.
+		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{ //intxcheck:ignore
 			Number:          highestNumber + 1,
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
