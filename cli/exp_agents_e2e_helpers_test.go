@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -19,7 +20,7 @@ func expAgentsPtr[T any](v T) *T {
 	return &v
 }
 
-func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.ExperimentalClient) {
+func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.ExperimentalClient, uuid.UUID) {
 	t.Helper()
 
 	values := coderdtest.DeploymentValues(t)
@@ -28,7 +29,7 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: values,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	expClient := codersdk.NewExperimentalClient(client)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -47,14 +48,15 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	})
 	require.NoError(t, err)
 
-	return client, expClient
+	return client, expClient, firstUser.OrganizationID
 }
 
 //nolint:revive // Test helper signature keeps t first for consistency with other helpers.
-func seedChat(t *testing.T, ctx context.Context, expClient *codersdk.ExperimentalClient, seed string) codersdk.Chat {
+func seedChat(t *testing.T, ctx context.Context, expClient *codersdk.ExperimentalClient, orgID uuid.UUID, seed string) codersdk.Chat {
 	t.Helper()
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: orgID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,

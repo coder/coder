@@ -15,7 +15,7 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := setupExpAgentsBackend(t)
+		client, _, _ := setupExpAgentsBackend(t)
 		session := startExpAgentsSession(t, ctx, client)
 
 		session.expect(ctx, "No chats yet. Press n to start a new chat.")
@@ -27,11 +27,11 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupExpAgentsBackend(t)
 
-		_ = seedChat(t, ctx, expClient, "alpha nav seed")
-		_ = seedChat(t, ctx, expClient, "bravo nav seed")
-		_ = seedChat(t, ctx, expClient, "charlie nav seed")
+		_ = seedChat(t, ctx, expClient, orgID, "alpha nav seed")
+		_ = seedChat(t, ctx, expClient, orgID, "bravo nav seed")
+		_ = seedChat(t, ctx, expClient, orgID, "charlie nav seed")
 
 		session := startExpAgentsSession(t, ctx, client)
 
@@ -49,10 +49,10 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupExpAgentsBackend(t)
 
-		_ = seedChat(t, ctx, expClient, "alpha filter seed")
-		_ = seedChat(t, ctx, expClient, "zulu filter seed")
+		_ = seedChat(t, ctx, expClient, orgID, "alpha filter seed")
+		_ = seedChat(t, ctx, expClient, orgID, "zulu filter seed")
 
 		session := startExpAgentsSession(t, ctx, client)
 
@@ -72,9 +72,9 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupExpAgentsBackend(t)
 
-		chat := seedChat(t, ctx, expClient, "direct open seed")
+		chat := seedChat(t, ctx, expClient, orgID, "direct open seed")
 		session := startExpAgentsSession(t, ctx, client, chat.ID.String())
 
 		session.expect(ctx, "direct open seed")
