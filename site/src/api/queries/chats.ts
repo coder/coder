@@ -211,7 +211,6 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
-const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -220,10 +219,17 @@ type UpdateChatWorkspaceVariables = {
 
 type UpdateChatPlanModeVariables = {
 	chatId: string;
-	planMode?: ChatPlanModeOrClear;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
-const clearPlanMode = "" satisfies ChatPlanModeOrClear;
+const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
+
+const toChatPlanModePayload = (
+	planMode: TypesGen.ChatPlanMode | undefined,
+): ChatPlanModeOrClear => {
+	// The API expects an empty string on the wire to clear plan mode.
+	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
+};
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
@@ -407,7 +413,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 export const updateChatPlanMode = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
 		API.experimental.updateChat(chatId, {
-			plan_mode: planMode ?? clearPlanMode,
+			plan_mode: toChatPlanModePayload(planMode),
 		}),
 	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
 		await queryClient.cancelQueries({
@@ -421,16 +427,15 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
-		const nextPlanMode = planMode === clearPlanMode ? undefined : planMode;
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: nextPlanMode } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				plan_mode: nextPlanMode,
+				plan_mode: planMode,
 			});
 		}
 		return { previousChat };
@@ -466,7 +471,10 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
 		API.experimental.updateChat(chatId, {
-			workspace_id: workspaceId ?? nilUUID,
+			workspace_id:
+				workspaceId ??
+				// The API uses the nil UUID to clear the workspace association.
+				"00000000-0000-0000-0000-000000000000",
 		}),
 	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
 		await queryClient.cancelQueries({
