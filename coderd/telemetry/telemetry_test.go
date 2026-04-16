@@ -1651,6 +1651,7 @@ func TestChatsTelemetry(t *testing.T) {
 		LastModelConfigID: modelCfg.ID,
 		Title:             "Root Chat",
 		Status:            database.ChatStatusRunning,
+		ClientType:        database.ChatClientTypeUi,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 	})
@@ -1663,6 +1664,7 @@ func TestChatsTelemetry(t *testing.T) {
 		LastModelConfigID: modelCfg2.ID,
 		Title:             "Child Chat",
 		Status:            database.ChatStatusCompleted,
+		ClientType:        database.ChatClientTypeUi,
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 	})
@@ -1770,7 +1772,7 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NotNil(t, foundRoot.Mode)
 	assert.Equal(t, "computer_use", *foundRoot.Mode)
 	assert.False(t, foundRoot.Archived)
-
+	assert.Equal(t, "ui", foundRoot.ClientType)
 	// Child chat assertions.
 	assert.Equal(t, childChat.ID, foundChild.ID)
 	assert.Equal(t, user.ID, foundChild.OwnerID)
@@ -1782,7 +1784,7 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
 	assert.Nil(t, foundChild.Mode)
 	assert.False(t, foundChild.Archived)
-
+	assert.Equal(t, "ui", foundChild.ClientType)
 	// --- Assert ChatMessageSummaries ---
 	require.Len(t, snapshot.ChatMessageSummaries, 2)
 

@@ -1181,6 +1181,8 @@ func New(options *Options) *API {
 			r.Route("/config", func(r chi.Router) {
 				r.Get("/system-prompt", api.getChatSystemPrompt)
 				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
+				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)

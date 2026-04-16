@@ -402,10 +402,12 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    plan_mode,
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -417,10 +419,12 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -513,6 +517,17 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatPlanModeByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    plan_mode = sqlc.narg('plan_mode')::chat_plan_mode
 WHERE
     id = @id::uuid
 RETURNING
@@ -1286,7 +1301,7 @@ SELECT
     id, owner_id, created_at, updated_at, status,
     (parent_chat_id IS NOT NULL)::bool AS has_parent,
     root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
+    mode, archived, last_model_config_id, client_type
 FROM chats
 WHERE updated_at > @updated_after;
 

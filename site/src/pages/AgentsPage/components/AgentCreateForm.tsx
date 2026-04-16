@@ -47,6 +47,7 @@ export type CreateChatOptions = {
 	model?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
 /**
@@ -225,6 +226,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? "";
+	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -321,6 +323,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					effectiveMCPServerIds.length > 0
 						? [...effectiveMCPServerIds]
 						: undefined,
+				planMode: planModeEnabled ? "plan" : undefined,
 			}).catch((err) => {
 				resetDraft();
 				throw err;
@@ -470,6 +473,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						onAttach={handleAttach}
 						onRemoveAttachment={handleRemoveAttachment}

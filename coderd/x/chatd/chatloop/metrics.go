@@ -50,7 +50,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: metricsSubsystem,
 			Name:      "message_count",
 			Help:      "Number of messages in the prompt per LLM request.",
-			Buckets:   prometheus.ExponentialBuckets(1, 2, 8), // 1, 2, 4, 8, 16, 32, 64, 128
+			Buckets:   prometheus.ExponentialBuckets(1, 2, 11), // 1, 2, 4, ..., 1024
 		}, []string{"provider"}),
 		PromptSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,

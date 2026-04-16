@@ -94,12 +94,35 @@ proxy between AI Gateway and AWS Bedrock.
 
 ### GitHub Copilot
 
-Configure a `copilot` provider using the
-[indexed provider format](#multiple-instances-of-the-same-provider) with
-separate instances for Individual, Business, and Enterprise tiers.
+GitHub Copilot offers three plans — Individual, Business, and Enterprise —
+each with its own API endpoint. Configure one or more `copilot` providers
+using the [indexed provider format](#multiple-instances-of-the-same-provider)
+depending on which plans your organization uses.
+Copilot providers use OAuth app installations for authentication rather than
+static API keys.
 
-See [GitHub Copilot — Provider configuration](./clients/copilot.md#provider-configuration)
-for full setup instructions.
+```sh
+# GitHub Copilot (Individual)
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
+
+# GitHub Copilot Business
+export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
+export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
+
+# GitHub Copilot Enterprise
+export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
+export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
+```
+
+The default base URL targets the individual Copilot API
+(`api.individual.githubcopilot.com`). Override `CODER_AIBRIDGE_PROVIDER_<N>_BASE_URL`
+for Business or Enterprise tiers as shown above.
+
+For client-side setup (proxy, certificates, IDE configuration), see
+[GitHub Copilot client configuration](./clients/copilot.md).
 
 ### ChatGPT
 

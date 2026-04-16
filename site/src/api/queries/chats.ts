@@ -3,7 +3,11 @@ import type {
 	QueryClient,
 	UseInfiniteQueryOptions,
 } from "react-query";
-import { API } from "#/api/api";
+import {
+	API,
+	type ChatPlanModeOrClear,
+	type CreateChatMessageRequestWithClearablePlanMode,
+} from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
@@ -208,6 +212,25 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
+type UpdateChatWorkspaceVariables = {
+	chatId: string;
+	workspaceId: string | null;
+};
+
+type UpdateChatPlanModeVariables = {
+	chatId: string;
+	planMode?: TypesGen.ChatPlanMode;
+};
+
+const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
+
+const toChatPlanModePayload = (
+	planMode: TypesGen.ChatPlanMode | undefined,
+): ChatPlanModeOrClear => {
+	// The API expects an empty string on the wire to clear plan mode.
+	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
+};
+
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
@@ -376,6 +399,140 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
+	},
+});
+
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: toChatPlanModePayload(planMode),
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				plan_mode: planMode,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (!previousChat) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
+			),
+		);
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+	},
+});
+
+export const updateChatWorkspace = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
+		API.experimental.updateChat(chatId, {
+			workspace_id:
+				workspaceId ??
+				// The API uses the nil UUID to clear the workspace association.
+				"00000000-0000-0000-0000-000000000000",
+		}),
+	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? { ...chat, workspace_id: workspaceId ?? undefined }
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				workspace_id: workspaceId ?? undefined,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? {
+								...chat,
+								workspace_id: previousChat.workspace_id,
+							}
+						: chat,
+				),
+			);
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+	) => {
 		await invalidateChatListQueries(queryClient);
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
@@ -596,7 +753,7 @@ export const createChatMessage = (
 	_queryClient: QueryClient,
 	chatId: string,
 ) => ({
-	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
+	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
 	// No onSuccess invalidation needed: the per-chat WebSocket delivers
 	// the response message via upsertDurableMessage, and the global
@@ -744,6 +901,23 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatPlanModeInstructionsKey = ["chat-plan-mode-instructions"] as const;
+
+export const chatPlanModeInstructions = () => ({
+	queryKey: chatPlanModeInstructionsKey,
+	queryFn: () => API.experimental.getChatPlanModeInstructions(),
+});
+
+export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateChatPlanModeInstructionsRequest) =>
+		API.experimental.updateChatPlanModeInstructions(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPlanModeInstructionsKey,
 		});
 	},
 });

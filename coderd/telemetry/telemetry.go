@@ -2172,6 +2172,7 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 		mode := string(dbChat.Mode.ChatMode)
 		c.Mode = &mode
 	}
+	c.ClientType = string(dbChat.ClientType)
 	return c
 }
 
@@ -2345,6 +2346,7 @@ type Chat struct {
 	Mode              *string    `json:"mode"`
 	Archived          bool       `json:"archived"`
 	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
+	ClientType        string     `json:"client_type"`
 }
 
 // ChatMessageSummary contains per-chat aggregated message metrics

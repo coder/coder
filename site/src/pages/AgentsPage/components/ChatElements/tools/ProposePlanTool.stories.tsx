@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { Tool } from "./Tool";
@@ -64,6 +64,9 @@ export const Running: Story = {
 		expect(
 			canvas.getByText(`Proposing ${defaultPlanFilename}…`),
 		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -78,16 +81,23 @@ export const Completed: Story = {
 			file_id: "test-file-id-completed",
 			media_type: "text/markdown",
 		},
+		onImplementPlan: fn(),
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
 		expect(
 			canvas.getByRole("button", { name: "Copy plan" }),
 		).toBeInTheDocument();
+		const implementButton = canvas.getByRole("button", {
+			name: "Implement plan",
+		});
+		expect(implementButton).toHaveTextContent("Implement");
+		await userEvent.click(implementButton);
+		expect(args.onImplementPlan).toHaveBeenCalledTimes(1);
 	},
 };
 
@@ -153,6 +163,9 @@ export const ErrorState: Story = {
 			canvas.getByText(`Proposed ${defaultPlanFilename}`),
 		).toBeInTheDocument();
 		expect(canvas.getByLabelText("Error")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
 	},
 };
 

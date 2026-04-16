@@ -1293,6 +1293,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1305,6 +1306,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1444,6 +1446,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -7184,38 +7187,55 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	})
 }
 
-func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
+func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+	})
+
+	resources := make([]database.WorkspaceResource, 0, count)
+	for i := 0; i < count; i++ {
+		resources = append(resources, dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		}))
+	}
+
+	return resources
+}
+
+func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB, agentID uuid.UUID) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = TRUE WHERE id = $1", agentID)
+	require.NoError(t, err)
+}
+
+func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
-	// Context: https://github.com/coder/coder/pull/22196
-	t.Run("DoesNotReturnSubAgents", func(t *testing.T) {
+	t.Run("ReturnsAllMatchingRootAgents", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: A parent workspace agent with an AuthInstanceID and a
-		// sub-agent that shares the same AuthInstanceID.
 		db, _ := dbtestutil.NewDB(t)
-		org := dbgen.Organization(t, db, database.Organization{})
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			OrganizationID: org.ID,
-		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
 		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
-		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
 			},
 		})
-		// Create a sub-agent with the same AuthInstanceID (simulating
-		// the old behavior before the fix).
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
-			ResourceID: resource.ID,
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
@@ -7224,13 +7244,89 @@ func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// When: We look up the agent by instance ID.
-		agent, err := db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
 		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newerAgent.ID, olderAgent.ID}, []uuid.UUID{agents[0].ID, agents[1].ID})
+	})
 
-		// Then: The result must be the parent agent, not the sub-agent.
-		assert.Equal(t, parentAgent.ID, agent.ID, "instance ID lookup should return the parent agent, not a sub-agent")
-		assert.False(t, agent.ParentID.Valid, "returned agent should not have a parent (should be the parent itself)")
+	t.Run("ExcludesDeletedAndSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		rootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt.Add(-time.Hour),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: rootAgent.ID, Valid: true},
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedRootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedRootAgent.ID)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, rootAgent.ID, agents[0].ID)
+		assert.False(t, agents[0].ParentID.Valid)
+	})
+
+	t.Run("OrdersNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, newerAgent.ID, agents[0].ID)
+		assert.Equal(t, olderAgent.ID, agents[1].ID)
 	})
 }
 
@@ -9805,6 +9901,7 @@ func TestInsertChatMessages(t *testing.T) {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9979,6 +10076,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -10364,6 +10462,7 @@ func TestGetPRInsights(t *testing.T) {
 		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           p.UserID,
 			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
@@ -10501,6 +10600,7 @@ func TestGetPRInsights(t *testing.T) {
 		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           p.UserID,
 			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
@@ -10921,6 +11021,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -11106,6 +11207,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -11130,6 +11232,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -11147,6 +11250,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -11189,6 +11293,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -11227,6 +11332,7 @@ func TestChatLabels(t *testing.T) {
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelCfg.ID, Title: tc.title,
 				Labels: pqtype.NullRawMessage{
@@ -11317,6 +11423,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-rollback-" + uuid.NewString(),
@@ -11503,6 +11610,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-finalize-" + uuid.NewString(),
@@ -11859,6 +11967,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	chatA, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-guard-A-" + uuid.NewString(),
@@ -11868,6 +11977,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	chatB, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-guard-B-" + uuid.NewString(),
@@ -11989,6 +12099,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-coalesce-" + uuid.NewString(),
@@ -12102,6 +12213,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-step-coalesce-" + uuid.NewString(),
@@ -12225,6 +12337,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-null-msg-" + uuid.NewString(),
@@ -12313,6 +12426,7 @@ func TestChatHasUnread(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

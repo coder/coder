@@ -2798,6 +2798,13 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
 }
 
+func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatPlanModeInstructions(ctx)
+}
+
 func (q *querier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatProvider{}, err
@@ -3017,6 +3024,13 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
+}
+
+func (q *querier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	return q.db.GetEnabledChatModelConfigByID(ctx, id)
 }
 
 func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
@@ -4415,22 +4429,6 @@ func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (data
 	return q.db.GetWorkspaceAgentByID(ctx, id)
 }
 
-// GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
-// but this will fail. Need to figure out what AuthInstanceID is, and if it
-// is essentially an auth token. But the caller using this function is not
-// an authenticated user. So this authz check will fail.
-func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	agent, err := q.db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	return agent, nil
-}
-
 func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
 	if err != nil {
@@ -4518,6 +4516,33 @@ func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt tim
 
 func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+}
+
+func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
+		return q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	}
+
+	agents, err := q.db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	// Filter to agents whose workspace is accessible. Template-version
+	// agents can share the same instance ID but do not belong to a
+	// workspace, so GetWorkspaceByAgentID returns sql.ErrNoRows for
+	// them. Exclude those agents rather than failing the entire lookup.
+	filtered := make([]database.WorkspaceAgent, 0, len(agents))
+	for _, agent := range agents {
+		_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		filtered = append(filtered, agent)
+	}
+	return filtered, nil
 }
 
 func (q *querier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
@@ -6090,6 +6115,17 @@ func (q *querier) UpdateChatPinOrder(ctx context.Context, arg database.UpdateCha
 	return q.db.UpdateChatPinOrder(ctx, arg)
 }
 
+func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.UpdateChatPlanModeByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatPlanModeByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatProvider{}, err
@@ -7265,6 +7301,13 @@ func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, incl
 		return err
 	}
 	return q.db.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
+}
+
+func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatPlanModeInstructions(ctx, value)
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

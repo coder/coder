@@ -51,7 +51,7 @@ data "coder_workspace_preset" "pittsburgh" {
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -68,7 +68,7 @@ data "coder_workspace_preset" "cpt" {
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -85,7 +85,7 @@ data "coder_workspace_preset" "falkenstein" {
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -102,7 +102,7 @@ data "coder_workspace_preset" "sydney" {
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -121,20 +121,32 @@ data "coder_parameter" "repo_base_dir" {
   mutable     = true
 }
 
+locals {
+  image_tags = {
+    // Older style option values, where the option value was just supposed to
+    // be the exact name of the image on Docker hub. In practice, this is rather
+    // restrictive because the image_type parameter is immutable.
+    "codercom/oss-dogfood:latest"     = "codercom/oss-dogfood:latest"
+    "codercom/oss-dogfood-nix:latest" = "codercom/oss-dogfood-nix:latest"
+
+    "ubuntu-latest" = "codercom/oss-dogfood:26.04"
+  }
+}
+
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:26.04"
+  default     = "codercom/oss-dogfood:latest"
   description = "The Docker image used to run your workspace."
   option {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 26.04"
-    value = "codercom/oss-dogfood:26.04"
+    value = "ubuntu-latest"
   }
   option {
     icon  = "/icon/coder.svg"
-    name  = "Ubuntu 22.04"
-    value = "codercom/oss-dogfood:22.04"
+    name  = "Ubuntu 22.04 (Legacy)"
+    value = "codercom/oss-dogfood:latest"
   }
   option {
     icon  = "/icon/nix.svg"
@@ -767,11 +779,11 @@ resource "docker_volume" "docker_volume" {
 }
 
 data "docker_registry_image" "dogfood" {
-  name = data.coder_parameter.image_type.value
+  name = local.image_tags[data.coder_parameter.image_type.value]
 }
 
 resource "docker_image" "dogfood" {
-  name = "${data.coder_parameter.image_type.value}@${data.docker_registry_image.dogfood.sha256_digest}"
+  name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),

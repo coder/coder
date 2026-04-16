@@ -10096,7 +10096,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-aws-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10135,7 +10135,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-azure-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10202,7 +10202,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-google-cloud-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12780,6 +12780,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "document": {
                     "type": "string"
                 },
@@ -12803,6 +12807,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "encoding": {
                     "type": "string"
                 },
@@ -12853,6 +12861,10 @@ const docTemplate = `{
                 "json_web_token"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "json_web_token": {
                     "type": "string"
                 }

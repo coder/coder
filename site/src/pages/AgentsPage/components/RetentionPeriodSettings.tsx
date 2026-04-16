@@ -4,8 +4,14 @@ import { useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { AdminBadge } from "./AdminBadge";
+import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "./TemporarySavedState";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -44,6 +50,7 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 	const [retentionToggled, setRetentionToggled] = useState<boolean | null>(
 		null,
 	);
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const serverRetentionDays = retentionDaysData?.retention_days ?? 30;
 	const isRetentionEnabled = retentionToggled ?? serverRetentionDays > 0;
@@ -57,6 +64,7 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 				{ retention_days: values.retention_days },
 				{
 					onSuccess: () => {
+						showSavedState();
 						setRetentionToggled(null);
 						helpers.resetForm();
 					},
@@ -96,18 +104,14 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 	};
 
 	return (
-		<form className="space-y-2" onSubmit={form.handleSubmit}>
-			<div className="flex items-center gap-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Conversation Retention Period
-				</h3>
-				<AdminBadge />
-			</div>
+		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<div className="flex items-center justify-between gap-4">
-				<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
-					Archived conversations and orphaned files older than this are
-					automatically deleted.
-				</p>
+				<div className="flex items-center gap-2">
+					<h3 className="m-0 text-sm font-semibold text-content-primary">
+						Conversation Retention Period
+					</h3>
+					<AdminBadge />
+				</div>
 				<Switch
 					checked={isRetentionEnabled}
 					onCheckedChange={handleToggleRetention}
@@ -115,9 +119,13 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 					disabled={isSavingRetentionDays || isRetentionDaysLoading}
 				/>
 			</div>
+			<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+				Archived conversations and orphaned files older than this are
+				automatically deleted.
+			</p>
 			{isRetentionEnabled && (
 				<>
-					<input
+					<Input
 						type="number"
 						name="retention_days"
 						min={1}
@@ -127,25 +135,33 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 						value={form.values.retention_days}
 						onChange={form.handleChange}
 						disabled={isSavingRetentionDays || isRetentionDaysLoading}
-						className="w-full rounded-lg border border-border bg-surface-primary px-4 py-2 text-[13px] text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+						className="w-full"
 					/>
 					{form.errors.retention_days && form.touched.retention_days && (
 						<p className="m-0 text-xs text-content-destructive">
 							{form.errors.retention_days}
 						</p>
 					)}
-					<div className="flex justify-end">
-						<Button
-							size="sm"
-							type="submit"
-							disabled={
-								isSavingRetentionDays ||
-								!form.dirty ||
-								Boolean(form.errors.retention_days)
-							}
-						>
-							Save
-						</Button>
+					<div className="mt-2 flex min-h-6 justify-end">
+						{(form.dirty || isSavedVisible || isSavingRetentionDays) &&
+							(isSavedVisible ? (
+								<TemporarySavedState />
+							) : (
+								<Button
+									size="xs"
+									type="submit"
+									disabled={
+										isSavingRetentionDays ||
+										!form.dirty ||
+										Boolean(form.errors.retention_days)
+									}
+								>
+									{isSavingRetentionDays && (
+										<Spinner loading className="h-4 w-4" />
+									)}
+									Save
+								</Button>
+							))}
 					</div>
 				</>
 			)}

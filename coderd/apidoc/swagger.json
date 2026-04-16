@@ -8949,7 +8949,7 @@
 				"operationId": "authenticate-agent-on-aws-instance",
 				"parameters": [
 					{
-						"description": "Instance identity token",
+						"description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -8982,7 +8982,7 @@
 				"operationId": "authenticate-agent-on-azure-instance",
 				"parameters": [
 					{
-						"description": "Instance identity token",
+						"description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -9039,7 +9039,7 @@
 				"operationId": "authenticate-agent-on-google-cloud-instance",
 				"parameters": [
 					{
-						"description": "Instance identity token",
+						"description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -11337,6 +11337,10 @@
 			"type": "object",
 			"required": ["document", "signature"],
 			"properties": {
+				"agent_name": {
+					"description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+					"type": "string"
+				},
 				"document": {
 					"type": "string"
 				},
@@ -11357,6 +11361,10 @@
 			"type": "object",
 			"required": ["encoding", "signature"],
 			"properties": {
+				"agent_name": {
+					"description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+					"type": "string"
+				},
 				"encoding": {
 					"type": "string"
 				},
@@ -11405,6 +11413,10 @@
 			"type": "object",
 			"required": ["json_web_token"],
 			"properties": {
+				"agent_name": {
+					"description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+					"type": "string"
+				},
 				"json_web_token": {
 					"type": "string"
 				}

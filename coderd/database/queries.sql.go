@@ -4274,6 +4274,45 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 	return i, err
 }
 
+const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
+SELECT
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+FROM
+    chat_model_configs cmc
+JOIN
+    chat_providers cp ON cp.provider = cmc.provider
+WHERE
+    cmc.id = $1::uuid
+    AND cmc.deleted = FALSE
+    AND cmc.enabled = TRUE
+    AND cp.enabled = TRUE
+`
+
+// Providers can be disabled independently of their model configs.
+// Check both to ensure the selected config is actually usable.
+func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getEnabledChatModelConfigByID, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
@@ -4816,7 +4855,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type AcquireChatsParams struct {
@@ -4862,6 +4901,8 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -5000,9 +5041,9 @@ WITH chats AS (
     UPDATE chats
     SET archived = true, pin_order = 0, updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM chats
 ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
@@ -5042,6 +5083,8 @@ func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat,
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -5191,7 +5234,7 @@ func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParam
 }
 
 const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM chats
 WHERE agent_id = $1::uuid
     AND archived = false
@@ -5237,6 +5280,8 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -5253,7 +5298,7 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM
     chats
 WHERE
@@ -5289,12 +5334,14 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -5326,6 +5373,8 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -6380,7 +6429,7 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id,
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
     EXISTS (
         SELECT 1 FROM chat_messages cm
         WHERE cm.chat_id = chats.id
@@ -6494,6 +6543,8 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 			&i.Chat.LastInjectedContext,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
 			&i.HasUnread,
 		); err != nil {
 			return nil, err
@@ -6510,7 +6561,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 }
 
 const getChatsByWorkspaceIDs = `-- name: GetChatsByWorkspaceIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM chats
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
@@ -6552,6 +6603,8 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -6571,23 +6624,24 @@ SELECT
     id, owner_id, created_at, updated_at, status,
     (parent_chat_id IS NOT NULL)::bool AS has_parent,
     root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
+    mode, archived, last_model_config_id, client_type
 FROM chats
 WHERE updated_at > $1
 `
 
 type GetChatsUpdatedAfterRow struct {
-	ID                uuid.UUID     `db:"id" json:"id"`
-	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
-	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
-	Status            ChatStatus    `db:"status" json:"status"`
-	HasParent         bool          `db:"has_parent" json:"has_parent"`
-	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
-	WorkspaceID       uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
-	Mode              NullChatMode  `db:"mode" json:"mode"`
-	Archived          bool          `db:"archived" json:"archived"`
-	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
+	ID                uuid.UUID      `db:"id" json:"id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	Status            ChatStatus     `db:"status" json:"status"`
+	HasParent         bool           `db:"has_parent" json:"has_parent"`
+	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
+	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
+	Archived          bool           `db:"archived" json:"archived"`
+	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
+	ClientType        ChatClientType `db:"client_type" json:"client_type"`
 }
 
 // Retrieves chats updated after the given timestamp for telemetry
@@ -6614,6 +6668,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.Mode,
 			&i.Archived,
 			&i.LastModelConfigID,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -6679,7 +6734,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM
     chats
 WHERE
@@ -6728,6 +6783,8 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -6816,10 +6873,12 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    plan_mode,
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -6831,13 +6890,15 @@ INSERT INTO chats (
     $8::uuid,
     $9::text,
     $10::chat_mode,
-    $11::chat_status,
-    COALESCE($12::uuid[], '{}'::uuid[]),
-    COALESCE($13::jsonb, '{}'::jsonb),
-    $14::jsonb
+    $11::chat_plan_mode,
+    $12::chat_status,
+    COALESCE($13::uuid[], '{}'::uuid[]),
+    COALESCE($14::jsonb, '{}'::jsonb),
+    $15::jsonb,
+    $16::chat_client_type
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type InsertChatParams struct {
@@ -6851,10 +6912,12 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string                `db:"title" json:"title"`
 	Mode              NullChatMode          `db:"mode" json:"mode"`
+	PlanMode          NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	Status            ChatStatus            `db:"status" json:"status"`
 	MCPServerIDs      []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels            pqtype.NullRawMessage `db:"labels" json:"labels"`
 	DynamicTools      pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	ClientType        ChatClientType        `db:"client_type" json:"client_type"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -6869,10 +6932,12 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
+		arg.PlanMode,
 		arg.Status,
 		pq.Array(arg.MCPServerIDs),
 		arg.Labels,
 		arg.DynamicTools,
+		arg.ClientType,
 	)
 	var i Chat
 	err := row.Scan(
@@ -6901,6 +6966,8 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7429,9 +7496,9 @@ WITH chats AS (
         archived = false,
         updated_at = NOW()
     WHERE id = $1::uuid OR root_chat_id = $1::uuid
-    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 FROM chats
 ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
 `
@@ -7475,6 +7542,8 @@ func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Cha
 			&i.LastInjectedContext,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
 		); err != nil {
 			return nil, err
 		}
@@ -7555,7 +7624,7 @@ UPDATE chats SET
     updated_at = NOW()
 WHERE
     id = $3::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatBuildAgentBindingParams struct {
@@ -7593,6 +7662,8 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7606,7 +7677,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatByIDParams struct {
@@ -7643,6 +7714,8 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7701,7 +7774,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatLabelsByIDParams struct {
@@ -7738,6 +7811,8 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7747,7 +7822,7 @@ UPDATE chats SET
     last_injected_context = $1::jsonb
 WHERE
     id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatLastInjectedContextParams struct {
@@ -7788,6 +7863,8 @@ func (q *sqlQuerier) UpdateChatLastInjectedContext(ctx context.Context, arg Upda
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7801,7 +7878,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatLastModelConfigByIDParams struct {
@@ -7838,6 +7915,8 @@ func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg Upda
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -7869,7 +7948,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatMCPServerIDsParams struct {
@@ -7906,6 +7985,8 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -8028,6 +8109,58 @@ func (q *sqlQuerier) UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOr
 	return err
 }
 
+const updateChatPlanModeByID = `-- name: UpdateChatPlanModeByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    plan_mode = $1::chat_plan_mode
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
+`
+
+type UpdateChatPlanModeByIDParams struct {
+	PlanMode NullChatPlanMode `db:"plan_mode" json:"plan_mode"`
+	ID       uuid.UUID        `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatPlanModeByID, arg.PlanMode, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.LastInjectedContext,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
+	)
+	return i, err
+}
+
 const updateChatStatus = `-- name: UpdateChatStatus :one
 UPDATE
     chats
@@ -8041,7 +8174,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatStatusParams struct {
@@ -8089,6 +8222,8 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -8106,7 +8241,7 @@ SET
 WHERE
     id = $7::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatStatusPreserveUpdatedAtParams struct {
@@ -8156,6 +8291,8 @@ func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg 
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -8167,7 +8304,7 @@ UPDATE chats SET
     agent_id = $3::uuid,
     updated_at = NOW()
 WHERE id = $4::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
 `
 
 type UpdateChatWorkspaceBindingParams struct {
@@ -8211,6 +8348,8 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.LastInjectedContext,
 		&i.DynamicTools,
 		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
 	)
 	return i, err
 }
@@ -19839,6 +19978,18 @@ func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (boo
 	return include_default_system_prompt, err
 }
 
+const getChatPlanModeInstructions = `-- name: GetChatPlanModeInstructions :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_plan_mode_instructions'), '') :: text AS plan_mode_instructions
+`
+
+func (q *sqlQuerier) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatPlanModeInstructions)
+	var plan_mode_instructions string
+	err := row.Scan(&plan_mode_instructions)
+	return plan_mode_instructions, err
+}
+
 const getChatRetentionDays = `-- name: GetChatRetentionDays :one
 SELECT COALESCE(
     (SELECT value::integer FROM site_configs
@@ -20179,6 +20330,16 @@ WHERE site_configs.key = 'agents_chat_include_default_system_prompt'
 
 func (q *sqlQuerier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatIncludeDefaultSystemPrompt, includeDefaultSystemPrompt)
+	return err
+}
+
+const upsertChatPlanModeInstructions = `-- name: UpsertChatPlanModeInstructions :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_mode_instructions', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_mode_instructions'
+`
+
+func (q *sqlQuerier) UpsertChatPlanModeInstructions(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatPlanModeInstructions, value)
 	return err
 }
 
@@ -26470,63 +26631,6 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 	return i, err
 }
 
-const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
-SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
-FROM
-	workspace_agents
-WHERE
-	auth_instance_id = $1 :: TEXT
-	-- Filter out deleted sub agents.
-	AND deleted = FALSE
-	-- Filter out sub agents, they do not authenticate with auth_instance_id.
-	AND parent_id IS NULL
-ORDER BY
-	created_at DESC
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
-	var i WorkspaceAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.Architecture,
-		&i.EnvironmentVariables,
-		&i.OperatingSystem,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-		&i.Directory,
-		&i.Version,
-		&i.LastConnectedReplicaID,
-		&i.ConnectionTimeoutSeconds,
-		&i.TroubleshootingURL,
-		&i.MOTDFile,
-		&i.LifecycleState,
-		&i.ExpandedDirectory,
-		&i.LogsLength,
-		&i.LogsOverflowed,
-		&i.StartedAt,
-		&i.ReadyAt,
-		pq.Array(&i.Subsystems),
-		pq.Array(&i.DisplayApps),
-		&i.APIVersion,
-		&i.DisplayOrder,
-		&i.ParentID,
-		&i.APIKeyScope,
-		&i.Deleted,
-	)
-	return i, err
-}
-
 const getWorkspaceAgentLifecycleStateByID = `-- name: GetWorkspaceAgentLifecycleStateByID :one
 SELECT
 	lifecycle_state,
@@ -26726,6 +26830,79 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 			&i.DisplayName,
 			&i.WorkspaceAgentID,
 			&i.WorkspaceAgentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentsByInstanceID = `-- name: GetWorkspaceAgentsByInstanceID :many
+SELECT
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
+FROM
+	workspace_agents
+WHERE
+	auth_instance_id = $1 :: TEXT
+	-- Filter out deleted agents.
+	AND deleted = FALSE
+	-- Filter out sub agents, they do not authenticate with auth_instance_id.
+	AND parent_id IS NULL
+ORDER BY
+	created_at DESC
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByInstanceID, authInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+			&i.ParentID,
+			&i.APIKeyScope,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}

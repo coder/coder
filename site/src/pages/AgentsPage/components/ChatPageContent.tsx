@@ -49,6 +49,8 @@ interface ChatPageTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -59,12 +61,17 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -103,6 +110,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					computerUseSubagentIds={computerUseSubagentIds}
@@ -149,6 +159,8 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -184,6 +196,10 @@ interface ChatPageInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	workspaceOptions: readonly TypesGen.Workspace[];
+	selectedWorkspaceId: string | null;
+	onWorkspaceChange: (workspaceId: string | null) => void;
+	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
@@ -209,6 +225,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	planModeEnabled,
+	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -227,6 +245,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	lastInjectedContext,
+	workspaceOptions,
+	selectedWorkspaceId,
+	onWorkspaceChange,
+	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
 	chatId,
@@ -401,7 +423,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			planModeEnabled={planModeEnabled}
+			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
+			workspaceOptions={workspaceOptions}
+			selectedWorkspaceId={selectedWorkspaceId}
+			onWorkspaceChange={onWorkspaceChange}
+			isWorkspaceLoading={isWorkspaceLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

@@ -99,10 +99,16 @@ interface AgentChatPageViewProps {
 	modelSelectorHelp?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
+	workspaceOptions?: readonly TypesGen.Workspace[];
+	selectedWorkspaceId?: string | null;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
+	isWorkspaceLoading?: boolean;
 
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
@@ -129,6 +135,9 @@ interface AgentChatPageViewProps {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 
 	// Archive actions.
 	handleArchiveAgentAction: () => void;
@@ -180,10 +189,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelSelectorHelp,
 	hasModelOptions,
 	isModelCatalogLoading = false,
+	planModeEnabled,
+	onPlanModeToggle,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
+	workspaceOptions = [],
+	selectedWorkspaceId = null,
+	onWorkspaceChange = () => {},
+	isWorkspaceLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showSidebarPanel,
@@ -196,6 +211,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
@@ -219,6 +236,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
+	const canSendAskUserQuestionResponse =
+		!isInputDisabled && !isSubmissionPending
+			? onSendAskUserQuestionResponse
+			: undefined;
+
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -275,6 +297,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		);
 		const statusIcon = <StatusIcon type={effectiveType} />;
 		return {
+			id: workspace.id,
 			name: workspace.name,
 			route: workspaceRoute,
 			statusIcon,
@@ -368,6 +391,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									editingMessageId={editing.editingMessageId}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
+									onImplementPlan={onImplementPlan}
+									onSendAskUserQuestionResponse={canSendAskUserQuestionResponse}
 								/>
 							</div>
 						</ChatScrollContainer>
@@ -389,7 +414,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								planModeEnabled={planModeEnabled}
+								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
+								workspaceOptions={workspaceOptions}
+								selectedWorkspaceId={selectedWorkspaceId}
+								onWorkspaceChange={onWorkspaceChange}
+								isWorkspaceLoading={isWorkspaceLoading}
 								inputRef={editing.chatInputRef}
 								initialValue={editing.editorInitialValue}
 								initialEditorState={editing.initialEditorState}
@@ -493,6 +524,8 @@ interface AgentChatPageLoadingViewProps {
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -507,6 +540,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	modelSelectorPlaceholder,
 	hasModelOptions,
 	isModelCatalogLoading = false,
+	planModeEnabled,
+	onPlanModeToggle,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -556,6 +591,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={onPlanModeToggle}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 					/>

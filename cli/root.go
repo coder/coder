@@ -86,6 +86,7 @@ const (
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
 	envAgentAuth      = "CODER_AGENT_AUTH"
+	envAgentName      = "CODER_AGENT_NAME"
 	envURL            = "CODER_URL"
 )
 
@@ -789,6 +790,7 @@ type AgentAuth struct {
 	agentTokenFile string
 	agentURL       url.URL
 	agentAuth      string
+	agentName      string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -821,6 +823,13 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Default:     "token",
 		Value:       serpent.StringOf(&a.agentAuth),
 		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Name",
+		Description: "The name of the agent to authenticate as (only applicable for instance identity).",
+		Flag:        "agent-name",
+		Env:         envAgentName,
+		Value:       serpent.StringOf(&a.agentName),
+		Hidden:      hidden,
 	})
 }
 
@@ -830,6 +839,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 	agentURL := a.agentURL
 	if agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
+	}
+
+	var iiOpts []agentsdk.InstanceIdentityOption
+	if a.agentName != "" {
+		iiOpts = append(iiOpts, agentsdk.WithInstanceIdentityAgentName(a.agentName))
 	}
 
 	switch a.agentAuth {
@@ -850,11 +864,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		}
 		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
 	case "google-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil)), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil, iiOpts...)), nil
 	case "aws-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity(iiOpts...)), nil
 	case "azure-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity(iiOpts...)), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
 	}

@@ -102,6 +102,8 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -158,6 +160,7 @@ interface AgentChatInputProps {
 }
 
 export interface AttachedWorkspaceInfo {
+	id: string;
 	name: string;
 	route: string;
 	statusIcon: React.ReactNode;
@@ -193,7 +196,7 @@ const ToolBadge: FC<{
 						)}
 					>
 						{badge.statusIcon}
-						{badge.name}
+						<span className="truncate">{badge.name}</span>
 					</Link>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
@@ -205,7 +208,7 @@ const ToolBadge: FC<{
 		return (
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
-				{badge.name}
+				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
 					<button
 						type="button"
@@ -262,6 +265,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
+	planModeEnabled = false,
+	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -392,6 +397,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		(ws) => ws.id === selectedWorkspaceId,
 	);
 
+	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
+		? Boolean(onWorkspaceChange) &&
+			selectedWorkspace.id !== attachedWorkspace?.id
+		: false;
+
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
@@ -412,7 +422,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
-	if (selectedWorkspace && onWorkspaceChange) {
+	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
 	for (const s of activeMcpServers) {
@@ -426,6 +436,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
+
+	const handlePlanModeToggle = () => {
+		onPlanModeToggle?.(!planModeEnabled);
+		setPlusMenuOpen(false);
+	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -793,6 +808,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										Attach image
 									</button>
 								)}
+								{onPlanModeToggle && (
+									<button
+										type="button"
+										role="menuitemcheckbox"
+										aria-checked={planModeEnabled}
+										onClick={handlePlanModeToggle}
+										disabled={isDisabled}
+										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<PencilIcon className="size-3.5 shrink-0" />
+										<span>Plan first</span>
+										{planModeEnabled && (
+											<Check className="ml-auto size-icon-sm shrink-0" />
+										)}
+									</button>
+								)}
 								{workspaceOptions && onWorkspaceChange && (
 									<Popover
 										open={workspacePickerOpen}
@@ -925,6 +956,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownSide="top"
 								dropdownAlign="center"
 							/>
+						)}
+						{planModeEnabled && (
+							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								<PencilIcon className="size-3" />
+								Planning
+							</span>
 						)}
 						{/* Badge row — all badges and the pill always
 						 * render so the DOM structure never changes.
