@@ -51,7 +51,7 @@ func TestResolvePath_FollowsFileSymlink(t *testing.T) {
 
 	var resp workspacesdk.ResolvePathResponse
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
-	require.Equal(t, realPath, resp.ResolvedPath)
+	require.Equal(t, mustEvalSymlinks(t, realPath), resp.ResolvedPath)
 }
 
 func TestResolvePath_FollowsSymlinkedParentForMissingFile(t *testing.T) {
@@ -75,7 +75,7 @@ func TestResolvePath_FollowsSymlinkedParentForMissingFile(t *testing.T) {
 	require.NoError(t, err)
 
 	requestedPath := filepath.Join(linkPlansDir, "PLAN.md")
-	resolvedPath := filepath.Join(realPlansDir, "PLAN.md")
+	resolvedPath := filepath.Join(mustEvalSymlinks(t, realPlansDir), "PLAN.md")
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -126,5 +126,12 @@ func TestResolvePath_FollowsSymlinkedParentForExistingFile(t *testing.T) {
 
 	var resp workspacesdk.ResolvePathResponse
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
-	require.Equal(t, resolvedPath, resp.ResolvedPath)
+	require.Equal(t, mustEvalSymlinks(t, resolvedPath), resp.ResolvedPath)
+}
+
+func mustEvalSymlinks(t *testing.T, path string) string {
+	t.Helper()
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+	return resolvedPath
 }
