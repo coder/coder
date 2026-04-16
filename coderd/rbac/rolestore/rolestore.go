@@ -319,6 +319,7 @@ func ReconcileSystemRole(
 func orgSettings(org database.Organization) rbac.OrgSettings {
 	return rbac.OrgSettings{
 		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
+		ShareableChatOwners:      rbac.ShareableChatOwners(org.ShareableChatOwners),
 	}
 }
 

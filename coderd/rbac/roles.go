@@ -239,6 +239,7 @@ var builtInRoles map[string]func(orgID uuid.UUID) Role
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
+	NoChatSharing        bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -265,6 +266,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		denyPermissions = append(denyPermissions, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+	if opts.NoChatSharing {
+		denyPermissions = append(denyPermissions, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
 		})
 	}
@@ -976,6 +984,7 @@ func PermissionsEqual(a, b []Permission) bool {
 // database.Organization fields onto this struct.
 type OrgSettings struct {
 	ShareableWorkspaceOwners ShareableWorkspaceOwners
+	ShareableChatOwners      ShareableChatOwners
 }
 type ShareableWorkspaceOwners string
 
@@ -983,6 +992,18 @@ const (
 	ShareableWorkspaceOwnersNone            ShareableWorkspaceOwners = "none"
 	ShareableWorkspaceOwnersEveryone        ShareableWorkspaceOwners = "everyone"
 	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
+)
+
+// ShareableChatOwners is the rbac mirror of
+// database.ShareableChatOwners. Lives in this package to avoid a
+// cyclic import from the database package when the rolestore builds
+// an OrgSettings.
+type ShareableChatOwners string
+
+const (
+	ShareableChatOwnersNone            ShareableChatOwners = "none"
+	ShareableChatOwnersEveryone        ShareableChatOwners = "everyone"
+	ShareableChatOwnersServiceAccounts ShareableChatOwners = "service_accounts"
 )
 
 // OrgRolePermissions holds the two permission sets that make up a
@@ -1033,6 +1054,16 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
+	if org.ShareableChatOwners == ShareableChatOwnersNone {
+		// Same override as workspaces: org-level negation on chat
+		// share applies across the org regardless of role.
+		orgPerms = append(orgPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
 	// Uses allPermsExcept to automatically include permissions for new resources.
 	memberPerms := append(
 		allPermsExcept(
@@ -1076,6 +1107,18 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
+	if org.ShareableChatOwners != ShareableChatOwnersEveryone {
+		// Non-'everyone' modes deny chat:share on member-scoped
+		// chats. The service_accounts mode keeps the permission on
+		// OrgServiceAccountPermissions so service-account chats can
+		// still be shared.
+		memberPerms = append(memberPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }
 
@@ -1109,6 +1152,15 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
+	if org.ShareableChatOwners == ShareableChatOwnersNone {
+		// None mode denies chat:share on service-account chats too.
+		orgPerms = append(orgPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
 		})
 	}
