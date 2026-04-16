@@ -1235,27 +1235,32 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteUserChatProviderKey)
 				})
 			})
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Get("/", api.getChat)
-				r.Patch("/", api.patchChat)
-				r.Get("/messages", api.getChatMessages)
-				r.Post("/messages", api.postChatMessages)
-				r.Patch("/messages/{message}", api.patchChatMessage)
-				r.Route("/stream", func(r chi.Router) {
-					r.Get("/", api.streamChat)
-					r.Get("/desktop", api.watchChatDesktop)
-					r.Get("/git", api.watchChatGit)
+				r.Route("/{chat}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatParam(options.Database))
+					r.Route("/acl", func(r chi.Router) {
+						r.Get("/", api.chatACL)
+						r.Patch("/", api.patchChatACL)
+						r.Delete("/", api.deleteChatACL)
+					})
+					r.Get("/", api.getChat)
+					r.Patch("/", api.patchChat)
+					r.Get("/messages", api.getChatMessages)
+					r.Post("/messages", api.postChatMessages)
+					r.Patch("/messages/{message}", api.patchChatMessage)
+					r.Route("/stream", func(r chi.Router) {
+						r.Get("/", api.streamChat)
+						r.Get("/desktop", api.watchChatDesktop)
+						r.Get("/git", api.watchChatGit)
+					})
+					r.Post("/interrupt", api.interruptChat)
+					r.Post("/tool-results", api.postChatToolResults)
+					r.Post("/title/regenerate", api.regenerateChatTitle)
+					r.Get("/diff", api.getChatDiffContents)
+					r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+						r.Delete("/", api.deleteChatQueuedMessage)
+						r.Post("/promote", api.promoteChatQueuedMessage)
+					})
 				})
-				r.Post("/interrupt", api.interruptChat)
-				r.Post("/tool-results", api.postChatToolResults)
-				r.Post("/title/regenerate", api.regenerateChatTitle)
-				r.Get("/diff", api.getChatDiffContents)
-				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-					r.Delete("/", api.deleteChatQueuedMessage)
-					r.Post("/promote", api.promoteChatQueuedMessage)
-				})
-			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {

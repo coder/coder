@@ -318,8 +318,28 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sharedFilter := codersdk.ChatSharedFilter(r.URL.Query().Get("shared"))
+	switch sharedFilter {
+	case codersdk.ChatSharedFilterNo, codersdk.ChatSharedFilterInclude, codersdk.ChatSharedFilterOnly:
+		// valid
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Invalid shared filter %q. Valid values are %q, %q, or %q.",
+				sharedFilter,
+				codersdk.ChatSharedFilterNo,
+				codersdk.ChatSharedFilterInclude,
+				codersdk.ChatSharedFilterOnly,
+			),
+		})
+		return
+	}
+
+	// The viewer filter is caller-relative (= / != the caller) while
+	// the OwnerID filter is caller-agnostic (admin tooling can scope
+	// to any owner). Keep them independent so neither trumps the
+	// other.
 	params := database.GetChatsParams{
-		OwnerID:     apiKey.UserID,
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
@@ -327,6 +347,15 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
+		ViewerID: apiKey.UserID,
+	}
+	switch sharedFilter {
+	case codersdk.ChatSharedFilterNo:
+		params.OwnedOnly = true
+	case codersdk.ChatSharedFilterOnly:
+		params.SharedOnly = true
+	case codersdk.ChatSharedFilterInclude:
+		// No viewer filter; the RBAC filter returns owned + shared.
 	}
 
 	chatRows, err := api.Database.GetChats(ctx, params)

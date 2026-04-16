@@ -6525,29 +6525,43 @@ WHERE
         WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = $1
         ELSE true
     END
+    -- Viewer-scoped shared filter. Both params default to false:
+    --   both false  -> no viewer filter (owned + shared, intersected
+    --                  with the RBAC filter injected below).
+    --   owned_only  -> chats.owner_id = @viewer_id.
+    --   shared_only -> chats.owner_id != @viewer_id.
+    -- The handler rejects both=true as a 400 before reaching here.
     AND CASE
-        WHEN $2 :: boolean IS NULL THEN true
-        ELSE chats.archived = $2 :: boolean
+        WHEN $2::boolean THEN chats.owner_id = $3::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN $4::boolean THEN chats.owner_id != $3::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN $5 :: boolean IS NULL THEN true
+        ELSE chats.archived = $5 :: boolean
     END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN pin_order > 0 THEN 1 ELSE 0 END, -pin_order, updated_at, id) < (
                 SELECT
                     CASE WHEN c2.pin_order > 0 THEN 1 ELSE 0 END, -c2.pin_order, c2.updated_at, c2.id
                 FROM
                     chats c2
                 WHERE
-                    c2.id = $3
+                    c2.id = $6
             )
         )
         ELSE true
     END
     AND CASE
-        WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
+        WHEN $7::jsonb IS NOT NULL THEN chats.labels @> $7::jsonb
         ELSE true
     END
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
@@ -6561,15 +6575,18 @@ ORDER BY
     -pin_order DESC,
     updated_at DESC,
     id DESC
-OFFSET $5
+OFFSET $8
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($6 :: int, 0), 50)
+    COALESCE(NULLIF($9 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
 	OwnerID     uuid.UUID             `db:"owner_id" json:"owner_id"`
+	OwnedOnly   bool                  `db:"owned_only" json:"owned_only"`
+	ViewerID    uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedOnly  bool                  `db:"shared_only" json:"shared_only"`
 	Archived    sql.NullBool          `db:"archived" json:"archived"`
 	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
@@ -6585,6 +6602,9 @@ type GetChatsRow struct {
 func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnerID,
+		arg.OwnedOnly,
+		arg.ViewerID,
+		arg.SharedOnly,
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,

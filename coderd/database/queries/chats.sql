@@ -401,6 +401,20 @@ WHERE
         WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
         ELSE true
     END
+    -- Viewer-scoped shared filter. Both params default to false:
+    --   both false  -> no viewer filter (owned + shared, intersected
+    --                  with the RBAC filter injected below).
+    --   owned_only  -> chats.owner_id = @viewer_id.
+    --   shared_only -> chats.owner_id != @viewer_id.
+    -- The handler rejects both=true as a 400 before reaching here.
+    AND CASE
+        WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN @shared_only::boolean THEN chats.owner_id != @viewer_id::uuid
+        ELSE true
+    END
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
