@@ -1584,6 +1584,15 @@ export interface ChatDiffStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatExploreModelOverrideResponse is the response body for the Explore
+ * subagent model override configuration endpoint.
+ */
+export interface ChatExploreModelOverrideResponse {
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -7579,6 +7588,15 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDesktopEnabledRequest {
 	readonly enable_desktop: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatExploreModelOverrideRequest is the request body for updating the
+ * Explore subagent model override configuration endpoint.
+ */
+export interface UpdateChatExploreModelOverrideRequest {
+	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go

@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
+import { ExploreModelOverrideSettings } from "./components/ExploreModelOverrideSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
@@ -22,6 +23,9 @@ interface AgentSettingsBehaviorPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
+		| undefined;
+	exploreModelOverrideData:
+		| TypesGen.ChatExploreModelOverrideResponse
 		| undefined;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
@@ -60,6 +64,13 @@ interface AgentSettingsBehaviorPageViewProps {
 	isSavingPlanModeInstructions: boolean;
 	isSavePlanModeInstructionsError: boolean;
 
+	onSaveExploreModelOverride: (
+		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingExploreModelOverride: boolean;
+	isSaveExploreModelOverrideError: boolean;
+
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
 		options?: MutationCallbacks,
@@ -95,6 +106,7 @@ export const AgentSettingsBehaviorPageView: FC<
 	canSetSystemPrompt,
 	systemPromptData,
 	planModeInstructionsData,
+	exploreModelOverrideData,
 	userPromptData,
 	desktopEnabledData,
 	workspaceTTLData,
@@ -117,6 +129,9 @@ export const AgentSettingsBehaviorPageView: FC<
 	onSavePlanModeInstructions,
 	isSavingPlanModeInstructions,
 	isSavePlanModeInstructionsError,
+	onSaveExploreModelOverride,
+	isSavingExploreModelOverride,
+	isSaveExploreModelOverrideError,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -173,6 +188,15 @@ export const AgentSettingsBehaviorPageView: FC<
 						onSavePlanModeInstructions={onSavePlanModeInstructions}
 						isSavePlanModeInstructionsError={isSavePlanModeInstructionsError}
 						isAnyPromptSaving={isAnyPromptSaving}
+					/>
+					<ExploreModelOverrideSettings
+						exploreModelOverrideData={exploreModelOverrideData}
+						modelConfigs={modelConfigsData ?? []}
+						modelConfigsError={modelConfigsError}
+						isLoadingModelConfigs={isLoadingModelConfigs}
+						onSaveExploreModelOverride={onSaveExploreModelOverride}
+						isSavingExploreModelOverride={isSavingExploreModelOverride}
+						isSaveExploreModelOverrideError={isSaveExploreModelOverrideError}
 					/>
 					<VirtualDesktopSettings
 						desktopEnabledData={desktopEnabledData}

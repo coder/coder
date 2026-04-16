@@ -19954,6 +19954,18 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
+const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -20308,6 +20320,16 @@ WHERE site_configs.key = 'agents_desktop_enabled'
 
 func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatDesktopEnabled, enableDesktop)
+	return err
+}
+
+const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
 	return err
 }
 

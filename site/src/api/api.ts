@@ -3276,6 +3276,24 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatExploreModelOverride =
+		async (): Promise<TypesGen.ChatExploreModelOverrideResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatExploreModelOverrideResponse>(
+					"/api/experimental/chats/config/explore-model-override",
+				);
+			return response.data;
+		};
+
+	updateChatExploreModelOverride = async (
+		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/explore-model-override",
+			req,
+		);
+	};
+
 	getChatDesktopEnabled =
 		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =

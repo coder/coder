@@ -164,6 +164,7 @@ const BehaviorRouteElement = () => {
 			planModeInstructionsData={{
 				plan_mode_instructions: "",
 			}}
+			exploreModelOverrideData={{}}
 			userPromptData={{ custom_prompt: "" }}
 			desktopEnabledData={{ enable_desktop: false }}
 			workspaceTTLData={{ workspace_ttl_ms: 0 }}
@@ -181,6 +182,9 @@ const BehaviorRouteElement = () => {
 			onSavePlanModeInstructions={fn()}
 			isSavingPlanModeInstructions={false}
 			isSavePlanModeInstructionsError={false}
+			onSaveExploreModelOverride={fn()}
+			isSavingExploreModelOverride={false}
+			isSaveExploreModelOverrideError={false}
 			onSaveUserPrompt={fn()}
 			isSavingUserPrompt={false}
 			isSaveUserPromptError={false}
