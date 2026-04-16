@@ -140,7 +140,7 @@ See [Spend Management](./usage-insights.md) for details.
 ### Git providers
 
 Coder Agents leverages your existing
-[external authentication](../../admin/external-auth/index.md) configuration to
+[external authentication](../../../admin/external-auth/index.md) configuration to
 power the in-chat diff viewer and PR Insights. Self-hosted GitHub Enterprise
 deployments require additional configuration for these features.
 
