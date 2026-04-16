@@ -105,6 +105,15 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 				return err
 			}
 
+			orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
+			if err != nil {
+				return xerrors.Errorf("list organizations: %w", err)
+			}
+			if len(orgs) == 0 {
+				return xerrors.New("no organizations found")
+			}
+			defaultOrgID := orgs[0].ID
+
 			expClient := codersdk.NewExperimentalClient(client)
 
 			if len(inv.Args) > 1 {
@@ -143,7 +152,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 			)
 			renderer.SetHasDarkBackground(true)
 
-			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
+			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID, defaultOrgID)
 			model.setRenderer(renderer)
 			program := tea.NewProgram(
 				model,

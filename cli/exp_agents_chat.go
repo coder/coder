@@ -259,6 +259,7 @@ type chatViewModel struct {
 	client              *codersdk.ExperimentalClient
 	workspaceID         *uuid.UUID
 	modelOverride       *string
+	organizationID      uuid.UUID
 	activeChatID        uuid.UUID
 	chatGeneration      uint64
 	intentionalClose    bool
@@ -350,6 +351,7 @@ func newChatViewModel(
 	client *codersdk.ExperimentalClient,
 	workspaceID *uuid.UUID,
 	modelOverride *string,
+	organizationID uuid.UUID,
 	styles tuiStyles,
 ) chatViewModel {
 	composer := textinput.New()
@@ -366,6 +368,7 @@ func newChatViewModel(
 		client:           client,
 		workspaceID:      workspaceID,
 		modelOverride:    modelOverride,
+		organizationID:   organizationID,
 		styles:           styles,
 		loading:          false,
 		metadataResolved: true,
@@ -601,10 +604,11 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 
 	if m.draft {
 		req := codersdk.CreateChatRequest{
-			Content:       content,
-			WorkspaceID:   m.workspaceID,
-			ModelConfigID: modelConfigID,
-			PlanMode:      m.planMode,
+			OrganizationID: m.organizationID,
+			Content:        content,
+			WorkspaceID:    m.workspaceID,
+			ModelConfigID:  modelConfigID,
+			PlanMode:       m.planMode,
 		}
 		m.creatingChat = true
 		return m, apiCmd(func() (codersdk.Chat, error) {

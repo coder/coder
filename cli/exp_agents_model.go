@@ -40,6 +40,7 @@ type (
 		initialChatID  *uuid.UUID
 		workspaceID    *uuid.UUID
 		modelOverride  *string
+		organizationID uuid.UUID
 		chatGeneration uint64
 		catalog        *codersdk.ChatModelsResponse
 		quitting       bool
@@ -54,13 +55,14 @@ func newExpChatsTUIModel(
 	initialChatID *uuid.UUID,
 	workspaceID *uuid.UUID,
 	modelOverride *string,
+	organizationID uuid.UUID,
 ) expChatsTUIModel {
 	styles := newTUIStyles()
 	currentView := viewList
 	if initialChatID != nil {
 		currentView = viewChat
 	}
-	chat := newChatViewModel(ctx, client, workspaceID, modelOverride, styles)
+	chat := newChatViewModel(ctx, client, workspaceID, modelOverride, organizationID, styles)
 	chatGeneration := uint64(0)
 	if initialChatID != nil {
 		chat.activeChatID = *initialChatID
@@ -81,6 +83,7 @@ func newExpChatsTUIModel(
 		initialChatID:  initialChatID,
 		workspaceID:    workspaceID,
 		modelOverride:  modelOverride,
+		organizationID: organizationID,
 		chatGeneration: chatGeneration,
 	}
 }
@@ -91,7 +94,7 @@ func newExpChatsTUIModel(
 // from the old session are ignored.
 func (m *expChatsTUIModel) resetChatSession() {
 	old := m.chat
-	m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
+	m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.organizationID, m.styles)
 	m.chat.width = old.width
 	m.chat.height = old.height
 	m.chat.loading = true
