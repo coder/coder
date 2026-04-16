@@ -1650,18 +1650,32 @@ func TestExpAgents(t *testing.T) {
 			require.Contains(t, view, "shift+tab: switch mode")
 		})
 
-		t.Run("PlanModeUpdateErrorKeepsLocalModeAndShowsBanner", func(t *testing.T) {
+		t.Run("PlanModeUpdateErrorRollsBackLocalModeAndShowsBanner", func(t *testing.T) {
 			t.Parallel()
-			model := newTestChatViewModel(nil)
-			model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
-			model.setChat(testChat(codersdk.ChatStatusCompleted))
-			model.planMode = codersdk.ChatPlanModePlan
 
-			updated, cmd := model.Update(chatPlanModeUpdatedMsg{err: xerrors.New("update failed")})
-			require.Nil(t, cmd)
-			require.Equal(t, codersdk.ChatPlanModePlan, updated.planMode)
-			require.EqualError(t, updated.err, "update failed")
-			require.Contains(t, plainText(updated.View()), "update failed")
+			for _, tt := range []struct {
+				name    string
+				current codersdk.ChatPlanMode
+				want    codersdk.ChatPlanMode
+			}{
+				{name: "BackToCode", current: codersdk.ChatPlanModePlan, want: ""},
+				{name: "BackToPlan", current: "", want: codersdk.ChatPlanModePlan},
+			} {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					model := newTestChatViewModel(nil)
+					model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 12})
+					model.setChat(testChat(codersdk.ChatStatusCompleted))
+					model.planMode = tt.current
+
+					updated, cmd := model.Update(chatPlanModeUpdatedMsg{err: xerrors.New("update failed")})
+					require.Nil(t, cmd)
+					require.Equal(t, tt.want, updated.planMode)
+					require.EqualError(t, updated.err, "update failed")
+					require.Contains(t, plainText(updated.View()), "update failed")
+				})
+			}
 		})
 	})
 
@@ -2488,6 +2502,59 @@ func TestExpAgents(t *testing.T) {
 
 				updated = mustChatViewUpdate(t, updated, streamMsg)
 				require.EqualError(t, updated.err, "stream error: "+streamMsg.event.Error.Message)
+			})
+		})
+
+		t.Run("HandleStreamEventStatusRequiresAction", func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("RecoversFromMessages", func(t *testing.T) {
+				t.Parallel()
+
+				chat := testChat(codersdk.ChatStatusRunning)
+				model := newTestChatViewModel(nil)
+				model.chat, model.activeChatID, model.chatStatus = &chat, chat.ID, chat.Status
+				model.messages = []codersdk.ChatMessage{
+					message(toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion))),
+				}
+
+				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
+					Type:   codersdk.ChatStreamEventTypeStatus,
+					ChatID: chat.ID,
+					Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRequiresAction},
+				})
+				require.Equal(t, codersdk.ChatStatusRequiresAction, updated.chatStatus)
+				require.NotNil(t, updated.pendingAskUserQuestion)
+				require.Equal(t, "tool-1", updated.pendingAskUserQuestion.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion}, updated.pendingAskUserQuestion.Questions)
+				showMsg, ok := mustMsg(t, cmd).(showAskUserQuestionMsg)
+				require.True(t, ok)
+				require.Same(t, updated.pendingAskUserQuestion, showMsg.state)
+			})
+
+			t.Run("RecoversFromAccumulatorBeforeFinalMessage", func(t *testing.T) {
+				t.Parallel()
+
+				chat := testChat(codersdk.ChatStatusRunning)
+				model := newTestChatViewModel(nil)
+				model.chat, model.activeChatID, model.chatStatus = &chat, chat.ID, chat.Status
+				model.accumulator.parts = []codersdk.ChatMessagePart{
+					toolCallPart("tool-1", "ask_user_question", mustAskArgs(t, firstQuestion, secondQuestion)),
+				}
+				model.accumulator.pending = true
+
+				updated, cmd := model.handleStreamEvent(codersdk.ChatStreamEvent{
+					Type:   codersdk.ChatStreamEventTypeStatus,
+					ChatID: chat.ID,
+					Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRequiresAction},
+				})
+				require.Equal(t, codersdk.ChatStatusRequiresAction, updated.chatStatus)
+				require.NotNil(t, updated.pendingAskUserQuestion)
+				require.Equal(t, "tool-1", updated.pendingAskUserQuestion.ToolCallID)
+				require.Equal(t, []parsedAskQuestion{firstQuestion, secondQuestion}, updated.pendingAskUserQuestion.Questions)
+				showMsg, ok := mustMsg(t, cmd).(showAskUserQuestionMsg)
+				require.True(t, ok)
+				require.Same(t, updated.pendingAskUserQuestion, showMsg.state)
 			})
 		})
 

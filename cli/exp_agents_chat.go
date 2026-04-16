@@ -464,18 +464,47 @@ func (m *chatViewModel) recoverPendingAskUserQuestion() (tea.Cmd, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("recover pending ask_user_question: %w", err)
 	}
-	if state == nil {
+	return m.showPendingAskUserQuestion(state), nil
+}
+
+func (m *chatViewModel) recoverPendingAskUserQuestionFromAccumulator() (tea.Cmd, error) {
+	if m.chatStatus != codersdk.ChatStatusRequiresAction {
 		return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+	}
+
+	for i := len(m.accumulator.parts) - 1; i >= 0; i-- {
+		part := m.accumulator.parts[i]
+		if part.Type != codersdk.ChatMessagePartTypeToolCall ||
+			part.ToolName != "ask_user_question" {
+			continue
+		}
+
+		state, err := parseAskUserQuestionArgs(part.ToolCallID, part.Args)
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"recover pending ask_user_question from accumulator: %w",
+				err,
+			)
+		}
+		return m.showPendingAskUserQuestion(state), nil
+	}
+
+	return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+}
+
+func (m *chatViewModel) showPendingAskUserQuestion(state *askUserQuestionState) tea.Cmd {
+	if state == nil {
+		return nil
 	}
 	if m.pendingAskUserQuestion != nil &&
 		m.pendingAskUserQuestion.ToolCallID == state.ToolCallID {
-		return nil, nil //nolint:nilnil // Nil command means there is no pending recovery work.
+		return nil
 	}
 
 	m.pendingAskUserQuestion = state
 	return func() tea.Msg {
 		return showAskUserQuestionMsg{state: state}
-	}, nil
+	}
 }
 
 func (m chatViewModel) isInterruptible() bool {
@@ -966,6 +995,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			return m, nil
 		}
 		if msg.err != nil {
+			m.planMode = m.togglePlanMode()
 			m.err = msg.err
 		}
 		return m, nil
@@ -1169,7 +1199,26 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 			if m.chat != nil {
 				m.chat.Status = event.Status.Status
 			}
+
+			var recoveryCmd tea.Cmd
+			if event.Status.Status == codersdk.ChatStatusRequiresAction &&
+				m.pendingAskUserQuestion == nil {
+				var err error
+				recoveryCmd, err = m.recoverPendingAskUserQuestion()
+				if err != nil {
+					m.err = err
+				} else if recoveryCmd == nil {
+					recoveryCmd, err = m.recoverPendingAskUserQuestionFromAccumulator()
+					if err != nil {
+						m.err = err
+					}
+				}
+			}
+
 			m.syncViewportContent()
+			if recoveryCmd != nil {
+				return m, nextCmd(recoveryCmd)
+			}
 		}
 
 	case codersdk.ChatStreamEventTypeQueueUpdate:
@@ -1208,10 +1257,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 				}
 			}
 
-			m.pendingAskUserQuestion = state
-			return m, nextCmd(func() tea.Msg {
-				return showAskUserQuestionMsg{state: state}
-			})
+			return m, nextCmd(m.showPendingAskUserQuestion(state))
 		}
 
 	case codersdk.ChatStreamEventTypeError:
