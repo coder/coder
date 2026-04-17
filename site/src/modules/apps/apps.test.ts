@@ -117,6 +117,36 @@ describe("getAppHref", () => {
 		expect(href).toBe(externalApp.url);
 	});
 
+	it("returns the raw URL when external app URL is invalid", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-app",
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBe("my-app");
+	});
+
+	it("returns the raw URL when external app URL is an empty string", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "",
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBe("");
+	});
+
 	it("returns a path when app doesn't use a subdomain", () => {
 		const app = {
 			...MockWorkspaceApp,
