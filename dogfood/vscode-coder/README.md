@@ -11,24 +11,16 @@ file if it exists.
 ## Testing
 
 The workspace comes with Playwright Chromium, GTK libraries, xauth, and a
-D-Bus daemon pre-configured for running tests headlessly — the same way CI
+D-Bus daemon pre-configured for running tests headlessly, the same way CI
 does.
 
-| Task                  | Command                                |
-| --------------------- | -------------------------------------- |
-| Unit tests            | `pnpm test`                            |
-| Extension tests       | `pnpm test:extension`                  |
-| Webview tests         | `pnpm test:webview`                    |
-| Integration tests     | `xvfb-run -a pnpm test:integration`    |
-| Type check            | `pnpm typecheck`                       |
-| Lint                  | `pnpm lint`                            |
-| Format check          | `pnpm format:check`                    |
-| Build                 | `pnpm build`                           |
-| Package               | `pnpm package`                         |
+Integration tests launch a real VS Code instance and require a virtual
+framebuffer. Run them with `xvfb-run -a pnpm test:integration` to match
+CI behavior.
 
-Integration tests require a virtual framebuffer because they launch a real
-VS Code instance. Use `xvfb-run -a` to run them headlessly, matching CI
-behavior.
+See the repo's
+[AGENTS.md](https://github.com/coder/vscode-coder/blob/main/AGENTS.md)
+for the full list of commands.
 
 ## Hosting
 
