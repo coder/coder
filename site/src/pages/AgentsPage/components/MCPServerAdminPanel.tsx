@@ -561,28 +561,29 @@ const ServerForm: FC<ServerFormProps> = ({
 						</button>
 						{showAuth && (
 							<div className="space-y-4 pt-3">
-								<Select
-									value={form.values.authType}
-									onValueChange={(v) => {
-										form.setFieldValue("authType", v);
-									}}
-									disabled={isDisabled}
-								>
-									<SelectTrigger
-										id={`${formId}-auth`}
-										className="h-9 max-w-[240px] text-[13px]"
+								<Field label="Authentication method" htmlFor={`${formId}-auth`}>
+									<Select
+										value={form.values.authType}
+										onValueChange={(v) => {
+											form.setFieldValue("authType", v);
+										}}
+										disabled={isDisabled}
 									>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{AUTH_TYPE_OPTIONS.map((opt) => (
-											<SelectItem key={opt.value} value={opt.value}>
-												{opt.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-
+										<SelectTrigger
+											id={`${formId}-auth`}
+											className="h-9 max-w-[240px] text-[13px]"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{AUTH_TYPE_OPTIONS.map((opt) => (
+												<SelectItem key={opt.value} value={opt.value}>
+													{opt.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
 								{form.values.authType === "oauth2" && (
 									<div className="space-y-4 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
 										<p className="m-0 text-xs text-content-secondary">
