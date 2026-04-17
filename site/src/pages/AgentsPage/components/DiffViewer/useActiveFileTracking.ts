@@ -46,6 +46,18 @@ export function useActiveFileTracking({
 	const activeFileRef = useRef<string | null>(null);
 	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
 
+	// Keep sortedFiles in a ref so the IntersectionObserver callback
+	// always reads the latest value without needing sortedFiles in
+	// the effect's dependency array.
+	const sortedFilesRef = useRef(sortedFiles);
+	useEffect(() => {
+		sortedFilesRef.current = sortedFiles;
+	});
+
+	// Stable identity: only changes when the actual file list changes,
+	// not on every render (sortedFiles is rebuilt inline by the caller).
+	const fileListKey = sortedFiles.map((f) => f.name).join("\0");
+
 	// Ref callback that sets up per-file refs.
 	const setFileRef = (name: string, el: HTMLDivElement | null) => {
 		if (el) {
@@ -61,7 +73,7 @@ export function useActiveFileTracking({
 	// this strip, the callback fires — zero synchronous layout
 	// reads per frame.
 	useEffect(() => {
-		if (!enabled || sortedFiles.length === 0) return;
+		if (!enabled || fileListKey === "") return;
 		const viewport = viewportRef.current;
 		if (!viewport) return;
 
@@ -80,7 +92,7 @@ export function useActiveFileTracking({
 					}
 				}
 				// Pick the first intersecting file in document order.
-				for (const file of sortedFiles) {
+				for (const file of sortedFilesRef.current) {
 					if (intersecting.has(file.name)) {
 						activeFileRef.current = file.name;
 						setTreeActiveFile(file.name);
@@ -101,7 +113,7 @@ export function useActiveFileTracking({
 		}
 
 		return () => observer.disconnect();
-	}, [enabled, sortedFiles, viewportRef]);
+	}, [enabled, fileListKey, viewportRef]);
 
 	const handleFileClick = (name: string) => {
 		const el = fileRefs.current.get(name);
