@@ -87,6 +87,30 @@ export const ExploreModelOverrideSetting: Story = {
 	},
 };
 
+export const ExploreModelOverrideAllowsExplicitClear: Story = {
+	args: {
+		exploreModelOverrideData: {},
+		modelConfigsData: [],
+		onSaveExploreModelOverride: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const clearButton = await canvas.findByRole("button", { name: "Clear" });
+		const form = clearButton.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error(
+				"Expected Explore model clear button to live inside a form.",
+			);
+		}
+		await userEvent.click(clearButton);
+		await waitFor(() => {
+			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
+				{},
+				expect.anything(),
+			);
+		});
+	},
+};
 export const ExploreModelOverrideFallsBackToModelName: Story = {
 	args: {
 		exploreModelOverrideData: {

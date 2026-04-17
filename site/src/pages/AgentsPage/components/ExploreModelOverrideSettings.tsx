@@ -139,10 +139,14 @@ export const ExploreModelOverrideSettings: FC<
 					size="sm"
 					variant="outline"
 					type="button"
-					onClick={() => form.setFieldValue("model_config_id", "")}
-					disabled={
-						isExploreModelOverrideDisabled || !form.values.model_config_id
-					}
+					onClick={() => {
+						if (form.values.model_config_id === "") {
+							void form.submitForm();
+							return;
+						}
+						form.setFieldValue("model_config_id", "");
+					}}
+					disabled={isExploreModelOverrideDisabled}
 				>
 					Clear
 				</Button>
