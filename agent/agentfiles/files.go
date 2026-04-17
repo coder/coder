@@ -680,16 +680,62 @@ func dominantFileEnding(contentLines []string) string {
 	return "\n"
 }
 
-// tailIsEmpty reports whether lines contains only empty strings
-// (the SplitAfter artifact from a trailing newline). Used to
-// distinguish "match at EOF" from "match before unmatched content".
-func tailIsEmpty(lines []string) bool {
-	for _, l := range lines {
-		if l != "" {
-			return false
+// atNoNewlineEOF reports whether the matched region ends at a
+// file that lacks a trailing newline. True when no non-empty lines
+// follow the match and the last matched line has no ending.
+func atNoNewlineEOF(contentLines []string, end int) bool {
+	if end == 0 {
+		return false
+	}
+	if end < len(contentLines) {
+		// Anything non-empty after the match disqualifies.
+		for _, l := range contentLines[end:] {
+			if l != "" {
+				return false
+			}
 		}
 	}
-	return true
+	// Last matched content line must itself have no ending.
+	_, e := splitEnding(contentLines[end-1])
+	return e == ""
+}
+
+// leadOnly returns the leading whitespace of line (spaces and
+// tabs only), excluding the ending. Used when an inserted splice
+// line has to pick which side of the insertion boundary it
+// belongs to.
+func leadOnly(line string) string {
+	//nolint:dogsled // splitLineParts is the shared decomposer; other parts are genuinely unused here.
+	lead, _, _, _ := splitLineParts(line)
+	return lead
+}
+
+// alignSearchReplace returns the count of leading and trailing
+// lines that match between searchLines and repLines under
+// TrimSpace equality. Between the prefix and suffix ranges lies
+// the middle: inserted, deleted, or rewritten lines. TrimSpace
+// matches what pass 3 uses for matching, so pair identification
+// stays consistent with how the region was found.
+func alignSearchReplace(searchLines, repLines []string) (prefix, suffix int) {
+	eq := func(a, b string) bool {
+		aContent, _ := splitEnding(a)
+		bContent, _ := splitEnding(b)
+		return strings.TrimSpace(aContent) == strings.TrimSpace(bContent)
+	}
+	maxPrefix := len(searchLines)
+	if len(repLines) < maxPrefix {
+		maxPrefix = len(repLines)
+	}
+	for prefix < maxPrefix && eq(searchLines[prefix], repLines[prefix]) {
+		prefix++
+	}
+	// Suffix must not overlap prefix on either side.
+	maxSuffix := maxPrefix - prefix
+	for suffix < maxSuffix &&
+		eq(searchLines[len(searchLines)-1-suffix], repLines[len(repLines)-1-suffix]) {
+		suffix++
+	}
+	return prefix, suffix
 }
 
 // non-last line's ending replaced by ending; the last line keeps
@@ -753,41 +799,30 @@ func endingShapeEqual(a, b string) bool {
 	return isNewlineEnding(a) && isNewlineEnding(b)
 }
 
-// buildReplacementLines emits the replacement for a fuzzy match
-// by running per-position substitution on each search/content/
-// replace triple. At each of leading-whitespace, trailing-
-// whitespace, and line-ending: if search and replace agree, the
-// file's bytes at that position win; otherwise the replacement's
-// bytes are spliced verbatim. The middle (non-whitespace body)
-// is always emitted from the replacement. Extra replacement
-// lines beyond the matched region use the last search/content
-// line as their reference.
+// buildReplacementLines emits the splice for a fuzzy match by
+// per-position substitution at leading-ws, body, trailing-ws, and
+// ending. Search and replace agreement at a position -> file's
+// bytes win; disagreement -> replacement's bytes are spliced.
+// Extra replace lines past the matched region reference the last
+// search/content line.
 //
-// Two carve-outs apply to the "file wins on agreement" rule:
+// Carve-outs on "file wins on agreement":
 //
-//   - When the replacement line has an empty body, the whitespace
-//     positions are emitted from the replacement verbatim. A
-//     body-less line means "clear this line"; inheriting the
-//     file's surrounding whitespace would emit a whitespace-only
-//     ghost instead of a blank line.
-//   - When the reference content line has an empty ending (EOF
-//     without newline) and this is not the last replacement line,
-//     the replacement's newline is preserved. Otherwise a multi-
-//     line replacement at EOF collapses its interior newlines.
+//   - Empty replacement body: emit the replacement's whitespace
+//     verbatim so a body-less line doesn't materialize whitespace.
+//   - Reference content line has no ending and this isn't the
+//     final replacement line: keep the replacement's newline so a
+//     multi-line splice at EOF doesn't collapse.
 //
-// When forcedEnding is non-empty, interior emitted lines use it
-// instead of the per-position rule; the final line still uses the
-// per-position rule so no-EOL-at-EOF is preserved.
+// forcedEnding (from internalLineEnding normalization) overrides
+// interior endings; the final ending is forced too unless
+// atNoNewlineEOF (preserving the file's no-terminator EOF).
+// When atNoNewlineEOF is false and the final ending would still
+// be empty, force a terminator so unmatched content doesn't
+// concatenate onto the splice.
 //
-// When allowEmptyFinalEnding is false, the final emitted line must
-// terminate: unmatched content follows the splice, and an empty
-// ending would merge the next line onto the last spliced line.
-// When true (match covers the file's tail), the per-position rule
-// When true (match covers the file's tail), the per-position rule
-// applies and an empty ending is allowed (no-EOL-at-EOF preserved).
-//
-//nolint:revive // allowEmptyFinalEnding is a computed match property, not caller control coupling.
-func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string, allowEmptyFinalEnding bool) string {
+//nolint:revive // atNoNewlineEOF is a computed match property, not caller control coupling.
+func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string, atNoNewlineEOF bool) string {
 	repLines := strings.SplitAfter(replace, "\n")
 	// SplitAfter on a string ending in "\n" yields a trailing empty
 	// element. Drop it so it doesn't pair with a phantom line.
@@ -795,12 +830,52 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 		repLines = repLines[:len(repLines)-1]
 	}
 	matched := contentLines[start:end]
+	prefix, suffix := alignSearchReplace(searchLines, repLines)
 	var b strings.Builder
 	for i, rLine := range repLines {
-		// All call sites pass end = start + len(searchLines), so
-		// len(matched) == len(searchLines). refIdx is bounded by
-		// len(searchLines)-1, so matched[refIdx] is always valid.
-		refIdx := min(i, len(searchLines)-1)
+		// Pair each repLines[i] with a searchLines index using
+		// the prefix/suffix alignment. Middle lines fall into
+		// substitution (paired by middle offset) or pure
+		// insertion (no search pair).
+		var refIdx int
+		inserted := false
+		searchMiddleLen := len(searchLines) - prefix - suffix
+		switch {
+		case i < prefix:
+			refIdx = i
+		case i >= len(repLines)-suffix:
+			refIdx = i - (len(repLines) - len(searchLines))
+		case i-prefix < searchMiddleLen:
+			refIdx = prefix + (i - prefix)
+		default:
+			// Pure insertion: pick the reference content line by
+			// the caller's indent signal. An inserted line whose
+			// lead matches the suffix's first rep line belongs to
+			// the suffix scope; one matching the prefix's last rep
+			// line belongs to the prefix scope. Fall back to
+			// suffix, then prefix, then i-clamped.
+			inserted = true
+			rLeadForI := leadOnly(rLine)
+			switch {
+			case prefix > 0 && suffix > 0:
+				prefixRLead := leadOnly(repLines[prefix-1])
+				suffixRLead := leadOnly(repLines[len(repLines)-suffix])
+				switch {
+				case rLeadForI == suffixRLead:
+					refIdx = len(searchLines) - suffix
+				case rLeadForI == prefixRLead:
+					refIdx = prefix - 1
+				default:
+					refIdx = len(searchLines) - suffix
+				}
+			case suffix > 0:
+				refIdx = len(searchLines) - suffix
+			case prefix > 0:
+				refIdx = prefix - 1
+			default:
+				refIdx = min(i, len(searchLines)-1)
+			}
+		}
 		refContent := matched[refIdx]
 		sLead, _, sTrail, sEnd := splitLineParts(searchLines[refIdx])
 		rLead, rMid, rTrail, rEnd := splitLineParts(rLine)
@@ -808,7 +883,16 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 
 		lead := rLead
 		trail := rTrail
-		if rMid != "" {
+		switch {
+		case rMid == "":
+			// Body-less: emit the replacement's whitespace verbatim.
+		case inserted:
+			// Middle line has no search pair; inherit the
+			// reference content's lead directly. Keep the
+			// replacement's trailing whitespace (the caller owns it
+			// since no search line speaks to it).
+			lead = cLead
+		default:
 			if sLead == rLead {
 				lead = cLead
 			}
@@ -817,22 +901,22 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 			}
 		}
 		ending := rEnd
-		if endingShapeEqual(sEnd, rEnd) {
+		if !inserted && endingShapeEqual(sEnd, rEnd) {
 			ending = cEnd
-			// Interior lines must keep their newline even when the
-			// reference content line is a no-EOL last line. Only the
-			// final output line inherits an empty ending.
+			// Interior lines keep their newline when the reference
+			// content has cEnd="" (no-EOL EOF); only the final
+			// output line may inherit the empty ending.
 			if cEnd == "" && i < len(repLines)-1 {
 				ending = rEnd
 			}
 		}
-		// Ending-normalization override (see godoc).
-		if forcedEnding != "" && i < len(repLines)-1 {
+		if inserted && i == len(repLines)-1 && atNoNewlineEOF {
+			ending = ""
+		}
+		if forcedEnding != "" && (i < len(repLines)-1 || !atNoNewlineEOF) {
 			ending = forcedEnding
 		}
-		// Final-line boundary: empty ending is only legal when no
-		// unmatched content follows; otherwise force a terminator.
-		if i == len(repLines)-1 && !allowEmptyFinalEnding && ending == "" {
+		if i == len(repLines)-1 && !atNoNewlineEOF && ending == "" {
 			if forcedEnding != "" {
 				ending = forcedEnding
 			} else {
@@ -1044,7 +1128,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[:start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding, tailIsEmpty(contentLines[end:])))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, end)))
 		for _, l := range contentLines[end:] {
 			_, _ = b.WriteString(l)
 		}
@@ -1080,7 +1164,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[prev:m.start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding, tailIsEmpty(contentLines[m.end:])))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, m.end)))
 		prev = m.end
 	}
 	for _, l := range contentLines[prev:] {
