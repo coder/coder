@@ -27,8 +27,10 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 		return rightTime - leftTime;
 	});
 
+	const hasRunsData = runsQuery.data !== undefined;
+
 	let content: ReactNode;
-	if (runsQuery.isError) {
+	if (runsQuery.isError && !hasRunsData) {
 		content = (
 			<div className="p-4">
 				<Alert severity="error" prominent>
@@ -67,7 +69,21 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 		);
 	} else {
 		content = (
-			<DebugRunList runs={sortedRuns} chatId={chatId} enabled={enabled} />
+			<>
+				{runsQuery.isError ? (
+					<div className="p-4 pb-0">
+						<Alert severity="warning">
+							<p className="text-sm text-content-primary">
+								{getErrorMessage(
+									runsQuery.error,
+									"Unable to refresh debug runs. Showing cached data.",
+								)}
+							</p>
+						</Alert>
+					</div>
+				) : null}
+				<DebugRunList runs={sortedRuns} chatId={chatId} enabled={enabled} />
+			</>
 		);
 	}
 

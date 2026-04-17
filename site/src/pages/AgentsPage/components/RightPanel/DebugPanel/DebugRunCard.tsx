@@ -127,7 +127,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 							<Spinner size="sm" loading />
 							Loading run details...
 						</div>
-					) : runDetailQuery.isError ? (
+					) : runDetailQuery.isError && !runDetailQuery.data ? (
 						<Alert severity="error" prominent>
 							<p className="text-sm text-content-primary">
 								{getErrorMessage(
@@ -138,6 +138,16 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 						</Alert>
 					) : (
 						<div className="space-y-2">
+							{runDetailQuery.isError ? (
+								<Alert severity="warning">
+									<p className="text-sm text-content-primary">
+										{getErrorMessage(
+											runDetailQuery.error,
+											"Unable to refresh debug run details. Showing cached data.",
+										)}
+									</p>
+								</Alert>
+							) : null}
 							{steps.map((step) => (
 								<DebugStepCard key={step.id} step={step} defaultOpen={false} />
 							))}
