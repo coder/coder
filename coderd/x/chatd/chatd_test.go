@@ -1998,6 +1998,11 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 
 	chatd.WaitUntilIdleForTest(replica)
 
+	// ErrNoRows on staleRun proves the fast-retry path DELETED the
+	// row: FinalizeStale (the only other debug-row writer on the
+	// server) only UPDATEs finished_at in place, it never deletes,
+	// so the row can only disappear via DeleteAfterMessageID which
+	// is reached solely from scheduleDebugCleanup.
 	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows,
 		"pre-edit run matching the message-id filter should be deleted")
@@ -2006,6 +2011,25 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	require.NoError(t, err,
 		"runs outside the edited message branch must survive cleanup")
 	require.Equal(t, unrelatedRun.ID, remaining.ID)
+
+	// Count the seeded rows that survive so the delete count is
+	// verified directly (not just by negative lookup). Scoped to
+	// seeded IDs because the processor may start a new chat_turn
+	// run in parallel when EditMessage transitions the chat back to
+	// pending.
+	remainingRuns, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID: chat.ID, LimitVal: 100,
+	})
+	require.NoError(t, err)
+	seeded := map[uuid.UUID]bool{staleRun.ID: true, unrelatedRun.ID: true}
+	survivors := 0
+	for _, r := range remainingRuns {
+		if seeded[r.ID] {
+			survivors++
+		}
+	}
+	require.Equal(t, 1, survivors,
+		"exactly one of the two seeded runs should survive (the unrelated run)")
 }
 
 // TestEditMessageDebugCleanupPreservesRecentRuns verifies that the
@@ -2067,6 +2091,23 @@ func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 	require.NoError(t, err,
 		"runs inside the clock-skew buffer must survive the fast retry")
 	require.Equal(t, recentRun.ID, remaining.ID)
+
+	// If the clock-skew buffer were removed the fast retry would
+	// have deleted recentRun. Verify the count of seeded survivors
+	// directly, ignoring any new chat_turn run the processor may
+	// create after the pending status transition.
+	remainingRuns, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID: chat.ID, LimitVal: 100,
+	})
+	require.NoError(t, err)
+	survivors := 0
+	for _, r := range remainingRuns {
+		if r.ID == recentRun.ID {
+			survivors++
+		}
+	}
+	require.Equal(t, 1, survivors,
+		"the buffered run must survive the fast retry")
 }
 
 // TestArchiveChatDebugCleanupDeletesPreArchiveRuns verifies that
@@ -2125,6 +2166,8 @@ func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
 
 	chatd.WaitUntilIdleForTest(replica)
 
+	// ErrNoRows proves the fast-retry path DELETED the row:
+	// FinalizeStale only UPDATEs in place, never deletes.
 	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows,
 		"pre-archive run outside the buffer should be deleted")
@@ -2133,6 +2176,24 @@ func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
 	require.NoError(t, err,
 		"runs inside the clock-skew buffer must survive the fast retry")
 	require.Equal(t, recentRun.ID, remaining.ID)
+
+	// Count the seeded survivors directly so the delete is verified
+	// not just by absence of a specific row. Scoped to seeded IDs
+	// because the archive transition may still race with other
+	// background debug writes.
+	remainingRuns, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID: chat.ID, LimitVal: 100,
+	})
+	require.NoError(t, err)
+	seeded := map[uuid.UUID]bool{staleRun.ID: true, recentRun.ID: true}
+	survivors := 0
+	for _, r := range remainingRuns {
+		if seeded[r.ID] {
+			survivors++
+		}
+	}
+	require.Equal(t, 1, survivors,
+		"only the recent (buffered) seeded run should survive")
 }
 
 func TestRecoverStaleChatsPeriodically(t *testing.T) {

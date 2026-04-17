@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -162,6 +163,77 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		default:
 		}
 	})
+}
+
+// TestGenerateCompactionSummary_PanicFinalizesAsError verifies that a
+// panic originating inside the model call during compaction is
+// captured by the deferred debug-run finalizer so the run is recorded
+// with StatusError rather than StatusCompleted. Without the recover
+// hook the named `err` return is still nil when the defer fires and
+// the row silently misclassifies the crash path.
+func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+	chatID := uuid.New()
+	runID := uuid.New()
+
+	status := make(chan string, 1)
+
+	db.EXPECT().InsertChatDebugRun(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
+	).Return(database.ChatDebugRun{
+		ID:     runID,
+		ChatID: chatID,
+	}, nil)
+	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, nil)
+	db.EXPECT().UpdateChatDebugRun(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{}),
+	).DoAndReturn(func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+		status <- params.Status.String
+		return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+	})
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			panic("compaction model crash")
+		},
+	}
+
+	parentCtx := chatdebug.ContextWithRun(context.Background(), &chatdebug.RunContext{
+		RunID:               uuid.New(),
+		ChatID:              chatID,
+		ModelConfigID:       uuid.New(),
+		TriggerMessageID:    1,
+		HistoryTipMessageID: 2,
+		Kind:                chatdebug.KindChatTurn,
+		Provider:            "fake",
+		Model:               "fake-model",
+	})
+
+	require.PanicsWithValue(t, "compaction model crash", func() {
+		_, _ = generateCompactionSummary(parentCtx, model,
+			[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+			CompactionOptions{
+				DebugSvc:      svc,
+				ChatID:        chatID,
+				SummaryPrompt: "summarize",
+				Timeout:       time.Second,
+			})
+	})
+
+	select {
+	case s := <-status:
+		require.Equal(t, string(chatdebug.StatusError), s,
+			"panic path must finalize the debug run with StatusError")
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("FinalizeRun never reached UpdateChatDebugRun on panic")
+	}
 }
 
 func TestRun_Compaction(t *testing.T) {

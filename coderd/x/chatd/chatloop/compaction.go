@@ -362,6 +362,17 @@ func generateCompactionSummary(
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(summaryCtx, options)
 	defer func() {
+		// If model.Generate (or anything else below) panics, the
+		// named err return is still nil at this point. Without the
+		// recover hook we would finalize the debug run as Completed
+		// in the exact crash path operators rely on to diagnose
+		// failures. Finalize with the panic as an error status and
+		// re-panic so the caller's recovery still observes the
+		// original panic value.
+		if r := recover(); r != nil {
+			finishDebugRun(xerrors.Errorf("panic during compaction summary: %v", r))
+			panic(r)
+		}
 		finishDebugRun(err)
 	}()
 
