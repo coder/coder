@@ -3205,6 +3205,7 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeChat                        ResourceType = "chat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3270,7 +3271,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat:
+		ResourceTypeAiSeat,
+		ResourceTypeChat:
 		return true
 	}
 	return false
@@ -3305,6 +3307,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
+		ResourceTypeChat,
 	}
 }
 

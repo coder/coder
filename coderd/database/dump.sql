@@ -525,7 +525,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_app',
     'prebuilds_settings',
     'task',
-    'ai_seat'
+    'ai_seat',
+    'chat'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

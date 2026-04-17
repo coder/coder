@@ -1845,6 +1845,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+	aReq.Old = chat
+	aReq.UpdateOrganizationID(chat.OrganizationID)
+
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -2045,6 +2056,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
+	aReq.New = chat
 	rw.WriteHeader(http.StatusNoContent)
 }
 
