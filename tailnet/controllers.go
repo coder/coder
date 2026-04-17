@@ -238,37 +238,37 @@ func (c *BasicCoordination) SendRequest(req *proto.CoordinateRequest) error {
 // up on us, we forcibly close the Client connection.
 func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	c.Lock()
-	defer c.Unlock()
 	if c.closed {
+		c.Unlock()
 		return nil
 	}
 	c.closed = true
-	defer func() {
-		// We shouldn't just close the protocol right away, because the way dRPC streams work is
-		// that if you close them, that could take effect immediately, even before the Disconnect
-		// message is processed. Coordinators are supposed to hang up on us once they get a
-		// Disconnect message, so we should wait around for that until the context expires.
-		select {
-		case <-c.respLoopDone:
-			c.logger.Debug(ctx, "responses closed after disconnect")
-			return
-		case <-ctx.Done():
-			c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
-		}
-		// forcefully close the stream
-		protoErr := c.Client.Close()
-		<-c.respLoopDone
-		if retErr == nil {
-			retErr = protoErr
-		}
-	}()
 	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
 		return xerrors.Errorf("send disconnect: %w", err)
 	}
 	c.logger.Debug(context.Background(), "sent disconnect")
-	return nil
+
+	// We shouldn't just close the protocol right away, because the way dRPC streams work is
+	// that if you close them, that could take effect immediately, even before the Disconnect
+	// message is processed. Coordinators are supposed to hang up on us once they get a
+	// Disconnect message, so we should wait around for that until the context expires.
+	select {
+	case <-c.respLoopDone:
+		c.logger.Debug(ctx, "responses closed after disconnect")
+		return nil
+	case <-ctx.Done():
+		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
+	}
+	// forcefully close the stream
+	protoErr := c.Client.Close()
+	<-c.respLoopDone
+	if retErr == nil {
+		retErr = protoErr
+	}
+	return retErr
 }
 
 // Wait for the Coordination to complete
@@ -338,7 +338,7 @@ func (c *BasicCoordination) respLoop() {
 				rfh = append(rfh, &proto.CoordinateRequest_ReadyForHandshake{Id: peer.Id})
 			}
 			if len(rfh) > 0 {
-				err := c.Client.Send(&proto.CoordinateRequest{
+				err := c.SendRequest(&proto.CoordinateRequest{
 					ReadyForHandshake: rfh,
 				})
 				if err != nil {
