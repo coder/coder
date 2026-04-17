@@ -41,27 +41,17 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch sizes for chat purging. Both use 1000, which is smaller
-	// than audit/connection log batches (10000), because chat_files
-	// rows contain bytea blob data that make large batches heavier.
-	chatsBatchSize     = 1000
-	chatFilesBatchSize = 1000
-	// chatsAutoArchiveBatchSize bounds the number of root chats
-	// auto-archived per tick. Kept at 1000 so a large initial
-	// backfill rolls out over many ticks rather than blocking one
-	// tick for minutes.
+	// Chat batch sizes are smaller than audit/connection log batches
+	// (10000) because chat_files rows carry bytea blobs.
+	chatsBatchSize            = 1000
+	chatFilesBatchSize        = 1000
 	chatsAutoArchiveBatchSize = 1000
-	// chatAutoArchiveDigestMaxChats caps the number of titles
-	// listed in a single digest. Beyond this, the template shows
-	// a "...and N more" summary line. Prevents pathologically
-	// long emails when a user had thousands of stale chats.
+	// chatAutoArchiveDigestMaxChats caps titles per digest; extras
+	// are summarized as "...and N more".
 	chatAutoArchiveDigestMaxChats = 25
-	// chatAutoArchiveDispatchTimeout bounds how long we'll keep
-	// running post-commit dispatch (audits + digests) after the
-	// parent context has been canceled. Detaching the dispatch
-	// context from the ticker ensures a shutdown mid-batch can't
-	// split an owner's enqueue from their dedupe-log upsert,
-	// which would cause a duplicate digest on the next tick.
+	// chatAutoArchiveDispatchTimeout bounds post-commit dispatch
+	// (audits + digests) so a canceled ticker still yields in a
+	// reasonable time on shutdown.
 	chatAutoArchiveDispatchTimeout = 30 * time.Second
 )
 
@@ -70,11 +60,10 @@ const (
 //
 // This is for cleaning up old, unused resources from the database that take up space.
 //
-// The auditor and enqueuer are used by the chat auto-archive pass to
-// emit audit log entries for each archived root chat and to send a
-// once-per-24h digest to owners whose chats were archived. Passing
-// audit.NewNop() and notifications.NewNoopEnqueuer() disables those
-// side effects without disabling the archive itself.
+// The auditor and enqueuer are used by the chat auto-archive pass
+// to emit audit entries and send per-owner digest notifications.
+// Pass audit.NewNop() and notifications.NewNoopEnqueuer() to
+// disable those side effects without disabling the archive itself.
 func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer, auditor audit.Auditor, enqueuer notifications.Enqueuer) io.Closer {
 	closed := make(chan struct{})
 
@@ -366,20 +355,16 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		return err
 	}
 
-	// Post-commit side effects for chat auto-archive. These run
-	// OUTSIDE the transaction so slow audit inserts or notifier
-	// calls don't hold a DB connection that's part of the
-	// purge tx. Failures here are logged but do NOT roll back
-	// the archive itself; a partially-dispatched batch is
-	// recoverable on the next tick via the dedupe log.
+	// Post-commit side effects for chat auto-archive. Run outside
+	// the transaction so slow audit inserts or notifier calls don't
+	// hold a DB connection from the purge tx. Failures here are
+	// logged but do NOT roll back the archive itself.
 	//
-	// Detach from the ticker context with a bounded deadline so
-	// that a shutdown mid-dispatch can't leave an owner with a
-	// digest enqueued but no dedupe-log entry (which would cause
-	// a duplicate digest on the next tick). The deadline bounds
-	// graceful shutdown; callers that cancel the parent ctx will
-	// still get control back once dispatch completes or the
-	// deadline fires.
+	// Detach from the ticker context with a bounded deadline so a
+	// shutdown mid-dispatch doesn't wedge graceful shutdown; the
+	// archive already committed, and duplicate digests within the
+	// same UTC day are suppressed by the native notification_messages
+	// dedupe hash.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
 		dispatchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatAutoArchiveDispatchTimeout)
@@ -409,9 +394,8 @@ func (i *instance) Close() error {
 	return nil
 }
 
-// chatFromAutoArchiveRow converts the AutoArchiveInactiveChatsRow
-// shape into a database.Chat so it can flow through the generic
-// audit API as `Auditable[database.Chat]`.
+// chatFromAutoArchiveRow reshapes the query row into a
+// database.Chat so it can flow through audit.Auditable[database.Chat].
 func chatFromAutoArchiveRow(r database.AutoArchiveInactiveChatsRow) database.Chat {
 	return database.Chat{
 		ID:                  r.ID,
@@ -444,11 +428,10 @@ func chatFromAutoArchiveRow(r database.AutoArchiveInactiveChatsRow) database.Cha
 	}
 }
 
-// labelsFromRaw decodes the json.RawMessage labels column surfaced
-// by the AutoArchiveInactiveChats query into the database.StringMap
-// type expected by database.Chat. sqlc can't infer the override on
-// the CTE alias, so we do it manually. An empty/nil or malformed
-// payload yields an empty map so the audit diff stays clean.
+// labelsFromRaw decodes the labels JSON returned by the
+// AutoArchiveInactiveChats CTE into database.StringMap; sqlc's
+// override doesn't apply to CTE aliases, so we do it manually.
+// Empty or malformed payloads yield an empty map.
 func labelsFromRaw(raw json.RawMessage) database.StringMap {
 	if len(raw) == 0 {
 		return database.StringMap{}
@@ -460,12 +443,10 @@ func labelsFromRaw(raw json.RawMessage) database.StringMap {
 	return m
 }
 
-// dispatchChatAutoArchive emits one BackgroundAudit entry per
-// archived chat (roots and children) and enqueues a per-owner
-// digest notification. Duplicate digests within the same UTC day
-// are suppressed by the native notification_messages dedupe hash;
-// users who find the digest noisy can disable the template in
-// their notification preferences.
+// dispatchChatAutoArchive emits a BackgroundAudit entry per archived
+// chat (roots and children) and enqueues a per-owner digest. Same-day
+// duplicates are suppressed by the native notification_messages
+// dedupe hash; users can disable the template in preferences.
 func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
 	for _, row := range archived {
 		after := chatFromAutoArchiveRow(row)
@@ -484,7 +465,7 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, a
 		})
 	}
 
-	digests := buildDigests(archived, autoArchiveDays, retentionDays)
+	digests := buildDigests(archived)
 	for ownerID, digest := range digests {
 		data := buildDigestData(digest, autoArchiveDays, retentionDays, now)
 
@@ -505,17 +486,15 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, a
 	}
 }
 
-// ownerDigest is the per-owner slice of the archive results used to
-// populate the notification payload.
+// ownerDigest collects the root-chat rows for a single owner.
 type ownerDigest struct {
 	roots []database.AutoArchiveInactiveChatsRow
 }
 
-// buildDigests groups archived rows by owner, dropping cascaded
-// children (parent_chat_id IS NOT NULL). Only root chats are
-// surfaced in the digest because users think in terms of
-// conversations, not thread branches.
-func buildDigests(archived []database.AutoArchiveInactiveChatsRow, _, _ int32) map[uuid.UUID]*ownerDigest {
+// buildDigests groups archived roots by owner. Cascaded children
+// (parent_chat_id IS NOT NULL) are dropped; users see conversations,
+// not thread branches.
+func buildDigests(archived []database.AutoArchiveInactiveChatsRow) map[uuid.UUID]*ownerDigest {
 	out := make(map[uuid.UUID]*ownerDigest)
 	for _, row := range archived {
 		if row.ParentChatID.Valid {
@@ -531,14 +510,13 @@ func buildDigests(archived []database.AutoArchiveInactiveChatsRow, _, _ int32) m
 	return out
 }
 
-// buildDigestData constructs the notification `data` map. The
-// shape mirrors the golden render fixtures and the test case in
-// coderd/notifications/notifications_test.go
-// (TemplateChatAutoArchiveDigest).
+// buildDigestData constructs the notification data payload; shape
+// mirrors the golden fixtures in coderd/notifications/testdata.
 func buildDigestData(d *ownerDigest, autoArchiveDays, retentionDays int32, now time.Time) map[string]any {
 	rows := d.roots
-	// Cap at chatAutoArchiveDigestMaxChats to keep emails
-	// reasonable. The "and N more" suffix surfaces the tail.
+	// Cap titles so a user with thousands of stale chats doesn't
+	// get an unreadably long email; the overflow count surfaces in
+	// the template as "...and N more".
 	overflow := 0
 	if len(rows) > chatAutoArchiveDigestMaxChats {
 		overflow = len(rows) - chatAutoArchiveDigestMaxChats
