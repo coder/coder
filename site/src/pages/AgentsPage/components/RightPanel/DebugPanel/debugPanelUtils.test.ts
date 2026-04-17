@@ -217,6 +217,39 @@ describe("normalizeAttempts", () => {
 
 		expect(attempt?.raw_request).toEqual({ body: { prompt: "hi" } });
 	});
+
+	it("preserves plain-text bodies that happen to be base64-alphabet", () => {
+		// "test" is in the base64 alphabet and has length 4, but it is
+		// almost certainly a literal payload. Decoding it would produce
+		// mojibake (0xB5 0xEB 0x2D is not valid UTF-8).
+		const [attempt] = normalizeAttempts([
+			{
+				attempt_number: 1,
+				status: "completed",
+				request_body: "test",
+				response_body: "abcd",
+			},
+		]).parsed;
+
+		expect(attempt?.raw_request).toEqual({ body: "test" });
+		expect(attempt?.raw_response).toEqual({ body: "abcd" });
+	});
+
+	it("decodes base64-encoded non-JSON text", () => {
+		// Go can emit non-JSON []byte payloads (e.g. plain-text error
+		// bodies). Once step 2 fails JSON parsing, step 3 should return
+		// the decoded UTF-8 text.
+		const encodedBody = btoa("hello world");
+		const [attempt] = normalizeAttempts([
+			{
+				attempt_number: 1,
+				status: "completed",
+				response_body: encodedBody,
+			},
+		]).parsed;
+
+		expect(attempt?.raw_response).toEqual({ body: "hello world" });
+	});
 });
 
 describe("computeDurationMs", () => {

@@ -255,17 +255,34 @@ const tryDecodeBase64Json = (value: string): unknown => {
 	}
 };
 
+// Matches canonical (Go-emitted) base64: the full base64 alphabet with
+// optional trailing `=` padding. `atob` is lenient and will happily decode
+// strings like "test" into garbage bytes, so require a strict format before
+// attempting a decode.
+const STRICT_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
 /**
  * Try to decode a base64 string to plain text.  Go's encoding/json
  * marshals []byte as base64, so raw body payloads may appear as
  * gibberish in the debug panel unless we decode them.  Returns the
  * decoded UTF-8 string on success, undefined otherwise.
+ *
+ * Gated behind a strict base64 format check and a fatal UTF-8 decode
+ * so plain-text payloads that happen to be valid base64 alphabet
+ * (e.g. "test") are preserved as-is instead of being turned into
+ * mojibake.
  */
 const tryDecodeBase64 = (value: string): string | undefined => {
+	if (value.length === 0 || value.length % 4 !== 0) {
+		return undefined;
+	}
+	if (!STRICT_BASE64.test(value)) {
+		return undefined;
+	}
 	try {
 		const binary = atob(value);
 		const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-		return new TextDecoder().decode(bytes);
+		return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 	} catch {
 		return undefined;
 	}
