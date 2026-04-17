@@ -1576,6 +1576,57 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// authorizeChatWorkspaceExec enforces the workspace-level permissions
+// shared by the chat stream endpoints that proxy a live websocket into
+// the workspace agent (currently /stream/git and /stream/desktop).
+//
+// The chat row only authorizes the chat owner, so callers also need
+// exec-level access (ApplicationConnect or SSH) to the bound workspace.
+// The chat owner's workspace permissions may have been revoked after
+// the chat was bound; skipping this check enabled CODAGT-184.
+//
+// On any failure the response is written and ok=false is returned.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) authorizeChatWorkspaceExec(
+	rw http.ResponseWriter,
+	r *http.Request,
+	chat database.Chat,
+	noWorkspaceMessage string,
+) (database.Workspace, bool) {
+	ctx := r.Context()
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: noWorkspaceMessage,
+		})
+		return database.Workspace{}, false
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace not found.",
+		})
+		return database.Workspace{}, false
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat workspace.",
+			Detail:  err.Error(),
+		})
+		return database.Workspace{}, false
+	}
+
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return database.Workspace{}, false
+	}
+
+	return workspace, true
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1586,10 +1637,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace to watch.",
-		})
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace to watch."); !ok {
 		return
 	}
 
@@ -1734,23 +1782,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_desktop").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace.",
-		})
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
-		})
-		return
-	}
-	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
-		!api.Authorize(r, policy.ActionSSH, workspace) {
-		httpapi.Forbidden(rw)
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace."); !ok {
 		return
 	}
 

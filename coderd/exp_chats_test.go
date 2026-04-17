@@ -7830,6 +7830,80 @@ func TestWatchChatDesktop(t *testing.T) {
 	})
 }
 
+// TestWatchChatGitAuthz is the regression test for CODAGT-184. The
+// git-watcher handler opens a bidirectional websocket into the
+// workspace agent and streams repository diffs; before the fix it only
+// enforced chat:read, so a chat owner who lost workspace SSH /
+// application-connect access (e.g. by being demoted from owner to
+// template-admin after the chat was bound) could keep exfiltrating
+// repository contents.
+//
+// Other behaviors (no-workspace 400, websocket proxy plumbing,
+// disconnected-agent 400) are covered by the mock-based TestWatchChatGit
+// in coderd/workspaceagents_internal_test.go.
+func TestWatchChatGitAuthz(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// adminClient = first user (site: owner). Creates the chat below
+	// and is demoted after the chat is bound.
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	_ = createChatModelConfig(t, adminClient)
+
+	// A second owner is needed to run UpdateUserRoles on the first
+	// user, since the server refuses self-demotion.
+	secondAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.RoleOwner())
+
+	// The workspace owner is a distinct user so that stripping
+	// adminClient's site roles fully removes its workspace
+	// SSH/ApplicationConnect. If the workspace were owned by
+	// adminClient, the user would retain SSH via the org-member role
+	// regardless of site-role demotion.
+	_, workspaceOwner := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+
+	workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        workspaceOwner.ID,
+	}).WithAgent().Do()
+
+	chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "codagt-184"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bind the chat to the workspace while adminClient still has
+	// site-wide workspace:ssh via the owner role.
+	err = adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+		WorkspaceID: &workspaceBuild.Workspace.ID,
+	})
+	require.NoError(t, err)
+
+	// Demote adminClient via the second owner. template-admin grants
+	// workspace:read (site) but not workspace:ssh or
+	// workspace:application_connect; agents-access preserves
+	// chat:read|create|update|delete on chats the user owns, so the
+	// demoted user still passes ExtractChatParam for their own chat.
+	_, err = secondAdminClient.UpdateUserRoles(ctx, firstUser.UserID.String(), codersdk.UpdateRoles{
+		Roles: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleAgentsAccess().String()},
+	})
+	require.NoError(t, err)
+
+	res, err := adminClient.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/experimental/chats/%s/stream/git", chat.ID),
+		nil,
+	)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusForbidden, res.StatusCode)
+}
+
 func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
 
