@@ -2697,7 +2697,7 @@ func (api *API) chatStartWorkspace(
 	)
 	if err != nil {
 		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
-			const retryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values."
+			const retryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values. If the correct value for a parameter is not obvious from its description or defaults, ask the user rather than guessing."
 			if responder, ok := httperror.IsResponder(err); ok {
 				status, resp := responder.Response()
 				resp = rewriteChatStartWorkspaceManualUpdateResponse(resp, err.Error(), retryInstructions)
