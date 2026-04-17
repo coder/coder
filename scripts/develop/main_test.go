@@ -382,6 +382,18 @@ func TestDevConfigValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "conflicts with API server")
 	})
 
+	t.Run("PrometheusServerPortConflictWithWeb", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.webPort = defaultPrometheusServerPort
+		cfg.prometheusPort = 2114
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prometheus server port")
+		assert.Contains(t, err.Error(), "conflicts with frontend dev server")
+	})
+
 	t.Run("PrometheusServerPortConflictWithProxy", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
