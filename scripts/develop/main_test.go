@@ -369,6 +369,28 @@ func TestDevConfigValidate(t *testing.T) {
 		cfg.prometheusPort = 2114
 		assert.NoError(t, cfg.validate())
 	})
+
+	t.Run("PrometheusServerPortConflictWithAPI", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.apiPort = defaultPrometheusServerPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prometheus server port")
+		assert.Contains(t, err.Error(), "conflicts with API server")
+	})
+
+	t.Run("PrometheusServerPortConflictWithMetrics", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.prometheusPort = defaultPrometheusServerPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prometheus server port")
+		assert.Contains(t, err.Error(), "conflicts with prometheus metrics")
+	})
 }
 
 func TestDevConfigResolveEnv(t *testing.T) {

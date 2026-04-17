@@ -39,10 +39,10 @@ import (
 )
 
 const (
-	defaultAPIPort              = "3000"
-	defaultWebPort              = "8080"
-	defaultProxyPort            = "3010"
-	defaultPrometheusServerPort = "9090"
+	defaultAPIPort                    = "3000"
+	defaultWebPort                    = "8080"
+	defaultProxyPort                  = "3010"
+	defaultPrometheusServerPort int64 = 9090
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
 	defaultPrometheusPort  = "2114"
@@ -251,6 +251,21 @@ func (c *devConfig) validate() error {
 	}
 	if c.prometheusServer && c.prometheusPort == 0 {
 		return xerrors.New("--prometheus-server requires prometheus to be enabled (--prometheus-port != 0)")
+	}
+	if c.prometheusServer {
+		for _, conflict := range []struct {
+			name string
+			val  int64
+		}{
+			{"API server", c.apiPort},
+			{"frontend dev server", c.webPort},
+			{"workspace proxy", c.proxyPort},
+			{"prometheus metrics", c.prometheusPort},
+		} {
+			if defaultPrometheusServerPort == conflict.val {
+				return xerrors.Errorf("prometheus server port %d conflicts with %s", defaultPrometheusServerPort, conflict.name)
+			}
+		}
 	}
 	return nil
 }
@@ -529,9 +544,8 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		return xerrors.Errorf("port %d is already in use (prometheus)", cfg.prometheusPort)
 	}
 	if cfg.prometheusServer {
-		promServerPort, _ := strconv.ParseInt(defaultPrometheusServerPort, 10, 64)
-		if isPortBusy(ctx, promServerPort) {
-			return xerrors.Errorf("port %d is already in use (prometheus server UI)", promServerPort)
+		if isPortBusy(ctx, defaultPrometheusServerPort) {
+			return xerrors.Errorf("port %d is already in use (prometheus server UI)", defaultPrometheusServerPort)
 		}
 	}
 	return nil
@@ -968,13 +982,13 @@ scrape_configs:
 		"-v", tmpFile.Name()+":/etc/prometheus/prometheus.yml:ro",
 		prometheusImage,
 		"--config.file=/etc/prometheus/prometheus.yml",
-		"--web.listen-address=0.0.0.0:"+defaultPrometheusServerPort,
+		fmt.Sprintf("--web.listen-address=0.0.0.0:%d", defaultPrometheusServerPort),
 	)
 
 	logger.Info(ctx, "starting prometheus server",
 		slog.F("image", prometheusImage),
 		slog.F("scrape_target", fmt.Sprintf("127.0.0.1:%d", cfg.prometheusPort)),
-		slog.F("ui", "http://localhost:"+defaultPrometheusServerPort),
+		slog.F("ui", fmt.Sprintf("http://localhost:%d", defaultPrometheusServerPort)),
 	)
 
 	return group.Start("prometheus", cmd)
@@ -1059,7 +1073,7 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 			"Prometheus UI:",
 		)
 		for _, h := range ifaces {
-			line(indent(fmt.Sprintf("http://%s:%s", h, defaultPrometheusServerPort)))
+			line(indent(fmt.Sprintf("http://%s:%d", h, defaultPrometheusServerPort)))
 		}
 	}
 	line(
