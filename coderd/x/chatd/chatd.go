@@ -2467,7 +2467,15 @@ func prepareChatTurnDebugRun(
 		parentChatID = chat.ParentChatID.UUID
 	}
 
-	run, createRunErr := debugSvc.CreateRun(ctx, chatdebug.CreateRunParams{
+	// Debug instrumentation must never block the user turn. Detach
+	// from the chat-processing context and bound the insert so a slow
+	// or locked DB makes debug logging degrade silently rather than
+	// stalling chatloop.Run. Matches the pattern used by
+	// prepareManualTitleDebugRun.
+	createRunCtx, createRunCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), debugCreateRunTimeout,
+	)
+	run, createRunErr := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
 		RootChatID:          rootChatID,
 		ParentChatID:        parentChatID,
@@ -2480,6 +2488,7 @@ func prepareChatTurnDebugRun(
 		Model:               debugModel,
 		Summary:             seedSummary,
 	})
+	createRunCancel()
 	if createRunErr != nil {
 		logger.Warn(ctx, "failed to create chat debug run",
 			slog.F("chat_id", chat.ID),

@@ -19,6 +19,14 @@ const (
 	minCompactionThresholdPercent     = int32(0)
 	maxCompactionThresholdPercent     = int32(100)
 
+	// compactionDebugCreateRunTimeout caps the compaction debug
+	// CreateRun budget so a slow or locked DB cannot consume the
+	// compaction's configured Timeout and cause model.Generate to
+	// fail with deadline exceeded. Debug instrumentation is
+	// best-effort; running without the debug row is preferable to
+	// failing the compaction.
+	compactionDebugCreateRunTimeout = 5 * time.Second
+
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
 		"Summarize the conversation so a new assistant can seamlessly " +
 		"continue the work in progress.\n\n" +
@@ -292,7 +300,17 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
-	run, err := options.DebugSvc.CreateRun(ctx, chatdebug.CreateRunParams{
+	// Use a separate short-lived context for the debug insert so a
+	// slow or locked DB cannot consume the compaction timeout budget
+	// and turn debug slowness into a compaction failure via
+	// model.Generate hitting a deadline exceeded. Detached from the
+	// parent so cancellation of the compaction run still lets the
+	// insert reach a terminal state, matching the best-effort
+	// contract of debug instrumentation.
+	createRunCtx, createRunCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
+	)
+	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -304,6 +322,7 @@ func startCompactionDebugRun(
 		Provider:            parentRun.Provider,
 		Model:               parentRun.Model,
 	})
+	createRunCancel()
 	if err != nil {
 		// Debug instrumentation must not surface as a compaction failure.
 		return ctx, func(error) {}
