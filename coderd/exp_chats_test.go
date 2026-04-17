@@ -9267,10 +9267,9 @@ func TestChatAutoArchiveDays(t *testing.T) {
 	require.NoError(t, err, "get after set")
 	require.Equal(t, int32(45), resp.AutoArchiveDays, "should return 45")
 
-	// Non-admin member can read the value.
-	resp, err = memberClient.GetChatAutoArchiveDays(ctx)
-	require.NoError(t, err, "member get")
-	require.Equal(t, int32(45), resp.AutoArchiveDays, "member should see same value")
+	// Non-admin member cannot read the value (deployment config is admin-only).
+	_, err = memberClient.GetChatAutoArchiveDays(ctx)
+	requireSDKError(t, err, http.StatusForbidden)
 
 	// Non-admin member cannot write.
 	err = memberClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: 7})

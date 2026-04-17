@@ -3828,6 +3828,11 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Deployment-wide config; readable only to actors that can update it.
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	autoArchiveDays, err := api.Database.GetChatAutoArchiveDays(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

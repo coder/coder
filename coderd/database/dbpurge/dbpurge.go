@@ -62,6 +62,13 @@ const (
 	// a "...and N more" summary line. Prevents pathologically
 	// long emails when a user had thousands of stale chats.
 	chatAutoArchiveDigestMaxChats = 25
+	// chatAutoArchiveDispatchTimeout bounds how long we'll keep
+	// running post-commit dispatch (audits + digests) after the
+	// parent context has been canceled. Detaching the dispatch
+	// context from the ticker ensures a shutdown mid-batch can't
+	// split an owner's enqueue from their dedupe-log upsert,
+	// which would cause a duplicate digest on the next tick.
+	chatAutoArchiveDispatchTimeout = 30 * time.Second
 )
 
 // New creates a new periodically purging database instance.
@@ -380,9 +387,19 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// purge tx. Failures here are logged but do NOT roll back
 	// the archive itself; a partially-dispatched batch is
 	// recoverable on the next tick via the dedupe log.
+	//
+	// Detach from the ticker context with a bounded deadline so
+	// that a shutdown mid-dispatch can't leave an owner with a
+	// digest enqueued but no dedupe-log entry (which would cause
+	// a duplicate digest on the next tick). The deadline bounds
+	// graceful shutdown; callers that cancel the parent ctx will
+	// still get control back once dispatch completes or the
+	// deadline fires.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
-		i.dispatchChatAutoArchive(ctx, db, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+		dispatchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatAutoArchiveDispatchTimeout)
+		i.dispatchChatAutoArchive(dispatchCtx, db, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+		cancel()
 	}
 
 	return nil
