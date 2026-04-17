@@ -67,6 +67,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		filename: string,
 		content?: FileTree | string,
 		parentPath?: string,
+		depth = 0,
 	): JSX.Element => {
 		const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
 		// Used to group empty folders in one single label like VSCode does.
@@ -84,6 +85,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 				firstChildFileName,
 				child,
 				currentPath,
+				depth,
 			);
 		}
 
@@ -100,8 +102,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			label
 		);
 
-		const depth = parentPath?.split("/").length ?? 0;
-
 		if (isFolder(content)) {
 			return (
 				<FolderNode
@@ -117,7 +117,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 					{Object.entries(content)
 						.sort(compareFileTreeEntries)
 						.map(([filename, child]) =>
-							buildTreeItems(filename, filename, child, currentPath),
+							buildTreeItems(filename, filename, child, currentPath, depth + 1),
 						)}
 				</FolderNode>
 			);
