@@ -1944,6 +1944,13 @@ func (h *heartbeats) checkExpiry() {
 		return
 	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
+
+	// Query the database BEFORE acquiring the lock to avoid blocking
+	// heartbeat processing during the DB round-trip. The snapshot may
+	// be slightly stale by the time we apply it under lock, but the
+	// existing logic handles stale data gracefully.
+	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
+
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	now := h.clock.Now()
@@ -1959,13 +1966,12 @@ func (h *heartbeats) checkExpiry() {
 		}
 	}
 
-	// Query the database for fresh heartbeats. This serves two purposes:
+	// Use the pre-fetched database result. This serves two purposes:
 	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
 	//    were delayed (the original DB fallback logic).
 	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
 	//    pubsub notifications can be permanently lost, leaving coordinators
 	//    invisible to other pods.
-	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
 		// Fall through — expire based on pubsub data only, no discovery.
