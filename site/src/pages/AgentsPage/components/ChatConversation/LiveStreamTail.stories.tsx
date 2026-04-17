@@ -4,6 +4,7 @@ import { LiveStreamTailContent } from "./LiveStreamTail";
 import {
 	buildLiveStatus,
 	buildReconnectState,
+	buildRetryState,
 	buildStreamRenderState,
 	FIXTURE_NOW,
 	textResponseStreamParts,
@@ -100,6 +101,102 @@ export const TerminalOverloadedError: Story = {
 		expect(canvas.getByText(/http 529/i)).toBeVisible();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * Terminal transport-layer timeouts render the per-provider
+ * "temporarily unavailable" copy and the "Request timed out" heading
+ * rather than the generic "Request failed" fallback. This is the
+ * post-fix surface for CODAGT-212: before the classifier fix, an
+ * HTTP/2 `force closed` / GOAWAY error was reaching the generic
+ * branch and rendering "The chat request failed unexpectedly."
+ */
+export const TerminalTimeoutErrorAnthropic: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "timeout",
+				message: "Anthropic is temporarily unavailable.",
+				provider: "anthropic",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily unavailable/i),
+		).toBeVisible();
+		// The generic fallback copy must not appear. Before the
+		// classifier fix, this is exactly the string the customer
+		// saw in the CODAGT-212 screenshot.
+		expect(
+			canvas.queryByText(/the chat request failed unexpectedly/i),
+		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * Same surface with an unknown provider. Covers the case where an
+ * HTTP/2 GOAWAY surfaces without any provider hint in the error
+ * string and the classifier stamps Provider="" (or upstream
+ * intentionally leaves it blank).
+ */
+export const TerminalTimeoutErrorUnknownProvider: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "timeout",
+				message: "The AI provider is temporarily unavailable.",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/the ai provider is temporarily unavailable/i),
+		).toBeVisible();
+	},
+};
+
+/**
+ * Retrying during a transport timeout shows the per-provider message
+ * inside the retry callout with an attempt counter and countdown.
+ * This closes the "retries were invisible during the demo" gap: the
+ * user sees the agent is still trying, not hanging.
+ */
+export const RetryingTimeoutAnthropic: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			retryState: buildRetryState({
+				attempt: 2,
+				kind: "timeout",
+				error: "Anthropic is temporarily unavailable.",
+				provider: "anthropic",
+			}),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily unavailable/i),
+		).toBeVisible();
+		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
+		expect(canvas.getByText(/retrying in/i)).toBeVisible();
 	},
 };
 

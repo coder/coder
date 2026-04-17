@@ -289,6 +289,148 @@ func TestClassify_TransportFailuresUseBroaderRetryMessage(t *testing.T) {
 	}
 }
 
+// TestClassify_HTTP2TransportErrors locks in R1 and R2 of CODAGT-212:
+// HTTP/2 transport surface errors must classify as a retryable
+// KindTimeout regardless of provider. The classification is verified
+// on two independent axes: transport-only strings with no provider
+// hint (sub-table A), and full POST-wrapped strings with varied
+// provider URLs (sub-table B). Separating the axes means neither one
+// can accidentally compensate for a bug in the other.
+func TestClassify_HTTP2TransportErrors(t *testing.T) {
+	t.Parallel()
+
+	// Sub-table A: transport-layer patterns, no provider hint.
+	// These prove Kind/Retryable do not depend on Anthropic-specific
+	// text. Provider is expected empty; Message uses the generic
+	// subject.
+	transportOnly := []struct {
+		name string
+		err  string
+	}{
+		{
+			name: "HTTP2ClientConnForceClosed",
+			err:  "http2: client connection force closed via ClientConn.Close",
+		},
+		{
+			name: "HTTP2TransportGOAWAY",
+			err:  "http2: Transport received Server's graceful shutdown GOAWAY",
+		},
+		{
+			name: "HTTP2ServerGOAWAY",
+			err:  "http2: server sent GOAWAY and closed the connection",
+		},
+		{
+			name: "HTTP2StreamClosed",
+			err:  "http2: stream closed",
+		},
+		{
+			name: "UseOfClosedNetworkConnectionOnPOST",
+			err:  `Post "https://example.com/v1/messages": use of closed network connection`,
+		},
+	}
+
+	for _, tt := range transportOnly {
+		t.Run("TransportOnly/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, chaterror.KindTimeout, classified.Kind, "Kind")
+			require.True(t, classified.Retryable, "Retryable")
+			require.Equal(t, "", classified.Provider, "Provider")
+			require.Equal(t,
+				"The AI provider is temporarily unavailable.",
+				classified.Message,
+				"Message",
+			)
+		})
+	}
+
+	// Sub-table B: the transport signature is the same; only the
+	// provider URL differs. The error text includes the provider
+	// host so detectProvider can stamp Provider correctly. The
+	// CustomerRegression case is the exact string from the CODAGT-212
+	// screenshot.
+	providerDetection := []struct {
+		name        string
+		err         string
+		provider    string
+		wantMessage string
+	}{
+		{
+			name:        "CustomerRegressionAnthropic",
+			err:         `stream response: Post "https://api.anthropic.com/v1/messages": http2: client connection force closed via ClientConn.Close`,
+			provider:    "anthropic",
+			wantMessage: "Anthropic is temporarily unavailable.",
+		},
+		{
+			name:        "OpenAIForceClosed",
+			err:         `stream response: Post "https://api.openai.com/v1/chat/completions": http2: client connection force closed via ClientConn.Close`,
+			provider:    "openai",
+			wantMessage: "OpenAI is temporarily unavailable.",
+		},
+		{
+			name:        "GoogleGOAWAY",
+			err:         `stream response: Post "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent": http2: server sent GOAWAY and closed the connection`,
+			provider:    "google",
+			wantMessage: "Google is temporarily unavailable.",
+		},
+	}
+
+	for _, tt := range providerDetection {
+		t.Run("ProviderDetection/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, chaterror.KindTimeout, classified.Kind, "Kind")
+			require.True(t, classified.Retryable, "Retryable")
+			require.Equal(t, tt.provider, classified.Provider, "Provider")
+			require.Equal(t, tt.wantMessage, classified.Message, "Message")
+		})
+	}
+}
+
+// TestClassify_StatusCodeBeatsHTTP2Transport guards R4: explicit
+// status codes continue to win over transport patterns. This prevents
+// the new HTTP/2 signals from swallowing classifications that should
+// fail fast (401) or fire a rate-limit retry.
+func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		err           string
+		wantKind      string
+		wantRetryable bool
+		wantStatus    int
+	}{
+		{
+			name:          "HTTP2With429",
+			err:           "http2: server error 429 Too Many Requests",
+			wantKind:      chaterror.KindRateLimit,
+			wantRetryable: true,
+			wantStatus:    429,
+		},
+		{
+			name:          "HTTP2With401",
+			err:           "http2: 401 unauthorized",
+			wantKind:      chaterror.KindAuth,
+			wantRetryable: false,
+			wantStatus:    401,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, tt.wantKind, classified.Kind, "Kind")
+			require.Equal(t, tt.wantRetryable, classified.Retryable, "Retryable")
+			require.Equal(t, tt.wantStatus, classified.StatusCode, "StatusCode")
+		})
+	}
+}
+
 func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
 	t.Parallel()
 

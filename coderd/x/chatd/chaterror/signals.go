@@ -37,6 +37,20 @@ var (
 		"broken pipe",
 		"bad gateway",
 		"gateway timeout",
+		// HTTP/2 transport-layer failures. These appear when
+		// the provider's stream connection is force-closed or
+		// drained mid-flight (e.g. Anthropic sending GOAWAY or
+		// the Go http2.Transport reaping a stuck conn). Treat
+		// them as transient transport errors so the retry loop
+		// keeps going and the user sees
+		// "<provider> is temporarily unavailable." instead of
+		// the generic "chat request failed unexpectedly"
+		// fallback (CODAGT-212).
+		"force closed",
+		"clientconn.close",
+		"goaway",
+		"http2: stream closed",
+		"use of closed network connection",
 	}
 	authStrongPatterns = []string{
 		"authentication",

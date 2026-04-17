@@ -491,6 +491,93 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	}
 }
 
+// TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout locks in R6
+// of CODAGT-212: an HTTP/2 transport error surfaced by the provider
+// stream must classify as KindTimeout with Retryable=true and the
+// Provider stamped from Model.Provider() (not from the error text).
+// The error string deliberately contains no provider hint, so a
+// passing test cannot be explained by detectProvider() reading the
+// URL out of the error. This is asserted across two providers to
+// make that property load-bearing.
+func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
+	t.Parallel()
+
+	providers := []string{"anthropic", "openai"}
+	for _, provider := range providers {
+		t.Run(provider, func(t *testing.T) {
+			t.Parallel()
+
+			const startupTimeout = 5 * time.Millisecond
+
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				testutil.WaitShort,
+			)
+			defer cancel()
+
+			mClock := quartz.NewMock(t)
+			trap := mClock.Trap().AfterFunc("startupGuard")
+			defer trap.Close()
+
+			attempts := 0
+			var retries []chatretry.ClassifiedError
+			model := &chattest.FakeModel{
+				ProviderName: provider,
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					attempts++
+					if attempts == 1 {
+						// Bare HTTP/2 transport error with no
+						// provider hint in the message. The
+						// classifier must stamp Provider from
+						// Model.Provider() via WithProvider.
+						return nil, xerrors.New(
+							"http2: client connection force closed via ClientConn.Close",
+						)
+					}
+					return streamFromParts([]fantasy.StreamPart{{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+					}}), nil
+				},
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- Run(context.Background(), RunOptions{
+					Model:          model,
+					MaxSteps:       1,
+					StartupTimeout: startupTimeout,
+					Clock:          mClock,
+					PersistStep: func(_ context.Context, _ PersistedStep) error {
+						return nil
+					},
+					OnRetry: func(
+						_ int,
+						_ error,
+						classified chatretry.ClassifiedError,
+						_ time.Duration,
+					) {
+						retries = append(retries, classified)
+					},
+				})
+			}()
+
+			// The first attempt returns synchronously with the
+			// transport error. No startup timer fires because the
+			// error preempts it. The second attempt succeeds.
+			trap.MustWait(ctx).MustRelease(ctx)
+			trap.MustWait(ctx).MustRelease(ctx)
+
+			require.NoError(t, awaitRunResult(ctx, t, done))
+			require.Equal(t, 2, attempts)
+			require.Len(t, retries, 1)
+			require.Equal(t, chaterror.KindTimeout, retries[0].Kind, "Kind")
+			require.True(t, retries[0].Retryable, "Retryable")
+			require.Equal(t, provider, retries[0].Provider, "Provider")
+		})
+	}
+}
+
 func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	t.Parallel()
 
