@@ -70,30 +70,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 		return tools
 	}
 
-	planMode := database.NullChatPlanMode{
-		ChatPlanMode: database.ChatPlanModePlan,
-		Valid:        true,
-	}
-
-	t.Run("NormalModeReturnsAllRegisteredTools", func(t *testing.T) {
-		t.Parallel()
-
-		got := allowedPlanToolNames(makeTools(
-			"read_file",
-			"propose_plan",
-			"custom_tool",
-			"execute",
-		), database.NullChatPlanMode{}, uuid.NullUUID{})
-
-		require.Equal(t, []string{
-			"read_file",
-			"propose_plan",
-			"custom_tool",
-			"execute",
-		}, got)
-	})
-
-	t.Run("PlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
+	t.Run("RootPlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
 		t.Parallel()
 
 		got := allowedPlanToolNames(makeTools(
@@ -110,6 +87,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"message_agent",
 			"close_agent",
@@ -117,7 +95,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
-		), planMode, uuid.NullUUID{})
+		), uuid.NullUUID{})
 
 		require.Equal(t, []string{
 			"read_file",
@@ -131,6 +109,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"read_skill",
 			"read_skill_file",
@@ -138,7 +117,7 @@ func TestAllowedPlanToolNames(t *testing.T) {
 		}, got)
 	})
 
-	t.Run("PlanModeChildChatsAllowExplorationOnly", func(t *testing.T) {
+	t.Run("ChildPlanModeAllowsExplorationOnly", func(t *testing.T) {
 		t.Parallel()
 
 		got := allowedPlanToolNames(makeTools(
@@ -153,11 +132,12 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
-		), planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true})
+		), uuid.NullUUID{UUID: uuid.New(), Valid: true})
 
 		require.Equal(t, []string{
 			"read_file",
@@ -166,58 +146,116 @@ func TestAllowedPlanToolNames(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 		}, got)
-		require.NotContains(t, got, "write_file")
-		require.NotContains(t, got, "edit_files")
-		require.NotContains(t, got, "ask_user_question")
-		require.NotContains(t, got, "propose_plan")
-	})
-
-	t.Run("PlanModeStillExcludesDangerousTools", func(t *testing.T) {
-		t.Parallel()
-
-		got := allowedPlanToolNames(makeTools(
-			"execute",
-			"process_output",
-			"message_agent",
-			"spawn_computer_use_agent",
-			"propose_plan",
-		), planMode, uuid.NullUUID{})
-
-		require.Equal(t, []string{"execute", "process_output", "propose_plan"}, got)
-		require.NotContains(t, got, "message_agent")
-		require.NotContains(t, got, "spawn_computer_use_agent")
-	})
-
-	t.Run("PlanModeExcludesUnknownTools", func(t *testing.T) {
-		t.Parallel()
-
-		got := allowedPlanToolNames(makeTools(
-			"read_file",
-			"custom_tool",
-			"another_custom_tool",
-			"propose_plan",
-		), planMode, uuid.NullUUID{})
-
-		require.Equal(t, []string{
-			"read_file",
-			"propose_plan",
-		}, got)
-		require.NotContains(t, got, "custom_tool")
-		require.NotContains(t, got, "another_custom_tool")
 	})
 }
 
-func TestStopAfterPlanTools(t *testing.T) {
+func TestAllowedExploreToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	got := allowedExploreToolNames(makeTools(
+		"read_file",
+		"write_file",
+		"edit_files",
+		"execute",
+		"process_output",
+		"process_list",
+		"process_signal",
+		"spawn_agent",
+		"spawn_explore_agent",
+		"wait_agent",
+		"read_skill",
+		"read_skill_file",
+		"ask_user_question",
+	))
+
+	require.Equal(t, []string{
+		"read_file",
+		"execute",
+		"process_output",
+		"read_skill",
+		"read_skill_file",
+	}, got)
+}
+
+func TestAllowedBehaviorToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	allTools := makeTools("read_file", "custom_tool", "spawn_explore_agent")
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "custom_tool", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("PlanModeUsesPlanAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			planMode,
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			exploreMode,
+			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		))
+	})
+}
+
+func TestStopAfterBehaviorTools(t *testing.T) {
 	t.Parallel()
 
 	planMode := database.NullChatPlanMode{
 		ChatPlanMode: database.ChatPlanModePlan,
 		Valid:        true,
 	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
 
-	t.Run("NormalModeReturnsNil", func(t *testing.T) {
+	t.Run("DefaultModeReturnsNil", func(t *testing.T) {
 		t.Parallel()
-		require.Nil(t, stopAfterPlanTools(database.NullChatPlanMode{}, uuid.NullUUID{}))
+		require.Nil(t, stopAfterBehaviorTools(
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
 	})
 
 	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
@@ -225,14 +263,19 @@ func TestStopAfterPlanTools(t *testing.T) {
 		require.Equal(t, map[string]struct{}{
 			"propose_plan":      {},
 			"ask_user_question": {},
-		}, stopAfterPlanTools(planMode, uuid.NullUUID{}))
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{}))
 	})
 
 	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, map[string]struct{}{
 			"propose_plan": {},
-		}, stopAfterPlanTools(planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+	})
+
+	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterBehaviorTools(planMode, exploreMode, uuid.NullUUID{}))
 	})
 }
 

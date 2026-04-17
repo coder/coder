@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/textproto"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -130,7 +132,7 @@ func invokeWaitAgentTool(
 	parentChat, err := db.GetChatByID(ctx, parentID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 
@@ -226,6 +228,11 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 		"expected name to start with 'recording-', got: %s", chatFile.Name)
 	assert.Equal(t, user.ID, chatFile.OwnerID)
 	assert.Equal(t, fakeMp4, chatFile.Data)
+
+	// Verify the file is linked to the parent chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 1)
 }
 
 // TestWaitAgentComputerUseRecordingWithThumbnail verifies the
@@ -307,6 +314,11 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, fakeThumb, thumbFile.Data)
+
+	// Verify both files are linked to the parent chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 2)
 }
 
 // TestWaitAgentNonComputerUseNoRecording verifies that when the
@@ -525,7 +537,7 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, child.ParentChatID.UUID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 
@@ -601,6 +613,7 @@ func TestStopAndStoreRecording_Oversized(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		uuid.Nil,
 	)
 	assert.Empty(t, result.recordingFileID, "oversized recording should not be stored")
 }
@@ -617,10 +630,22 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
 
 	videoData := bytes.Repeat([]byte{0xAA}, 1024)
 
@@ -654,6 +679,7 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
 	)
 
 	// Video should be stored.
@@ -666,6 +692,11 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 
 	// Thumbnail should be skipped (oversized).
 	assert.Empty(t, result.thumbnailFileID, "oversized thumbnail should not be stored")
+
+	// Verify that the stored files are linked to the chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 1)
 }
 
 // TestStopAndStoreRecording_DuplicatePartsIgnored verifies that when
@@ -680,10 +711,22 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
 
 	firstVideo := bytes.Repeat([]byte{0x01}, 512)
 	secondVideo := bytes.Repeat([]byte{0x02}, 512)
@@ -700,6 +743,7 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
 	)
 
 	// Only the first video part should be stored.
@@ -708,6 +752,11 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 	recFile, err := db.GetChatFileByID(ctx, recUUID)
 	require.NoError(t, err)
 	assert.Equal(t, firstVideo, recFile.Data, "first video part should be stored, not the duplicate")
+
+	// Verify that the stored files are linked to the chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 1)
 }
 
 // TestStopAndStoreRecording_Empty verifies that when the recording
@@ -736,6 +785,7 @@ func TestStopAndStoreRecording_Empty(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		uuid.Nil,
 	)
 	assert.Empty(t, result.recordingFileID, "empty recording should not be stored")
 }
@@ -752,10 +802,22 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
 
 	videoData := bytes.Repeat([]byte{0xDE, 0xAD}, 512) // 1024 bytes
 	thumbData := bytes.Repeat([]byte{0xFF, 0xD8}, 256) // 512 bytes
@@ -772,6 +834,7 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
 	)
 
 	// Both file IDs should be valid UUIDs.
@@ -791,6 +854,104 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, thumbData, thumbFile.Data)
+
+	// Verify that the stored files are linked to the chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 2)
+}
+
+// TestStopAndStoreRecording_CapExceededRollback verifies that when
+// the chat's file-link cap would be exceeded by the new recording,
+// stopAndStoreRecording rolls back the transaction so that the
+// chat_files inserts are reverted. This prevents orphaned files
+// that would be invisible to users and bypass the purge retention
+// logic.
+func TestStopAndStoreRecording_CapExceededRollback(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
+
+	// Pre-fill the chat with MaxChatFileIDs links so any new
+	// recording file will be rejected by LinkChatFiles.
+	preFileIDs := make([]uuid.UUID, codersdk.MaxChatFileIDs)
+	for i := range preFileIDs {
+		row, insertErr := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           fmt.Sprintf("prefill-%d.bin", i),
+			Mimetype:       "application/octet-stream",
+			Data:           []byte{byte(i)},
+		})
+		require.NoError(t, insertErr)
+		preFileIDs[i] = row.ID
+	}
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      preFileIDs,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	videoData := bytes.Repeat([]byte{0xAB}, 1024)
+	thumbData := bytes.Repeat([]byte{0xCD}, 512)
+
+	mockConn.EXPECT().
+		StopDesktopRecording(gomock.Any(), gomock.Any()).
+		Return(buildMultipartResponse(
+			partSpec{"video/mp4", videoData},
+			partSpec{"image/jpeg", thumbData},
+		), nil).
+		Times(1)
+
+	recordingID := uuid.New().String()
+	result := server.stopAndStoreRecording(
+		ctx, mockConn, recordingID, user.ID,
+		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
+	)
+
+	// Both IDs must be empty because the transaction was rolled
+	// back, so there is no file to reference.
+	assert.Empty(t, result.recordingFileID,
+		"recordingFileID must be empty when linking fails")
+	assert.Empty(t, result.thumbnailFileID,
+		"thumbnailFileID must be empty when linking fails")
+
+	// Only the pre-fill files should exist; the recording and
+	// thumbnail rows must have been rolled back.
+	for _, id := range preFileIDs {
+		_, err := db.GetChatFileByID(ctx, id)
+		require.NoError(t, err, "prefill file must still exist")
+	}
+
+	// Chat should still have exactly MaxChatFileIDs links; no
+	// new orphan or link was added.
+	linked, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linked, codersdk.MaxChatFileIDs)
 }
 
 // TestStopAndStoreRecording_VideoOnly verifies that a multipart
@@ -805,10 +966,22 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
 
 	videoData := make([]byte, 1024)
 
@@ -820,6 +993,7 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
 	)
 
 	// Recording should be stored.
@@ -833,6 +1007,11 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 
 	// No thumbnail.
 	assert.Empty(t, result.thumbnailFileID, "ThumbnailFileID should be empty when no thumbnail part is present")
+
+	// Verify that the stored files are linked to the chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 1)
 }
 
 // TestStopAndStoreRecording_DownloadFailure verifies that when
@@ -861,6 +1040,7 @@ func TestStopAndStoreRecording_DownloadFailure(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty on download failure")
@@ -879,10 +1059,22 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "test-recording",
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
 
 	videoData := make([]byte, 1024)
 	thumbData := make([]byte, 512)
@@ -900,6 +1092,7 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		chat.ID,
 	)
 
 	// Both known parts should be stored.
@@ -919,6 +1112,11 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, thumbData, thumbFile.Data)
+
+	// Verify that the stored files are linked to the chat.
+	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	assert.Len(t, linkedFiles, 2)
 }
 
 // TestStopAndStoreRecording_MalformedContentType verifies that a
@@ -949,6 +1147,7 @@ func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty for malformed content type")
@@ -984,6 +1183,7 @@ func TestStopAndStoreRecording_MissingBoundary(t *testing.T) {
 	result := server.stopAndStoreRecording(
 		ctx, mockConn, recordingID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty when boundary is missing")

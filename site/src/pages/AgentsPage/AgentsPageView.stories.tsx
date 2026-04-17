@@ -28,6 +28,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
@@ -202,6 +203,18 @@ const BehaviorRouteElement = () => {
 	);
 };
 
+const AgentsRouteElement = () => (
+	<AgentSettingsAgentsPageView
+		exploreModelOverrideData={{ has_malformed_override: false }}
+		modelConfigsData={[]}
+		modelConfigsError={undefined}
+		isLoadingModelConfigs={false}
+		onSaveExploreModelOverride={fn()}
+		isSavingExploreModelOverride={false}
+		isSaveExploreModelOverrideError={false}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
@@ -212,6 +225,7 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <Navigate to="behavior" replace /> },
 				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ path: "agents", element: <AgentsRouteElement /> },
 				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
 					path: "usage",

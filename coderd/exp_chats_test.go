@@ -8353,6 +8353,133 @@ func TestChatPlanModeInstructions(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatExploreModelOverride(t *testing.T) {
+	t.Parallel()
+
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	defaultModel := createChatModelConfig(t, adminClient)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	createAdditionalModel := func(t *testing.T, model string, enabled bool) codersdk.ChatModelConfig {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		contextLimit := int64(4096)
+		isDefault := false
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     defaultModel.Provider,
+			Model:        model,
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+		})
+		require.NoError(t, err)
+		if enabled {
+			return modelConfig
+		}
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		return updated
+	}
+
+	t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("AdminCanSetAndClear", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		overrideModel := createAdditionalModel(t, "gpt-4.1-mini", true)
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &overrideModel.ID,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, resp.ModelConfigID)
+		require.Equal(t, overrideModel.ID, *resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+
+		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
+		require.NoError(t, err)
+
+		resp, err = adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		require.NoError(t, db.UpsertChatExploreModelOverride(
+			dbauthz.AsSystemRestricted(ctx),
+			"not-a-uuid",
+		))
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.True(t, resp.HasMalformedOverride)
+
+		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
+		require.NoError(t, err)
+
+		resp, err = adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("DisabledModelReturns400", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		disabledModel := createAdditionalModel(t, "gpt-4.1-disabled", false)
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &disabledModel.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("UnknownModelReturns400", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		unknownModelID := uuid.New()
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &unknownModelID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("NonAdminGETReturns404", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.GetChatExploreModelOverride(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("NonAdminPUTReturns403", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := memberClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &defaultModel.ID,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
 func TestChatDesktopEnabled(t *testing.T) {
 	t.Parallel()
 

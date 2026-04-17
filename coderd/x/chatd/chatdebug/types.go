@@ -39,6 +39,29 @@ const (
 	StatusInterrupted Status = "interrupted"
 )
 
+// IsTerminal reports whether the status represents a final state
+// that should not be overwritten by stale callbacks.
+func (s Status) IsTerminal() bool {
+	return s.Priority() > 0
+}
+
+// Priority returns a numeric ordering used to prevent stale callbacks
+// from regressing a step's status. Higher values win over lower ones.
+func (s Status) Priority() int {
+	switch s {
+	case StatusInProgress:
+		return 0
+	case StatusInterrupted:
+		return 1
+	case StatusError:
+		return 2
+	case StatusCompleted:
+		return 3
+	default:
+		return 0
+	}
+}
+
 // AllStatuses contains every Status value. Update this when
 // adding new constants above.
 var AllStatuses = []Status{
@@ -131,7 +154,16 @@ type DebugEvent struct {
 	StepID uuid.UUID `json:"step_id"`
 }
 
+// BroadcastPubsubChannel is the shared pubsub channel for chat-debug events
+// that are not scoped to a single chat, such as stale finalization sweeps.
+const BroadcastPubsubChannel = "chat_debug:broadcast"
+
 // PubsubChannel returns the chat-scoped pubsub channel for debug events.
+// Nil chat IDs use the shared broadcast channel so publishers and subscribers
+// can coordinate through one discoverable helper.
 func PubsubChannel(chatID uuid.UUID) string {
+	if chatID == uuid.Nil {
+		return BroadcastPubsubChannel
+	}
 	return "chat_debug:" + chatID.String()
 }

@@ -2956,9 +2956,9 @@ WITH finalized_runs AS (
     UPDATE chat_debug_runs
     SET
         status = 'interrupted',
-        updated_at = NOW(),
-        finished_at = NOW()
-    WHERE updated_at < $1::timestamptz
+        updated_at = $1::timestamptz,
+        finished_at = $1::timestamptz
+    WHERE updated_at < $2::timestamptz
         AND finished_at IS NULL
         AND status NOT IN ('completed', 'error', 'interrupted')
     RETURNING id
@@ -2966,10 +2966,10 @@ WITH finalized_runs AS (
     UPDATE chat_debug_steps
     SET
         status = 'interrupted',
-        updated_at = NOW(),
-        finished_at = NOW()
+        updated_at = $1::timestamptz,
+        finished_at = $1::timestamptz
     WHERE (
-            updated_at < $1::timestamptz
+            updated_at < $2::timestamptz
             OR run_id IN (SELECT id FROM finalized_runs)
         )
         AND finished_at IS NULL
@@ -2981,22 +2981,30 @@ SELECT
     (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
 `
 
+type FinalizeStaleChatDebugRowsParams struct {
+	Now           time.Time `db:"now" json:"now"`
+	UpdatedBefore time.Time `db:"updated_before" json:"updated_before"`
+}
+
 type FinalizeStaleChatDebugRowsRow struct {
 	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
 	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
 }
 
 // Marks orphaned in-progress rows as interrupted so they do not stay
-// in a non-terminal state forever.  The NOT IN list must match the
+// in a non-terminal state forever. The NOT IN list must match the
 // terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
 //
 // The steps CTE also catches steps whose parent run was just finalized
 // (via run_id IN), because PostgreSQL data-modifying CTEs share the
-// same snapshot and cannot see each other's row updates.  Without this,
+// same snapshot and cannot see each other's row updates. Without this,
 // a step with a recent updated_at would survive its run's finalization
 // and remain in 'in_progress' state permanently.
-func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (FinalizeStaleChatDebugRowsRow, error) {
-	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, updatedBefore)
+//
+// @now is the caller's clock timestamp so that mock-clock tests stay
+// consistent with the @updated_before cutoff.
+func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error) {
+	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, arg.Now, arg.UpdatedBefore)
 	var i FinalizeStaleChatDebugRowsRow
 	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
 	return i, err
@@ -3225,6 +3233,14 @@ func (q *sqlQuerier) InsertChatDebugRun(ctx context.Context, arg InsertChatDebug
 }
 
 const insertChatDebugStep = `-- name: InsertChatDebugStep :one
+WITH locked_run AS (
+    UPDATE chat_debug_runs
+    SET updated_at = COALESCE($14::timestamptz, NOW())
+    WHERE id = $1::uuid
+        AND chat_id = $16::uuid
+        AND finished_at IS NULL
+    RETURNING chat_id
+)
 INSERT INTO chat_debug_steps (
     run_id,
     chat_id,
@@ -3245,7 +3261,7 @@ INSERT INTO chat_debug_steps (
 )
 SELECT
     $1::uuid,
-    run.chat_id,
+    locked_run.chat_id,
     $2::int,
     $3::text,
     $4::text,
@@ -3260,9 +3276,7 @@ SELECT
     COALESCE($13::timestamptz, NOW()),
     COALESCE($14::timestamptz, NOW()),
     $15::timestamptz
-FROM chat_debug_runs run
-WHERE run.id = $1::uuid
-    AND run.chat_id = $16::uuid
+FROM locked_run
 RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
 `
 
@@ -3285,6 +3299,12 @@ type InsertChatDebugStepParams struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
+// The CTE atomically locks the parent run via UPDATE, bumps its
+// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
+// call), and enforces the finalization guard: if the run is already
+// finished, the UPDATE returns zero rows, the INSERT gets no source
+// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
+// with concurrent FinalizeStale under READ COMMITTED isolation.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,
@@ -3327,6 +3347,80 @@ func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebu
 	return i, err
 }
 
+const touchChatDebugRunUpdatedAt = `-- name: TouchChatDebugRunUpdatedAt :exec
+UPDATE chat_debug_runs
+SET updated_at = $1::timestamptz
+WHERE id = $2::uuid
+    AND chat_id = $3::uuid
+`
+
+type TouchChatDebugRunUpdatedAtParams struct {
+	Now    time.Time `db:"now" json:"now"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Overrides updated_at on the parent run without touching any
+// other column. Used by tests that need to stamp a run with a
+// specific timestamp after the InsertChatDebugStep CTE has
+// already bumped it to NOW(), so stale-row finalization paths
+// can be exercised deterministically. The chatdebug service
+// itself does not call this: heartbeats go through
+// TouchChatDebugStepAndRun, and step creation updates the parent
+// run via the InsertChatDebugStep CTE.
+func (q *sqlQuerier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error {
+	_, err := q.db.ExecContext(ctx, touchChatDebugRunUpdatedAt, arg.Now, arg.ID, arg.ChatID)
+	return err
+}
+
+const touchChatDebugStepAndRun = `-- name: TouchChatDebugStepAndRun :exec
+WITH touched_run AS (
+    UPDATE chat_debug_runs
+    SET updated_at = $1::timestamptz
+    WHERE id = $3::uuid
+        AND chat_id = $4::uuid
+    RETURNING id, chat_id
+)
+UPDATE chat_debug_steps
+SET updated_at = $1::timestamptz
+FROM touched_run
+WHERE chat_debug_steps.id = $2::uuid
+    AND chat_debug_steps.run_id = touched_run.id
+    AND chat_debug_steps.chat_id = touched_run.chat_id
+`
+
+type TouchChatDebugStepAndRunParams struct {
+	Now    time.Time `db:"now" json:"now"`
+	StepID uuid.UUID `db:"step_id" json:"step_id"`
+	RunID  uuid.UUID `db:"run_id" json:"run_id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Atomically bumps updated_at on both the step and its parent run
+// in a single statement. This prevents FinalizeStale from
+// interleaving between the two touches and finalizing a run whose
+// step heartbeat was just written.
+//
+// The step UPDATE joins through touched_run (via FROM) and reads
+// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+// is the only way to communicate values between a data-modifying
+// CTE and the main query, and consuming those rows forces the run
+// UPDATE to complete before the step UPDATE. That matches the
+// lock order used by FinalizeStaleChatDebugRows and avoids a
+// deadlock between concurrent heartbeats and stale sweeps. The
+// join also constrains the step update to the specified run so a
+// mismatched (run_id, step_id) pair cannot silently refresh an
+// unrelated step.
+func (q *sqlQuerier) TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error {
+	_, err := q.db.ExecContext(ctx, touchChatDebugStepAndRun,
+		arg.Now,
+		arg.StepID,
+		arg.RunID,
+		arg.ChatID,
+	)
+	return err
+}
+
 const updateChatDebugRun = `-- name: UpdateChatDebugRun :one
 UPDATE chat_debug_runs
 SET
@@ -3339,10 +3433,10 @@ SET
     provider = COALESCE($7::text, provider),
     model = COALESCE($8::text, model),
     summary = COALESCE($9::jsonb, summary),
-    finished_at = COALESCE($10::timestamptz, finished_at),
-    updated_at = NOW()
-WHERE id = $11::uuid
-    AND chat_id = $12::uuid
+    finished_at = COALESCE(finished_at, $10::timestamptz),
+    updated_at = $11::timestamptz
+WHERE id = $12::uuid
+    AND chat_id = $13::uuid
 RETURNING id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 `
 
@@ -3357,14 +3451,24 @@ type UpdateChatDebugRunParams struct {
 	Model               sql.NullString        `db:"model" json:"model"`
 	Summary             pqtype.NullRawMessage `db:"summary" json:"summary"`
 	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Now                 time.Time             `db:"now" json:"now"`
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
 // Uses COALESCE so that passing NULL from Go means "keep the
-// existing value."  This is intentional: debug rows follow a
+// existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
-// or finalization and never cleared back to NULL.
+// or finalization and never cleared back to NULL. The @now
+// parameter keeps updated_at under the caller's clock.
+//
+// finished_at is enforced as write-once at the SQL level: once
+// populated it cannot be overwritten by a later call. Callers
+// that issue a summary or status refresh after the run has
+// already finalized therefore cannot corrupt the original
+// completion timestamp, which keeps duration and ordering
+// calculations stable regardless of how many times the row is
+// updated.
 func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebugRunParams) (ChatDebugRun, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugRun,
 		arg.RootChatID,
@@ -3377,6 +3481,7 @@ func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebug
 		arg.Model,
 		arg.Summary,
 		arg.FinishedAt,
+		arg.Now,
 		arg.ID,
 		arg.ChatID,
 	)
@@ -3414,9 +3519,9 @@ SET
     error = COALESCE($8::jsonb, error),
     metadata = COALESCE($9::jsonb, metadata),
     finished_at = COALESCE($10::timestamptz, finished_at),
-    updated_at = NOW()
-WHERE id = $11::uuid
-    AND chat_id = $12::uuid
+    updated_at = $11::timestamptz
+WHERE id = $12::uuid
+    AND chat_id = $13::uuid
 RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
 `
 
@@ -3431,14 +3536,17 @@ type UpdateChatDebugStepParams struct {
 	Error               pqtype.NullRawMessage `db:"error" json:"error"`
 	Metadata            pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Now                 time.Time             `db:"now" json:"now"`
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
 // Uses COALESCE so that passing NULL from Go means "keep the
-// existing value."  This is intentional: debug rows follow a
+// existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
-// or finalization and never cleared back to NULL.
+// or finalization and never cleared back to NULL. The @now
+// parameter keeps updated_at under the caller's clock, matching
+// the injectable quartz.Clock used by FinalizeStale sweeps.
 func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
 		arg.Status,
@@ -3451,6 +3559,7 @@ func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebu
 		arg.Error,
 		arg.Metadata,
 		arg.FinishedAt,
+		arg.Now,
 		arg.ID,
 		arg.ChatID,
 	)
@@ -5809,6 +5918,48 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 	return i, err
 }
 
+const getChatDiffStatusSummary = `-- name: GetChatDiffStatusSummary :one
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+)
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM deduped
+`
+
+type GetChatDiffStatusSummaryRow struct {
+	Total  int64 `db:"total" json:"total"`
+	Open   int64 `db:"open" json:"open"`
+	Merged int64 `db:"merged" json:"merged"`
+	Closed int64 `db:"closed" json:"closed"`
+}
+
+// Returns aggregate PR counts across all agent chats for telemetry.
+// Deduplicates by PR URL so forked chats referencing the same pull
+// request are counted once (using the most recently refreshed state).
+// Total is derived from the three recognized state buckets and
+// always equals open + merged + closed; other non-NULL states are
+// intentionally excluded from these aggregates.
+func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatDiffStatusSummary)
+	var i GetChatDiffStatusSummaryRow
+	err := row.Scan(
+		&i.Total,
+		&i.Open,
+		&i.Merged,
+		&i.Closed,
+	)
+	return i, err
+}
+
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
@@ -6621,12 +6772,14 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id, client_type
-FROM chats
-WHERE updated_at > $1
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > $1
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -6642,6 +6795,7 @@ type GetChatsUpdatedAfterRow struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	ClientType        ChatClientType `db:"client_type" json:"client_type"`
+	PullRequestState  sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 }
 
 // Retrieves chats updated after the given timestamp for telemetry
@@ -6669,6 +6823,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.Archived,
 			&i.LastModelConfigID,
 			&i.ClientType,
+			&i.PullRequestState,
 		); err != nil {
 			return nil, err
 		}
@@ -19954,6 +20109,18 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
+const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -20308,6 +20475,16 @@ WHERE site_configs.key = 'agents_desktop_enabled'
 
 func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatDesktopEnabled, enableDesktop)
+	return err
+}
+
+const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
 	return err
 }
 

@@ -170,6 +170,30 @@ export const SubagentRunning: Story = {
 	},
 };
 
+export const ExploreSubagentRunning: Story = {
+	args: {
+		name: "spawn_explore_agent",
+		status: "running",
+		args: {
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "explore-chat-id",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/explore-chat-id",
+		);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
 export const SubagentAwaitLinkCard: Story = {
 	args: {
 		name: "wait_agent",

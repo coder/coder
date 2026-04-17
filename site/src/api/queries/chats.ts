@@ -922,6 +922,23 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatExploreModelOverrideKey = ["chat-explore-model-override"] as const;
+
+export const chatExploreModelOverride = () => ({
+	queryKey: chatExploreModelOverrideKey,
+	queryFn: () => API.experimental.getChatExploreModelOverride(),
+});
+
+export const updateChatExploreModelOverride = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateChatExploreModelOverrideRequest) =>
+		API.experimental.updateChatExploreModelOverride(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatExploreModelOverrideKey,
+		});
+	},
+});
+
 const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
 
 export const chatDesktopEnabled = () => ({
