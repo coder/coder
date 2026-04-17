@@ -9,16 +9,34 @@ import {
 	ServerIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useId, useState } from "react";
+import {
+	type FC,
+	lazy,
+	type ReactNode,
+	Suspense,
+	useId,
+	useState,
+} from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "#/components/InputGroup/InputGroup";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import {
 	Select,
 	SelectContent,
@@ -126,6 +144,98 @@ const MCPServerIcon: FC<{
 		>
 			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
 		</div>
+	);
+};
+
+// ── Icon picker ──────────────────────────────────────────────────
+
+// Lazy-loaded emoji picker keeps the main bundle lean. The emoji-mart
+// library takes several seconds on cold load, so we warm it up in an
+// sr-only node below while the form mounts.
+const EmojiPicker = lazy(() => import("#/components/IconField/EmojiPicker"));
+
+// A shadcn-styled icon picker that matches the surrounding form inputs.
+// Functionally equivalent to #/components/IconField/IconField (URL input +
+// preview + emoji/icon picker) but built on InputGroup + Popover instead
+// of the legacy MUI TextField wrapper, so it inherits the h-9 / border /
+// focus ring used everywhere else in this panel.
+interface IconPickerFieldProps {
+	id?: string;
+	value: string;
+	placeholder?: string;
+	disabled?: boolean;
+	onChange: (value: string) => void;
+	onPickEmoji: (value: string) => void;
+}
+
+const IconPickerField: FC<IconPickerFieldProps> = ({
+	id,
+	value,
+	placeholder,
+	disabled,
+	onChange,
+	onPickEmoji,
+}) => {
+	const [open, setOpen] = useState(false);
+	const hasIcon = value !== "";
+
+	return (
+		<InputGroup className="h-9">
+			<InputGroupInput
+				id={id}
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+				placeholder={placeholder}
+				disabled={disabled}
+				className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+				spellCheck={false}
+			/>
+			<InputGroupAddon align="inline-end" className="gap-1.5">
+				{hasIcon && (
+					<span className="flex h-5 w-5 items-center justify-center [&_img]:max-w-full [&_img]:object-contain">
+						<ExternalImage
+							alt=""
+							src={value}
+							// Hide the broken-image glyph while the user is
+							// mid-typing a URL. Restore visibility only when a
+							// real bitmap loads.
+							onError={(e) => {
+								e.currentTarget.style.display = "none";
+							}}
+							onLoad={(e) => {
+								e.currentTarget.style.display = "inline";
+							}}
+						/>
+					</span>
+				)}
+				<Popover open={open} onOpenChange={setOpen}>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="subtle"
+							size="sm"
+							className="group h-7 gap-1"
+							disabled={disabled}
+							aria-label="Pick an emoji or icon"
+						>
+							Emoji
+							<AnimatedChevronDownIcon />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent side="bottom" align="end" className="w-min">
+						<Suspense fallback={<Loader />}>
+							<EmojiPicker
+								onEmojiSelect={(emoji) => {
+									const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
+									onPickEmoji(picked);
+									setOpen(false);
+								}}
+							/>
+						</Suspense>
+					</PopoverContent>
+				</Popover>
+			</InputGroupAddon>
+		</InputGroup>
 	);
 };
 
@@ -488,18 +598,17 @@ const ServerForm: FC<ServerFormProps> = ({
 									</Field>
 								</div>
 								<Field label="Icon">
-									<IconField
-										label=""
+									<IconPickerField
 										value={form.values.iconURL}
-										onChange={(e) => {
-											form.setFieldValue("iconURL", e.target.value);
+										onChange={(v) => {
+											form.setFieldValue("iconURL", v);
 										}}
-										onPickEmoji={(value) => {
-											form.setFieldValue("iconURL", value);
+										onPickEmoji={(v) => {
+											form.setFieldValue("iconURL", v);
 										}}
 										disabled={isDisabled}
 									/>
-								</Field>
+								</Field>{" "}
 								<div className="grid items-start gap-4 sm:grid-cols-[1fr_auto]">
 									<Field label="Server URL" htmlFor={`${formId}-url`} required>
 										<Input
