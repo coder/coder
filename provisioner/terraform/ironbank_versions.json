@@ -1,0 +1,4 @@
+{
+  "bundled_terraform_version": "1.14.5",
+  "max_compatible_terraform_version": "1.14.9"
+}

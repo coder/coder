@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -87,4 +88,24 @@ func TestBundledTerraformVersionPinsStayInSync(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIronBankVersionFileStaysInSync(t *testing.T) {
+	t.Parallel()
+
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
+	content, err := os.ReadFile(filepath.Join(repoRoot, "provisioner/terraform/ironbank_versions.json"))
+	require.NoError(t, err)
+
+	var versions struct {
+		BundledTerraformVersion       string `json:"bundled_terraform_version"`
+		MaxCompatibleTerraformVersion string `json:"max_compatible_terraform_version"`
+	}
+	require.NoError(t, json.Unmarshal(content, &versions))
+
+	require.Equal(t, TerraformVersion.String(), versions.BundledTerraformVersion)
+	require.Equal(t, maxTerraformVersion.String(), versions.MaxCompatibleTerraformVersion)
 }
