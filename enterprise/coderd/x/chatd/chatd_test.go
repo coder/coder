@@ -1547,11 +1547,11 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// cleanupStreamIfIdle via its own cancel defer but still
 	// early-returns because grace is still open.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		snap, _, charCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
+		snap, _, snapCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
 		if !ok {
 			return false
 		}
-		defer charCancel()
+		defer snapCancel()
 		for _, e := range snap {
 			if e.Type == codersdk.ChatStreamEventTypeMessagePart {
 				return true

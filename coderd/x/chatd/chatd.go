@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -3027,6 +3028,7 @@ func (p *Server) cacheDurableMessage(chatID uuid.UUID, event codersdk.ChatStream
 		if evicted := state.durableMessages[0]; evicted.Message != nil {
 			state.durableEvictedBefore = evicted.Message.ID
 		}
+		state.durableMessages[0] = codersdk.ChatStreamEvent{} // make the evictee GC-eligible
 		state.durableMessages = state.durableMessages[1:]
 	}
 	state.durableMessages = append(state.durableMessages, event)
@@ -3109,22 +3111,24 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 // The caller must hold state.mu. The state pointer may have been
 // captured outside this lock (sync.Map.Load or Range); we use
 // CompareAndDelete so a stale pointer cannot evict a fresh entry
-// installed by a racing getOrCreateStreamState.
-func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
+// installed by a racing getOrCreateStreamState. Returns true
+// if the state was deleted, false otherwise.
+func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) bool {
 	if state.buffering || len(state.subscribers) > 0 {
-		return
+		return false
 	}
 	// Keep stream state alive during the grace period so
 	// late-connecting relay subscribers can snapshot the
 	// buffer after the worker finishes processing.
 	if !state.bufferRetainedAt.IsZero() &&
 		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
-		return
+		return false
 	}
 	if !p.chatStreams.CompareAndDelete(chatID, state) {
-		return
+		return false
 	}
 	p.workspaceMCPToolsCache.Delete(chatID)
+	return true
 }
 
 // streamJanitorLoop periodically reaps idle chat stream states whose
@@ -3146,9 +3150,15 @@ func (p *Server) streamJanitorLoop(ctx context.Context) {
 }
 
 // sweepIdleStreams iterates chatStreams once and delegates each entry
-// to cleanupStreamIfIdle. Range may miss entries deleted concurrently;
-// any such entry is reaped on the next tick.
+// to cleanupStreamIfIdle. Range may skip entries that become reapable
+// concurrently. Any such entry is reaped on the next tick.
 func (p *Server) sweepIdleStreams() {
+	var reaped atomic.Int64
+	defer func() {
+		if count := reaped.Load(); count > 0 {
+			p.logger.Info(context.Background(), "reaped idle chat streams", slog.F("count", count))
+		}
+	}()
 	p.chatStreams.Range(func(key, value any) bool {
 		chatID, ok := key.(uuid.UUID)
 		if !ok {
@@ -3159,7 +3169,9 @@ func (p *Server) sweepIdleStreams() {
 			return true
 		}
 		state.mu.Lock()
-		p.cleanupStreamIfIdle(chatID, state)
+		if p.cleanupStreamIfIdle(chatID, state) {
+			reaped.Add(1)
+		}
 		state.mu.Unlock()
 		return true
 	})
