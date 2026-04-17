@@ -4018,7 +4018,6 @@ func TestPatchChat(t *testing.T) {
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, chat.Title, updated.Title)
 		})
-
 	})
 }
 
