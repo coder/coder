@@ -1051,11 +1051,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			await onRenameTitle(chatPendingRename.id, trimmedTitle);
 			setChatPendingRename(null);
 			setRenameTitle("");
-			setIsRenamingChat(false);
-		} catch (error) {
-			setIsRenamingChat(false);
-			throw error;
+		} catch {
+			// The parent surfaces a toast on failure; swallow the rejection
+			// here so the fire-and-forget submit handler does not produce
+			// an unhandled promise rejection. The dialog stays open so the
+			// user can retry with the same edited title.
 		}
+		setIsRenamingChat(false);
 	};
 
 	const chatTreeCtx: ChatTreeContextValue = {

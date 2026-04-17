@@ -274,6 +274,13 @@ const AgentsPage: FC = () => {
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
 	>([]);
+	// Tracks in-flight title regeneration promises so that concurrent callers
+	// (e.g. the top bar action and the rename dialog's "Generate" button) share
+	// a single request instead of racing and letting the later response
+	// overwrite the earlier one.
+	const regeneratingTitlePromisesRef = useRef(
+		new Map<string, Promise<string>>(),
+	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
@@ -429,38 +436,38 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (!addRegeneratingTitleChatId(chatId)) {
-			return;
+	const startRegenerateTitle = (chatId: string): Promise<string> => {
+		const existing = regeneratingTitlePromisesRef.current.get(chatId);
+		if (existing) {
+			return existing;
 		}
-		void regenerateTitleMutation
-			.mutateAsync(chatId)
-			.catch(() => {
-				// The shared mutation onError already reports the failure.
-			})
-			.finally(() => {
-				removeRegeneratingTitleChatId(chatId);
-			});
+		addRegeneratingTitleChatId(chatId);
+		const clearRegenerateTitleTracking = () => {
+			regeneratingTitlePromisesRef.current.delete(chatId);
+			removeRegeneratingTitleChatId(chatId);
+		};
+		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
+			(updated) => {
+				clearRegenerateTitleTracking();
+				return updated.title;
+			},
+			(error) => {
+				clearRegenerateTitleTracking();
+				throw error;
+			},
+		);
+		regeneratingTitlePromisesRef.current.set(chatId, promise);
+		return promise;
 	};
-	const requestRegenerateTitleWithResult = async (
+	const requestRegenerateTitle = (chatId: string) => {
+		void startRegenerateTitle(chatId).catch(() => {
+			// The shared mutation onError already reports the failure.
+		});
+	};
+	const requestRegenerateTitleWithResult = (
 		chatId: string,
 	): Promise<string> => {
-		const alreadyTracking = regeneratingTitleChatIdsRef.current.has(chatId);
-		if (!alreadyTracking) {
-			addRegeneratingTitleChatId(chatId);
-		}
-		try {
-			const updated = await regenerateTitleMutation.mutateAsync(chatId);
-			if (!alreadyTracking) {
-				removeRegeneratingTitleChatId(chatId);
-			}
-			return updated.title;
-		} catch (error) {
-			if (!alreadyTracking) {
-				removeRegeneratingTitleChatId(chatId);
-			}
-			throw error;
-		}
+		return startRegenerateTitle(chatId);
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
 		await renameTitleMutation.mutateAsync({ chatId, title });
