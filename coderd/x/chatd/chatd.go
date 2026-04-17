@@ -737,6 +737,73 @@ func (s *chatStreamState) resetDropCounters() {
 	s.subscriberLastWarnAt = time.Time{}
 }
 
+// streamStateCollector exposes scrape-time gauges derived from
+// p.chatStreams. Each scrape does a single Range over the map
+// and emits streams_active, stream_buffer_size_max,
+// stream_buffer_events, and stream_subscribers.
+//
+// Scrape cost is O(n) in the number of live streams, with a brief
+// per-state mutex held for two len() reads. Acceptable at the
+// typical 15s scrape cadence.
+type streamStateCollector struct {
+	server *Server
+}
+
+var (
+	streamsActiveDesc = prometheus.NewDesc(
+		"coderd_chatd_streams_active",
+		"Current number of chat stream state entries (in-flight plus retained).",
+		nil, nil,
+	)
+	streamBufferSizeMaxDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_buffer_size_max",
+		"Maximum current buffer length across all chat streams.",
+		nil, nil,
+	)
+	streamBufferEventsDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_buffer_events",
+		"Sum of current buffer lengths across all chat streams.",
+		nil, nil,
+	)
+	streamSubscribersDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_subscribers",
+		"Total number of chat stream subscribers across all chat streams.",
+		nil, nil,
+	)
+)
+
+func (*streamStateCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- streamsActiveDesc
+	ch <- streamBufferSizeMaxDesc
+	ch <- streamBufferEventsDesc
+	ch <- streamSubscribersDesc
+}
+
+func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
+	var active, totalEvents, maxEvents, totalSubs int
+	c.server.chatStreams.Range(func(_, v any) bool {
+		state, ok := v.(*chatStreamState)
+		if !ok {
+			return true
+		}
+		active++
+		state.mu.Lock()
+		bufLen := len(state.buffer)
+		subs := len(state.subscribers)
+		state.mu.Unlock()
+		totalEvents += bufLen
+		totalSubs += subs
+		if bufLen > maxEvents {
+			maxEvents = bufLen
+		}
+		return true
+	})
+	ch <- prometheus.MustNewConstMetric(streamsActiveDesc, prometheus.GaugeValue, float64(active))
+	ch <- prometheus.MustNewConstMetric(streamBufferSizeMaxDesc, prometheus.GaugeValue, float64(maxEvents))
+	ch <- prometheus.MustNewConstMetric(streamBufferEventsDesc, prometheus.GaugeValue, float64(totalEvents))
+	ch <- prometheus.MustNewConstMetric(streamSubscribersDesc, prometheus.GaugeValue, float64(totalSubs))
+}
+
 // MaxQueueSize is the maximum number of queued user messages per chat.
 const MaxQueueSize = 20
 
@@ -2796,6 +2863,7 @@ func New(cfg Config) *Server {
 	}
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		cfg.PrometheusRegistry.MustRegister(&streamStateCollector{server: p})
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
@@ -2952,6 +3020,7 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
+			p.metrics.RecordBufferDropped()
 			state.bufferDropCount++
 			now := p.clock.Now()
 			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
