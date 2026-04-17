@@ -19,11 +19,12 @@ import (
 )
 
 type ChatRunnerAPI struct {
-	AgentID          uuid.UUID
-	Database         database.Store
-	Log              slog.Logger
-	Experiments      codersdk.Experiments
-	OnRequiresAction func(context.Context, database.Chat) error
+	AgentID            uuid.UUID
+	Database           database.Store
+	Log                slog.Logger
+	Experiments        codersdk.Experiments
+	OnRequiresAction   func(context.Context, database.Chat) error
+	OnChatStatusChange func(context.Context, database.Chat) error
 }
 
 func (a *ChatRunnerAPI) ensureEnabled() error {
@@ -210,6 +211,18 @@ func (a *ChatRunnerAPI) ReleaseChatLease(ctx context.Context, req *agentproto.Re
 				"post-commit requires_action publish failed",
 				slog.F("chat_id", chatID),
 				slog.F("lease_epoch", req.LeaseEpoch),
+				slog.Error(callbackErr),
+			)
+		}
+	}
+	// For all final statuses (waiting, completed, error,
+	// requires_action), broadcast the status change so the frontend can
+	// update its UI.
+	if a.OnChatStatusChange != nil {
+		if callbackErr := a.OnChatStatusChange(ctx, chat); callbackErr != nil {
+			a.Log.Warn(ctx, "post-commit status change publish failed",
+				slog.F("chat_id", chatID),
+				slog.F("status", string(finalStatus)),
 				slog.Error(callbackErr),
 			)
 		}

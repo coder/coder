@@ -542,6 +542,142 @@ func TestReleaseChatLease(t *testing.T) {
 		require.Equal(t, updatedChat, gotChat)
 	})
 
+	t.Run("StatusChangeCallback_InvokedForFinalStatuses", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			status     database.ChatStatus
+			errorMsg   string
+			leaseEpoch int64
+		}{
+			{name: "Waiting", status: database.ChatStatusWaiting, leaseEpoch: 11},
+			{name: "Completed", status: database.ChatStatusCompleted, leaseEpoch: 12},
+			{name: "Error", status: database.ChatStatusError, errorMsg: "something broke", leaseEpoch: 13},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				chatID := uuid.New()
+				updatedChat := database.Chat{ID: chatID, Status: tt.status, LeaseEpoch: tt.leaseEpoch}
+				dbM := dbmock.NewMockStore(gomock.NewController(t))
+				dbM.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+					ID:          chatID,
+					Status:      tt.status,
+					WorkerID:    uuid.NullUUID{},
+					StartedAt:   sql.NullTime{},
+					HeartbeatAt: sql.NullTime{},
+					LastError:   sql.NullString{String: tt.errorMsg, Valid: tt.errorMsg != ""},
+					LeaseEpoch:  sql.NullInt64{Int64: tt.leaseEpoch, Valid: true},
+				}).Return(updatedChat, nil)
+
+				called := false
+				var gotChat database.Chat
+				api := &agentapi.ChatRunnerAPI{
+					AgentID:     agentID,
+					Database:    dbM,
+					Log:         slogtest.Make(t, nil),
+					Experiments: enabledChatRunnerExperiments(),
+					OnChatStatusChange: func(ctx context.Context, chat database.Chat) error {
+						called = true
+						gotChat = chat
+						return nil
+					},
+				}
+
+				resp, err := api.ReleaseChatLease(context.Background(), &agentproto.ReleaseChatLeaseRequest{ChatId: chatID[:], LeaseEpoch: tt.leaseEpoch, FinalStatus: string(tt.status), Error: tt.errorMsg})
+				require.NoError(t, err)
+				require.Equal(t, &agentproto.ReleaseChatLeaseResponse{}, resp)
+				require.True(t, called)
+				require.Equal(t, updatedChat, gotChat)
+			})
+		}
+	})
+
+	t.Run("RequiresAction_InvokesBothCallbacks", func(t *testing.T) {
+		t.Parallel()
+
+		chatID := uuid.New()
+		updatedChat := database.Chat{ID: chatID, Status: database.ChatStatusRequiresAction, LeaseEpoch: 14}
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusRequiresAction,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+			LeaseEpoch:  sql.NullInt64{Int64: 14, Valid: true},
+		}).Return(updatedChat, nil)
+
+		requiresActionCalled := false
+		statusChangeCalled := false
+		var requiresActionChat database.Chat
+		var statusChangeChat database.Chat
+		api := &agentapi.ChatRunnerAPI{
+			AgentID:     agentID,
+			Database:    dbM,
+			Log:         slogtest.Make(t, nil),
+			Experiments: enabledChatRunnerExperiments(),
+			OnRequiresAction: func(ctx context.Context, chat database.Chat) error {
+				requiresActionCalled = true
+				requiresActionChat = chat
+				return nil
+			},
+			OnChatStatusChange: func(ctx context.Context, chat database.Chat) error {
+				statusChangeCalled = true
+				statusChangeChat = chat
+				return nil
+			},
+		}
+
+		resp, err := api.ReleaseChatLease(context.Background(), &agentproto.ReleaseChatLeaseRequest{ChatId: chatID[:], LeaseEpoch: 14, FinalStatus: string(database.ChatStatusRequiresAction)})
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.ReleaseChatLeaseResponse{}, resp)
+		require.True(t, requiresActionCalled)
+		require.True(t, statusChangeCalled)
+		require.Equal(t, updatedChat, requiresActionChat)
+		require.Equal(t, updatedChat, statusChangeChat)
+	})
+
+	t.Run("StatusChangeCallbackFailure_IsBestEffort", func(t *testing.T) {
+		t.Parallel()
+
+		chatID := uuid.New()
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateChatStatus(gomock.Any(), database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusCompleted,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+			LeaseEpoch:  sql.NullInt64{Int64: 15, Valid: true},
+		}).Return(database.Chat{ID: chatID, Status: database.ChatStatusCompleted}, nil)
+
+		sink := testutil.NewFakeSink(t)
+		api := &agentapi.ChatRunnerAPI{
+			AgentID:     agentID,
+			Database:    dbM,
+			Log:         sink.Logger(),
+			Experiments: enabledChatRunnerExperiments(),
+			OnChatStatusChange: func(ctx context.Context, chat database.Chat) error {
+				return xerrors.New("publish boom")
+			},
+		}
+
+		resp, err := api.ReleaseChatLease(context.Background(), &agentproto.ReleaseChatLeaseRequest{ChatId: chatID[:], LeaseEpoch: 15, FinalStatus: string(database.ChatStatusCompleted)})
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.ReleaseChatLeaseResponse{}, resp)
+		warns := sink.Entries(func(entry slog.SinkEntry) bool {
+			return entry.Level == slog.LevelWarn && entry.Message == "post-commit status change publish failed"
+		})
+		require.Len(t, warns, 1)
+	})
+
 	t.Run("NonRequiresAction_DoesNotInvokeCallback", func(t *testing.T) {
 		t.Parallel()
 

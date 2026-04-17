@@ -181,6 +181,12 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			}
 			return api.chatDaemon.PublishRequiresAction(ctx, chat)
 		},
+		OnChatStatusChange: func(ctx context.Context, chat database.Chat) error {
+			if api.chatDaemon == nil {
+				return nil
+			}
+			return api.chatDaemon.PublishStatusChange(ctx, chat)
+		},
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,

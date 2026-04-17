@@ -102,6 +102,7 @@ type Options struct {
 	Experiments               codersdk.Experiments
 
 	OnChatRequiresAction func(context.Context, database.Chat) error
+	OnChatStatusChange   func(context.Context, database.Chat) error
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
@@ -236,11 +237,12 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.ChatRunnerAPI = &ChatRunnerAPI{
-		AgentID:          opts.AgentID,
-		Database:         opts.Database,
-		Log:              opts.Log,
-		Experiments:      opts.Experiments,
-		OnRequiresAction: opts.OnChatRequiresAction,
+		AgentID:            opts.AgentID,
+		Database:           opts.Database,
+		Log:                opts.Log,
+		Experiments:        opts.Experiments,
+		OnRequiresAction:   opts.OnChatRequiresAction,
+		OnChatStatusChange: opts.OnChatStatusChange,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

@@ -4971,6 +4971,19 @@ func (p *Server) PublishRequiresAction(ctx context.Context, chat database.Chat) 
 	return nil
 }
 
+// PublishStatusChange broadcasts a chat status change. Used by the
+// workspace-agent runner path to notify SSE subscribers and global
+// chat watchers when a chat transitions to a terminal status after
+// the agent-owned chatloop completes.
+func (p *Server) PublishStatusChange(_ context.Context, chat database.Chat) error {
+	if p == nil {
+		return nil
+	}
+	p.publishStatus(chat.ID, chat.Status, uuid.NullUUID{})
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	return nil
+}
+
 // PublishDiffStatusChange broadcasts a diff_status_change event for
 // the given chat so that watching clients know to re-fetch the diff
 // status. This is called from the HTTP layer after the diff status
