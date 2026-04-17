@@ -142,6 +142,13 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 				cspSrcs.Append(directive, values...)
 			}
 
+			// Default to 'self' to prevent clickjacking unless
+			// explicitly overridden via staticAdditions (e.g. for
+			// embeddable routes).
+			if _, ok := cspSrcs[CSPFrameAncestors]; !ok {
+				cspSrcs[CSPFrameAncestors] = []string{"'self'"}
+			}
+
 			var csp strings.Builder
 			for src, vals := range cspSrcs {
 				_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
