@@ -1264,6 +1264,15 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatACL is the full read-shape returned by GET /chats/{chat}/acl.
+ */
+export interface ChatACL {
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
+}
+
+// From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
@@ -1628,6 +1637,14 @@ export interface ChatGitChange {
 	readonly old_path?: string;
 	readonly diff_summary?: string;
 	readonly detected_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatGroup is an entry in a ChatACL.Groups list.
+ */
+export interface ChatGroup extends Group {
+	readonly role: ChatRole;
 }
 
 // From codersdk/chats.go
@@ -2098,6 +2115,34 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
+export type ChatRole = "" | "read";
+
+export const ChatRoles: ChatRole[] = ["", "read"];
+
+// From codersdk/chats.go
+export type ChatSharedFilter = "include" | "" | "only";
+
+export const ChatSharedFilters: ChatSharedFilter[] = ["include", "", "only"];
+
+// From codersdk/chatsharing.go
+/**
+ * ChatSharingSettings represents chat sharing settings affecting an
+ * organization.
+ */
+export interface ChatSharingSettings {
+	/**
+	 * SharingGloballyDisabled is true if sharing has been disabled for
+	 * this organization because of a deployment-wide setting.
+	 */
+	readonly sharing_globally_disabled: boolean;
+	/**
+	 * ShareableChatOwners controls whose chats can be shared within
+	 * the organization.
+	 */
+	readonly shareable_chat_owners: ShareableChatOwners;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -2437,6 +2482,14 @@ export interface ChatUsageLimitStatus {
 	readonly current_spend: number;
 	readonly period_start?: string;
 	readonly period_end?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUser is an entry in a ChatACL.Users list.
+ */
+export interface ChatUser extends MinimalUser {
+	readonly role: ChatRole;
 }
 
 // From codersdk/chats.go
@@ -3432,6 +3485,7 @@ export interface DeploymentValues {
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
+	readonly disable_chat_sharing?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -4320,6 +4374,7 @@ export interface LinkConfig {
 export interface ListChatsOptions extends Pagination {
 	readonly Query: string;
 	readonly Labels: Record<string, string>;
+	readonly Shared: ChatSharedFilter;
 }
 
 // From codersdk/inboxnotification.go
@@ -6676,6 +6731,15 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/chatsharing.go
+export type ShareableChatOwners = "everyone" | "none" | "service_accounts";
+
+export const ShareableChatOwnerses: ShareableChatOwners[] = [
+	"everyone",
+	"none",
+	"service_accounts",
+];
+
 // From codersdk/workspacesharing.go
 export type ShareableWorkspaceOwners = "everyone" | "none" | "service_accounts";
 
@@ -7566,6 +7630,30 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatACL is the request body for PATCH /chats/{chat}/acl.
+ *
+ * UserRoles and GroupRoles map ids to the role the owner wants each
+ * actor to have. A value of ChatRoleDeleted (the empty string)
+ * removes the entry. Roles other than ChatRoleRead are rejected with
+ * a 400.
+ *
+ * ConfirmShareToolCalls and ConfirmShareAttachments are required
+ * confirmations that the owner understands shared viewers will see
+ * tool calls and/or attachments already present in the chat. The
+ * server computes whether each is required and refuses the PATCH
+ * with a 400 naming the missing flag. They are deliberately verbose
+ * so the error message tells the caller exactly which checkbox to
+ * flip.
+ */
+export interface UpdateChatACL {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
+	readonly confirm_share_tool_calls?: boolean;
+	readonly confirm_share_attachments?: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -7654,6 +7742,19 @@ export interface UpdateChatRequest {
  */
 export interface UpdateChatRetentionDaysRequest {
 	readonly retention_days: number;
+}
+
+// From codersdk/chatsharing.go
+/**
+ * UpdateChatSharingSettingsRequest represents chat sharing settings
+ * that can be updated for an organization.
+ */
+export interface UpdateChatSharingSettingsRequest {
+	/**
+	 * ShareableChatOwners controls whose chats can be shared within
+	 * the organization.
+	 */
+	readonly shareable_chat_owners?: ShareableChatOwners;
 }
 
 // From codersdk/chats.go
