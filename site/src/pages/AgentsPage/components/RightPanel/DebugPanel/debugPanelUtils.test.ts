@@ -79,6 +79,92 @@ describe("coerceStepResponse", () => {
 			},
 		]);
 	});
+
+	it("prefers finalized tool_call over the streaming tool_input delta for the same call ID", () => {
+		const response = coerceStepResponse({
+			content: [
+				{
+					type: "tool_input",
+					tool_call_id: "call-42",
+					tool_name: "search_docs",
+					arguments: '{"query":"fo',
+				},
+				{
+					type: "tool_call",
+					tool_call_id: "call-42",
+					tool_name: "search_docs",
+					arguments: '{"query":"foo"}',
+				},
+			],
+		});
+
+		expect(response.toolCalls).toEqual([
+			{
+				id: "call-42",
+				name: "search_docs",
+				arguments: '{\n  "query": "foo"\n}',
+			},
+		]);
+	});
+
+	it("keeps the finalized payload when tool_call precedes a stray tool_input for the same ID", () => {
+		const response = coerceStepResponse({
+			content: [
+				{
+					type: "tool_call",
+					tool_call_id: "call-42",
+					tool_name: "search_docs",
+					arguments: '{"query":"foo"}',
+				},
+				{
+					type: "tool_input",
+					tool_call_id: "call-42",
+					tool_name: "search_docs",
+					arguments: '{"query":"bar"}',
+				},
+			],
+		});
+
+		expect(response.toolCalls).toEqual([
+			{
+				id: "call-42",
+				name: "search_docs",
+				arguments: '{\n  "query": "foo"\n}',
+			},
+		]);
+	});
+
+	it("keeps per-call entries when multiple distinct tool calls are emitted", () => {
+		const response = coerceStepResponse({
+			content: [
+				{
+					type: "tool_input",
+					tool_call_id: "call-1",
+					tool_name: "search_docs",
+					arguments: '{"query":"a"}',
+				},
+				{
+					type: "tool_input",
+					tool_call_id: "call-2",
+					tool_name: "calc",
+					arguments: '{"op":"add"}',
+				},
+			],
+		});
+
+		expect(response.toolCalls).toEqual([
+			{
+				id: "call-1",
+				name: "search_docs",
+				arguments: '{\n  "query": "a"\n}',
+			},
+			{
+				id: "call-2",
+				name: "calc",
+				arguments: '{\n  "op": "add"\n}',
+			},
+		]);
+	});
 });
 
 describe("getRunKindLabel", () => {

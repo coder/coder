@@ -991,6 +991,12 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 		// Backend normalized content parts.
 		const textFragments: string[] = [];
 		const extractedToolCalls: ToolCallPart[] = [];
+		// Streamed responses can carry a `tool_input` delta followed by a
+		// final `tool_call` summary for the same call ID. Track each call
+		// ID so we collapse them into a single row, preferring the
+		// finalized form when both are present.
+		const toolCallIndexById = new Map<string, number>();
+		const finalizedToolCallIds = new Set<string>();
 		for (const part of rawContent) {
 			if (typeof part === "string") {
 				textFragments.push(part);
@@ -1016,15 +1022,38 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 					toOptionalString(part.tool_name) ??
 					toOptionalString(part.toolName) ??
 					toOptionalString(part.name);
-				if (name) {
-					extractedToolCalls.push({
-						id: toOptionalString(
-							pickField(part, "tool_call_id", "toolCallId", "id"),
-						),
-						name,
-						arguments: toCodeContent(pickField(part, "arguments", "input")),
-					});
+				if (!name) {
+					continue;
 				}
+				const toolCall: ToolCallPart = {
+					id: toOptionalString(
+						pickField(part, "tool_call_id", "toolCallId", "id"),
+					),
+					name,
+					arguments: toCodeContent(pickField(part, "arguments", "input")),
+				};
+				const isFinalized =
+					partType === "tool-call" || partType === "tool_call";
+				if (toolCall.id === undefined) {
+					extractedToolCalls.push(toolCall);
+					continue;
+				}
+				const existingIndex = toolCallIndexById.get(toolCall.id);
+				if (existingIndex === undefined) {
+					extractedToolCalls.push(toolCall);
+					toolCallIndexById.set(toolCall.id, extractedToolCalls.length - 1);
+					if (isFinalized) {
+						finalizedToolCallIds.add(toolCall.id);
+					}
+				} else if (isFinalized && !finalizedToolCallIds.has(toolCall.id)) {
+					// Replace a partial `tool_input` entry with the finalized
+					// `tool_call` summary for the same call ID.
+					extractedToolCalls[existingIndex] = toolCall;
+					finalizedToolCallIds.add(toolCall.id);
+				}
+				// Otherwise: already have a finalized entry (or a duplicate
+				// partial delta) – skip to avoid duplicated rows in the
+				// Debug panel.
 			}
 		}
 		content = textFragments.join("");
