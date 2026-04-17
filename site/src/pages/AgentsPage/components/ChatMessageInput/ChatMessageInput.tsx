@@ -30,6 +30,7 @@ import {
 	useRef,
 } from "react";
 import { cn } from "#/utils/cn";
+import { isMobileViewport } from "#/utils/mobile";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -256,7 +257,9 @@ const PasteSanitizationPlugin: FC<{
 };
 
 // Handles Enter key behavior: plain Enter submits via the onEnter
-// callback, Shift+Enter inserts a newline.
+// callback, Shift+Enter inserts a newline. On mobile viewports, Enter
+// always inserts a newline; users submit via the send button because
+// Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
 const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 	onEnter,
 }) {
@@ -266,7 +269,7 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
-				if (event?.shiftKey) {
+				if (event?.shiftKey || isMobileViewport()) {
 					return false;
 				}
 				if (onEnter) {
