@@ -240,22 +240,6 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
-func (m queryMetricsStore) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.ChatHasVisibleAttachments(ctx, chatID)
-	m.queryLatencies.WithLabelValues("ChatHasVisibleAttachments").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatHasVisibleAttachments").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.ChatHasVisibleToolParts(ctx, chatID)
-	m.queryLatencies.WithLabelValues("ChatHasVisibleToolParts").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatHasVisibleToolParts").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)

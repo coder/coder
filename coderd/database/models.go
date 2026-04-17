@@ -4426,8 +4426,8 @@ type Chat struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
-	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 }
 
 type ChatDebugRun struct {
@@ -4614,8 +4614,8 @@ type ChatsWithAcl struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	UserACL             WorkspaceACL          `db:"user_acl" json:"user_acl"`
-	GroupACL            WorkspaceACL          `db:"group_acl" json:"group_acl"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 }
 
 type ConnectionLog struct {

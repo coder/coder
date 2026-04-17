@@ -1455,7 +1455,24 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
+	apiKey := httpmw.APIKey(r)
+	if apiKey.UserID == chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
+		return
+	}
+
+	flags, err := api.effectiveShareFlagsForViewer(ctx, chat, apiKey.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if flags.ShareAttachments && len(chatFiles) == 0 {
+		// nolint:gocritic // Chat-level ACL authorizes the viewer; per-file RBAC still checks file ownership.
+		if rows, err := api.Database.GetChatFileMetadataByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID); err == nil {
+			chatFiles = rows
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatForViewer(chat, diffStatus, chatFiles, flags))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1516,8 +1533,28 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessages(messages),
+	converted := convertChatMessages(messages)
+	apiKey := httpmw.APIKey(r)
+	if apiKey.UserID == chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
+			Messages:       converted,
+			QueuedMessages: convertChatQueuedMessages(queuedMessages),
+			HasMore:        hasMore,
+		})
+		return
+	}
+
+	flags, err := api.effectiveShareFlagsForViewer(ctx, chat, apiKey.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	filtered := make([]codersdk.ChatMessageForViewer, 0, len(converted))
+	for _, m := range converted {
+		filtered = append(filtered, codersdk.FilterChatMessageForViewer(m, flags))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponseForViewer{
+		Messages:       filtered,
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 	})
@@ -2388,6 +2425,18 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	apiKey := httpmw.APIKey(r)
+	isOwner := apiKey.UserID == chat.OwnerID
+	flags := codersdk.ViewerShareFlags{ShareToolCalls: true, ShareAttachments: true}
+	if !isOwner {
+		var err error
+		flags, err = api.effectiveShareFlagsForViewer(ctx, chat, apiKey.UserID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
 	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
@@ -2430,11 +2479,18 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	encoder := json.NewEncoder(wsNetConn)
 
-	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
+	sendBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
 		}
-		return encoder.Encode(batch)
+		if isOwner {
+			return encoder.Encode(batch)
+		}
+		filtered := make([]codersdk.ChatStreamEventForViewer, 0, len(batch))
+		for _, e := range batch {
+			filtered = append(filtered, filterChatStreamEventForViewer(e, flags))
+		}
+		return encoder.Encode(filtered)
 	}
 
 	drainChatStreamBatch := func(
@@ -2466,7 +2522,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if end > len(snapshot) {
 			end = len(snapshot)
 		}
-		if err := sendChatStreamBatch(snapshot[start:end]); err != nil {
+		if err := sendBatch(snapshot[start:end]); err != nil {
 			logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
 			return
 		}
@@ -2484,7 +2540,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				firstEvent,
 				chatStreamBatchSize,
 			)
-			if err := sendChatStreamBatch(batch); err != nil {
+			if err := sendBatch(batch); err != nil {
 				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
@@ -2493,6 +2549,36 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func filterChatStreamEventForViewer(
+	e codersdk.ChatStreamEvent,
+	flags codersdk.ViewerShareFlags,
+) codersdk.ChatStreamEventForViewer {
+	out := codersdk.ChatStreamEventForViewer{
+		Type:           e.Type,
+		ChatID:         e.ChatID,
+		Status:         e.Status,
+		Error:          e.Error,
+		Retry:          e.Retry,
+		QueuedMessages: e.QueuedMessages,
+		ActionRequired: e.ActionRequired,
+	}
+	if e.Message != nil {
+		filtered := codersdk.FilterChatMessageForViewer(*e.Message, flags)
+		out.Message = &filtered
+	}
+	if e.MessagePart != nil {
+		parts := codersdk.FilterChatMessagePartsForViewer(
+			[]codersdk.ChatMessagePart{e.MessagePart.Part},
+			flags,
+		)
+		out.MessagePart = &codersdk.ChatStreamMessagePartForViewer{
+			Role: e.MessagePart.Role,
+			Part: parts[0],
+		}
+	}
+	return out
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

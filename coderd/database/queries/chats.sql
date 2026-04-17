@@ -1408,32 +1408,3 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
-
--- name: ChatHasVisibleToolParts :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chat_messages
-    WHERE chat_id = @chat_id::uuid
-        AND deleted = false
-        AND (
-            content::jsonb @> '[{"type": "tool-call"}]'::jsonb
-            OR content::jsonb @> '[{"type": "tool-result"}]'::jsonb
-        )
-);
-
--- name: ChatHasVisibleAttachments :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chat_file_links
-    WHERE chat_id = @chat_id::uuid
-    UNION ALL
-    SELECT 1
-    FROM chat_messages
-    WHERE chat_id = @chat_id::uuid
-        AND deleted = false
-        AND (
-            content::jsonb @> '[{"type": "file"}]'::jsonb
-            OR content::jsonb @> '[{"type": "file-reference"}]'::jsonb
-            OR content::jsonb @> '[{"type": "context-file"}]'::jsonb
-        )
-);

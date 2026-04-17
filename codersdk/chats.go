@@ -155,6 +155,10 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
+
+	// ChatMessagePartTypeRedacted is emitted only on ChatMessagePartForViewer;
+	// the structural separation guarantees it cannot be persisted.
+	ChatMessagePartTypeRedacted ChatMessagePartType = "redacted"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -289,6 +293,193 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
 	p.ContextFileSkillMetaFile = ""
+}
+
+// ChatMessagePartForViewer is the viewer-only superset of ChatMessagePart
+// that admits the "redacted" Type. No write or persistence path references
+// this type, so a redacted marker cannot leak into chat_messages.content.
+type ChatMessagePartForViewer struct {
+	Type              ChatMessagePartType `json:"type"`
+	Text              string              `json:"text" variants:"text,reasoning"`
+	Signature         string              `json:"signature,omitempty"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
+	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
+	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta       string              `json:"result_delta,omitempty"`
+	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
+	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
+	URL               string              `json:"url" variants:"source"`
+	Title             string              `json:"title,omitempty" variants:"source?"`
+	MediaType         string              `json:"media_type" variants:"file"`
+	Data              []byte              `json:"data,omitempty" variants:"file?"`
+	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName          string              `json:"file_name" variants:"file-reference"`
+	StartLine         int                 `json:"start_line" variants:"file-reference"`
+	EndLine           int                 `json:"end_line" variants:"file-reference"`
+	Content           string              `json:"content" variants:"file-reference"`
+	ProviderMetadata  json.RawMessage     `json:"provider_metadata,omitempty" typescript:"-"`
+	ProviderExecuted  bool                `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
+	CreatedAt         *time.Time          `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?"`
+
+	ContextFilePath          string        `json:"context_file_path" variants:"context-file"`
+	ContextFileContent       string        `json:"context_file_content,omitempty" typescript:"-"`
+	ContextFileTruncated     bool          `json:"context_file_truncated,omitempty" variants:"context-file?"`
+	ContextFileAgentID       uuid.NullUUID `json:"context_file_agent_id,omitempty" format:"uuid" variants:"context-file?"`
+	ContextFileOS            string        `json:"context_file_os,omitempty" typescript:"-"`
+	ContextFileDirectory     string        `json:"context_file_directory,omitempty" typescript:"-"`
+	SkillName                string        `json:"skill_name" variants:"skill"`
+	SkillDescription         string        `json:"skill_description,omitempty" variants:"skill?"`
+	SkillDir                 string        `json:"skill_dir,omitempty" typescript:"-"`
+	ContextFileSkillMetaFile string        `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+
+	RedactedType ChatMessagePartType `json:"redacted_type,omitempty" variants:"redacted?"`
+}
+
+type ChatMessageForViewer struct {
+	ID            int64                      `json:"id"`
+	ChatID        uuid.UUID                  `json:"chat_id" format:"uuid"`
+	CreatedBy     *uuid.UUID                 `json:"created_by,omitempty" format:"uuid"`
+	ModelConfigID *uuid.UUID                 `json:"model_config_id,omitempty" format:"uuid"`
+	CreatedAt     time.Time                  `json:"created_at" format:"date-time"`
+	Role          ChatMessageRole            `json:"role"`
+	Content       []ChatMessagePartForViewer `json:"content,omitempty"`
+	Usage         *ChatMessageUsage          `json:"usage,omitempty"`
+}
+
+type ChatForViewer struct {
+	ID                  uuid.UUID                  `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID                  `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID                  `json:"owner_id" format:"uuid"`
+	WorkspaceID         *uuid.UUID                 `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID                 `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID                 `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID                 `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID                 `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID                  `json:"last_model_config_id" format:"uuid"`
+	Title               string                     `json:"title"`
+	Status              ChatStatus                 `json:"status"`
+	PlanMode            ChatPlanMode               `json:"plan_mode,omitempty"`
+	LastError           *string                    `json:"last_error"`
+	DiffStatus          *ChatDiffStatus            `json:"diff_status,omitempty"`
+	CreatedAt           time.Time                  `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time                  `json:"updated_at" format:"date-time"`
+	Archived            bool                       `json:"archived"`
+	PinOrder            int32                      `json:"pin_order"`
+	MCPServerIDs        []uuid.UUID                `json:"mcp_server_ids" format:"uuid"`
+	Labels              map[string]string          `json:"labels"`
+	Files               []ChatFileMetadata         `json:"files,omitempty"`
+	HasUnread           bool                       `json:"has_unread"`
+	LastInjectedContext []ChatMessagePartForViewer `json:"last_injected_context,omitempty"`
+	Warnings            []string                   `json:"warnings,omitempty"`
+	ClientType          ChatClientType             `json:"client_type"`
+}
+
+// ViewerShareFlags are the per-viewer toggles applied by the redaction
+// filter. Owner must be pre-resolved; passing {true, true} disables
+// redaction entirely.
+type ViewerShareFlags struct {
+	ShareToolCalls   bool
+	ShareAttachments bool
+}
+
+// FilterChatMessagePartsForViewer applies the redaction allow-list:
+// tool-call / tool-result parts need ShareToolCalls; file, file-reference,
+// context-file parts need ShareAttachments. Other types pass through.
+// A new ChatMessagePartType is forwarded to viewers by default —
+// contributors adding a type that carries sensitive content must
+// extend this function.
+func FilterChatMessagePartsForViewer(
+	parts []ChatMessagePart,
+	flags ViewerShareFlags,
+) []ChatMessagePartForViewer {
+	out := make([]ChatMessagePartForViewer, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, filterChatMessagePartForViewer(p, flags))
+	}
+	return out
+}
+
+// FilterChatMessageForViewer does not special-case the owner. Callers
+// responsible for resolving the owner must pass {true, true}.
+func FilterChatMessageForViewer(
+	m ChatMessage,
+	flags ViewerShareFlags,
+) ChatMessageForViewer {
+	return ChatMessageForViewer{
+		ID:            m.ID,
+		ChatID:        m.ChatID,
+		CreatedBy:     m.CreatedBy,
+		ModelConfigID: m.ModelConfigID,
+		CreatedAt:     m.CreatedAt,
+		Role:          m.Role,
+		Content:       FilterChatMessagePartsForViewer(m.Content, flags),
+		Usage:         m.Usage,
+	}
+}
+
+func filterChatMessagePartForViewer(
+	p ChatMessagePart,
+	flags ViewerShareFlags,
+) ChatMessagePartForViewer {
+	switch p.Type {
+	case ChatMessagePartTypeToolCall, ChatMessagePartTypeToolResult:
+		if !flags.ShareToolCalls {
+			return ChatMessagePartForViewer{
+				Type:         ChatMessagePartTypeRedacted,
+				RedactedType: p.Type,
+			}
+		}
+	case ChatMessagePartTypeFile,
+		ChatMessagePartTypeFileReference,
+		ChatMessagePartTypeContextFile:
+		if !flags.ShareAttachments {
+			return ChatMessagePartForViewer{
+				Type:         ChatMessagePartTypeRedacted,
+				RedactedType: p.Type,
+			}
+		}
+	}
+	return ChatMessagePartForViewer{
+		Type:                     p.Type,
+		Text:                     p.Text,
+		Signature:                p.Signature,
+		ToolCallID:               p.ToolCallID,
+		ToolName:                 p.ToolName,
+		MCPServerConfigID:        p.MCPServerConfigID,
+		Args:                     p.Args,
+		ArgsDelta:                p.ArgsDelta,
+		Result:                   p.Result,
+		ResultDelta:              p.ResultDelta,
+		IsError:                  p.IsError,
+		IsMedia:                  p.IsMedia,
+		SourceID:                 p.SourceID,
+		URL:                      p.URL,
+		Title:                    p.Title,
+		MediaType:                p.MediaType,
+		Data:                     p.Data,
+		FileID:                   p.FileID,
+		FileName:                 p.FileName,
+		StartLine:                p.StartLine,
+		EndLine:                  p.EndLine,
+		Content:                  p.Content,
+		ProviderMetadata:         p.ProviderMetadata,
+		ProviderExecuted:         p.ProviderExecuted,
+		CreatedAt:                p.CreatedAt,
+		ContextFilePath:          p.ContextFilePath,
+		ContextFileContent:       p.ContextFileContent,
+		ContextFileTruncated:     p.ContextFileTruncated,
+		ContextFileAgentID:       p.ContextFileAgentID,
+		ContextFileOS:            p.ContextFileOS,
+		ContextFileDirectory:     p.ContextFileDirectory,
+		SkillName:                p.SkillName,
+		SkillDescription:         p.SkillDescription,
+		SkillDir:                 p.SkillDir,
+		ContextFileSkillMetaFile: p.ContextFileSkillMetaFile,
+	}
 }
 
 // ChatMessageText builds a text chat message part.
@@ -494,6 +685,12 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+}
+
+type ChatMessagesResponseForViewer struct {
+	Messages       []ChatMessageForViewer `json:"messages"`
+	QueuedMessages []ChatQueuedMessage    `json:"queued_messages"`
+	HasMore        bool                   `json:"has_more"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -1324,6 +1521,23 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+}
+
+type ChatStreamMessagePartForViewer struct {
+	Role ChatMessageRole          `json:"role,omitempty"`
+	Part ChatMessagePartForViewer `json:"part"`
+}
+
+type ChatStreamEventForViewer struct {
+	Type           ChatStreamEventType             `json:"type"`
+	ChatID         uuid.UUID                       `json:"chat_id" format:"uuid"`
+	Message        *ChatMessageForViewer           `json:"message,omitempty"`
+	MessagePart    *ChatStreamMessagePartForViewer `json:"message_part,omitempty"`
+	Status         *ChatStreamStatus               `json:"status,omitempty"`
+	Error          *ChatStreamError                `json:"error,omitempty"`
+	Retry          *ChatStreamRetry                `json:"retry,omitempty"`
+	QueuedMessages []ChatQueuedMessage             `json:"queued_messages,omitempty"`
+	ActionRequired *ChatStreamActionRequired       `json:"action_required,omitempty"`
 }
 
 // ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
@@ -2245,6 +2459,77 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 	}), nil
 }
 
+func (c *ExperimentalClient) StreamChatForViewer(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEventForViewer, io.Closer, error) {
+	path := fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
+	if opts != nil && opts.AfterID != nil {
+		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	}
+
+	conn, err := c.Dial(
+		ctx,
+		path,
+		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	conn.SetReadLimit(1 << 22)
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	events := make(chan ChatStreamEventForViewer, 128)
+
+	send := func(event ChatStreamEventForViewer) bool {
+		if event.ChatID == uuid.Nil {
+			event.ChatID = chatID
+		}
+		select {
+		case <-streamCtx.Done():
+			return false
+		case events <- event:
+			return true
+		}
+	}
+
+	go func() {
+		defer close(events)
+		defer streamCancel()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		for {
+			var batch []ChatStreamEventForViewer
+			if err := wsjson.Read(streamCtx, conn, &batch); err != nil {
+				if streamCtx.Err() != nil {
+					return
+				}
+				switch websocket.CloseStatus(err) {
+				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+					return
+				}
+				_ = send(ChatStreamEventForViewer{
+					Type: ChatStreamEventTypeError,
+					Error: &ChatStreamError{
+						Message: fmt.Sprintf("read chat stream: %v", err),
+					},
+				})
+				return
+			}
+
+			for _, event := range batch {
+				if !send(event) {
+					return
+				}
+			}
+		}
+	}()
+
+	return events, closeFunc(func() error {
+		streamCancel()
+		return nil
+	}), nil
+}
+
 // WatchChats streams lifecycle events for all of the authenticated
 // user's chats in real time. The returned channel emits
 // ChatWatchEvent values for status changes, title changes, creation,
@@ -2345,6 +2630,32 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *ExperimentalClient) GetChatMessagesForViewer(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatMessagesResponseForViewer, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			if opts.BeforeID > 0 {
+				q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.Limit > 0 {
+				q.Set("limit", strconv.Itoa(opts.Limit))
+			}
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatMessagesResponseForViewer{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMessagesResponseForViewer{}, ReadBodyAsError(res)
+	}
+	var resp ChatMessagesResponseForViewer
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -2730,12 +3041,16 @@ const (
 
 type ChatUser struct {
 	MinimalUser
-	Role ChatRole `json:"role" enums:"read"`
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls"`
+	ShareAttachments bool     `json:"share_attachments"`
 }
 
 type ChatGroup struct {
 	Group
-	Role ChatRole `json:"role" enums:"read"`
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls"`
+	ShareAttachments bool     `json:"share_attachments"`
 }
 
 type ChatACL struct {
@@ -2743,14 +3058,16 @@ type ChatACL struct {
 	Groups []ChatGroup `json:"groups"`
 }
 
-// ConfirmShareToolCalls and ConfirmShareAttachments must be set when the chat
-// already contains tool calls or attachments, respectively. The server returns
-// 400 naming any missing required flag.
+// ChatShareEntry is a PATCH /acl entry. Omitted bools default to false.
+type ChatShareEntry struct {
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls,omitempty"`
+	ShareAttachments bool     `json:"share_attachments,omitempty"`
+}
+
 type UpdateChatACL struct {
-	UserRoles               map[string]ChatRole `json:"user_roles,omitempty"`
-	GroupRoles              map[string]ChatRole `json:"group_roles,omitempty"`
-	ConfirmShareToolCalls   bool                `json:"confirm_share_tool_calls,omitempty"`
-	ConfirmShareAttachments bool                `json:"confirm_share_attachments,omitempty"`
+	UserRoles  map[string]ChatShareEntry `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatShareEntry `json:"group_roles,omitempty"`
 }
 
 func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {

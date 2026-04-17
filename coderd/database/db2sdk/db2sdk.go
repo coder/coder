@@ -1667,6 +1667,46 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	return chat
 }
 
+func ChatForViewer(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+	flags codersdk.ViewerShareFlags,
+) codersdk.ChatForViewer {
+	visibleFiles := files
+	if !flags.ShareAttachments {
+		visibleFiles = nil
+	}
+	base := Chat(c, diffStatus, visibleFiles)
+	return codersdk.ChatForViewer{
+		ID:                  base.ID,
+		OrganizationID:      base.OrganizationID,
+		OwnerID:             base.OwnerID,
+		WorkspaceID:         base.WorkspaceID,
+		BuildID:             base.BuildID,
+		AgentID:             base.AgentID,
+		ParentChatID:        base.ParentChatID,
+		RootChatID:          base.RootChatID,
+		LastModelConfigID:   base.LastModelConfigID,
+		Title:               base.Title,
+		Status:              base.Status,
+		PlanMode:            base.PlanMode,
+		LastError:           base.LastError,
+		DiffStatus:          base.DiffStatus,
+		CreatedAt:           base.CreatedAt,
+		UpdatedAt:           base.UpdatedAt,
+		Archived:            base.Archived,
+		PinOrder:            base.PinOrder,
+		MCPServerIDs:        base.MCPServerIDs,
+		Labels:              base.Labels,
+		Files:               base.Files,
+		HasUnread:           base.HasUnread,
+		LastInjectedContext: codersdk.FilterChatMessagePartsForViewer(base.LastInjectedContext, flags),
+		Warnings:            base.Warnings,
+		ClientType:          base.ClientType,
+	}
+}
+
 func chatDebugAttempts(raw json.RawMessage) []map[string]any {
 	if len(raw) == 0 {
 		return nil

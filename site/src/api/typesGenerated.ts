@@ -1623,6 +1623,35 @@ export interface ChatFileReferencePart {
 }
 
 // From codersdk/chats.go
+export interface ChatForViewer {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly build_id?: string;
+	readonly agent_id?: string;
+	readonly parent_chat_id?: string;
+	readonly root_chat_id?: string;
+	readonly last_model_config_id: string;
+	readonly title: string;
+	readonly status: ChatStatus;
+	readonly plan_mode?: ChatPlanMode;
+	readonly last_error: string | null;
+	readonly diff_status?: ChatDiffStatus;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly archived: boolean;
+	readonly pin_order: number;
+	readonly mcp_server_ids: readonly string[];
+	readonly labels: Record<string, string>;
+	readonly files?: readonly ChatFileMetadata[];
+	readonly has_unread: boolean;
+	readonly last_injected_context?: readonly ChatMessagePartForViewer[];
+	readonly warnings?: readonly string[];
+	readonly client_type: ChatClientType;
+}
+
+// From codersdk/chats.go
 /**
  * ChatGitChange represents a git file change detected during a chat session.
  */
@@ -1639,6 +1668,8 @@ export interface ChatGitChange {
 // From codersdk/chats.go
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
+	readonly share_tool_calls: boolean;
+	readonly share_attachments: boolean;
 }
 
 // From codersdk/chats.go
@@ -1687,6 +1718,18 @@ export interface ChatMessage {
 }
 
 // From codersdk/chats.go
+export interface ChatMessageForViewer {
+	readonly id: number;
+	readonly chat_id: string;
+	readonly created_by?: string;
+	readonly model_config_id?: string;
+	readonly created_at: string;
+	readonly role: ChatMessageRole;
+	readonly content?: readonly ChatMessagePartForViewer[];
+	readonly usage?: ChatMessageUsage;
+}
+
+// From codersdk/chats.go
 /**
  * ChatMessagePart is a structured chunk of a chat message.
  *
@@ -1724,11 +1767,51 @@ export type ChatMessagePart =
 	| ChatSkillPart;
 
 // From codersdk/chats.go
+/**
+ * ChatMessagePartForViewer is the viewer-only superset of ChatMessagePart
+ * that admits the "redacted" Type. No write or persistence path references
+ * this type, so a redacted marker cannot leak into chat_messages.content.
+ */
+export interface ChatMessagePartForViewer {
+	readonly type: ChatMessagePartType;
+	readonly text: string;
+	readonly signature?: string;
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
+	readonly mcp_server_config_id?: string;
+	readonly args?: Record<string, string>;
+	readonly args_delta?: string;
+	readonly result?: Record<string, string>;
+	readonly result_delta?: string;
+	readonly is_error?: boolean;
+	readonly is_media?: boolean;
+	readonly source_id?: string;
+	readonly url: string;
+	readonly title?: string;
+	readonly media_type: string;
+	readonly data?: string;
+	readonly file_id?: string;
+	readonly file_name: string;
+	readonly start_line: number;
+	readonly end_line: number;
+	readonly content: string;
+	readonly provider_executed?: boolean;
+	readonly created_at?: string;
+	readonly context_file_path: string;
+	readonly context_file_truncated?: boolean;
+	readonly context_file_agent_id?: string;
+	readonly skill_name: string;
+	readonly skill_description?: string;
+	readonly redacted_type?: ChatMessagePartType;
+}
+
+// From codersdk/chats.go
 export type ChatMessagePartType =
 	| "context-file"
 	| "file"
 	| "file-reference"
 	| "reasoning"
+	| "redacted"
 	| "skill"
 	| "source"
 	| "text"
@@ -1740,6 +1823,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
 	"file-reference",
 	"reasoning",
+	"redacted",
 	"skill",
 	"source",
 	"text",
@@ -1788,6 +1872,13 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
+	readonly queued_messages: readonly ChatQueuedMessage[];
+	readonly has_more: boolean;
+}
+
+// From codersdk/chats.go
+export interface ChatMessagesResponseForViewer {
+	readonly messages: readonly ChatMessageForViewer[];
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 }
@@ -2114,6 +2205,16 @@ export type ChatRole = "" | "read";
 export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
+/**
+ * ChatShareEntry is a PATCH /acl entry. Omitted bools default to false.
+ */
+export interface ChatShareEntry {
+	readonly role: ChatRole;
+	readonly share_tool_calls?: boolean;
+	readonly share_attachments?: boolean;
+}
+
+// From codersdk/chats.go
 export type ChatSharedFilter = "include" | "" | "only";
 
 export const ChatSharedFilters: ChatSharedFilter[] = ["include", "", "only"];
@@ -2222,6 +2323,19 @@ export interface ChatStreamEvent {
 }
 
 // From codersdk/chats.go
+export interface ChatStreamEventForViewer {
+	readonly type: ChatStreamEventType;
+	readonly chat_id: string;
+	readonly message?: ChatMessageForViewer;
+	readonly message_part?: ChatStreamMessagePartForViewer;
+	readonly status?: ChatStreamStatus;
+	readonly error?: ChatStreamError;
+	readonly retry?: ChatStreamRetry;
+	readonly queued_messages?: readonly ChatQueuedMessage[];
+	readonly action_required?: ChatStreamActionRequired;
+}
+
+// From codersdk/chats.go
 export type ChatStreamEventType =
 	| "action_required"
 	| "error"
@@ -2248,6 +2362,12 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 export interface ChatStreamMessagePart {
 	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
+}
+
+// From codersdk/chats.go
+export interface ChatStreamMessagePartForViewer {
+	readonly role?: ChatMessageRole;
+	readonly part: ChatMessagePartForViewer;
 }
 
 // From codersdk/chats.go
@@ -2472,6 +2592,8 @@ export interface ChatUsageLimitStatus {
 // From codersdk/chats.go
 export interface ChatUser extends MinimalUser {
 	readonly role: ChatRole;
+	readonly share_tool_calls: boolean;
+	readonly share_attachments: boolean;
 }
 
 // From codersdk/chats.go
@@ -7611,16 +7733,9 @@ export interface UpdateAppearanceConfig {
 }
 
 // From codersdk/chats.go
-/**
- * ConfirmShareToolCalls and ConfirmShareAttachments must be set when the chat
- * already contains tool calls or attachments, respectively. The server returns
- * 400 naming any missing required flag.
- */
 export interface UpdateChatACL {
-	readonly user_roles?: Record<string, ChatRole>;
-	readonly group_roles?: Record<string, ChatRole>;
-	readonly confirm_share_tool_calls?: boolean;
-	readonly confirm_share_attachments?: boolean;
+	readonly user_roles?: Record<string, ChatShareEntry>;
+	readonly group_roles?: Record<string, ChatShareEntry>;
 }
 
 // From codersdk/chats.go
@@ -8447,6 +8562,17 @@ export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
 export interface VariableValue {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ViewerShareFlags are the per-viewer toggles applied by the redaction
+ * filter. Owner must be pre-resolved; passing {true, true} disables
+ * redaction entirely.
+ */
+export interface ViewerShareFlags {
+	readonly ShareToolCalls: boolean;
+	readonly ShareAttachments: boolean;
 }
 
 // From codersdk/notifications.go

@@ -5126,51 +5126,6 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
-const chatHasVisibleAttachments = `-- name: ChatHasVisibleAttachments :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chat_file_links
-    WHERE chat_id = $1::uuid
-    UNION ALL
-    SELECT 1
-    FROM chat_messages
-    WHERE chat_id = $1::uuid
-        AND deleted = false
-        AND (
-            content::jsonb @> '[{"type": "file"}]'::jsonb
-            OR content::jsonb @> '[{"type": "file-reference"}]'::jsonb
-            OR content::jsonb @> '[{"type": "context-file"}]'::jsonb
-        )
-)
-`
-
-func (q *sqlQuerier) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, chatHasVisibleAttachments, chatID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const chatHasVisibleToolParts = `-- name: ChatHasVisibleToolParts :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chat_messages
-    WHERE chat_id = $1::uuid
-        AND deleted = false
-        AND (
-            content::jsonb @> '[{"type": "tool-call"}]'::jsonb
-            OR content::jsonb @> '[{"type": "tool-result"}]'::jsonb
-        )
-)
-`
-
-func (q *sqlQuerier) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, chatHasVisibleToolParts, chatID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
 UPDATE chat_messages
 SET provider_response_id = NULL
@@ -5399,8 +5354,8 @@ WHERE
 `
 
 type GetChatACLByIDRow struct {
-	Users  WorkspaceACL `db:"users" json:"users"`
-	Groups WorkspaceACL `db:"groups" json:"groups"`
+	Users  ChatACL `db:"users" json:"users"`
+	Groups ChatACL `db:"groups" json:"groups"`
 }
 
 func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error) {
@@ -7770,9 +7725,9 @@ WHERE
 `
 
 type UpdateChatACLByIDParams struct {
-	UserACL  WorkspaceACL `db:"user_acl" json:"user_acl"`
-	GroupACL WorkspaceACL `db:"group_acl" json:"group_acl"`
-	ID       uuid.UUID    `db:"id" json:"id"`
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error {

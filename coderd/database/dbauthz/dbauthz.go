@@ -1658,28 +1658,6 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
-func (q *querier) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return false, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
-		return false, err
-	}
-	return q.db.ChatHasVisibleAttachments(ctx, chatID)
-}
-
-func (q *querier) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return false, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
-		return false, err
-	}
-	return q.db.ChatHasVisibleToolParts(ctx, chatID)
-}
-
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 

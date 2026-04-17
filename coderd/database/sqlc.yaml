@@ -99,16 +99,16 @@ sql:
               type: "WorkspaceACL"
           - column: "chats.user_acl"
             go_type:
-              type: "WorkspaceACL"
+              type: "ChatACL"
           - column: "chats.group_acl"
             go_type:
-              type: "WorkspaceACL"
+              type: "ChatACL"
           - column: "chats_with_acl.user_acl"
             go_type:
-              type: "WorkspaceACL"
+              type: "ChatACL"
           - column: "chats_with_acl.group_acl"
             go_type:
-              type: "WorkspaceACL"
+              type: "ChatACL"
           - column: "chats_with_acl.labels"
             go_type:
               type: "StringMap"

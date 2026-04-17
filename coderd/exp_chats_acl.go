@@ -56,9 +56,12 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 
 	users := make([]codersdk.ChatUser, 0, len(dbUsers))
 	for _, it := range dbUsers {
+		entry := chatACL.Users[it.ID.String()]
 		users = append(users, codersdk.ChatUser{
-			MinimalUser: db2sdk.MinimalUser(it),
-			Role:        convertToChatRole(chatACL.Users[it.ID.String()].Permissions),
+			MinimalUser:      db2sdk.MinimalUser(it),
+			Role:             convertToChatRole(entry.Permissions),
+			ShareToolCalls:   entry.ShareToolCalls,
+			ShareAttachments: entry.ShareAttachments,
 		})
 	}
 
@@ -94,13 +97,16 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+		entry := chatACL.Groups[it.Group.ID.String()]
 		groups = append(groups, codersdk.ChatGroup{
 			Group: db2sdk.Group(database.GetGroupsRow{
 				Group:                   it.Group,
 				OrganizationName:        it.OrganizationName,
 				OrganizationDisplayName: it.OrganizationDisplayName,
 			}, members, len(members)),
-			Role: convertToChatRole(chatACL.Groups[it.Group.ID.String()].Permissions),
+			Role:             convertToChatRole(entry.Permissions),
+			ShareToolCalls:   entry.ShareToolCalls,
+			ShareAttachments: entry.ShareAttachments,
 		})
 	}
 
@@ -138,13 +144,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Suppress share-confirmation prompts on removal-only PATCHes.
-	if hasShareAdditions(req) {
-		if !api.requireShareConfirmations(ctx, rw, chat, req) {
-			return
-		}
-	}
-
 	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -160,22 +159,26 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get chat by ID: %w", err)
 		}
 
-		for id, role := range req.UserRoles {
-			if role == codersdk.ChatRoleDeleted {
+		for id, entry := range req.UserRoles {
+			if entry.Role == codersdk.ChatRoleDeleted {
 				delete(current.UserACL, id)
 				continue
 			}
-			current.UserACL[id] = database.WorkspaceACLEntry{
-				Permissions: db2sdk.ChatRoleActions(role),
+			current.UserACL[id] = database.ChatACLEntry{
+				Permissions:      db2sdk.ChatRoleActions(entry.Role),
+				ShareToolCalls:   entry.ShareToolCalls,
+				ShareAttachments: entry.ShareAttachments,
 			}
 		}
-		for id, role := range req.GroupRoles {
-			if role == codersdk.ChatRoleDeleted {
+		for id, entry := range req.GroupRoles {
+			if entry.Role == codersdk.ChatRoleDeleted {
 				delete(current.GroupACL, id)
 				continue
 			}
-			current.GroupACL[id] = database.WorkspaceACLEntry{
-				Permissions: db2sdk.ChatRoleActions(role),
+			current.GroupACL[id] = database.ChatACLEntry{
+				Permissions:      db2sdk.ChatRoleActions(entry.Role),
+				ShareToolCalls:   entry.ShareToolCalls,
+				ShareAttachments: entry.ShareAttachments,
 			}
 		}
 
@@ -232,6 +235,48 @@ func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// effectiveShareFlagsForViewer returns the OR of the viewer's direct
+// user entry and every group entry for groups they belong to. The
+// chat owner always sees everything.
+func (api *API) effectiveShareFlagsForViewer(
+	ctx context.Context,
+	chat database.Chat,
+	viewerID uuid.UUID,
+) (flags codersdk.ViewerShareFlags, err error) {
+	if viewerID == chat.OwnerID {
+		return codersdk.ViewerShareFlags{ShareToolCalls: true, ShareAttachments: true}, nil
+	}
+
+	if entry, ok := chat.UserACL[viewerID.String()]; ok {
+		flags.ShareToolCalls = flags.ShareToolCalls || entry.ShareToolCalls
+		flags.ShareAttachments = flags.ShareAttachments || entry.ShareAttachments
+	}
+
+	if len(chat.GroupACL) == 0 {
+		return flags, nil
+	}
+
+	// nolint:gocritic // Group membership lookup must ignore the viewer's group:read perms.
+	groups, gErr := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		HasMemberID: viewerID,
+	})
+	if gErr != nil && !errors.Is(gErr, sql.ErrNoRows) {
+		return codersdk.ViewerShareFlags{}, xerrors.Errorf("list viewer groups: %w", gErr)
+	}
+	for _, g := range groups {
+		entry, ok := chat.GroupACL[g.Group.ID.String()]
+		if !ok {
+			continue
+		}
+		flags.ShareToolCalls = flags.ShareToolCalls || entry.ShareToolCalls
+		flags.ShareAttachments = flags.ShareAttachments || entry.ShareAttachments
+		if flags.ShareToolCalls && flags.ShareAttachments {
+			break
+		}
+	}
+	return flags, nil
+}
+
 func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat database.Chat) {
 	var rootID uuid.UUID
 	switch {
@@ -257,11 +302,11 @@ var (
 var _ acl.UpdateValidator[codersdk.ChatRole] = ChatACLUpdateValidator{}
 
 func (c ChatACLUpdateValidator) Users() (map[string]codersdk.ChatRole, string) {
-	return c.UserRoles, chatACLUpdateUsersFieldName
+	return projectChatShareEntryRoles(c.UserRoles), chatACLUpdateUsersFieldName
 }
 
 func (c ChatACLUpdateValidator) Groups() (map[string]codersdk.ChatRole, string) {
-	return c.GroupRoles, chatACLUpdateGroupsFieldName
+	return projectChatShareEntryRoles(c.GroupRoles), chatACLUpdateGroupsFieldName
 }
 
 func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
@@ -274,6 +319,14 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
+func projectChatShareEntryRoles(entries map[string]codersdk.ChatShareEntry) map[string]codersdk.ChatRole {
+	roles := make(map[string]codersdk.ChatRole, len(entries))
+	for id, entry := range entries {
+		roles[id] = entry.Role
+	}
+	return roles
+}
+
 // Unknown permissions map to ChatRoleDeleted so stale or corrupt entries
 // are not misread as read access.
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
@@ -281,77 +334,6 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 		return codersdk.ChatRoleRead
 	}
 	return codersdk.ChatRoleDeleted
-}
-
-func hasShareAdditions(req codersdk.UpdateChatACL) bool {
-	for _, role := range req.UserRoles {
-		if role != codersdk.ChatRoleDeleted {
-			return true
-		}
-	}
-	for _, role := range req.GroupRoles {
-		if role != codersdk.ChatRoleDeleted {
-			return true
-		}
-	}
-	return false
-}
-
-func (api *API) requireShareConfirmations(
-	ctx context.Context,
-	rw http.ResponseWriter,
-	chat database.Chat,
-	req codersdk.UpdateChatACL,
-) bool {
-	hasTools, err := api.Database.ChatHasVisibleToolParts(ctx, chat.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return false
-	}
-	hasAttachments, err := api.Database.ChatHasVisibleAttachments(ctx, chat.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return false
-	}
-
-	var missing []codersdk.ValidationError
-	if hasTools && !req.ConfirmShareToolCalls {
-		missing = append(missing, codersdk.ValidationError{
-			Field:  "confirm_share_tool_calls",
-			Detail: "required",
-		})
-	}
-	if hasAttachments && !req.ConfirmShareAttachments {
-		missing = append(missing, codersdk.ValidationError{
-			Field:  "confirm_share_attachments",
-			Detail: "required",
-		})
-	}
-	if len(missing) == 0 {
-		return true
-	}
-
-	var (
-		message string
-		detail  string
-	)
-	switch {
-	case hasTools && !req.ConfirmShareToolCalls && hasAttachments && !req.ConfirmShareAttachments:
-		message = "Chat contains tool calls and attachments that shared viewers would see."
-		detail = "Set confirm_share_tool_calls=true and confirm_share_attachments=true to share anyway, or clear the relevant history first."
-	case hasTools && !req.ConfirmShareToolCalls:
-		message = "Chat contains tool calls that shared viewers would see."
-		detail = "Set confirm_share_tool_calls=true to share anyway, or clear tool-call history first."
-	case hasAttachments && !req.ConfirmShareAttachments:
-		message = "Chat contains attachments that shared viewers would see."
-		detail = "Set confirm_share_attachments=true to share anyway, or clear attachments first."
-	}
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message:     message,
-		Detail:      detail,
-		Validations: missing,
-	})
-	return false
 }
 
 func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, chat database.Chat) bool {
