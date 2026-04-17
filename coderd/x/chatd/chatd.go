@@ -4553,35 +4553,108 @@ func allowedPlanToolNames(
 	parentChatID uuid.NullUUID,
 ) []string {
 	isRootChat := !parentChatID.Valid
-	builtinPlanPolicy := map[string]bool{
-		"read_file":                true,
-		"write_file":               isRootChat,
-		"edit_files":               isRootChat,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             false,
-		"process_signal":           false,
-		"list_templates":           isRootChat,
-		"read_template":            isRootChat,
-		"create_workspace":         isRootChat,
-		"start_workspace":          isRootChat,
-		"propose_plan":             isRootChat,
-		"spawn_agent":              isRootChat,
-		"spawn_explore_agent":      isRootChat,
-		"wait_agent":               isRootChat,
-		"message_agent":            false,
-		"close_agent":              false,
-		"spawn_computer_use_agent": false,
-		"read_skill":               true,
-		"read_skill_file":          true,
-		"ask_user_question":        isRootChat,
-	}
-
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		name := tool.Info().Name
-		if builtinPlanPolicy[name] {
-			toolNames = append(toolNames, name)
+		if builtinPlanToolAllowed(tool.Info().Name, isRootChat) {
+			toolNames = append(toolNames, tool.Info().Name)
+		}
+	}
+	return toolNames
+}
+
+func filterExternalMCPConfigsForTurn(
+	configs []database.MCPServerConfig,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return configs, nil
+	}
+	if parentChatID.Valid {
+		// Plan-mode subagents intentionally do not receive external MCP
+		// tools in this MVP, even when the parent chat allows them.
+		return nil, map[uuid.UUID]struct{}{}
+	}
+
+	filtered := make([]database.MCPServerConfig, 0, len(configs))
+	approvedIDs := make(map[uuid.UUID]struct{})
+	for _, cfg := range configs {
+		if !cfg.AllowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, cfg)
+		approvedIDs[cfg.ID] = struct{}{}
+	}
+	return filtered, approvedIDs
+}
+
+func builtinPlanToolAllowed(name string, isRootChat bool) bool {
+	switch name {
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+		return true
+	case "write_file", "edit_files", "list_templates", "read_template",
+		"create_workspace", "start_workspace", "propose_plan", "spawn_agent",
+		"spawn_explore_agent", "wait_agent", "ask_user_question":
+		return isRootChat
+	case "process_list", "process_signal", "message_agent", "close_agent",
+		"spawn_computer_use_agent":
+		return false
+	default:
+		return false
+	}
+}
+
+func toolAllowedForTurn(
+	tool fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) bool {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return true
+	}
+	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
+		return true
+	}
+	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
+	if !ok {
+		return false
+	}
+	_, approved := approvedMCPConfigIDs[mcpTool.MCPServerConfigID()]
+	return approved
+}
+
+func filterToolsForTurn(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) []fantasy.AgentTool {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return allTools
+	}
+
+	filtered := make([]fantasy.AgentTool, 0, len(allTools))
+	for _, tool := range allTools {
+		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
+}
+
+// activeToolNamesForTurn extends the built-in plan allowlist with approved
+// external MCP tools for root plan-mode chats.
+func activeToolNamesForTurn(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) []string {
+	toolNames := make([]string, 0, len(allTools))
+	for _, tool := range allTools {
+		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
 	return toolNames
@@ -4640,12 +4713,11 @@ func allowedBehaviorToolNames(
 	return allToolNames(allTools)
 }
 
-func stopAfterBehaviorTools(
+func stopAfterPlanTools(
 	planMode database.NullChatPlanMode,
-	chatMode database.NullChatMode,
 	parentChatID uuid.NullUUID,
 ) map[string]struct{} {
-	if isExploreSubagentMode(chatMode) || !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
+	if !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
 	}
 	stopTools := map[string]struct{}{
@@ -4655,6 +4727,17 @@ func stopAfterBehaviorTools(
 		stopTools["ask_user_question"] = struct{}{}
 	}
 	return stopTools
+}
+
+func stopAfterBehaviorTools(
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
+	parentChatID uuid.NullUUID,
+) map[string]struct{} {
+	if isExploreSubagentMode(chatMode) {
+		return nil
+	}
+	return stopAfterPlanTools(planMode, parentChatID)
 }
 
 type systemPromptBehaviorContext struct {
@@ -5020,6 +5103,12 @@ func (p *Server) runChat(
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
+	isRootChat := !chat.ParentChatID.Valid
+	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
+		mcpConfigs,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
@@ -5210,17 +5299,20 @@ func (p *Server) runChat(
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
 	})
-	if len(mcpConfigs) > 0 {
+	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
 			// Refresh expired OAuth2 tokens before connecting.
-			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConfigs, mcpTokens)
+			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
-				ctx, logger, mcpConfigs, mcpTokens,
+				ctx, logger, mcpConnectConfigs, mcpTokens,
 			)
 			return nil
 		})
 	}
-	if chat.WorkspaceID.Valid {
+	// Workspace MCP discovery stays disabled for all plan-mode turns.
+	// Root plan mode only gets approved external MCP servers, and
+	// plan-mode subagents get no MCP tools.
+	if chat.WorkspaceID.Valid && !isPlanModeTurn {
 		g2.Go(func() error {
 			// Fast path: check cache using the in-memory cached
 			// agent (ensureWorkspaceAgent is free when already
@@ -5291,7 +5383,6 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
-	isRootChat := !chat.ParentChatID.Valid
 	subagentInstruction := ""
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
@@ -5701,13 +5792,22 @@ func (p *Server) runChat(
 		builtinToolNames[t.Info().Name] = true
 	}
 
-	// Append tools from external MCP servers. These appear
-	// after the built-in tools so the LLM sees them as
-	// additional capabilities.
-	if !isPlanModeTurn && !isExploreSubagent {
+	// Append external and workspace MCP tools after the built-ins so the
+	// LLM sees them as additional capabilities. Explore subagents keep
+	// the narrower built-in-only boundary from main. Root plan mode gets
+	// only approved external MCP tools because mcpConnectConfigs was
+	// pre-filtered above, and filterToolsForTurn removes any remaining
+	// plan-mode ineligible tools from the assembled set.
+	if !isExploreSubagent {
 		tools = append(tools, mcpTools...)
 		tools = append(tools, workspaceMCPTools...)
 	}
+	tools = filterToolsForTurn(
+		tools,
+		currentPlanMode,
+		chat.ParentChatID,
+		approvedPlanMCPConfigIDs,
+	)
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop. The client handles
@@ -5771,10 +5871,15 @@ func (p *Server) runChat(
 		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:            model,
-		Messages:         prompt,
-		Tools:            tools,
-		ActiveTools:      allowedBehaviorToolNames(tools, currentPlanMode, chat.Mode, chat.ParentChatID),
+		Model:    model,
+		Messages: prompt,
+		Tools:    tools,
+		ActiveTools: func() []string {
+			if isExploreSubagent {
+				return allowedExploreToolNames(tools)
+			}
+			return activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+		}(),
 		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
