@@ -302,7 +302,15 @@ func prepareQuickgenDebugCandidate(
 		return ctx, candidate.lm, finishDebugRun
 	}
 
-	run, err := debugSvc.CreateRun(ctx, chatdebug.CreateRunParams{
+	// Debug instrumentation must not eat into the quickgen budget
+	// (30s titleCtx / summaryCtx on the caller). Detach and bound
+	// the insert so a slow DB can't delay title generation or push
+	// summaries, matching prepareManualTitleDebugRun,
+	// prepareChatTurnDebugRun, and startCompactionDebugRun.
+	createRunCtx, createRunCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), debugCreateRunTimeout,
+	)
+	run, err := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
@@ -312,6 +320,7 @@ func prepareQuickgenDebugCandidate(
 		Model:               candidate.model,
 		Summary:             seedSummary,
 	})
+	createRunCancel()
 	if err != nil {
 		logger.Warn(ctx, "failed to create short-text debug run",
 			slog.F("chat_id", chat.ID),
