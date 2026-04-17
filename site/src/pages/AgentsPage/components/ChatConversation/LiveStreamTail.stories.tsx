@@ -181,7 +181,9 @@ export const RetryingTimeoutAnthropic: Story = {
 			canvas.getByText(/anthropic is temporarily unavailable/i),
 		).toBeVisible();
 		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
-		expect(canvas.getByText(/retrying in/i)).toBeVisible();
+		// StatusCountdown renders label and seconds as separate text
+		// nodes, so match against the element's combined textContent.
+		expect(canvasElement).toHaveTextContent(/retrying in \d+s/i);
 	},
 };
 
