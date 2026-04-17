@@ -100,6 +100,15 @@ const (
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
 
+	// streamJanitorInterval is how often sweepIdleStreams runs.
+	// Worst-case retention is bufferRetainGracePeriod +
+	// streamJanitorInterval. The janitor is the backstop for
+	// cleanupStreamIfIdle, which early-returns inside the grace
+	// window and does not reschedule; without this loop, a state
+	// whose last activity was a subscriber-detach inside grace
+	// would be pinned until the process exits.
+	streamJanitorInterval = 30 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -2841,6 +2850,9 @@ func (p *Server) start(ctx context.Context) {
 	// Single heartbeat loop for all chats on this replica.
 	go p.heartbeatLoop(ctx)
 
+	// Reap idle stream states whose grace period has elapsed.
+	go p.streamJanitorLoop(ctx)
+
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
 		"chatd",
@@ -3089,11 +3101,14 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 	return state
 }
 
-// cleanupStreamIfIdle removes the chat entry from the sync.Map
-// when there are no subscribers and the stream is not buffering.
-// When bufferRetainedAt is set, cleanup is deferred until the
-// grace period expires so cross-replica relay subscribers can
-// still snapshot the buffer.
+// cleanupStreamIfIdle removes the chat entry from the sync.Map when
+// there are no subscribers and the stream is not buffering. When
+// bufferRetainedAt is set, cleanup is deferred until the grace period
+// expires so cross-replica relay subscribers can still snapshot the
+// buffer. If the grace period has not yet elapsed, this function
+// returns without rescheduling — streamJanitorLoop is the backstop
+// that re-checks on a timer so entries do not linger after the grace
+// window ends.
 // The caller must hold state.mu.
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if state.buffering || len(state.subscribers) > 0 {
@@ -3108,6 +3123,50 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	}
 	p.chatStreams.Delete(chatID)
 	p.workspaceMCPToolsCache.Delete(chatID)
+}
+
+// streamJanitorLoop periodically reaps idle chat stream states whose
+// grace period has expired. This is the backstop for
+// cleanupStreamIfIdle: that function early-returns inside the grace
+// window and does not reschedule, so without this loop a state that
+// last saw activity inside its grace window is pinned until the
+// process exits. A subscriber that detaches within grace is the most
+// common trigger for that pinning in practice — enterprise relay
+// drains (relayDrainTimeout = 200ms) always fire inside the 5s grace.
+func (p *Server) streamJanitorLoop(ctx context.Context) {
+	ticker := p.clock.NewTicker(streamJanitorInterval, "chatd", "stream-janitor")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.sweepIdleStreams()
+		}
+	}
+}
+
+// sweepIdleStreams iterates chatStreams once and delegates each entry
+// to cleanupStreamIfIdle, which encodes the "is this state reapable"
+// predicate (not buffering, no subscribers, grace expired).
+//
+// sync.Map.Range + Delete is safe: Range may observe or miss
+// concurrent Deletes. A missed entry is reaped on the next tick.
+func (p *Server) sweepIdleStreams() {
+	p.chatStreams.Range(func(key, value any) bool {
+		chatID, ok := key.(uuid.UUID)
+		if !ok {
+			return true
+		}
+		state, ok := value.(*chatStreamState)
+		if !ok {
+			return true
+		}
+		state.mu.Lock()
+		p.cleanupStreamIfIdle(chatID, state)
+		state.mu.Unlock()
+		return true
+	})
 }
 
 // registerHeartbeat enrolls a chat in the centralized batch

@@ -1425,7 +1425,160 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 			"worker completes before the relay is established")
 }
 
-// TestSubscribeRelayEstablishedMidStream demonstrates that when the
+// TestSubscribeRelayDrainWithinGraceLeavesBufferRetained characterizes
+// the multi-replica trigger for the retained-buffer leak: when an
+// enterprise relay drains after a worker finishes, the worker-side
+// subscriber-detach fires inside bufferRetainGracePeriod (5s) because
+// relayDrainTimeout is only 200ms. cleanupStreamIfIdle's grace-period
+// early-return blocks cleanup; without streamJanitorLoop as a timer-
+// driven backstop, the worker's chatStreamState stays mapped with its
+// full buffer until the process exits.
+//
+// This test asserts only the user-visible symptom — that a fresh
+// worker.Subscribe immediately after the relay drain still sees the
+// retained message_parts. The matching regression (that the janitor
+// reaps the state on a timer) is covered by the OSS unit tests in
+// coderd/x/chatd/chatd_internal_test.go, which can read chatStreams
+// directly.
+//
+// Behavioral observation is used here (not a chatStreams-size
+// assertion) because _test.go identifiers in coderd/x/chatd do not
+// link into enterprise/coderd/x/chatd's test binary, and we decline
+// to add a production-API accessor for memory-hygiene plumbing.
+func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("relay-drain-characterization")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello ", "from ", "worker")...,
+		)
+	})
+
+	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	worker := osschatd.New(osschatd.Config{
+		Logger:                     workerLogger,
+		Database:                   db,
+		ReplicaID:                  workerID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: time.Hour,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, worker.Close())
+	})
+
+	// Subscriber dials through to the worker's Subscribe. When the
+	// subscriber cancels, the relay drain fires within 200ms and
+	// invokes the worker's subscribeToStream cancel func — inside
+	// the worker's 5s grace window — which triggers
+	// cleanupStreamIfIdle's early return.
+	subscriber := newTestServer(t, db, ps, subscriberID, func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		targetWorkerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		snapshot, relayEvents, cancel, ok := worker.Subscribe(ctx, chatID, requestHeader, math.MaxInt64)
+		if !ok {
+			return nil, nil, nil, xerrors.New("worker subscribe failed")
+		}
+		return snapshot, relayEvents, cancel, nil
+	}, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-drain-characterization")
+
+	// Attach the subscriber before processing starts so the relay
+	// opens as soon as status=running arrives.
+	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+
+	_, err := worker.SendMessage(ctx, osschatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Drain events until processing completes. We require at least
+	// one message_part and the committed assistant message so we
+	// know processChat's defer has flipped buffering=false and
+	// populated bufferRetainedAt before the subscriber detaches.
+	var committedAssistantMsgs int
+	var messagePartsSeen int
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeMessagePart:
+				messagePartsSeen++
+			case codersdk.ChatStreamEventTypeMessage:
+				if event.Message != nil && event.Message.Role == codersdk.ChatMessageRoleAssistant {
+					committedAssistantMsgs++
+				}
+			}
+			return committedAssistantMsgs > 0 && messagePartsSeen > 0
+		default:
+			return false
+		}
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Tear the subscriber down. The relay drain (200ms) fires well
+	// inside the worker's 5s bufferRetainGracePeriod, so the
+	// worker's cleanupStreamIfIdle early-returns and leaves the
+	// buffer retained.
+	subCancel()
+
+	// Characterization: a fresh Subscribe on the worker still sees
+	// the retained message_parts in its initial snapshot. This is
+	// the leak: without streamJanitorLoop as a backstop, the
+	// retained state sits forever because nothing else will
+	// trigger cleanupStreamIfIdle after the grace window elapses.
+	// Eventually absorbs the short window until the worker observes
+	// the relay teardown. Note that the retry itself re-runs
+	// cleanupStreamIfIdle (via the returned cancel's defer) but
+	// still early-returns because grace has not expired.
+	require.Eventually(t, func() bool {
+		snap, _, charCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
+		if !ok {
+			return false
+		}
+		defer charCancel()
+		for _, e := range snap {
+			if e.Type == codersdk.ChatStreamEventTypeMessagePart {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitMedium, testutil.IntervalFast,
+		"retained buffer must still contain message_parts after the "+
+			"relay drains within grace — this confirms the multi-replica "+
+			"trigger path for the retained-buffer leak")
+}
+
 // relay is established while the worker is still streaming, the
 // subscriber receives buffered parts via the relay snapshot and live
 // parts through the relay channel.

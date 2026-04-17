@@ -3046,3 +3046,200 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 	require.NoError(t, chatCtx.Err(),
 		"chat context should not be canceled on transient DB error")
 }
+
+// TestSubscribeCancelDuringGrace_ReapedBySweep exercises the OSS
+// single-replica trigger path for the retained-buffer leak:
+// a subscriber detaches within bufferRetainGracePeriod of chat
+// completion, so cleanupStreamIfIdle's grace-period early-return
+// fires. Before the janitor, nothing reschedules cleanup and the
+// state is pinned until process exit. sweepIdleStreams is the
+// backstop that re-checks on a timer.
+func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: logger,
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	start := mClock.Now()
+
+	// Mirror a just-finished chat: processing done, buffer retained
+	// for late-connecting relay subscribers, one message_part still
+	// buffered so the leak pins a non-trivial payload.
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: start,
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+			},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	// Exercise the real subscribeToStream cancel path. This is the
+	// exact code path that leaks in prod: a WS subscriber detaches,
+	// cleanupStreamIfIdle runs, the grace-period check early-returns,
+	// and no future event or subscriber disconnect re-triggers it.
+	_, _, cancelSub := server.subscribeToStream(chatID)
+
+	// Advance within the grace window and detach.
+	mClock.Advance(bufferRetainGracePeriod / 2)
+	cancelSub()
+
+	// Characterization: the entry is still mapped because
+	// cleanupStreamIfIdle declined to act during grace. This
+	// assertion is true both before and after the janitor lands —
+	// cleanupStreamIfIdle's own behavior is unchanged.
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok,
+		"entry should remain during grace window after subscriber detach")
+
+	// Advance past the grace window and sweep directly. Without the
+	// janitor, sweepIdleStreams does not exist; with it, the sweep
+	// observes grace expired + no subscribers + not buffering and
+	// reaps the entry.
+	mClock.Advance(bufferRetainGracePeriod)
+	server.sweepIdleStreams()
+
+	_, ok = server.chatStreams.Load(chatID)
+	require.False(t, ok,
+		"entry should be reaped after grace period expires and sweep runs")
+}
+
+// TestSweepIdleStreams_ReapsStaleRetainedBuffer verifies the
+// happy-path reap: a state with an expired grace period and no
+// subscribers is evicted.
+func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.False(t, ok, "stale retained state should be reaped")
+}
+
+// TestSweepIdleStreams_DoesNotReapActiveBuffering guards against
+// reaping a state whose worker is still actively processing.
+func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(time.Hour)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "actively-buffering state must not be reaped")
+}
+
+// TestSweepIdleStreams_DoesNotReapWithSubscribers guards against
+// reaping a state that still has attached subscribers.
+func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
+			uuid.New(): make(chan codersdk.ChatStreamEvent, 1),
+		},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "state with subscribers must not be reaped")
+}
+
+// TestSweepIdleStreams_DefersDuringGracePeriod verifies that a sweep
+// inside the grace window is a no-op, then the same state is reaped
+// once the window elapses.
+func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	start := mClock.Now()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: start,
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod / 2)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "sweep inside grace window must not reap")
+
+	mClock.Advance(bufferRetainGracePeriod)
+	server.sweepIdleStreams()
+
+	_, ok = server.chatStreams.Load(chatID)
+	require.False(t, ok, "sweep after grace window must reap")
+}
