@@ -558,6 +558,9 @@ type UpdateChatPlanModeInstructionsRequest struct {
 // subagent model override configuration endpoint.
 type ChatExploreModelOverrideResponse struct {
 	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// HasMalformedOverride reports whether the saved override is malformed and
+	// is currently being treated as unset.
+	HasMalformedOverride bool `json:"has_malformed_override"`
 }
 
 // UpdateChatExploreModelOverrideRequest is the request body for updating the
