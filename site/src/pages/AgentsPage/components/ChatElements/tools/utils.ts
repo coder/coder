@@ -477,6 +477,20 @@ export const getFileContentForViewer = (
 };
 
 /**
+ * Parses a unified-diff string (with an optional SVN `Index:`
+ * banner) into the first FileDiffMetadata it contains. Returns
+ * null when the input is empty or the parser produces no files.
+ * Shared between the write_file diff builder, the synthetic
+ * edit_files diff builder, and the server-supplied diff parser.
+ */
+const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
+	if (!raw) return null;
+	const parsed = parsePatchFiles(stripSvnIndexHeaders(raw));
+	if (!parsed.length || !parsed[0].files.length) return null;
+	return parsed[0].files[0];
+};
+
+/**
  * Builds a FileDiffMetadata representing a new-file diff (all lines
  * are additions) from the content written by a write_file tool call.
  * Returns null when the content is empty or unparsable.
@@ -486,10 +500,7 @@ export const buildWriteFileDiff = (
 	content: string,
 ): FileDiffMetadata | null => {
 	if (!content) return null;
-	const patch = Diff.createPatch(path, "", content, "", "");
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(patch));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseSingleFileDiff(Diff.createPatch(path, "", content, "", ""));
 };
 
 /**
@@ -568,9 +579,7 @@ export const buildEditDiff = (
 		patches.push(`--- ${diffPath}\n+++ ${diffPath}\n`);
 	}
 
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(patches.join("")));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseSingleFileDiff(patches.join(""));
 };
 
 /**
@@ -586,7 +595,7 @@ interface ServerEditResult {
 /**
  * Parses the structured `files` array from an edit_files tool
  * response. The field is only populated when the agent observed the
- * request's `diff_request` flag; older agents omit it entirely.
+ * request's `include_diff` flag; older agents omit it entirely.
  * Returns null when no per-file result array is present (callers
  * should fall back to the synthetic client-side diff path). Returns
  * an empty array when the field is explicitly present but empty.
@@ -618,12 +627,7 @@ export const parseServerEditResults = (
  */
 export const parseServerEditDiffText = (
 	diff: string,
-): FileDiffMetadata | null => {
-	if (!diff) return null;
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(diff));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
-};
+): FileDiffMetadata | null => parseSingleFileDiff(diff);
 
 /**
  * Converts an MCP-prefixed tool name into a human-readable label.

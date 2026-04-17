@@ -1668,7 +1668,7 @@ type WorkspaceEditFileArgs struct {
 // WorkspaceEditFilesResponse is the response shape for the edit-file
 // and edit-files tools. Message preserves the existing success text.
 // Files carries the per-file results returned by the agent
-// (populated when the agent-side DiffRequest flag was set). The
+// (populated when the agent-side IncludeDiff flag was set). The
 // field is named Files (matching the agent's FileEditResponse.Files)
 // so future per-file error or status fields can be added without a
 // second wire break.
@@ -1729,7 +1729,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 					Edits: args.Edits,
 				},
 			},
-			DiffRequest: true,
+			IncludeDiff: true,
 		})
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err
@@ -1808,7 +1808,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 
 		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 			Files:       args.Files,
-			DiffRequest: true,
+			IncludeDiff: true,
 		})
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err

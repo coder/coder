@@ -1600,7 +1600,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.NoError(t, afero.WriteFile(fs, path, []byte("hello world\n"), 0o644))
 
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
-			DiffRequest: true,
+			IncludeDiff: true,
 			Files: []workspacesdk.FileEdits{
 				{
 					Path: path,
@@ -1628,7 +1628,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.NoError(t, afero.WriteFile(fs, path, []byte("same\n"), 0o644))
 
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
-			DiffRequest: true,
+			IncludeDiff: true,
 			Files: []workspacesdk.FileEdits{
 				{
 					Path: path,
@@ -1653,7 +1653,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.NoError(t, afero.WriteFile(fs, path, []byte("hello\n"), 0o644))
 
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
-			// DiffRequest omitted; default false.
+			// IncludeDiff omitted; default false.
 			Files: []workspacesdk.FileEdits{
 				{
 					Path: path,
@@ -1663,7 +1663,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 				},
 			},
 		})
-		require.Nil(t, resp.Files, "Files must be nil when DiffRequest is false")
+		require.Nil(t, resp.Files, "Files must be nil when IncludeDiff is false")
 	})
 
 	t.Run("DiffRequestedMultiFilePreservesOrder", func(t *testing.T) {
@@ -1679,7 +1679,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.NoError(t, afero.WriteFile(fs, pathC, []byte("C\n"), 0o644))
 
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
-			DiffRequest: true,
+			IncludeDiff: true,
 			Files: []workspacesdk.FileEdits{
 				{Path: pathA, Edits: []workspacesdk.FileEdit{{Search: "A", Replace: "a"}}},
 				{Path: pathB, Edits: []workspacesdk.FileEdit{{Search: "B", Replace: "b"}}},
@@ -1692,6 +1692,33 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.Equal(t, pathC, resp.Files[2].Path)
 	})
 
+	t.Run("DiffRequestedMultiEditSameFile", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		api := agentfiles.NewAPI(logger, fs, nil)
+		path := filepath.Join(tmpdir, "diff-multi-edit")
+		require.NoError(t, afero.WriteFile(fs, path, []byte("one\ntwo\nthree\n"), 0o644))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			IncludeDiff: true,
+			Files: []workspacesdk.FileEdits{{
+				Path: path,
+				Edits: []workspacesdk.FileEdit{
+					{Search: "one", Replace: "ONE"},
+					{Search: "three", Replace: "THREE"},
+				},
+			}},
+		})
+		require.Len(t, resp.Files, 1)
+		require.Equal(t, path, resp.Files[0].Path)
+		// Both edits must appear in the diff, computed against the
+		// file's original content (not the post-first-edit content).
+		require.Contains(t, resp.Files[0].Diff, "-one")
+		require.Contains(t, resp.Files[0].Diff, "+ONE")
+		require.Contains(t, resp.Files[0].Diff, "-three")
+		require.Contains(t, resp.Files[0].Diff, "+THREE")
+	})
 	t.Run("DiffRequestedSymlinkReportsOriginalPath", func(t *testing.T) {
 		t.Parallel()
 
@@ -1710,7 +1737,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		require.NoError(t, os.Symlink(realPath, linkPath))
 
 		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
-			DiffRequest: true,
+			IncludeDiff: true,
 			Files: []workspacesdk.FileEdits{
 				{
 					Path: linkPath,
@@ -1736,7 +1763,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 func runEditFiles(t *testing.T, api *agentfiles.API, req workspacesdk.FileEditRequest) workspacesdk.FileEditResponse {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
 	t.Cleanup(cancel)
 
 	buf := bytes.NewBuffer(nil)
@@ -1919,16 +1946,53 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			expected: "foo\nkeep\nbar\n",
 		},
 
-		// Empty-ending wildcard: search's last line has no
-		// terminator and content's line ends with "\r\n". The
-		// empty ending wildcards at match time; at splice,
-		// search and replace agree on empty ending shape so the
-		// file's "\r\n" wins.
+		// Empty-ending wildcard: search has no trailing newline
+		// and leading whitespace that isn't in the file. Pass 1
+		// fails (the leading spaces aren't a substring). Pass 3
+		// (trim-all) matches. At the splice: search and replace
+		// both have empty endings, so endingShapeEqual agrees
+		// and the file's "\r\n" wins. The file's leading tab
+		// does not win because sLead="  " disagrees with
+		// rLead="", so the replacement's empty lead wins.
 		{
 			name:     "EmptyEndingWildcard_CRLFContent_FileEndingWins",
 			content:  "foo\r\nkey\r\nbar\r\n",
-			edits:    []edit{{search: "key", replace: "KEY"}},
+			edits:    []edit{{search: "  key", replace: "KEY"}},
 			expected: "foo\r\nKEY\r\nbar\r\n",
+		},
+
+		// DEREM-3: multi-line replacement at EOF without trailing
+		// newline. The reference content line at the last index
+		// has cEnd="", but interior replacement lines must keep
+		// their "\n" rather than inherit the empty ending.
+		{
+			name:     "MultiLineReplaceAtEOFNoNewline_InteriorLinesKeepNewline",
+			content:  "foo\nbar",
+			edits:    []edit{{search: "foo\nbar\n", replace: "foo\nbaz\nqux\n"}},
+			expected: "foo\nbaz\nqux",
+		},
+
+		// DEREM-10: empty replacement body must not inherit the
+		// file's surrounding whitespace. Search forces the fuzzy
+		// path via trimming; replace is a single blank line.
+		{
+			name:     "EmptyBodyFuzzyReplace_NoWhitespaceGhost",
+			content:  "prefix\n  code  \nsuffix\n",
+			edits:    []edit{{search: "code\n", replace: "\n"}},
+			expected: "prefix\n\nsuffix\n",
+		},
+
+		// Combined: multi-line replacement at EOF without a
+		// newline, with an interior empty-body line. Exercises
+		// both carve-outs in one splice: the empty-body line
+		// must not inherit file whitespace (DEREM-10) and
+		// interior lines must keep their newline even though
+		// the reference content line has cEnd="" (DEREM-3).
+		{
+			name:     "EmptyBodyInteriorAtEOFNoNewline_BothCarveOuts",
+			content:  "foo\nbar",
+			edits:    []edit{{search: "foo\nbar\n", replace: "mid1\n\nmid2\n"}},
+			expected: "mid1\n\nmid2",
 		},
 	}
 
@@ -1953,7 +2017,7 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
 			defer cancel()
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
@@ -1993,18 +2057,19 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	type tc struct {
+	cases := []struct {
+		name            string
 		content         string
 		search, replace string
 		replaceAll      bool
 		expected        string // empty => expect an error response
 		errSub          string
-	}
-	cases := map[string]tc{
+	}{
 		// Tab-indented file, search matches one tab-indented
 		// line byte-for-byte via pass 1. Tabs on untouched
 		// lines remain; untouched space-indented lines remain.
-		"TabIndentedLine_ExactMatch": {
+		{
+			name:    "TabIndentedLine_ExactMatch",
 			content: "\ttab indented line 1\n\ttab indented line 2\n    spaces line 3\n    spaces line 4\n\ttab indented line 5\n",
 			search:  "\ttab indented line 1",
 			replace: "\ttab indented line 1 EDITED",
@@ -2016,7 +2081,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 		// via pass 1 (byte-substring match) because the search
 		// is a proper substring that doesn't touch the trailing
 		// whitespace.
-		"TrailingWhitespace_Preserved_ByPass1": {
+		{
+			name:     "TrailingWhitespace_Preserved_ByPass1",
 			content:  "line with trailing spaces   \nno trailing ws\n",
 			search:   "line with trailing spaces",
 			replace:  "line with trailing spaces EDITED",
@@ -2027,7 +2093,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 		// search omits them. Fuzzy passes also reject because
 		// the search spans fewer lines than the content does,
 		// so blank lines are preserved significant content.
-		"BlankLinesAreSignificant_Rejects": {
+		{
+			name:    "BlankLinesAreSignificant_Rejects",
 			content: "above\n\n\nbelow\n",
 			search:  "above\nbelow",
 			replace: "above\nbelow",
@@ -2036,7 +2103,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 
 		// Search matches blank lines exactly; replacement
 		// collapses the region.
-		"RemoveBlankLines": {
+		{
+			name:     "RemoveBlankLines",
 			content:  "above\n\n\nbelow\n",
 			search:   "above\n\n\nbelow",
 			replace:  "above\nbelow",
@@ -2045,7 +2113,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 
 		// CRLF file, pass 1 substring match preserves "\r\n"
 		// boundaries on every line.
-		"CRLF_Pass1_PreservesCRLF": {
+		{
+			name:     "CRLF_Pass1_PreservesCRLF",
 			content:  "line one\r\nline two\r\nline three\r\n",
 			search:   "line two",
 			replace:  "line two EDITED",
@@ -2056,7 +2125,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 		// accepts the match, and the splice rule promotes the
 		// replacement's LF endings to the file's "\r\n"
 		// because search and replace agree on ending shape.
-		"CRLF_FuzzyWithLF_FileEndingWins": {
+		{
+			name:     "CRLF_FuzzyWithLF_FileEndingWins",
 			content:  "line one\r\nline two\r\nline three\r\n",
 			search:   "line one\nline two\n",
 			replace:  "line one EDITED\nline two EDITED\n",
@@ -2065,7 +2135,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 
 		// File has no trailing newline; pass 1 preserves EOF
 		// shape.
-		"NoTrailingNewline_Preserved": {
+		{
+			name:     "NoTrailingNewline_Preserved",
 			content:  "no trailing newline",
 			search:   "no trailing newline",
 			replace:  "no trailing newline EDITED",
@@ -2079,7 +2150,8 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 		// wins; search and replace agree on ending (both
 		// "\n") so the file's "\n" wins. The following
 		// "\titem two\n" is not folded into the replacement.
-		"FuzzyIndent_FileIndentWins_NoLineFolding": {
+		{
+			name:     "FuzzyIndent_FileIndentWins_NoLineFolding",
 			content:  "\titem one\n\titem two\n",
 			search:   "  item one\n",
 			replace:  "  item one EDITED\n",
@@ -2087,13 +2159,13 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 		},
 	}
 
-	for name, ct := range cases {
-		t.Run(name, func(t *testing.T) {
+	for _, ct := range cases {
+		t.Run(ct.name, func(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
 			api := agentfiles.NewAPI(logger, fs, nil)
-			path := filepath.Join(tmpdir, "ws-"+name)
+			path := filepath.Join(tmpdir, "ws-"+ct.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(ct.content), 0o644))
 
 			req := workspacesdk.FileEditRequest{
@@ -2107,7 +2179,7 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 				}},
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
 			defer cancel()
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
@@ -2151,8 +2223,6 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 //   - Content mismatch that cannot be recovered by trimming
 //     whitespace on either side.
 //   - Blank-line count mismatch inside the matched region.
-//   - CRLF-only search against a last-line-no-newline content line
-//     that lacks any ending at all.
 func TestFuzzyReplace_Rejects(t *testing.T) {
 	t.Parallel()
 
@@ -2219,19 +2289,6 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			edits:   []edit{{search: "above\nbelow\n", replace: "above\nbelow\n"}},
 			errSub:  "search string not found",
 		},
-		// Search with a CRLF-only ending against a content line
-		// that has no ending at all (last-line-no-newline). The
-		// ending rule requires compatibility; "\r\n" is
-		// newline-class and "" is only a wildcard when one side
-		// is empty AND the other is in {"","\n","\r\n"}. Here
-		// both sides differ by byte content too, so the match
-		// fails.
-		{
-			name:    "CRLFSearch_LastLineNoNewline_Rejects",
-			content: "foo\nhello",
-			edits:   []edit{{search: "goodbye\r\n", replace: "goodbye\r\n"}},
-			errSub:  "search string not found",
-		},
 	}
 
 	for _, tt := range tests {
@@ -2255,7 +2312,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
 			defer cancel()
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)

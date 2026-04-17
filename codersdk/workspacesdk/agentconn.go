@@ -1043,14 +1043,14 @@ type FileEdits struct {
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
-	// DiffRequest asks the agent to compute a unified diff per file
+	// IncludeDiff asks the agent to compute a unified diff per file
 	// and return it in FileEditResponse.Files[i].Diff. When false
 	// (default) the agent skips diff computation and Files is nil.
-	DiffRequest bool `json:"diff_request,omitempty"`
+	IncludeDiff bool `json:"include_diff,omitempty"`
 }
 
 // FileEditResponse is the success response for the edit-files endpoint.
-// When the request's DiffRequest flag is set, Files contains one entry
+// When the request's IncludeDiff flag is set, Files contains one entry
 // per edited file in request order. Each entry's Path matches the
 // caller-supplied path (pre-symlink resolution).
 //
@@ -1064,7 +1064,7 @@ type FileEditResponse struct {
 // FileEditResult carries the outcome of editing one file. Path is
 // the original caller-supplied path, not any symlink-resolved
 // target. Diff is the unified-diff string produced when the
-// caller set FileEditRequest.DiffRequest; it is empty for no-op
+// caller set FileEditRequest.IncludeDiff; it is empty for no-op
 // edits or when diffs were not requested.
 type FileEditResult struct {
 	Path string `json:"path"`
@@ -1245,7 +1245,7 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 }
 
 // EditFiles performs search and replace edits on one or more files.
-// When edits.DiffRequest is true, the returned FileEditResponse
+// When edits.IncludeDiff is true, the returned FileEditResponse
 // carries a unified diff per edited file.
 func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)

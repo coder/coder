@@ -437,7 +437,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := workspacesdk.FileEditResponse{}
-	if req.DiffRequest {
+	if req.IncludeDiff {
 		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
 			resp.Files = append(resp.Files, workspacesdk.FileEditResult{
@@ -598,14 +598,24 @@ func splitEnding(line string) (content, ending string) {
 // matches any ending, which lets the splice later substitute the
 // file's actual ending in place of a missing one.
 func endingsMatch(a, b string) bool {
+	// Wildcard: empty ending matches any ending at the matching
+	// phase. Only valid here, not at the splice phase.
 	if a == "" || b == "" {
 		return true
 	}
 	if a == b {
 		return true
 	}
-	newline := func(s string) bool { return s == "\n" || s == "\r\n" }
-	return newline(a) && newline(b)
+	return isNewlineEnding(a) && isNewlineEnding(b)
+}
+
+// isNewlineEnding reports whether s is one of the newline-class
+// endings: "\n" or "\r\n". Shared primitive for endingsMatch
+// (matching phase) and endingShapeEqual (splice phase) so a new
+// ending class added in one predicate can't silently diverge from
+// the other.
+func isNewlineEnding(s string) bool {
+	return s == "\n" || s == "\r\n"
 }
 
 // splitLineParts decomposes a line into its leading whitespace
@@ -636,13 +646,15 @@ func splitLineParts(line string) (lead, middle, trail, ending string) {
 // true and the pair matched during matching, the splice uses the
 // file's ending. When false, the splice keeps the replacement's
 // ending verbatim (the caller is signaling an intentional fold
-// or split).
+// or split). Unlike endingsMatch, empty is not a wildcard here:
+// the splice phase needs a strict "same class" test so interior
+// lines don't silently pick up a missing EOF terminator from the
+// reference content.
 func endingShapeEqual(a, b string) bool {
 	if a == b {
 		return true
 	}
-	newline := func(s string) bool { return s == "\n" || s == "\r\n" }
-	return newline(a) && newline(b)
+	return isNewlineEnding(a) && isNewlineEnding(b)
 }
 
 // buildReplacementLines emits the replacement for a fuzzy match
@@ -654,6 +666,18 @@ func endingShapeEqual(a, b string) bool {
 // is always emitted from the replacement. Extra replacement
 // lines beyond the matched region use the last search/content
 // line as their reference.
+//
+// Two carve-outs apply to the "file wins on agreement" rule:
+//
+//   - When the replacement line has an empty body, the whitespace
+//     positions are emitted from the replacement verbatim. A
+//     body-less line means "clear this line"; inheriting the
+//     file's surrounding whitespace would emit a whitespace-only
+//     ghost instead of a blank line.
+//   - When the reference content line has an empty ending (EOF
+//     without newline) and this is not the last replacement line,
+//     the replacement's newline is preserved. Otherwise a multi-
+//     line replacement at EOF collapses its interior newlines.
 func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace string) string {
 	repLines := strings.SplitAfter(replace, "\n")
 	// SplitAfter on a string ending in "\n" yields a trailing empty
@@ -664,33 +688,43 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 	matched := contentLines[start:end]
 	var b strings.Builder
 	for i, rLine := range repLines {
-		var refIdx int
-		if i < len(searchLines) {
-			refIdx = i
-		} else {
-			refIdx = len(searchLines) - 1
-		}
-		var refContent string
-		if refIdx < len(matched) {
-			refContent = matched[refIdx]
-		} else if len(matched) > 0 {
-			refContent = matched[len(matched)-1]
-		}
+		// All call sites pass end = start + len(searchLines), so
+		// len(matched) == len(searchLines). refIdx is bounded by
+		// len(searchLines)-1, so matched[refIdx] is always valid.
+		//
+		// Known limitation: when len(repLines) > len(searchLines)
+		// (expansion), extra replacement lines pair with the last
+		// search/content line by index. If that last pair has an
+		// empty ending (EOF-no-newline), the splice flags below
+		// will emit rEnd for each expansion line, which can mix
+		// endings on CRLF files. A correct fix requires diff-
+		// aligning search and replace lines instead of relying on
+		// index correspondence. Tracked as a follow-up.
+		refIdx := min(i, len(searchLines)-1)
+		refContent := matched[refIdx]
 		sLead, _, sTrail, sEnd := splitLineParts(searchLines[refIdx])
 		rLead, rMid, rTrail, rEnd := splitLineParts(rLine)
 		cLead, _, cTrail, cEnd := splitLineParts(refContent)
 
 		lead := rLead
-		if sLead == rLead {
-			lead = cLead
-		}
 		trail := rTrail
-		if sTrail == rTrail {
-			trail = cTrail
+		if rMid != "" {
+			if sLead == rLead {
+				lead = cLead
+			}
+			if sTrail == rTrail {
+				trail = cTrail
+			}
 		}
 		ending := rEnd
 		if endingShapeEqual(sEnd, rEnd) {
 			ending = cEnd
+			// Interior lines must keep their newline even when the
+			// reference content line is a no-EOL last line. Only the
+			// final output line inherits an empty ending.
+			if cEnd == "" && i < len(repLines)-1 {
+				ending = rEnd
+			}
 		}
 
 		_, _ = b.WriteString(lead)
@@ -871,10 +905,11 @@ func fuzzyReplaceLines(
 		return b.String(), true, nil
 	}
 
-	// Replace all: collect all match positions, then apply from last
-	// to first to preserve indices. Each match runs through the same
-	// per-position splice as single-replace, using its own matched
-	// content slice as the reference.
+	// Replace all: collect all match positions, then emit the
+	// output forward, interleaving unmatched spans with spliced
+	// replacements. Each match runs through the same per-position
+	// splice as single-replace, using its own matched content
+	// slice as the reference.
 	type lineMatch struct{ start, end int }
 	var matches []lineMatch
 	for i := 0; i <= len(contentLines)-len(searchLines); {

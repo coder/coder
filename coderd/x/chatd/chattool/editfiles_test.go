@@ -94,7 +94,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -135,7 +135,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -305,7 +305,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -342,7 +342,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -376,7 +376,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -413,7 +413,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -450,7 +450,7 @@ func TestEditFiles(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}
 		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
@@ -482,7 +482,7 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 			Diff: "--- " + targetPath + "\n+++ " + targetPath + "\n@@ -1 +1 @@\n-old\n+new\n",
 		},
 	}
-	// The tool must opt into diffs (DiffRequest: true) and forward
+	// The tool must opt into diffs (IncludeDiff: true) and forward
 	// the agent's per-file results through to its response.
 	mockConn.EXPECT().
 		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
@@ -493,7 +493,7 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 					Replace: "new",
 				}},
 			}},
-			DiffRequest: true,
+			IncludeDiff: true,
 		}).
 		Return(workspacesdk.FileEditResponse{Files: expectedFiles}, nil)
 

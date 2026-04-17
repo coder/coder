@@ -875,10 +875,10 @@ export const EditFilesError: Story = {
 };
 
 /**
- * Server-side diff path: the agent returns a `diffs` array with
- * unified-diff strings per file. The renderer must parse each entry
- * and match to its corresponding args file by the explicit `path`
- * field, without any label munging.
+ * Server-side diff path: the agent returns a `files` array with
+ * `{path, diff}` entries per file. The renderer must parse each
+ * entry and match to its corresponding args file by the explicit
+ * `path` field, without any label munging.
  */
 export const EditFilesServerDiffMultiFile: Story = {
 	args: {
@@ -923,6 +923,13 @@ export const EditFilesServerDiffMultiFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		// Both server-supplied diffs must parse into a diff viewer.
+		// Each rendered (non-null) diff is wrapped in a ScrollArea
+		// with text-2xs; counting them pins the server → diff
+		// mapping. The underlying <FileDiff /> component is a web
+		// component, so its inner text isn't queryable from jsdom.
+		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
+		expect(diffAreas).toHaveLength(2);
 	},
 };
 
@@ -955,11 +962,15 @@ export const EditFilesServerDiffNoOp: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
+		// Empty server diff parses to null; the renderer then skips
+		// the ScrollArea for this file. Zero diff viewers rendered.
+		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
+		expect(diffAreas).toHaveLength(0);
 	},
 };
 
 /**
- * Older agents (pre-DiffRequest flag) return no `diffs` field. The
+ * Older agents (pre-IncludeDiff flag) return no `files` field. The
  * renderer must fall back to the synthetic client-side diff built
  * from the search/replace args.
  */
@@ -986,6 +997,67 @@ export const EditFilesFallbackToSynthetic: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
+		// Synthetic fallback path must still produce a non-null
+		// diff; the single ScrollArea wrapper proves buildEditDiff
+		// returned a FileDiffMetadata.
+		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
+		expect(diffAreas).toHaveLength(1);
+	},
+};
+
+/**
+ * Mixed server + synthetic path: the agent returns a `files` array
+ * with a result for one file and omits the other. The renderer must
+ * render the server diff for the matched file and fall back to the
+ * synthetic diff for the unmatched file rather than dropping it.
+ */
+export const EditFilesServerDiffPartialFallback: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			// Only the first file has a server-side entry; the second
+			// must fall back to the synthetic client-side diff.
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		// Two diff viewers must render: one from the server-supplied
+		// entry for src/config.ts, and one from the synthetic
+		// fallback for src/server.ts (no server entry). Before the
+		// per-file fallback, the second file rendered nothing.
+		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
+		expect(diffAreas).toHaveLength(2);
 	},
 };
 

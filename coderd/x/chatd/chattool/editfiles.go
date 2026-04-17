@@ -98,7 +98,7 @@ func executeEditFilesTool(
 
 	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 		Files:       args.Files,
-		DiffRequest: true,
+		IncludeDiff: true,
 	})
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
