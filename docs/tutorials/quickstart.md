@@ -73,7 +73,7 @@ explained through a cooking analogy:
 
 ### macOS
 
-1. [Install Docker](https://docs.docker.com/desktop/setup/install/mac-install/). 
+1. [Install Docker](https://docs.docker.com/desktop/setup/install/mac-install/).
 There is a Homebrew formula for the Docker command and a Homebrew cask of Docker
 Desktop if you prefer:
 
@@ -321,7 +321,7 @@ Congratulations! You now have a Coder Task running. This demo has shown you how 
 
 ### Cannot connect to the Docker daemon on Linux
 
-```
+```text
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
