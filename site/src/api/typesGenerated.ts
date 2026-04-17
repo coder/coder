@@ -1589,6 +1589,11 @@ export interface ChatDiffStatus {
  */
 export interface ChatExploreModelOverrideResponse {
 	readonly model_config_id?: string;
+	/**
+	 * HasMalformedOverride reports whether the saved override is malformed and
+	 * is currently being treated as unset.
+	 */
+	readonly has_malformed_override: boolean;
 }
 
 // From codersdk/chats.go

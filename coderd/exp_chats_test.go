@@ -8357,7 +8357,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 func TestChatExploreModelOverride(t *testing.T) {
 	t.Parallel()
 
-	adminClient, _ := newChatClientWithDatabase(t)
+	adminClient, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 	defaultModel := createChatModelConfig(t, adminClient)
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
@@ -8392,6 +8392,7 @@ func TestChatExploreModelOverride(t *testing.T) {
 		resp, err := adminClient.GetChatExploreModelOverride(ctx)
 		require.NoError(t, err)
 		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
 	})
 
 	t.Run("AdminCanSetAndClear", func(t *testing.T) {
@@ -8407,6 +8408,7 @@ func TestChatExploreModelOverride(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.ModelConfigID)
 		require.Equal(t, overrideModel.ID, *resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
 
 		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
 		require.NoError(t, err)
@@ -8414,6 +8416,29 @@ func TestChatExploreModelOverride(t *testing.T) {
 		resp, err = adminClient.GetChatExploreModelOverride(ctx)
 		require.NoError(t, err)
 		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		require.NoError(t, db.UpsertChatExploreModelOverride(
+			dbauthz.AsSystemRestricted(ctx),
+			"not-a-uuid",
+		))
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.True(t, resp.HasMalformedOverride)
+
+		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
+		require.NoError(t, err)
+
+		resp, err = adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
 	})
 
 	t.Run("DisabledModelReturns400", func(t *testing.T) {

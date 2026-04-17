@@ -205,7 +205,7 @@ const BehaviorRouteElement = () => {
 
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
-		exploreModelOverrideData={{}}
+		exploreModelOverrideData={{ has_malformed_override: false }}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}

@@ -79,13 +79,14 @@ export const ExploreModelOverrideSettings: FC<
 		!enabledModelOptions.some(
 			(option) => option.id === form.values.model_config_id,
 		);
+	const hasMalformedOverride =
+		exploreModelOverrideData?.has_malformed_override ?? false;
 	const isExploreModelOverrideDisabled =
 		isSavingExploreModelOverride ||
 		isLoadingModelConfigs ||
 		!hasLoadedExploreModelOverride;
-	const modelSelectorPlaceholder = isUnavailableSavedModel
-		? "Unavailable model"
-		: "Use chat default";
+	const canSaveExploreModelOverride =
+		hasLoadedExploreModelOverride && (form.dirty || hasMalformedOverride);
 
 	return (
 		<form className="space-y-2" onSubmit={form.handleSubmit}>
@@ -111,7 +112,9 @@ export const ExploreModelOverrideSettings: FC<
 						form.setFieldValue("model_config_id", value)
 					}
 					disabled={isExploreModelOverrideDisabled}
-					placeholder={modelSelectorPlaceholder}
+					placeholder={
+						isUnavailableSavedModel ? "Unavailable model" : "Use chat default"
+					}
 					emptyMessage={
 						isLoadingModelConfigs
 							? "Loading models..."
@@ -129,6 +132,14 @@ export const ExploreModelOverrideSettings: FC<
 					</AlertDescription>
 				</Alert>
 			)}
+			{hasMalformedOverride && (
+				<Alert severity="warning">
+					<AlertDescription>
+						The saved override is malformed and is being treated as unset. Click
+						Save to clear it.
+					</AlertDescription>
+				</Alert>
+			)}
 			{Boolean(modelConfigsError) && (
 				<p className="m-0 text-xs text-content-destructive">
 					Failed to load model configs.
@@ -140,10 +151,6 @@ export const ExploreModelOverrideSettings: FC<
 					variant="outline"
 					type="button"
 					onClick={() => {
-						if (form.values.model_config_id === "") {
-							void form.submitForm();
-							return;
-						}
 						form.setFieldValue("model_config_id", "");
 					}}
 					disabled={isExploreModelOverrideDisabled}
@@ -154,8 +161,7 @@ export const ExploreModelOverrideSettings: FC<
 					size="sm"
 					type="submit"
 					disabled={
-						isExploreModelOverrideDisabled ||
-						!(form.dirty && hasLoadedExploreModelOverride)
+						isExploreModelOverrideDisabled || !canSaveExploreModelOverride
 					}
 				>
 					Save

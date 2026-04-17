@@ -7,7 +7,9 @@ import {
 } from "./AgentSettingsAgentsPageView";
 
 const baseArgs: AgentSettingsAgentsPageViewProps = {
-	exploreModelOverrideData: {},
+	exploreModelOverrideData: {
+		has_malformed_override: false,
+	},
 	modelConfigsData: [],
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
@@ -29,6 +31,7 @@ export const ExploreModelOverrideSetting: Story = {
 	args: {
 		exploreModelOverrideData: {
 			model_config_id: "model-explore-1",
+			has_malformed_override: false,
 		},
 		modelConfigsData: [
 			{
@@ -89,8 +92,24 @@ export const ExploreModelOverrideSetting: Story = {
 
 export const ExploreModelOverrideAllowsExplicitClear: Story = {
 	args: {
-		exploreModelOverrideData: {},
-		modelConfigsData: [],
+		exploreModelOverrideData: {
+			model_config_id: "model-explore-clear",
+			has_malformed_override: false,
+		},
+		modelConfigsData: [
+			{
+				id: "model-explore-clear",
+				provider: "openai",
+				model: "gpt-4.1-mini",
+				display_name: "GPT 4.1 Mini",
+				enabled: true,
+				is_default: false,
+				context_limit: 1_000_000,
+				compression_threshold: 70,
+				created_at: "2026-03-12T12:00:00.000Z",
+				updated_at: "2026-03-12T12:00:00.000Z",
+			},
+		] as TypesGen.ChatModelConfig[],
 		onSaveExploreModelOverride: fn(),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -102,7 +121,14 @@ export const ExploreModelOverrideAllowsExplicitClear: Story = {
 				"Expected Explore model clear button to live inside a form.",
 			);
 		}
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await userEvent.click(clearButton);
+		expect(args.onSaveExploreModelOverride).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
 		await waitFor(() => {
 			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
 				{},
@@ -111,10 +137,49 @@ export const ExploreModelOverrideAllowsExplicitClear: Story = {
 		});
 	},
 };
+
+export const ExploreModelOverrideClearsMalformedSavedValue: Story = {
+	args: {
+		exploreModelOverrideData: {
+			has_malformed_override: true,
+		},
+		modelConfigsData: [],
+		onSaveExploreModelOverride: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(
+			"The saved override is malformed and is being treated as unset. Click Save to clear it.",
+		);
+		const clearButton = await canvas.findByRole("button", { name: "Clear" });
+		const form = clearButton.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error(
+				"Expected Explore model clear button to live inside a form.",
+			);
+		}
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(clearButton);
+		expect(args.onSaveExploreModelOverride).not.toHaveBeenCalled();
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
+				{},
+				expect.anything(),
+			);
+		});
+	},
+};
+
 export const ExploreModelOverrideFallsBackToModelName: Story = {
 	args: {
 		exploreModelOverrideData: {
 			model_config_id: "model-explore-empty-name",
+			has_malformed_override: false,
 		},
 		modelConfigsData: [
 			{

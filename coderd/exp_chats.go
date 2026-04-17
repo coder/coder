@@ -452,10 +452,10 @@ func validateChatExploreModelOverrideID(
 
 func (api *API) getChatExploreModelOverrideConfig(
 	ctx context.Context,
-) (*uuid.UUID, error) {
+) (*uuid.UUID, bool, error) {
 	raw, err := api.Database.GetChatExploreModelOverride(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("get explore model override: %w", err)
+		return nil, false, xerrors.Errorf("get explore model override: %w", err)
 	}
 	id, err := parseChatExploreModelOverride(raw)
 	if err != nil {
@@ -465,10 +465,9 @@ func (api *API) getChatExploreModelOverrideConfig(
 			slog.F("raw_value", raw),
 			slog.Error(err),
 		)
-		//nolint:nilnil // Malformed stored values are intentionally degraded to unset.
-		return nil, nil
+		return nil, true, nil
 	}
-	return id, nil
+	return id, false, nil
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3476,7 +3475,7 @@ func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	modelConfigID, err := api.getChatExploreModelOverrideConfig(ctx)
+	modelConfigID, hasMalformedOverride, err := api.getChatExploreModelOverrideConfig(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching Explore model override.",
@@ -3486,7 +3485,8 @@ func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Requ
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatExploreModelOverrideResponse{
-		ModelConfigID: modelConfigID,
+		ModelConfigID:        modelConfigID,
+		HasMalformedOverride: hasMalformedOverride,
 	})
 }
 
