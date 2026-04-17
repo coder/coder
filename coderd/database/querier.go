@@ -969,9 +969,16 @@ type sqlcQuerier interface {
 	// interleaving between the two touches and finalizing a run whose
 	// step heartbeat was just written.
 	//
-	// The CTE updates runs before steps to match the lock order used by
-	// FinalizeStaleChatDebugRows, avoiding a potential deadlock when
-	// heartbeat touches and stale finalization overlap on the same pair.
+	// The step UPDATE joins through touched_run (via FROM) and reads
+	// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+	// is the only way to communicate values between a data-modifying
+	// CTE and the main query, and consuming those rows forces the run
+	// UPDATE to complete before the step UPDATE. That matches the
+	// lock order used by FinalizeStaleChatDebugRows and avoids a
+	// deadlock between concurrent heartbeats and stale sweeps. The
+	// join also constrains the step update to the specified run so a
+	// mismatched (run_id, step_id) pair cannot silently refresh an
+	// unrelated step.
 	TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//

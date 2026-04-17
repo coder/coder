@@ -3377,20 +3377,23 @@ const touchChatDebugStepAndRun = `-- name: TouchChatDebugStepAndRun :exec
 WITH touched_run AS (
     UPDATE chat_debug_runs
     SET updated_at = $1::timestamptz
-    WHERE id = $4::uuid
-        AND chat_id = $3::uuid
+    WHERE id = $3::uuid
+        AND chat_id = $4::uuid
+    RETURNING id, chat_id
 )
 UPDATE chat_debug_steps
 SET updated_at = $1::timestamptz
-WHERE id = $2::uuid
-    AND chat_id = $3::uuid
+FROM touched_run
+WHERE chat_debug_steps.id = $2::uuid
+    AND chat_debug_steps.run_id = touched_run.id
+    AND chat_debug_steps.chat_id = touched_run.chat_id
 `
 
 type TouchChatDebugStepAndRunParams struct {
 	Now    time.Time `db:"now" json:"now"`
 	StepID uuid.UUID `db:"step_id" json:"step_id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 	RunID  uuid.UUID `db:"run_id" json:"run_id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
 // Atomically bumps updated_at on both the step and its parent run
@@ -3398,15 +3401,22 @@ type TouchChatDebugStepAndRunParams struct {
 // interleaving between the two touches and finalizing a run whose
 // step heartbeat was just written.
 //
-// The CTE updates runs before steps to match the lock order used by
-// FinalizeStaleChatDebugRows, avoiding a potential deadlock when
-// heartbeat touches and stale finalization overlap on the same pair.
+// The step UPDATE joins through touched_run (via FROM) and reads
+// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+// is the only way to communicate values between a data-modifying
+// CTE and the main query, and consuming those rows forces the run
+// UPDATE to complete before the step UPDATE. That matches the
+// lock order used by FinalizeStaleChatDebugRows and avoids a
+// deadlock between concurrent heartbeats and stale sweeps. The
+// join also constrains the step update to the specified run so a
+// mismatched (run_id, step_id) pair cannot silently refresh an
+// unrelated step.
 func (q *sqlQuerier) TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error {
 	_, err := q.db.ExecContext(ctx, touchChatDebugStepAndRun,
 		arg.Now,
 		arg.StepID,
-		arg.ChatID,
 		arg.RunID,
+		arg.ChatID,
 	)
 	return err
 }

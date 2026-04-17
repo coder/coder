@@ -161,19 +161,29 @@ WHERE id = @id::uuid
 -- interleaving between the two touches and finalizing a run whose
 -- step heartbeat was just written.
 --
--- The CTE updates runs before steps to match the lock order used by
--- FinalizeStaleChatDebugRows, avoiding a potential deadlock when
--- heartbeat touches and stale finalization overlap on the same pair.
+-- The step UPDATE joins through touched_run (via FROM) and reads
+-- its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+-- is the only way to communicate values between a data-modifying
+-- CTE and the main query, and consuming those rows forces the run
+-- UPDATE to complete before the step UPDATE. That matches the
+-- lock order used by FinalizeStaleChatDebugRows and avoids a
+-- deadlock between concurrent heartbeats and stale sweeps. The
+-- join also constrains the step update to the specified run so a
+-- mismatched (run_id, step_id) pair cannot silently refresh an
+-- unrelated step.
 WITH touched_run AS (
     UPDATE chat_debug_runs
     SET updated_at = @now::timestamptz
     WHERE id = @run_id::uuid
         AND chat_id = @chat_id::uuid
+    RETURNING id, chat_id
 )
 UPDATE chat_debug_steps
 SET updated_at = @now::timestamptz
-WHERE id = @step_id::uuid
-    AND chat_id = @chat_id::uuid;
+FROM touched_run
+WHERE chat_debug_steps.id = @step_id::uuid
+    AND chat_debug_steps.run_id = touched_run.id
+    AND chat_debug_steps.chat_id = touched_run.chat_id;
 
 -- name: GetChatDebugRunsByChatID :many
 -- Returns the most recent debug runs for a chat, ordered newest-first.
