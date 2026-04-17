@@ -255,15 +255,13 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			act(() => {
-				mockPublisher.publishMessage(
-					new MessageEvent("message", { data: JSON.stringify(response1) }),
-				);
+			mockPublisher.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(response1) }),
+			);
 
-				mockPublisher.publishMessage(
-					new MessageEvent("message", { data: JSON.stringify(response2) }),
-				);
-			});
+			mockPublisher.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(response2) }),
+			);
 
 			await waitFor(() => {
 				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
