@@ -868,18 +868,26 @@ const chatDebugRunKey = (chatId: string, runId: string) =>
 
 const debugRunTerminalStatuses = new Set(["completed", "error", "interrupted"]);
 
+// Foreground poll cadence when the Debug tab is open. The error cadence
+// is slower so a transiently unreachable backend is not hammered, but
+// the panel still recovers automatically once the request succeeds.
+const DEBUG_RUN_POLL_MS = 5_000;
+const DEBUG_RUN_ERROR_POLL_MS = 30_000;
+
 export const chatDebugRuns = (chatId: string) =>
 	queryOptions({
 		queryKey: chatDebugRunsKey(chatId),
 		queryFn: () => API.experimental.getChatDebugRuns(chatId),
 		refetchInterval: ({ state }) => {
+			// Keep polling on error with backoff so a transient fetch
+			// failure does not freeze the panel until a manual remount.
 			if (state.status === "error") {
-				return false;
+				return DEBUG_RUN_ERROR_POLL_MS;
 			}
-			// Keep polling at a consistent foreground cadence while the
-			// Debug tab is open. A slower terminal-state interval delays
-			// discovery of newly-started runs until the user switches tabs.
-			return 5_000;
+			// Consistent foreground cadence while the Debug tab is open.
+			// A slower terminal-state interval would delay discovery of
+			// newly-started runs until the user switches tabs.
+			return DEBUG_RUN_POLL_MS;
 		},
 		refetchIntervalInBackground: false,
 	});
@@ -890,13 +898,13 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 		queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
 		refetchInterval: ({ state }) => {
 			if (state.status === "error") {
-				return false;
+				return DEBUG_RUN_ERROR_POLL_MS;
 			}
 			const status = state.data?.status;
 			if (status && debugRunTerminalStatuses.has(status.toLowerCase())) {
 				return false;
 			}
-			return 5_000;
+			return DEBUG_RUN_POLL_MS;
 		},
 		refetchIntervalInBackground: false,
 	});
