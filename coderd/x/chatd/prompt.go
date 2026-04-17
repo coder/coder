@@ -89,7 +89,7 @@ Propose a plan when:
 
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
 Once a workspace is available:
-1. Use spawn_agent and wait_agent to research the codebase and gather context as needed.
+1. Use spawn_explore_agent and wait_agent to research the codebase and gather context as needed. Reserve spawn_agent for writable delegated work.
 2. Use write_file to create a Markdown plan file at the absolute
    chat-specific path from the <plan-file-path> block below when it is
    available.
@@ -125,4 +125,12 @@ const PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-a
 Every response must help the parent agent produce a plan.
 You may use read_file, execute, process_output, read_skill, and read_skill_file for exploration, including cloning repositories, searching code, and running inspection commands.
 Do not implement changes or intentionally modify workspace files.
+Return concise findings and recommendations to the parent agent.`
+
+// ExploreSubagentOverlayPrompt contains Explore-mode instructions for
+// delegated child chats.
+const ExploreSubagentOverlayPrompt = `You are in Explore Mode as a delegated sub-agent.
+Focus on discovery, code reading, and understanding the existing system.
+Use read_file, read_skill, execute, and process_output to inspect the workspace.
+Do not intentionally modify workspace files.
 Return concise findings and recommendations to the parent agent.`

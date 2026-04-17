@@ -11651,7 +11651,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- orphanStep: in_progress step whose run is already completed ---
-	// its own updated_at is old, so it should be finalized directly.
+	// Its own updated_at is old, so it should be finalized directly.
+	// The step must be inserted while the run is still open because
+	// InsertChatDebugStep requires finished_at IS NULL on the parent
+	// run (atomic guard against appending steps to finalized runs).
 	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
@@ -11662,7 +11665,19 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Mark the run as completed with a finished_at timestamp.
+	// Insert the step while the run is still open (finished_at IS NULL).
+	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      completedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Now mark the run as completed with a finished_at timestamp,
+	// leaving the step orphaned in in_progress state.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     completedRun.ID,
 		ChatID: completedRun.ChatID,
@@ -11671,16 +11686,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      completedRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11715,6 +11721,16 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The InsertChatDebugStep CTE atomically bumps the parent run's
+	// updated_at to NOW(). Reset it back to staleTime so the run is
+	// still caught by the age predicate in FinalizeStaleChatDebugRows.
+	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
+		ID:     cascadeRun.ID,
+		ChatID: chat.ID,
+		Now:    staleTime,
+	})
+	require.NoError(t, err)
+
 	// --- alreadyDone: completed run/step --- should NOT be touched.
 	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
@@ -11726,6 +11742,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      doneRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     doneRun.ID,
 		ChatID: doneRun.ChatID,
@@ -11734,15 +11761,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      doneRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "completed",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11754,6 +11773,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11769,6 +11789,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      errorRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "error",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     errorRun.ID,
 		ChatID: errorRun.ChatID,
@@ -11777,15 +11808,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      errorRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "error",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11797,6 +11820,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11828,7 +11852,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
-	result, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 
 	// staleRun + cascadeRun were finalized; completedRun and doneRun
@@ -11921,7 +11948,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should not have a finished_at timestamp")
 
 	// A second sweep should be a no-op.
-	result2, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, result2.RunsFinalized,
 		"second sweep should find nothing to finalize")
@@ -12034,6 +12064,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugRun should fail when chat_id does not match")
@@ -12051,6 +12082,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugStep should fail when chat_id does not match")
@@ -12137,6 +12169,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12144,9 +12177,9 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.RootChatID, updated.RootChatID,
@@ -12257,6 +12290,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12264,9 +12298,9 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,

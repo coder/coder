@@ -125,6 +125,19 @@ jobs:
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:26.04"
         if: matrix.image-version == '26.04'
 
+      - name: Build and push vscode-coder image
+        uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
+        with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
+          context: "{{defaultContext}}:dogfood/vscode-coder"
+          pull: true
+          save: true
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
+        if: matrix.image-version == '22.04'
+
       - name: Build Nix image
         run: nix build .#dev_image
         if: matrix.image-version == 'nix'
@@ -181,6 +194,10 @@ jobs:
           terraform validate
           popd
           pushd dogfood/coder-envbuilder
+          terraform init
+          terraform validate
+          popd
+          pushd dogfood/vscode-coder
           terraform init
           terraform validate
           popd

@@ -6,7 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -21,7 +23,21 @@ func TestBeginStepReuseStep(t *testing.T) {
 		runID := uuid.New()
 		t.Cleanup(func() { CleanupStepCounter(runID) })
 
-		svc := NewService(nil, testutil.Logger(t), nil)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		expectDebugLoggingEnabled(t, db, ownerID)
+		expectCreateStepNumberWithRequestValidity(
+			t,
+			db,
+			runID,
+			chatID,
+			1,
+			OperationStream,
+			false,
+		)
+		expectDebugLoggingEnabled(t, db, ownerID)
+
+		svc := NewService(db, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 		ctx = ReuseStep(ctx)
 		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
@@ -56,7 +72,30 @@ func TestBeginStepReuseStep(t *testing.T) {
 		runID := uuid.New()
 		t.Cleanup(func() { CleanupStepCounter(runID) })
 
-		svc := NewService(nil, testutil.Logger(t), nil)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		expectDebugLoggingEnabled(t, db, ownerID)
+		expectCreateStepNumberWithRequestValidity(
+			t,
+			db,
+			runID,
+			chatID,
+			1,
+			OperationStream,
+			false,
+		)
+		expectDebugLoggingEnabled(t, db, ownerID)
+		expectCreateStepNumberWithRequestValidity(
+			t,
+			db,
+			runID,
+			chatID,
+			2,
+			OperationStream,
+			false,
+		)
+
+		svc := NewService(db, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
 

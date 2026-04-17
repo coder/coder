@@ -501,6 +501,160 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	require.False(t, requestHasSystemSubstring(childRequests[0], "When the plan is ready, call propose_plan"))
 }
 
+func TestExploreSubagentIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutomaticUpdates = codersdk.AutomaticUpdatesNever
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	var toolsMu sync.Mutex
+	toolsByCall := make([][]string, 0, 2)
+	requestsByCall := make([]recordedOpenAIRequest, 0, 2)
+
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		toolsByCall = append(toolsByCall, names)
+		requestsByCall = append(requestsByCall, recordOpenAIRequest(req))
+		toolsMu.Unlock()
+
+		if callCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("spawn_explore_agent", `{"prompt":"investigate the codebase","title":"sub"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	_, err = expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		WorkspaceID:    &workspace.ID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Spawn an Explore subagent to inspect the codebase.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		toolsMu.Lock()
+		defer toolsMu.Unlock()
+
+		sawRoot := false
+		sawChild := false
+		for _, tools := range toolsByCall {
+			if slice.Contains(tools, "spawn_explore_agent") {
+				sawRoot = true
+				continue
+			}
+			sawChild = true
+		}
+		return sawRoot && sawChild
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	recorded := append([][]string(nil), toolsByCall...)
+	recordedRequests := append([]recordedOpenAIRequest(nil), requestsByCall...)
+	toolsMu.Unlock()
+
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least 2 streamed LLM calls (root + subagent)")
+	require.Len(t, recordedRequests, len(recorded))
+
+	var rootCalls, childCalls [][]string
+	var rootRequests, childRequests []recordedOpenAIRequest
+	for i, tools := range recorded {
+		if slice.Contains(tools, "spawn_explore_agent") {
+			rootCalls = append(rootCalls, tools)
+			rootRequests = append(rootRequests, recordedRequests[i])
+			continue
+		}
+		childCalls = append(childCalls, tools)
+		childRequests = append(childRequests, recordedRequests[i])
+	}
+
+	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
+	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
+	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
+	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
+	require.Contains(t, rootCalls[0], "spawn_agent")
+	require.Contains(t, rootCalls[0], "spawn_explore_agent")
+	require.Contains(t, rootCalls[0], "write_file")
+	require.Contains(t, rootCalls[0], "edit_files")
+	require.NotContains(t, childCalls[0], "write_file")
+	require.NotContains(t, childCalls[0], "edit_files")
+	require.NotContains(t, childCalls[0], "spawn_agent")
+	require.NotContains(t, childCalls[0], "spawn_explore_agent")
+	require.NotContains(t, childCalls[0], "wait_agent")
+	require.Contains(t, childCalls[0], "read_file")
+	require.Contains(t, childCalls[0], "execute")
+	require.Contains(t, childCalls[0], "process_output")
+	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Explore Mode as a delegated sub-agent."))
+	require.False(t, requestHasSystemSubstring(rootRequests[0], "You are in Explore Mode as a delegated sub-agent."))
+
+	allChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{OwnerID: user.UserID})
+	require.NoError(t, err)
+	var exploreChildren []database.Chat
+	for _, candidate := range allChats {
+		if candidate.Chat.ParentChatID.Valid && candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
+			exploreChildren = append(exploreChildren, candidate.Chat)
+		}
+	}
+	require.Len(t, exploreChildren, 1)
+}
+
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	t.Parallel()
 
