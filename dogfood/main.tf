@@ -98,7 +98,6 @@ resource "coderd_template" "dogfood" {
   time_til_dormant_ms            = 8640000000
 }
 
-
 resource "coderd_template" "vscode_coder" {
   name            = "vscode-coder"
   display_name    = "Write VS Code Extension on Coder"
