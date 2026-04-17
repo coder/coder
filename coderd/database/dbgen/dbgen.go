@@ -75,6 +75,107 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
+	t.Helper()
+
+	var labels pqtype.NullRawMessage
+	if seed.Labels != nil {
+		raw, err := json.Marshal(seed.Labels)
+		require.NoError(t, err, "marshal chat labels")
+		labels = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
+
+	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
+		WorkspaceID:       seed.WorkspaceID,
+		BuildID:           seed.BuildID,
+		AgentID:           seed.AgentID,
+		ParentChatID:      seed.ParentChatID,
+		RootChatID:        seed.RootChatID,
+		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
+		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
+		Mode:              seed.Mode,
+		PlanMode:          seed.PlanMode,
+		Status:            takeFirst(seed.Status, database.ChatStatusWaiting),
+		MCPServerIDs:      seed.MCPServerIDs,
+		Labels:            labels,
+		DynamicTools:      seed.DynamicTools,
+		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
+	})
+	require.NoError(t, err, "insert chat")
+	return chat
+}
+
+func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
+	t.Helper()
+
+	content := "{}"
+	if seed.Content.Valid {
+		content = string(seed.Content.RawMessage)
+	}
+
+	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+		ChatID:              seed.ChatID,
+		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
+		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		Role:                []database.ChatMessageRole{takeFirst(seed.Role, database.ChatMessageRoleUser)},
+		Content:             []string{content},
+		ContentVersion:      []int16{takeFirst(seed.ContentVersion, 1)},
+		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
+		InputTokens:         []int64{seed.InputTokens.Int64},
+		OutputTokens:        []int64{seed.OutputTokens.Int64},
+		TotalTokens:         []int64{seed.TotalTokens.Int64},
+		ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
+		CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
+		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
+		ContextLimit:        []int64{seed.ContextLimit.Int64},
+		Compressed:          []bool{seed.Compressed},
+		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
+		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
+	})
+	require.NoError(t, err, "insert chat message")
+	require.Len(t, msgs, 1)
+	return msgs[0]
+}
+
+func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig) database.ChatModelConfig {
+	t.Helper()
+	cfg, err := db.InsertChatModelConfig(genCtx, database.InsertChatModelConfigParams{
+		Provider:             takeFirst(seed.Provider, "openai"),
+		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
+		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
+		CreatedBy:            seed.CreatedBy,
+		UpdatedBy:            seed.UpdatedBy,
+		Enabled:              takeFirst(seed.Enabled, true),
+		IsDefault:            seed.IsDefault,
+		ContextLimit:         takeFirst(seed.ContextLimit, 128000),
+		CompressionThreshold: takeFirst(seed.CompressionThreshold, 70),
+		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
+	})
+	require.NoError(t, err, "insert chat model config")
+	return cfg
+}
+
+func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider) database.ChatProvider {
+	t.Helper()
+	provider, err := db.InsertChatProvider(genCtx, database.InsertChatProviderParams{
+		Provider:                   takeFirst(seed.Provider, "openai"),
+		DisplayName:                takeFirst(seed.DisplayName, seed.Provider, "openai"),
+		APIKey:                     takeFirst(seed.APIKey, "test-key"),
+		BaseUrl:                    seed.BaseUrl,
+		ApiKeyKeyID:                seed.ApiKeyKeyID,
+		CreatedBy:                  seed.CreatedBy,
+		Enabled:                    takeFirst(seed.Enabled, true),
+		CentralApiKeyEnabled:       takeFirst(seed.CentralApiKeyEnabled, true),
+		AllowUserApiKey:            seed.AllowUserApiKey,
+		AllowCentralApiKeyFallback: seed.AllowCentralApiKeyFallback,
+	})
+	require.NoError(t, err, "insert chat provider")
+	return provider
+}
+
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
 	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),

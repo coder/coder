@@ -252,6 +252,126 @@ func TestGenerator(t *testing.T) {
 		require.Len(t, actual, 1)
 		require.Equal(t, exp, actual[0])
 	})
+
+	t.Run("ChatProvider", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		// Defaults.
+		p := dbgen.ChatProvider(t, db, database.ChatProvider{})
+		require.NotEqual(t, uuid.Nil, p.ID)
+		require.Equal(t, "openai", p.Provider)
+		require.Equal(t, "openai", p.DisplayName)
+		require.True(t, p.Enabled)
+		require.True(t, p.CentralApiKeyEnabled)
+		require.Equal(t, "test-key", p.APIKey)
+
+		// Overrides.
+		p2 := dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "anthropic",
+			DisplayName: "Claude",
+			APIKey:      "sk-custom",
+		})
+		require.Equal(t, "anthropic", p2.Provider)
+		require.Equal(t, "Claude", p2.DisplayName)
+		require.Equal(t, "sk-custom", p2.APIKey)
+	})
+
+	t.Run("ChatModelConfig", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
+
+		// Defaults.
+		cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		require.NotEqual(t, uuid.Nil, cfg.ID)
+		require.Equal(t, "openai", cfg.Provider)
+		require.Equal(t, "gpt-4o-mini", cfg.Model)
+		require.Equal(t, "Test Model", cfg.DisplayName)
+		require.True(t, cfg.Enabled)
+		require.Equal(t, int64(128000), cfg.ContextLimit)
+		require.Equal(t, int32(70), cfg.CompressionThreshold)
+
+		// Overrides.
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "anthropic"})
+		cfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:     "anthropic",
+			Model:        "claude-4",
+			ContextLimit: 200000,
+		})
+		require.Equal(t, "anthropic", cfg2.Provider)
+		require.Equal(t, "claude-4", cfg2.Model)
+		require.Equal(t, int64(200000), cfg2.ContextLimit)
+	})
+
+	t.Run("Chat", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		u := dbgen.User(t, db, database.User{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         u.ID,
+			OrganizationID: o.ID,
+		})
+		p := dbgen.ChatProvider(t, db, database.ChatProvider{})
+		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: p.Provider})
+
+		// Defaults.
+		chat := dbgen.Chat(t, db, database.Chat{
+			OwnerID:           u.ID,
+			OrganizationID:    o.ID,
+			LastModelConfigID: m.ID,
+		})
+		require.NotEqual(t, uuid.Nil, chat.ID)
+		require.Equal(t, database.ChatStatusWaiting, chat.Status)
+		require.Equal(t, database.ChatClientTypeUi, chat.ClientType)
+		require.NotEmpty(t, chat.Title)
+
+		// Overrides.
+		chat2 := dbgen.Chat(t, db, database.Chat{
+			OwnerID:           u.ID,
+			OrganizationID:    o.ID,
+			LastModelConfigID: m.ID,
+			Title:             "custom-title",
+			Status:            database.ChatStatusRunning,
+		})
+		require.Equal(t, "custom-title", chat2.Title)
+		require.Equal(t, database.ChatStatusRunning, chat2.Status)
+	})
+
+	t.Run("ChatMessage", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		u := dbgen.User(t, db, database.User{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         u.ID,
+			OrganizationID: o.ID,
+		})
+		p := dbgen.ChatProvider(t, db, database.ChatProvider{})
+		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: p.Provider})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OwnerID:           u.ID,
+			OrganizationID:    o.ID,
+			LastModelConfigID: m.ID,
+		})
+
+		// Defaults.
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID: chat.ID,
+		})
+		require.NotZero(t, msg.ID)
+		require.Equal(t, database.ChatMessageRoleUser, msg.Role)
+		require.Equal(t, database.ChatMessageVisibilityBoth, msg.Visibility)
+		require.Equal(t, int16(1), msg.ContentVersion)
+
+		// Overrides.
+		msg2 := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+		require.Equal(t, database.ChatMessageRoleAssistant, msg2.Role)
+	})
 }
 
 func must[T any](value T, err error) T {
