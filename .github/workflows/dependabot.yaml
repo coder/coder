@@ -27,6 +27,27 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Add backport label to security updates
+        id: security_backport
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'backport') }}
+        run: |
+          set -euo pipefail
+
+          # Dependabot security PRs include alert or vulnerability language
+          # in the body. Version-update PRs do not.
+          if printf '%s' "$PR_BODY" | grep -Eiq 'dependabot alert|security vulnerabilit(y|ies)'; then
+            echo "Adding backport label to security update PR $PR_URL"
+            gh pr edit "$PR_URL" --add-label backport
+            echo "added=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Dependabot PR does not look like a security update."
+            echo "added=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Approve the PR
         if: steps.metadata.outputs.package-ecosystem != 'github-actions'
         run: |
@@ -47,7 +68,11 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+          if [ "$SECURITY_BACKPORT" = "true" ] && [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+            STATUS_TEXT=":rotating_light: Dependabot opened security PR #${PR_NUMBER} and added the backport label (GitHub Actions changes are not auto-merged)"
+          elif [ "$SECURITY_BACKPORT" = "true" ]; then
+            STATUS_TEXT=":rotating_light: Auto merge enabled for Dependabot security PR #${PR_NUMBER}; backport label added"
+          elif [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
             STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
           else
             STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"
@@ -92,6 +117,7 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          SECURITY_BACKPORT: ${{ steps.security_backport.outputs.added || 'false' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
