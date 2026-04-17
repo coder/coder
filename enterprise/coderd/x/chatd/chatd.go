@@ -2,7 +2,7 @@ package chatd
 
 import (
 	"context"
-	"math"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,11 +13,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	osschatd "github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
+	"github.com/coder/retry"
 	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // RelaySourceHeader marks replica-relayed stream requests.
@@ -32,7 +33,48 @@ const (
 	// buffered snapshot events time to be forwarded before
 	// the relay is torn down.
 	relayDrainTimeout = 200 * time.Millisecond
+
+	// Retry knobs for the cross-replica relay handshake. We use the
+	// defaults from github.com/coder/retry (φ-growth, no jitter) via
+	// retry.New(relayRetryFloor, relayRetryCeil) but drive the delay
+	// ourselves because retry.Retrier.Wait uses time.After and the
+	// merge loop runs on a quartz.Clock for deterministic tests.
+	//
+	// relayRetryFloor preserves the previous fixed-delay responsiveness
+	// for the first reconnect. relayRetryCeil caps the delay so a
+	// permanently-broken replica cannot silently stall events for too
+	// long. relayRetryMaxAttempts bounds how many consecutive
+	// intermittent failures we tolerate before tearing down the relay
+	// leg so the client can reconnect cleanly.
+	relayRetryFloor       = 500 * time.Millisecond
+	relayRetryCeil        = 15 * time.Second
+	relayRetryMaxAttempts = 6
 )
+
+// RelayDialError is returned from dialRelay when the handshake to a
+// peer replica fails. It carries the HTTP status code (when
+// available) so the reconnect loop can decide whether to keep
+// retrying or tear the relay leg down.
+//
+// HTTPStatus is 0 when the failure occurred before a response was
+// received (DNS, TCP, TLS, timeout, context cancel).
+type RelayDialError struct {
+	HTTPStatus int
+	Err        error
+}
+
+func (e *RelayDialError) Error() string { return e.Err.Error() }
+func (e *RelayDialError) Unwrap() error { return e.Err }
+
+// IsUnrecoverable reports whether the dial error is expected to keep
+// failing with the same captured session token. 401 and 403 are the
+// canonical cases — the user's session is dead or the peer won't
+// authorize them. Everything else (5xx, 429, network, context) is
+// treated as intermittent and retried with backoff.
+func (e *RelayDialError) IsUnrecoverable() bool {
+	return e.HTTPStatus == http.StatusUnauthorized ||
+		e.HTTPStatus == http.StatusForbidden
+}
 
 // MultiReplicaSubscribeConfig holds the dependencies for multi-replica chat
 // subscription. ReplicaIDFn is called lazily because the
@@ -160,9 +202,19 @@ func NewMultiReplicaSubscribeFn(
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
+			// err is non-nil when the dial failed. The retry loop
+			// uses it to classify the failure (via *RelayDialError)
+			// and decide whether to back off or tear down.
+			err error
 		}
 		relayReadyCh := make(chan relayResult, 4)
 
+		// retryState drives the backoff + give-up policy for
+		// the reconnect timer. Reset on successful dial or when
+		// closeRelay is called (e.g. chat migrated to a new
+		// worker) so the first retry after a fresh target
+		// starts at the floor delay.
+		retryState := newRelayRetryState()
 		// Per-dial context so in-flight dials can be canceled when
 		// a new dial is initiated or the relay is closed.
 		var dialCancel context.CancelFunc
@@ -236,6 +288,15 @@ func NewMultiReplicaSubscribeFn(
 			if cfg.dial() == nil {
 				return
 			}
+			// A new target means the retry history from the old
+			// target doesn't apply; start the backoff counter
+			// over. We scope the reset here rather than inside
+			// closeRelay so back-to-back dials against the same
+			// worker keep the attempt counter and correctly trip
+			// the cap.
+			if workerID != expectedWorkerID {
+				retryState.reset()
+			}
 			closeRelay()
 			// Create a per-dial context so this goroutine is
 			// canceled if closeRelay() or openRelayAsync() is
@@ -257,9 +318,11 @@ func NewMultiReplicaSubscribeFn(
 						)
 					}
 					// Send an empty result so the merge loop
-					// can schedule a reconnect attempt.
+					// can schedule a reconnect attempt, or tear the
+					// relay down if the error is unrecoverable or
+					// the retry cap has been hit.
 					select {
-					case relayReadyCh <- relayResult{workerID: workerID}:
+					case relayReadyCh <- relayResult{workerID: workerID, err: err}:
 					case <-dialCtx.Done():
 					}
 					return
@@ -316,20 +379,40 @@ func NewMultiReplicaSubscribeFn(
 			}()
 		}
 
-		// scheduleRelayReconnect arms a short timer so the select
-		// loop can re-check chat status and reopen the relay
-		// without spinning in a tight loop.
-		scheduleRelayReconnect := func() {
+		// scheduleRelayReconnect arms a timer so the select loop
+		// can re-check chat status and reopen the relay without
+		// spinning in a tight loop. The delay is supplied by the
+		// caller so the failed-dial branch can apply backoff while
+		// transient error branches (DB lookup failures, drop-on-
+		// close) stay at the floor delay.
+		scheduleRelayReconnect := func(delay time.Duration) {
 			if cfg.dial() == nil {
 				return
 			}
 			if reconnectTimer != nil {
 				reconnectTimer.Stop()
 			}
-			reconnectTimer = cfg.clock().NewTimer(500*time.Millisecond, "reconnect")
+			reconnectTimer = cfg.clock().NewTimer(delay, "reconnect")
 			reconnectCh = reconnectTimer.C
 		}
 
+		// sendRelayTerminalError enqueues a single error event on
+		// mergedEvents describing an unrecoverable relay failure.
+		// Callers return from the merge goroutine afterwards so the
+		// defer close(mergedEvents) fires. The OSS merge loop nils
+		// relayEvents when mergedEvents closes, so pubsub / local
+		// sources continue to feed the outer stream — only the
+		// relay leg is torn down.
+		sendRelayTerminalError := func(msg string) {
+			select {
+			case mergedEvents <- codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeError,
+				ChatID: chatID,
+				Error:  &codersdk.ChatStreamError{Message: msg},
+			}:
+			case <-ctx.Done():
+			}
+		}
 		statusNotifications := params.StatusNotifications
 		go func() {
 			defer close(mergedEvents)
@@ -360,20 +443,54 @@ func NewMultiReplicaSubscribeFn(
 						continue
 					}
 					// A nil parts channel signals the dial
-					// failed — schedule a retry.
+					// failed — classify the error to decide
+					// whether to schedule a backoff retry, emit a
+					// terminal error and tear the relay leg down
+					// (unrecoverable / cap reached), or simply
+					// drop the stale drain.
 					if result.parts == nil {
 						if drainAndClose {
 							// Dial failed and we were only
 							// waiting to drain — nothing to do.
 							drainAndClose = false
-						} else {
-							scheduleRelayReconnect()
+							continue
 						}
+						var dialErr *RelayDialError
+						if xerrors.As(result.err, &dialErr) && dialErr.IsUnrecoverable() {
+							logger.Warn(ctx, "relay dial unrecoverable; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("worker_id", result.workerID),
+								slog.F("http_status", dialErr.HTTPStatus),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay authentication failed (status %d)",
+								dialErr.HTTPStatus,
+							))
+							return
+						}
+						delay, giveUp := retryState.next()
+						if giveUp {
+							logger.Warn(ctx, "relay dial retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("worker_id", result.workerID),
+								slog.F("attempts", relayRetryMaxAttempts),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay connection failed after %d attempts",
+								relayRetryMaxAttempts,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
-					} // An async relay dial completed; swap
-					// in the new relay channel.
+					}
+					// An async relay dial completed; reset the
+					// retry state and swap in the new relay
+					// channel.
+					retryState.reset()
 					if relayCancel != nil {
 						relayCancel()
+						relayCancel = nil
 					}
 					relayParts = result.parts
 					relayCancel = result.cancel
@@ -421,8 +538,20 @@ func NewMultiReplicaSubscribeFn(
 						)
 						// Retry on transient DB errors to
 						// avoid permanently stalling the
-						// stream.
-						scheduleRelayReconnect()
+						// stream. The same retry state
+						// bounds the DB-error loop too so a
+						// persistently broken DB eventually
+						// tears the relay down instead of
+						// spinning forever.
+						delay, giveUp := retryState.next()
+						if giveUp {
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay reconnect failed after %d attempts",
+								relayRetryMaxAttempts,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
 					}
 					if currentChat.Status == database.ChatStatusRunning &&
@@ -469,9 +598,19 @@ func NewMultiReplicaSubscribeFn(
 							relayCancel = nil
 						}
 						relayParts = nil
-						// Schedule reconnection instead of
-						// giving up.
-						scheduleRelayReconnect()
+						// Schedule reconnection with backoff
+						// instead of giving up. The same retry
+						// state applies so a relay that
+						// repeatedly drops is torn down.
+						delay, giveUp := retryState.next()
+						if giveUp {
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay connection failed after %d attempts",
+								relayRetryMaxAttempts,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
 					}
 					// Only forward message_part events from
@@ -495,12 +634,74 @@ func NewMultiReplicaSubscribeFn(
 	}
 }
 
+// relayRetryState drives the backoff + give-up policy for the
+// cross-replica relay reconnect loop. It wraps github.com/coder/retry
+// to reuse its φ-growth defaults but computes the next delay
+// without blocking so the merge loop can schedule a quartz.Clock
+// timer itself (and tests can advance that clock deterministically).
+type relayRetryState struct {
+	retrier  *retry.Retrier
+	attempts int
+}
+
+func newRelayRetryState() *relayRetryState {
+	return &relayRetryState{
+		retrier: retry.New(relayRetryFloor, relayRetryCeil),
+	}
+}
+
+// next advances the backoff and returns the delay for the next
+// reconnect attempt. giveUp is true once attempts exceed
+// relayRetryMaxAttempts — callers should tear the relay leg down
+// instead of scheduling more reconnects.
+//
+// This mirrors the math in retry.Retrier.Wait (see
+// github.com/coder/retry/retrier.go) but never blocks.
+func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
+	s.attempts++
+	if s.attempts > relayRetryMaxAttempts {
+		return 0, true
+	}
+	r := s.retrier
+	d := time.Duration(float64(r.Delay) * r.Rate)
+	if d > r.Ceil {
+		d = r.Ceil
+	}
+	if d < r.Floor {
+		d = r.Floor
+	}
+	r.Delay = d
+	return d, false
+}
+
+// reset restores the retry state to the floor delay and zero
+// attempts. Called after a successful dial or when the relay target
+// changes (e.g. the chat migrates to a new worker).
+func (s *relayRetryState) reset() {
+	s.retrier.Reset()
+	s.attempts = 0
+}
+
+// afterIDMaxInt64 is passed as the after_id query parameter when
+// dialing a peer replica. It tells the peer to skip the full
+// message-history snapshot — relays only need live message_part
+// events.
+const afterIDMaxInt64 = "9223372036854775807"
+
 // dialRelay opens a WebSocket relay connection to the replica
 // identified by workerID and returns a snapshot of buffered
 // message_part events plus a live channel of subsequent events.
-// It passes afterID=MaxInt64 so the remote replica skips the
-// full message history snapshot, since the relay only needs
-// live message_part events.
+//
+// On handshake failure it returns an error that unwraps to
+// *RelayDialError carrying the peer's HTTP status code (or 0 for
+// pre-response failures). Callers use RelayDialError.IsUnrecoverable
+// to decide whether the retry loop should give up.
+//
+// We call websocket.Dial directly rather than routing through
+// codersdk.ExperimentalClient.StreamChat because that wrapper hides
+// the *http.Response we need for status classification, and the
+// relay is an internal replica-to-replica channel where the SDK's
+// browser-shaped ergonomics add no value.
 func dialRelay(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -516,31 +717,78 @@ func dialRelay(
 ) {
 	address, ok := cfg.ResolveReplicaAddress(ctx, workerID)
 	if !ok {
-		return nil, nil, nil, xerrors.New("worker replica not found")
+		return nil, nil, nil, &RelayDialError{
+			Err: xerrors.New("dial relay stream: worker replica not found"),
+		}
 	}
 
-	baseURL, err := url.Parse(address)
+	wsURL, err := buildRelayURL(address, chatID)
 	if err != nil {
-		return nil, nil, nil, xerrors.Errorf("parse relay address %q: %w", address, err)
+		return nil, nil, nil, &RelayDialError{
+			Err: xerrors.Errorf("dial relay stream: %w", err),
+		}
 	}
+
 	replicaID := cfg.ReplicaIDFn()
+	headers := make(http.Header, 2)
+	headers.Set(codersdk.SessionTokenHeader, extractSessionToken(requestHeader))
+	headers.Set(RelaySourceHeader, replicaID.String())
+
 	relayCtx, relayCancel := context.WithCancel(ctx)
-	sdkClient := codersdk.New(baseURL)
-	sdkClient.HTTPClient = cfg.ReplicaHTTPClient
-	sdkClient.SessionTokenProvider = relayTokenProvider{
-		token:     extractSessionToken(requestHeader),
-		replicaID: replicaID,
-	}
-	expClient := codersdk.NewExperimentalClient(sdkClient)
-	sourceEvents, sourceStream, err := expClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
-		AfterID: ptr.Ref(int64(math.MaxInt64)),
+	conn, resp, dialErr := websocket.Dial(relayCtx, wsURL, &websocket.DialOptions{
+		HTTPClient:      cfg.ReplicaHTTPClient,
+		HTTPHeader:      headers,
+		CompressionMode: websocket.CompressionDisabled,
 	})
-	if err != nil {
-		relayCancel()
-		return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", err)
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+		// The websocket library closes resp.Body on success; on
+		// failure we close it ourselves so we don't leak the TCP
+		// connection.
+		if dialErr != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 	}
+	if dialErr != nil {
+		relayCancel()
+		return nil, nil, nil, &RelayDialError{
+			HTTPStatus: status,
+			Err:        xerrors.Errorf("dial relay stream: %w", dialErr),
+		}
+	}
+	// Match the server's 4 MiB read limit in codersdk.StreamChat so
+	// large message_part batches don't trip the default 32 KiB cap.
+	conn.SetReadLimit(1 << 22)
 
 	snapshot = make([]codersdk.ChatStreamEvent, 0, 100)
+
+	// sourceEvents is the flattened batch→event channel. A small
+	// goroutine reads batches off the websocket and fans them out;
+	// callers see a single event stream identical to the shape the
+	// old SDK call produced.
+	sourceEvents := make(chan codersdk.ChatStreamEvent, 128)
+	go func() {
+		defer close(sourceEvents)
+		for {
+			var batch []codersdk.ChatStreamEvent
+			if readErr := wsjson.Read(relayCtx, conn, &batch); readErr != nil {
+				return
+			}
+			for _, event := range batch {
+				select {
+				case sourceEvents <- event:
+				case <-relayCtx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	closeSource := func() {
+		relayCancel()
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
 
 	// Wait briefly for the first event to handle the common
 	// case where the remote side has buffered parts but hasn't
@@ -553,9 +801,10 @@ drainInitial:
 	for len(snapshot) < cap(snapshot) {
 		select {
 		case <-relayCtx.Done():
-			_ = sourceStream.Close()
-			relayCancel()
-			return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", relayCtx.Err())
+			closeSource()
+			return nil, nil, nil, &RelayDialError{
+				Err: xerrors.Errorf("dial relay stream: %w", relayCtx.Err()),
+			}
 		case event, ok := <-sourceEvents:
 			if !ok {
 				break drainInitial
@@ -577,10 +826,7 @@ drainInitial:
 
 	go func() {
 		defer close(events)
-		defer relayCancel()
-		defer func() {
-			_ = sourceStream.Close()
-		}()
+		defer closeSource()
 
 		// No need to re-send snapshot events — they're
 		// returned to the caller directly.
@@ -604,40 +850,31 @@ drainInitial:
 		}
 	}()
 
-	cancelFn := func() {
-		relayCancel()
-		_ = sourceStream.Close()
+	return snapshot, events, closeSource, nil
+}
+
+// buildRelayURL builds the websocket URL for the chat stream
+// endpoint on a peer replica. It maps http(s) schemes to ws(s).
+func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", xerrors.Errorf("parse relay address %q: %w", address, err)
 	}
-	return snapshot, events, cancelFn, nil
-}
-
-// relayTokenProvider authenticates relay requests to the worker
-// replica using the session token extracted from the original
-// browser request. It also stamps each request with the relay
-// source header so the worker can identify it as an inter-replica
-// call.
-type relayTokenProvider struct {
-	token     string
-	replicaID uuid.UUID
-}
-
-func (p relayTokenProvider) AsRequestOption() codersdk.RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set(codersdk.SessionTokenHeader, p.token)
-		req.Header.Set(RelaySourceHeader, p.replicaID.String())
+	switch u.Scheme {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	case "ws", "wss":
+		// already a websocket URL, leave as-is.
+	default:
+		return "", xerrors.Errorf("unsupported relay address scheme %q", u.Scheme)
 	}
-}
-
-func (p relayTokenProvider) SetDialOption(opts *websocket.DialOptions) {
-	if opts.HTTPHeader == nil {
-		opts.HTTPHeader = make(http.Header)
-	}
-	opts.HTTPHeader.Set(codersdk.SessionTokenHeader, p.token)
-	opts.HTTPHeader.Set(RelaySourceHeader, p.replicaID.String())
-}
-
-func (p relayTokenProvider) GetSessionToken() string {
-	return p.token
+	u.Path = fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
+	q := u.Query()
+	q.Set("after_id", afterIDMaxInt64)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // extractSessionToken returns the session token carried by the
