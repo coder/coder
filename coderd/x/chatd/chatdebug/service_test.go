@@ -842,7 +842,7 @@ func TestClassifyError(t *testing.T) {
 		// StatusError.
 		{
 			"wrapped context.Canceled",
-			xerrors.Errorf("cancelled mid-stream: %w", context.Canceled),
+			xerrors.Errorf("canceled mid-stream: %w", context.Canceled),
 			chatdebug.StatusInterrupted,
 		},
 		{"generic error", xerrors.New("boom"), chatdebug.StatusError},
