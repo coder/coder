@@ -547,7 +547,6 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,

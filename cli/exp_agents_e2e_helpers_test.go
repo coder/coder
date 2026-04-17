@@ -24,7 +24,6 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	t.Helper()
 
 	values := coderdtest.DeploymentValues(t)
-	values.Experiments = []string{string(codersdk.ExperimentAgents)}
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: values,
