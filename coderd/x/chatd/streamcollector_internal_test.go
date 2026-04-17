@@ -23,7 +23,7 @@ import (
 func TestStreamStateCollector(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty_map", func(t *testing.T) {
+	t.Run("EmptyMap", func(t *testing.T) {
 		t.Parallel()
 
 		reg := prometheus.NewRegistry()
@@ -38,7 +38,7 @@ func TestStreamStateCollector(t *testing.T) {
 		})
 	})
 
-	t.Run("populated_map", func(t *testing.T) {
+	t.Run("PopulatedMap", func(t *testing.T) {
 		t.Parallel()
 
 		reg := prometheus.NewRegistry()
@@ -67,7 +67,7 @@ func TestStreamStateCollector(t *testing.T) {
 		})
 	})
 
-	t.Run("skips_wrong_type", func(t *testing.T) {
+	t.Run("SkipsWrongType", func(t *testing.T) {
 		t.Parallel()
 
 		reg := prometheus.NewRegistry()
@@ -91,12 +91,12 @@ func TestStreamStateCollector(t *testing.T) {
 		})
 	})
 
-	// lock_contention_smoke runs the collector concurrently with
+	// LockContentionSmoke runs the collector concurrently with
 	// mutations to state.buffer/state.subscribers under state.mu
 	// and asserts no panic and no race detector hit. Meaningful
 	// only under `go test -race`. Without -race this still acts
 	// as a liveness check.
-	t.Run("lock_contention_smoke", func(t *testing.T) {
+	t.Run("LockContentionSmoke", func(t *testing.T) {
 		t.Parallel()
 
 		server := &Server{}
@@ -109,12 +109,10 @@ func TestStreamStateCollector(t *testing.T) {
 
 		const iterations = 100
 		var wg sync.WaitGroup
-		wg.Add(2)
 
 		// Mutator: grows and shrinks the buffer under state.mu.
-		go func() {
-			defer wg.Done()
-			for i := 0; i < iterations; i++ {
+		wg.Go(func() {
+			for range iterations {
 				state.mu.Lock()
 				state.buffer = append(state.buffer, codersdk.ChatStreamEvent{})
 				if len(state.buffer) > 50 {
@@ -122,14 +120,13 @@ func TestStreamStateCollector(t *testing.T) {
 				}
 				state.mu.Unlock()
 			}
-		}()
+		})
 
 		// Scraper: repeatedly invokes Collect into a discard
 		// channel. A panic or race here fails the test.
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			ctx := testutil.Context(t, 10*time.Second)
-			for i := 0; i < iterations; i++ {
+			for range iterations {
 				ch := make(chan prometheus.Metric, 4)
 				collector.Collect(ch)
 				// Drain all metrics the collector wrote.
@@ -137,7 +134,7 @@ func TestStreamStateCollector(t *testing.T) {
 					testutil.SoftTryReceive(ctx, t, ch)
 				}
 			}
-		}()
+		})
 
 		wg.Wait()
 	})

@@ -27,15 +27,15 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	Chats               *prometheus.GaugeVec
-	MessageCount        *prometheus.HistogramVec
-	PromptSizeBytes     *prometheus.HistogramVec
-	ToolResultSizeBytes *prometheus.HistogramVec
-	TTFTSeconds         *prometheus.HistogramVec
-	CompactionTotal     *prometheus.CounterVec
-	StepsTotal          *prometheus.CounterVec
-	StreamRetriesTotal  *prometheus.CounterVec
-	BufferDroppedTotal  prometheus.Counter
+	Chats                    *prometheus.GaugeVec
+	MessageCount             *prometheus.HistogramVec
+	PromptSizeBytes          *prometheus.HistogramVec
+	ToolResultSizeBytes      *prometheus.HistogramVec
+	TTFTSeconds              *prometheus.HistogramVec
+	CompactionTotal          *prometheus.CounterVec
+	StepsTotal               *prometheus.CounterVec
+	StreamRetriesTotal       *prometheus.CounterVec
+	StreamBufferDroppedTotal prometheus.Counter
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -95,11 +95,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "stream_retries_total",
 			Help:      "Total LLM stream retries.",
 		}, []string{"provider", "model", "kind"}),
-		BufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
+		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stream_buffer_dropped_total",
-			Help:      "Number of chat-stream buffer events dropped due to the per-chat buffer cap.",
+			Help:      "Number of chat stream buffer events dropped due to the per-chat buffer cap.",
 		}),
 	}
 }
@@ -142,15 +142,15 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
 }
 
-// RecordBufferDropped increments stream_buffer_dropped_total by one
+// RecordStreamBufferDropped increments stream_buffer_dropped_total by one
 // per dropped buffer event. Must be called every time publishToStream
 // drops the oldest buffered event due to the per-chat buffer cap.
 // It is a no-op when m is nil.
-func (m *Metrics) RecordBufferDropped() {
+func (m *Metrics) RecordStreamBufferDropped() {
 	if m == nil {
 		return
 	}
-	m.BufferDroppedTotal.Inc()
+	m.StreamBufferDroppedTotal.Inc()
 }
 
 // EstimatePromptSize returns a cheap byte-size estimate of a

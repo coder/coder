@@ -767,7 +767,7 @@ var (
 	)
 	streamSubscribersDesc = prometheus.NewDesc(
 		"coderd_chatd_stream_subscribers",
-		"Total number of chat stream subscribers across all chat streams.",
+		"Current number of chat stream subscribers across all chat streams.",
 		nil, nil,
 	)
 )
@@ -780,7 +780,7 @@ func (*streamStateCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
-	var active, totalEvents, maxEvents, totalSubs int
+	var active, totalEvents, maxBufLen, totalSubs int
 	c.server.chatStreams.Range(func(_, v any) bool {
 		state, ok := v.(*chatStreamState)
 		if !ok {
@@ -793,13 +793,11 @@ func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
 		state.mu.Unlock()
 		totalEvents += bufLen
 		totalSubs += subs
-		if bufLen > maxEvents {
-			maxEvents = bufLen
-		}
+		maxBufLen = max(maxBufLen, bufLen)
 		return true
 	})
 	ch <- prometheus.MustNewConstMetric(streamsActiveDesc, prometheus.GaugeValue, float64(active))
-	ch <- prometheus.MustNewConstMetric(streamBufferSizeMaxDesc, prometheus.GaugeValue, float64(maxEvents))
+	ch <- prometheus.MustNewConstMetric(streamBufferSizeMaxDesc, prometheus.GaugeValue, float64(maxBufLen))
 	ch <- prometheus.MustNewConstMetric(streamBufferEventsDesc, prometheus.GaugeValue, float64(totalEvents))
 	ch <- prometheus.MustNewConstMetric(streamSubscribersDesc, prometheus.GaugeValue, float64(totalSubs))
 }
@@ -3020,7 +3018,7 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
-			p.metrics.RecordBufferDropped()
+			p.metrics.RecordStreamBufferDropped()
 			state.bufferDropCount++
 			now := p.clock.Now()
 			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {

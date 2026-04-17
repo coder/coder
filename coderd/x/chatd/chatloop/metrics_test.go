@@ -33,7 +33,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout)
-	// BufferDroppedTotal is a plain Counter, so it's always present
+	// StreamBufferDroppedTotal is a plain Counter, so it's always present
 	// in Gather output once registered; no exerciser call is
 	// needed.
 
@@ -85,14 +85,14 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.CompactionTotal.WithLabelValues("google", "gemini-2.5-pro", "timeout").Inc()
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5").Inc()
 	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout).Inc()
-	m.BufferDroppedTotal.Inc()
+	m.StreamBufferDroppedTotal.Inc()
 
 	// Nil-receiver guard for RecordStreamRetry and
-	// RecordBufferDropped mirrors the existing RecordCompaction nil
+	// RecordStreamBufferDropped mirrors the existing RecordCompaction nil
 	// guard.
 	var nilMetrics *chatloop.Metrics
 	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: chaterror.KindTimeout})
-	nilMetrics.RecordBufferDropped()
+	nilMetrics.RecordStreamBufferDropped()
 }
 
 func TestEstimatePromptSize(t *testing.T) {
@@ -341,13 +341,13 @@ func TestRecordStreamRetry(t *testing.T) {
 	}
 }
 
-func TestRecordBufferDropped(t *testing.T) {
+func TestRecordStreamBufferDropped(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil metrics does not panic", func(t *testing.T) {
 		t.Parallel()
 		var m *chatloop.Metrics
-		m.RecordBufferDropped()
+		m.RecordStreamBufferDropped()
 	})
 
 	t.Run("increments monotonically", func(t *testing.T) {
@@ -356,9 +356,9 @@ func TestRecordBufferDropped(t *testing.T) {
 		reg := prometheus.NewRegistry()
 		m := chatloop.NewMetrics(reg)
 
-		m.RecordBufferDropped()
-		m.RecordBufferDropped()
-		m.RecordBufferDropped()
+		m.RecordStreamBufferDropped()
+		m.RecordStreamBufferDropped()
+		m.RecordStreamBufferDropped()
 
 		families, err := reg.Gather()
 		require.NoError(t, err)

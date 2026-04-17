@@ -241,7 +241,7 @@ coderd_chatd_prompt_size_bytes{provider="",model=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider="",model=""} 0
-# HELP coderd_chatd_stream_buffer_dropped_total Number of chat-stream buffer events dropped due to the per-chat buffer cap.
+# HELP coderd_chatd_stream_buffer_dropped_total Number of chat stream buffer events dropped due to the per-chat buffer cap.
 # TYPE coderd_chatd_stream_buffer_dropped_total counter
 coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_buffer_events Sum of current buffer lengths across all chat streams.
@@ -253,7 +253,7 @@ coderd_chatd_stream_buffer_size_max 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
 coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
-# HELP coderd_chatd_stream_subscribers Total number of chat stream subscribers across all chat streams.
+# HELP coderd_chatd_stream_subscribers Current number of chat stream subscribers across all chat streams.
 # TYPE coderd_chatd_stream_subscribers gauge
 coderd_chatd_stream_subscribers 0
 # HELP coderd_chatd_streams_active Current number of chat stream state entries (in-flight plus retained).
