@@ -741,6 +741,134 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 	require.Zero(t, fromDB.PinOrder)
 }
 
+// TestUnarchiveChildChat covers the Server.UnarchiveChat child-chat
+// path: individually-archived child with an active parent returns to
+// active, concurrent archive cascade on the parent is serialized by
+// the row lock on the child, already-active child is a no-op, and a
+// child whose parent is archived is rejected with
+// ErrChildUnarchiveParentArchived. The atomicity guarantee (lock on
+// child before re-reading parent so a concurrent cascade serializes)
+// is reasoned about in the Server.UnarchiveChat doc comment;
+// asserting it in a reproducible test would require a pause hook
+// inside the transaction that does not exist in this codebase.
+func TestUnarchiveChildChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ChildWithActiveParentUnarchives", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(ctx, t, db)
+
+		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
+
+		require.NoError(t, replica.UnarchiveChat(ctx, child))
+
+		dbChild, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild.Archived, "child should be unarchived")
+
+		dbParent, err := db.GetChatByID(ctx, parent.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should stay active")
+	})
+
+	t.Run("ChildWithArchivedParentRejected", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(ctx, t, db)
+
+		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
+		_, err := db.ArchiveChatByID(ctx, parent.ID)
+		require.NoError(t, err)
+
+		err = replica.UnarchiveChat(ctx, child)
+		require.ErrorIs(t, err, chatd.ErrChildUnarchiveParentArchived)
+
+		dbChild, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.True(t, dbChild.Archived, "child should remain archived")
+	})
+
+	t.Run("AlreadyActiveChildNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(ctx, t, db)
+
+		_, child := insertParentWithActiveChild(ctx, t, db, user, org, model)
+
+		require.NoError(t, replica.UnarchiveChat(ctx, child))
+
+		dbChild, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild.Archived, "child should stay active")
+	})
+}
+
+// insertParentWithActiveChild creates a parent chat and an active
+// child chat linked to it. Both are returned in their initial
+// (active) state.
+func insertParentWithActiveChild(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	org database.Organization,
+	model database.ChatModelConfig,
+) (parent database.Chat, child database.Chat) {
+	t.Helper()
+	var err error
+	parent, err = db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		LastModelConfigID: model.ID,
+		Title:             "parent",
+	})
+	require.NoError(t, err)
+	child, err = db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	return parent, child
+}
+
+// insertParentWithArchivedChild creates an active parent and an
+// individually-archived child. The returned child reflects its
+// current (archived) state in the DB.
+func insertParentWithArchivedChild(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	org database.Organization,
+	model database.ChatModelConfig,
+) (parent database.Chat, child database.Chat) {
+	t.Helper()
+	parent, child = insertParentWithActiveChild(ctx, t, db, user, org, model)
+	_, err := db.ArchiveChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	child, err = db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	return parent, child
+}
+
 func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	t.Parallel()
 

@@ -362,10 +362,11 @@ type sqlcQuerier interface {
 	// The archive invariant (parent archived implies child archived)
 	// is enforced at write time, not here: ArchiveChatByID cascades
 	// through root_chat_id, patchChat allows individual child
-	// archive, and chatd.UnarchiveChildChatAtomic rejects unarchive
-	// of a child while the parent is archived. A stale read during a
-	// concurrent cascade can momentarily return an archive-state
-	// mismatch; the caller's next refetch converges.
+	// archive, and chatd.Server.UnarchiveChat rejects unarchive of a
+	// child while the parent is archived (atomically under a row
+	// lock on the child). A stale read during a concurrent cascade
+	// can momentarily return an archive-state mismatch; the caller's
+	// next refetch converges.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)

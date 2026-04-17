@@ -1990,11 +1990,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		// state.
 		if chat.ParentChatID.Valid && !archived {
 			// writeChildUnarchiveGuard is advisory pre-flight UX.
-			// The durable invariant lives in
-			// chatd.UnarchiveChildChatAtomic, which re-reads the
-			// parent under a row lock on the child so a concurrent
-			// archive cascade cannot race us into the forbidden
-			// state.
+			// The durable invariant lives in chatd.Server.UnarchiveChat
+			// (and the matching UnarchiveChatByID path when no
+			// daemon is running), which re-reads the parent under a
+			// row lock on the child so a concurrent archive cascade
+			// cannot race us into the forbidden state.
 			if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
 				return
 			}
@@ -2010,20 +2010,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
 			}
 		} else {
-			// Child-unarchive runs under an atomic helper that
-			// locks the child row and re-reads the parent so a
-			// concurrent archive cascade on the parent cannot
-			// race the guard above into the forbidden (parent
-			// archived, child active) state. The helper is used
-			// in both the daemon and fallback paths.
-			switch {
-			case chat.ParentChatID.Valid && api.chatDaemon != nil:
+			if api.chatDaemon != nil {
 				err = api.chatDaemon.UnarchiveChat(ctx, chat)
-			case chat.ParentChatID.Valid:
-				_, err = chatd.UnarchiveChildChatAtomic(ctx, api.Database, chat)
-			case api.chatDaemon != nil:
-				err = api.chatDaemon.UnarchiveChat(ctx, chat)
-			default:
+			} else {
 				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 			}
 		}
@@ -2159,9 +2148,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 // child-unarchive policy. It returns 400 early when the caller's
 // request is obviously racing against an archived parent at
 // request time. The durable invariant is enforced by
-// chatd.UnarchiveChildChatAtomic under a row lock on the child
-// chat; this guard exists only to return a descriptive error at
-// the earliest point instead of at the transaction boundary.
+// chatd.Server.UnarchiveChat under a row lock on the child chat;
+// this guard exists only to return a descriptive error at the
+// earliest point instead of at the transaction boundary.
 //
 // Callers must only invoke this when chat.ParentChatID.Valid is
 // true and the request is an unarchive.
