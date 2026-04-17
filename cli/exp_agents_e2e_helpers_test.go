@@ -127,7 +127,7 @@ func startExpAgentsSession(t *testing.T, ctx context.Context, client *codersdk.C
 		t.Skip("skipping on non-linux")
 	}
 
-	fullArgs := append([]string{"exp", "agents"}, args...)
+	fullArgs := append([]string{"agents"}, args...)
 	inv, root := clitest.New(t, fullArgs...)
 	clitest.SetupConfig(t, client, root)
 
