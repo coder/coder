@@ -28,6 +28,19 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 	});
 
 	const hasRunsData = runsQuery.data !== undefined;
+	const refreshWarning =
+		runsQuery.isError && hasRunsData ? (
+			<div className="p-4 pb-0">
+				<Alert severity="warning">
+					<p className="text-sm text-content-primary">
+						{getErrorMessage(
+							runsQuery.error,
+							"Unable to refresh debug runs. Showing cached data.",
+						)}
+					</p>
+				</Alert>
+			</div>
+		) : null;
 
 	let content: ReactNode;
 	if (runsQuery.isError && !hasRunsData) {
@@ -52,36 +65,28 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 		);
 	} else if (sortedRuns.length === 0) {
 		content = (
-			<div className="flex flex-col gap-2 p-4 text-sm text-content-secondary">
-				<p className="font-medium text-content-primary">
-					No debug runs recorded yet
-				</p>
-				<p>
-					Debug logging captures LLM request/response data for each chat turn,
-					title generation, and compaction operation.
-				</p>
-				<p>
-					Enable it from <strong>Settings → Behavior</strong> if your admin
-					allows user-controlled debug logging, or ask an admin to turn it on
-					globally.
-				</p>
-			</div>
+			<>
+				{refreshWarning}
+				<div className="flex flex-col gap-2 p-4 text-sm text-content-secondary">
+					<p className="font-medium text-content-primary">
+						No debug runs recorded yet
+					</p>
+					<p>
+						Debug logging captures LLM request/response data for each chat turn,
+						title generation, and compaction operation.
+					</p>
+					<p>
+						Enable it from <strong>Settings → Behavior</strong> if your admin
+						allows user-controlled debug logging, or ask an admin to turn it on
+						globally.
+					</p>
+				</div>
+			</>
 		);
 	} else {
 		content = (
 			<>
-				{runsQuery.isError ? (
-					<div className="p-4 pb-0">
-						<Alert severity="warning">
-							<p className="text-sm text-content-primary">
-								{getErrorMessage(
-									runsQuery.error,
-									"Unable to refresh debug runs. Showing cached data.",
-								)}
-							</p>
-						</Alert>
-					</div>
-				) : null}
+				{refreshWarning}
 				<DebugRunList runs={sortedRuns} chatId={chatId} enabled={enabled} />
 			</>
 		);
