@@ -1186,6 +1186,63 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 		healthy: false,
 		reason: "agent startup script failed",
 	},
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			exit_code: 1,
+			status: "exit_failure",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "18eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "ok",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "28eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "timed_out",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "38eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "pipes_left_open",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "48eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+		},
+	],
+	logs_length: 4,
+	log_sources: [
+		MockWorkspaceAgentLogSource,
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "coder",
+			icon: "/icon/coder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "time",
+			icon: "/icon/folder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "pipe",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
+		},
+	],
 };
 
 export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {

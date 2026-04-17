@@ -24,6 +24,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
+	WorkspaceAgentScriptStatus,
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -250,7 +251,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [selectedLogTab, setSelectedLogTab] = useState(
 		failedStartupScriptSource?.id ?? "all",
 	);
-	const sourceLogTabs = agent.log_sources
+	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
 			return agentLogs.some(
@@ -258,38 +259,57 @@ export const AgentRow: FC<AgentRowProps> = ({
 					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
 			);
 		})
-		.map((logSource) => ({
-			// Show the icon for the log source if it has one.
-			// In the startup script case, we show a bespoke play icon.
-			startIcon: logSource.icon ? (
-				<ExternalImage
-					src={logSource.icon}
-					alt=""
-					className="size-icon-xs shrink-0"
-				/>
-			) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-				<PlayIcon className="size-icon-xs shrink-0" />
-			) : null,
-			title: logSource.display_name,
-			value: logSource.id,
-		}));
-	const startupScriptLogTab = sourceLogTabs.find(
-		(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
-	);
-	const sortedSourceLogTabs = sourceLogTabs
-		.filter((tab) => tab !== startupScriptLogTab)
-		.sort((a, b) => a.title.localeCompare(b.title));
+		.map((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			return {
+				// Show the icon for the log source if it has one.
+				// In the startup script case, we show a bespoke play icon.
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+				error: Boolean(
+					script?.exit_code || (script?.status && script.status !== "ok"),
+				),
+			};
+		})
+		.sort((a, b) => {
+			// Errored scripts first, then startup script, then the rest.
+			if (a.error && !b.error) {
+				return -1;
+			}
+			if (b.error && !a.error) {
+				return 1;
+			}
+			if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return -1;
+			}
+			if (b.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return 1;
+			}
+			return a.title.localeCompare(b.title);
+		});
 	const logTabs: {
 		startIcon?: ReactNode;
 		title: string;
 		value: string;
+		error: boolean;
 	}[] = [
 		{
 			title: "All Logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
+			error: false,
 		},
-		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
@@ -560,6 +580,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<span className="whitespace-nowrap">
 															{tab.title}
 														</span>
+														{tab.error && (
+															<Badge
+																variant="warning"
+																size="xs"
+																className="ml-1.5"
+															>
+																<TriangleAlertIcon />
+															</Badge>
+														)}
 													</TabsTrigger>
 												))}
 												{overflowLogTabs.length > 0 && (
@@ -601,6 +630,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		<span className="whitespace-nowrap">
 																			{tab.title}
 																		</span>
+																		{tab.error && (
+																			<Badge
+																				variant="warning"
+																				size="xs"
+																				className="ml-1.5"
+																			>
+																				<TriangleAlertIcon />
+																			</Badge>
+																		)}
 																	</DropdownMenuRadioItem>
 																))}
 															</DropdownMenuRadioGroup>
