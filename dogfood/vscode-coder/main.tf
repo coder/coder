@@ -365,18 +365,9 @@ resource "coder_agent" "dev" {
   }
 
   metadata {
-    display_name = "Git Branch"
-    key          = "git_branch"
-    order        = 3
-    script       = "cd ${local.repo_dir} && git branch --show-current 2>/dev/null || echo 'N/A'"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
     display_name = "Word of the Day"
     key          = "word"
-    order        = 4
+    order        = 3
     script       = <<EOT
       #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
