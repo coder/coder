@@ -50,8 +50,8 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
-	parseServerEditDiff,
-	parseServerEditDiffs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
@@ -389,11 +389,11 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	// Prefer the agent's server-side diffs when present (they carry
 	// full file context). Fall back to the synthetic client-side
 	// diffs for older agents or when DiffRequest was not set.
-	const serverDiffs = parseServerEditDiffs(result);
+	const serverDiffs = parseServerEditResults(result);
 	const editDiffs = serverDiffs
 		? editFiles.map((file) => {
 				const entry = serverDiffs.find((d) => d.path === file.path);
-				return entry ? parseServerEditDiff(entry.diff) : null;
+				return entry ? parseServerEditDiffText(entry.diff) : null;
 			})
 		: editFiles.map((file) => buildEditDiff(file.path, file.edits));
 

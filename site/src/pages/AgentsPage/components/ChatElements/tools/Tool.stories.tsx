@@ -908,7 +908,7 @@ export const EditFilesServerDiffMultiFile: Story = {
 		},
 		result: {
 			ok: true,
-			diffs: [
+			files: [
 				{
 					path: "src/config.ts",
 					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
@@ -949,7 +949,7 @@ export const EditFilesServerDiffNoOp: Story = {
 		},
 		result: {
 			ok: true,
-			diffs: [{ path: "src/unchanged.ts", diff: "" }],
+			files: [{ path: "src/unchanged.ts", diff: "" }],
 		},
 	},
 	play: async ({ canvasElement }) => {

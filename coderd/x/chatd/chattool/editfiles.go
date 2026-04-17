@@ -105,6 +105,6 @@ func executeEditFilesTool(
 	}
 	return toolResponse(map[string]any{
 		"ok":    true,
-		"diffs": resp.Diffs,
+		"files": resp.Files,
 	}), nil
 }

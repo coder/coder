@@ -1667,11 +1667,14 @@ type WorkspaceEditFileArgs struct {
 
 // WorkspaceEditFilesResponse is the response shape for the edit-file
 // and edit-files tools. Message preserves the existing success text.
-// Diffs carries the per-file unified diffs returned by the agent
-// (populated when the agent-side DiffRequest flag was set).
+// Files carries the per-file results returned by the agent
+// (populated when the agent-side DiffRequest flag was set). The
+// field is named Files (matching the agent's FileEditResponse.Files)
+// so future per-file error or status fields can be added without a
+// second wire break.
 type WorkspaceEditFilesResponse struct {
-	Message string                      `json:"message"`
-	Diffs   []workspacesdk.FileEditDiff `json:"diffs,omitempty"`
+	Message string                        `json:"message"`
+	Files   []workspacesdk.FileEditResult `json:"files,omitempty"`
 }
 
 var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
@@ -1734,7 +1737,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 
 		return WorkspaceEditFilesResponse{
 			Message: "File edited successfully.",
-			Diffs:   resp.Diffs,
+			Files:   resp.Files,
 		}, nil
 	},
 }
@@ -1813,7 +1816,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 
 		return WorkspaceEditFilesResponse{
 			Message: "File(s) edited successfully.",
-			Diffs:   resp.Diffs,
+			Files:   resp.Files,
 		}, nil
 	},
 }

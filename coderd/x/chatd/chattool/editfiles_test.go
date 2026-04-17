@@ -470,20 +470,20 @@ func TestEditFiles(t *testing.T) {
 	})
 }
 
-func TestEditFiles_ToolResponseCarriesDiffs(t *testing.T) {
+func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	targetPath := "/home/coder/target.txt"
-	expectedDiffs := []workspacesdk.FileEditDiff{
+	expectedFiles := []workspacesdk.FileEditResult{
 		{
 			Path: targetPath,
 			Diff: "--- " + targetPath + "\n+++ " + targetPath + "\n@@ -1 +1 @@\n-old\n+new\n",
 		},
 	}
 	// The tool must opt into diffs (DiffRequest: true) and forward
-	// the agent's structured diffs through to its response.
+	// the agent's per-file results through to its response.
 	mockConn.EXPECT().
 		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{{
@@ -495,7 +495,7 @@ func TestEditFiles_ToolResponseCarriesDiffs(t *testing.T) {
 			}},
 			DiffRequest: true,
 		}).
-		Return(workspacesdk.FileEditResponse{Diffs: expectedDiffs}, nil)
+		Return(workspacesdk.FileEditResponse{Files: expectedFiles}, nil)
 
 	tool := chattool.EditFiles(chattool.EditFilesOptions{
 		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -512,12 +512,12 @@ func TestEditFiles_ToolResponseCarriesDiffs(t *testing.T) {
 	assert.False(t, resp.IsError)
 
 	var decoded struct {
-		OK    bool                        `json:"ok"`
-		Diffs []workspacesdk.FileEditDiff `json:"diffs"`
+		OK    bool                          `json:"ok"`
+		Files []workspacesdk.FileEditResult `json:"files"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &decoded))
 	assert.True(t, decoded.OK)
-	require.Len(t, decoded.Diffs, 1)
-	assert.Equal(t, targetPath, decoded.Diffs[0].Path)
-	assert.Equal(t, expectedDiffs[0].Diff, decoded.Diffs[0].Diff)
+	require.Len(t, decoded.Files, 1)
+	assert.Equal(t, targetPath, decoded.Files[0].Path)
+	assert.Equal(t, expectedFiles[0].Diff, decoded.Files[0].Diff)
 }

@@ -574,40 +574,40 @@ export const buildEditDiff = (
 };
 
 /**
- * Server-side edit diff shape matching the agent's FileEditResponse.
- * Path matches the caller-supplied path (pre-symlink-resolution) and
- * diff is a unified-diff string, possibly empty for no-op edits.
+ * Per-file result from the agent's FileEditResponse. `path` matches
+ * the caller-supplied path (pre-symlink resolution). `diff` is a
+ * unified-diff string, possibly empty for no-op edits.
  */
-interface ServerEditDiff {
+interface ServerEditResult {
 	path: string;
 	diff: string;
 }
 
 /**
- * Parses the structured `diffs` array from an edit_files tool
+ * Parses the structured `files` array from an edit_files tool
  * response. The field is only populated when the agent observed the
  * request's `diff_request` flag; older agents omit it entirely.
- * Returns null when no diff array is present on the result (callers
- * should fall back to the synthetic client-side path). Returns an
- * empty array when the field is explicitly present but empty.
+ * Returns null when no per-file result array is present (callers
+ * should fall back to the synthetic client-side diff path). Returns
+ * an empty array when the field is explicitly present but empty.
  */
-export const parseServerEditDiffs = (
+export const parseServerEditResults = (
 	result: unknown,
-): ServerEditDiff[] | null => {
+): ServerEditResult[] | null => {
 	const rec = asRecord(result);
 	if (!rec) return null;
-	const raw = rec.diffs;
+	const raw = rec.files;
 	if (raw === undefined || raw === null) return null;
 	if (!Array.isArray(raw)) return null;
-	const diffs: ServerEditDiff[] = [];
+	const results: ServerEditResult[] = [];
 	for (const entry of raw) {
 		const entryRec = asRecord(entry);
 		if (!entryRec) continue;
 		const path = asString(entryRec.path).trim();
 		if (!path) continue;
-		diffs.push({ path, diff: asString(entryRec.diff) });
+		results.push({ path, diff: asString(entryRec.diff) });
 	}
-	return diffs;
+	return results;
 };
 
 /**
@@ -616,7 +616,9 @@ export const parseServerEditDiffs = (
  * diff string is empty (no-op edits) or when the parser produces no
  * file entries.
  */
-export const parseServerEditDiff = (diff: string): FileDiffMetadata | null => {
+export const parseServerEditDiffText = (
+	diff: string,
+): FileDiffMetadata | null => {
 	if (!diff) return null;
 	const parsed = parsePatchFiles(stripSvnIndexHeaders(diff));
 	if (!parsed.length || !parsed[0].files.length) return null;

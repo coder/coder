@@ -775,7 +775,15 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]string{filepath.Join(tmpdir, "trailing-ws"): "replaced"},
+			// The file's trailing whitespace ("   " on line 1,
+			// "\t\t" on line 2) agrees with both search and replace
+			// (both have no trailing whitespace on their single
+			// lines), so the splice preserves the file's trailing
+			// whitespace. File's trailing whitespace on line 1 is
+			// preserved; the replacement collapses to one line, so
+			// lines 2 and 3 are consumed and only the first line's
+			// trailing whitespace remains.
+			expected: map[string]string{filepath.Join(tmpdir, "trailing-ws"): "replaced   "},
 		},
 		{
 			name:     "TabsVsSpaces",
@@ -897,7 +905,11 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "bye\nworld\nbye\nagain"},
+			// File trailing whitespace "   " on "hello   " lines is
+			// preserved because search and replace agree on having
+			// no trailing whitespace. Replace-all runs the same
+			// per-position splice as single-replace.
+			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "bye   \nworld\nbye   \nagain"},
 		},
 		{
 			// replace_all with fuzzy indent match (pass 3).
@@ -1573,7 +1585,7 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	require.Equal(t, "goodbye world", string(data))
 }
 
-func TestEditFiles_Diffs(t *testing.T) {
+func TestEditFiles_FileResults(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
@@ -1598,13 +1610,13 @@ func TestEditFiles_Diffs(t *testing.T) {
 				},
 			},
 		})
-		require.Len(t, resp.Diffs, 1)
-		require.Equal(t, path, resp.Diffs[0].Path)
+		require.Len(t, resp.Files, 1)
+		require.Equal(t, path, resp.Files[0].Path)
 		// udiff.Unified emits "--- <path>\n+++ <path>\n@@ ...".
-		require.Contains(t, resp.Diffs[0].Diff, "--- "+path+"\n")
-		require.Contains(t, resp.Diffs[0].Diff, "+++ "+path+"\n")
-		require.Contains(t, resp.Diffs[0].Diff, "-hello world")
-		require.Contains(t, resp.Diffs[0].Diff, "+HELLO world")
+		require.Contains(t, resp.Files[0].Diff, "--- "+path+"\n")
+		require.Contains(t, resp.Files[0].Diff, "+++ "+path+"\n")
+		require.Contains(t, resp.Files[0].Diff, "-hello world")
+		require.Contains(t, resp.Files[0].Diff, "+HELLO world")
 	})
 
 	t.Run("DiffRequestedNoOpEdit", func(t *testing.T) {
@@ -1627,9 +1639,9 @@ func TestEditFiles_Diffs(t *testing.T) {
 				},
 			},
 		})
-		require.Len(t, resp.Diffs, 1)
-		require.Equal(t, path, resp.Diffs[0].Path)
-		require.Empty(t, resp.Diffs[0].Diff, "no-op edit produces empty diff")
+		require.Len(t, resp.Files, 1)
+		require.Equal(t, path, resp.Files[0].Path)
+		require.Empty(t, resp.Files[0].Diff, "no-op edit produces empty diff")
 	})
 
 	t.Run("DiffNotRequested", func(t *testing.T) {
@@ -1651,7 +1663,7 @@ func TestEditFiles_Diffs(t *testing.T) {
 				},
 			},
 		})
-		require.Nil(t, resp.Diffs, "Diffs must be nil when DiffRequest is false")
+		require.Nil(t, resp.Files, "Files must be nil when DiffRequest is false")
 	})
 
 	t.Run("DiffRequestedMultiFilePreservesOrder", func(t *testing.T) {
@@ -1674,10 +1686,10 @@ func TestEditFiles_Diffs(t *testing.T) {
 				{Path: pathC, Edits: []workspacesdk.FileEdit{{Search: "C", Replace: "c"}}},
 			},
 		})
-		require.Len(t, resp.Diffs, 3)
-		require.Equal(t, pathA, resp.Diffs[0].Path)
-		require.Equal(t, pathB, resp.Diffs[1].Path)
-		require.Equal(t, pathC, resp.Diffs[2].Path)
+		require.Len(t, resp.Files, 3)
+		require.Equal(t, pathA, resp.Files[0].Path)
+		require.Equal(t, pathB, resp.Files[1].Path)
+		require.Equal(t, pathC, resp.Files[2].Path)
 	})
 
 	t.Run("DiffRequestedSymlinkReportsOriginalPath", func(t *testing.T) {
@@ -1708,12 +1720,12 @@ func TestEditFiles_Diffs(t *testing.T) {
 				},
 			},
 		})
-		require.Len(t, resp.Diffs, 1)
+		require.Len(t, resp.Files, 1)
 		// The response must report the caller-supplied path, not the
 		// symlink-resolved target.
-		require.Equal(t, linkPath, resp.Diffs[0].Path)
-		require.Contains(t, resp.Diffs[0].Diff, "--- "+linkPath+"\n")
-		require.Contains(t, resp.Diffs[0].Diff, "+++ "+linkPath+"\n")
+		require.Equal(t, linkPath, resp.Files[0].Path)
+		require.Contains(t, resp.Files[0].Diff, "--- "+linkPath+"\n")
+		require.Contains(t, resp.Files[0].Diff, "+++ "+linkPath+"\n")
 	})
 }
 
@@ -1742,19 +1754,26 @@ func runEditFiles(t *testing.T, api *agentfiles.API, req workspacesdk.FileEditRe
 	return resp
 }
 
-// TestFuzzyReplace_ExactNewline exercises the D3 exact-newline
-// matching rule against single-replace and replace-all paths.
+// TestFuzzyReplace_EndingAndWhitespace exercises the line-endings
+// and per-position whitespace behavior of the fuzzy matcher in
+// both single-replace and replace-all modes.
 //
-// Matcher rules (from
-// docs/plans/edit-tool-improvements.md § Stage 5):
+// Match rule: content and search lines are compared after
+// splitting off trailing (pass 2) or surrounding (pass 3)
+// whitespace. The line ending is compared separately: identical,
+// "\n" and "\r\n" are interchangeable, and an empty ending (EOF,
+// no terminator on a line) matches any ending.
 //
-//   - Each line is split into (content, ending).
-//   - Endings match iff identical or both in {"\n", "\r\n"}.
-//     "" matches only "" so fuzzy passes never slurp a newline.
-//   - Pass 2 compares content via TrimRight(c, " \t").
-//   - Pass 3 compares content via TrimSpace(c).
-//   - spliceLines is unchanged; the replacement is written verbatim.
-func TestFuzzyReplace_ExactNewline(t *testing.T) {
+// Splice rule: for every matched line, the replacement's leading
+// whitespace, trailing whitespace, and line ending are substituted
+// with the matched content line's equivalents *when search and
+// replace agree* at that position. Disagreement at a position
+// means the caller wants to change that position explicitly, and
+// the replacement's bytes win there.
+//
+// Pass 1 (byte-literal substring match) is untouched; tests that
+// exercise it are noted.
+func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
@@ -1772,98 +1791,94 @@ func TestFuzzyReplace_ExactNewline(t *testing.T) {
 		errCode  int
 		errSub   string
 	}{
-		// Pass 2 - trailing-whitespace-tolerant.
+		// CRLF file, LF search: the ending rule lets "line\n"
+		// match "line\r\n"; the replacement is empty so the
+		// matched line is removed entirely.
 		{
-			name:     "Pass2_CRLFFile_LFSearch_Delete",
+			name:     "CRLF_Content_LFSearch_Delete",
 			content:  "foo\r\nline\r\nbar\r\n",
 			edits:    []edit{{search: "line\n", replace: ""}},
 			expected: "foo\r\nbar\r\n",
 		},
+		// Pass 2 tolerates the file's trailing whitespace on
+		// the matched line when search omits it. Empty
+		// replacement removes the line.
 		{
-			name:     "Pass2_TrailingWhitespace_Delete",
+			name:     "TrailingWhitespace_Delete",
 			content:  "foo\nline   \nbar\n",
 			edits:    []edit{{search: "line\n", replace: ""}},
 			expected: "foo\nbar\n",
 		},
+		// Pass 1 handles a search without a trailing newline
+		// when the content contains an exact substring match:
+		// strings.Replace preserves the surrounding "\n" bytes
+		// verbatim.
 		{
-			// Pass 1 handles a search without a trailing newline
-			// when the content contains an exact substring match:
-			// strings.Replace preserves the surrounding "\n" bytes
-			// verbatim. The fuzzy-path rejection case lives in
-			// Pass2_SearchNoNewline_FuzzyRejects below.
-			name:     "Pass1_SearchNoNewline_ExactSubstringSucceeds",
+			name:     "Pass1_SearchNoNewline_ExactSubstring",
 			content:  "foo\nfirst line\nbar\n",
 			edits:    []edit{{search: "first line", replace: "LINE"}},
 			expected: "foo\nLINE\nbar\n",
 		},
+		// Fuzzy path, both search and replace lack a newline
+		// ending AND share a trailing space. The empty ending
+		// on search is a wildcard against content's "\n";
+		// pass 2's content comparator ignores the shared
+		// trailing space to match "key". At splice time,
+		// search and replace agree on the trailing space so
+		// the file's lack of trailing whitespace wins; search
+		// and replace agree on empty ending so the file's
+		// "\n" wins.
 		{
-			// Fuzzy-path proof: search has a trailing space the
-			// content does not, so pass 1 cannot match. Pass 2's
-			// content comparator (TrimRight " \t") would otherwise
-			// accept, but the D3 ending rule rejects because the
-			// search has empty ending and the content line ends
-			// with "\n". The same reasoning applies to pass 3.
-			name:    "Pass2_SearchNoNewline_FuzzyRejects",
-			content: "foo\nkey\nbar\n",
-			edits:   []edit{{search: "key ", replace: "KEY "}},
-			errCode: http.StatusBadRequest,
-			errSub:  "search string not found",
+			name:     "FuzzyMatchingWhitespace_FileEndingWins",
+			content:  "foo\nkey\nbar\n",
+			edits:    []edit{{search: "key ", replace: "KEY "}},
+			expected: "foo\nKEY\nbar\n",
 		},
+		// Last-line-no-newline uses pass 1 exact match.
 		{
-			// Last-line-no-newline must use pass 1 exact match,
-			// not pass 2.
 			name:     "Pass1_LastLineNoNewline",
 			content:  "foo\nbar",
 			edits:    []edit{{search: "bar", replace: "BAR"}},
 			expected: "foo\nBAR",
 		},
-
-		// Pass 3 - indent-tolerant.
+		// CRLF content, tab-indented; space-indented LF
+		// search and replace match on content via pass 3,
+		// agree on leading whitespace (both "  ") so file's
+		// "\t" wins, agree on ending (both "\n") so file's
+		// "\r\n" wins.
 		{
-			// D3 + D4 fixture: tab-indented CRLF content, space-
-			// indented LF search. Match via pass 3 (content
-			// differs in whitespace) and CRLF↔LF interchange.
-			// Splice is verbatim; the replacement carries its own
-			// ending, which is LF - the bar line keeps CRLF.
-			name:     "Pass3_IndentTolerance_CRLF",
+			name:     "IndentTolerant_CRLF_FileWhitespaceWins",
 			content:  "foo\r\n\tline\r\nbar\r\n",
 			edits:    []edit{{search: "  line\n", replace: "  LINE\n"}},
-			expected: "foo\r\n  LINE\nbar\r\n",
+			expected: "foo\r\n\tLINE\r\nbar\r\n",
 		},
 
-		// Replace-all variants.
+		// Replace-all must run through the same per-position
+		// splice as single-replace.
 		{
-			// Replace-all mirror of the single-replace
-			// search-no-newline rejection: pass 1 is blocked because
-			// the search has a trailing space not present in
-			// content. Pass 2 and pass 3 must both reject via the
-			// D3 ending rule, in both single-replace AND
-			// replace-all paths (load-bearing; reviewer called this
-			// out explicitly).
-			name:    "ReplaceAll_SearchNoNewline_FuzzyRejects",
-			content: "key\nkey\nother\n",
-			edits: []edit{
-				{search: "key ", replace: "KEY ", replaceAll: true},
-			},
-			errCode: http.StatusBadRequest,
-			errSub:  "search string not found",
+			// Every matched line keeps the file's trailing
+			// whitespace shape (""), and its "\n" ending.
+			name:     "ReplaceAll_FuzzyMatchingWhitespace_FileEndingWins",
+			content:  "key\nkey\nother\n",
+			edits:    []edit{{search: "key ", replace: "KEY ", replaceAll: true}},
+			expected: "KEY\nKEY\nother\n",
 		},
 		{
-			// Pass 2 replace-all on CRLF content with LF search.
-			name:    "ReplaceAll_CRLF_LFSearch",
-			content: "line one\r\nother\r\nline one\r\n",
-			edits: []edit{
-				{search: "line one\n", replace: "LINE\n", replaceAll: true},
-			},
-			expected: "LINE\nother\r\nLINE\n",
+			// CRLF file, LF search/replace: every splice uses
+			// the file's "\r\n" so the output is uniformly CRLF.
+			name:     "ReplaceAll_CRLF_LFSearch_FileEndingWins",
+			content:  "line one\r\nother\r\nline one\r\n",
+			edits:    []edit{{search: "line one\n", replace: "LINE\n", replaceAll: true}},
+			expected: "LINE\r\nother\r\nLINE\r\n",
 		},
 
-		// User-chosen fold: LLM explicitly drops the trailing
-		// newline in the replacement. Pass 1 handles it (exact
-		// match); the following line folds into the replacement.
-		// Not a bug, matches pass 1 semantics.
+		// Caller explicitly folds: the search has a newline
+		// ending, the replace omits it. Disagreement at the
+		// ending position means the replace's empty ending
+		// wins, so the next content line folds in. Pass 1
+		// handles this as a byte-literal match.
 		{
-			name:     "UserChosenFold",
+			name:     "CallerChosenFold",
 			content:  "foo\nline\nbar\n",
 			edits:    []edit{{search: "line\n", replace: "LINE"}},
 			expected: "foo\nLINEbar\n",
@@ -1921,35 +1936,28 @@ func TestFuzzyReplace_ExactNewline(t *testing.T) {
 	}
 }
 
-// TestHarnessScenarios converts selected scenarios from
-// /home/coder/edit-tool-tests/TEST_HARNESS.md into Go tests per plan
-// D7 (categories 3 and 6 where existing Go tests have gaps; 12.2 per
-// D2b). Scenario numbers reference TEST_HARNESS.md; see each subtest
-// for the specific mapping.
-//
-// Skipped by plan:
-//   - 3.2, 3.3, 10.5, 12.1: expect pass-3 rejection; D2 kept pass 3.
-//   - 12.3: superseded by D4 (CRLF via D3 interchange).
-func TestHarnessScenarios(t *testing.T) {
+// TestEditFiles_WhitespaceAndLineEndings covers whitespace and
+// line-ending behaviors end-to-end through the HTTP handler,
+// complementing the matcher-focused TestFuzzyReplace_EndingAndWhitespace.
+// Each case has a short comment describing the behavior it pins.
+func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	type tc struct {
-		// fixture content.
-		content string
-		// edits to apply.
+		content         string
 		search, replace string
 		replaceAll      bool
-		// expected post-state or "" when the test expects an error.
-		expected string
-		errSub   string
+		expected        string // empty => expect an error response
+		errSub          string
 	}
 	cases := map[string]tc{
-		// harness scenario 3.1: tab-indented content with exact tab
-		// matching. Only line 1 changes; tabs preserved.
-		"3.1_TabMatchExact": {
+		// Tab-indented file, search matches one tab-indented
+		// line byte-for-byte via pass 1. Tabs on untouched
+		// lines remain; untouched space-indented lines remain.
+		"TabIndentedLine_ExactMatch": {
 			content: "\ttab indented line 1\n\ttab indented line 2\n    spaces line 3\n    spaces line 4\n\ttab indented line 5\n",
 			search:  "\ttab indented line 1",
 			replace: "\ttab indented line 1 EDITED",
@@ -1957,88 +1965,78 @@ func TestHarnessScenarios(t *testing.T) {
 				"    spaces line 3\n    spaces line 4\n\ttab indented line 5\n",
 		},
 
-		// harness scenario 3.4: trailing whitespace preservation.
-		// Pass 1 matches the search string as a substring of the
-		// first line, so strings.Replace preserves the 3 trailing
-		// spaces after the match. This is the "trailing whitespace
-		// survives" branch of the scenario's documented
-		// either-or acceptance criterion.
-		"3.4_TrailingWhitespace": {
+		// Trailing whitespace on the content line is preserved
+		// via pass 1 (byte-substring match) because the search
+		// is a proper substring that doesn't touch the trailing
+		// whitespace.
+		"TrailingWhitespace_Preserved_ByPass1": {
 			content:  "line with trailing spaces   \nno trailing ws\n",
 			search:   "line with trailing spaces",
 			replace:  "line with trailing spaces EDITED",
 			expected: "line with trailing spaces EDITED   \nno trailing ws\n",
 		},
 
-		// harness scenario 3.5: blank line exact matching. The
-		// file has two blank lines between above and below; the
-		// search omits them. Must reject (blank lines are
-		// significant content).
-		"3.5_BlankLineExactRejects": {
+		// File has two blank lines between "above" and "below";
+		// search omits them. Fuzzy passes also reject because
+		// the search spans fewer lines than the content does,
+		// so blank lines are preserved significant content.
+		"BlankLinesAreSignificant_Rejects": {
 			content: "above\n\n\nbelow\n",
 			search:  "above\nbelow",
 			replace: "above\nbelow",
 			errSub:  "search string not found",
 		},
 
-		// harness scenario 3.6: removing blank lines. Search
-		// matches exactly including the blank lines; replace
-		// collapses them.
-		"3.6_RemoveBlankLines": {
+		// Search matches blank lines exactly; replacement
+		// collapses the region.
+		"RemoveBlankLines": {
 			content:  "above\n\n\nbelow\n",
 			search:   "above\n\n\nbelow",
 			replace:  "above\nbelow",
 			expected: "above\nbelow\n",
 		},
 
-		// harness scenario 6.1: CRLF file editing. Pass 1
-		// (exact substring) matches "line two" inside the CRLF
-		// line; strings.Replace touches only the matched bytes
-		// and leaves the "\r\n" boundaries intact, so every
-		// line keeps CRLF.
-		"6.1_CRLFFileEdit_Pass1PreservesCRLF": {
+		// CRLF file, pass 1 substring match preserves "\r\n"
+		// boundaries on every line.
+		"CRLF_Pass1_PreservesCRLF": {
 			content:  "line one\r\nline two\r\nline three\r\n",
 			search:   "line two",
 			replace:  "line two EDITED",
 			expected: "line one\r\nline two EDITED\r\nline three\r\n",
 		},
 
-		// harness scenario 6.2: search with LF in CRLF file.
-		// D3's ending rule lets pass 2 match via CRLF↔LF. The
-		// replacement carries LF endings so the two edited
-		// lines become LF while line three stays CRLF.
-		"6.2_CRLFSearchWithLF": {
+		// CRLF file, LF search and replace. The ending rule
+		// accepts the match, and the splice rule promotes the
+		// replacement's LF endings to the file's "\r\n"
+		// because search and replace agree on ending shape.
+		"CRLF_FuzzyWithLF_FileEndingWins": {
 			content:  "line one\r\nline two\r\nline three\r\n",
 			search:   "line one\nline two\n",
 			replace:  "line one EDITED\nline two EDITED\n",
-			expected: "line one EDITED\nline two EDITED\nline three\r\n",
+			expected: "line one EDITED\r\nline two EDITED\r\nline three\r\n",
 		},
 
-		// harness scenario 6.3: no trailing newline preserved.
-		// Pass 1 exact match keeps the no-newline EOF.
-		"6.3_NoTrailingNewline": {
+		// File has no trailing newline; pass 1 preserves EOF
+		// shape.
+		"NoTrailingNewline_Preserved": {
 			content:  "no trailing newline",
 			search:   "no trailing newline",
 			replace:  "no trailing newline EDITED",
 			expected: "no trailing newline EDITED",
 		},
 
-		// harness scenario 12.2: fuzzy matching consumes line
-		// boundaries. The content has tab-indented lines and
-		// the search uses 2 spaces. Pass 1 is blocked (content
-		// has tabs, search has spaces). D3 keeps the endings
-		// honest so pass 2/3 cannot slurp the trailing newline;
-		// the match is ambiguous between pass 3 (indent-
-		// tolerant) acceptance and rejection, but per the
-		// decision matrix (D2) pass 3 is kept with D3
-		// containment, so the match succeeds and the
-		// replacement is spliced verbatim. Verify no line
-		// folding occurred (item two keeps its newline).
-		"12.2_NoLineFolding": {
+		// Tab-indented content, space-indented search and
+		// replace. Pass 3 matches the line body ignoring
+		// leading whitespace. Search and replace agree on
+		// leading whitespace (both "  ") so the file's "\t"
+		// wins; search and replace agree on ending (both
+		// "\n") so the file's "\n" wins. The following
+		// "\titem two\n" is not folded into the replacement.
+		"FuzzyIndent_FileIndentWins_NoLineFolding": {
 			content:  "\titem one\n\titem two\n",
 			search:   "  item one\n",
 			replace:  "  item one EDITED\n",
-			expected: "  item one EDITED\n\titem two\n",
+			expected: "\titem one EDITED\n\titem two\n",
 		},
 	}
 
@@ -2048,7 +2046,7 @@ func TestHarnessScenarios(t *testing.T) {
 
 			fs := afero.NewMemMapFs()
 			api := agentfiles.NewAPI(logger, fs, nil)
-			path := filepath.Join(tmpdir, "harness-"+name)
+			path := filepath.Join(tmpdir, "ws-"+name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(ct.content), 0o644))
 
 			req := workspacesdk.FileEditRequest{

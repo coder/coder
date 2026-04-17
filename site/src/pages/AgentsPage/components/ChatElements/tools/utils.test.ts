@@ -22,8 +22,8 @@ import {
 	normalizeStatus,
 	parseArgs,
 	parseEditFilesArgs,
-	parseServerEditDiff,
-	parseServerEditDiffs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	shortDurationMs,
 	stripSvnIndexHeaders,
 	toProviderLabel,
@@ -857,28 +857,28 @@ describe("constants", () => {
 	});
 });
 
-describe("parseServerEditDiffs", () => {
+describe("parseServerEditResults", () => {
 	it("returns null when result is not a record", () => {
-		expect(parseServerEditDiffs(null)).toBeNull();
-		expect(parseServerEditDiffs(undefined)).toBeNull();
-		expect(parseServerEditDiffs("foo")).toBeNull();
+		expect(parseServerEditResults(null)).toBeNull();
+		expect(parseServerEditResults(undefined)).toBeNull();
+		expect(parseServerEditResults("foo")).toBeNull();
 	});
 
-	it("returns null when diffs field is absent", () => {
-		expect(parseServerEditDiffs({ ok: true })).toBeNull();
+	it("returns null when files field is absent", () => {
+		expect(parseServerEditResults({ ok: true })).toBeNull();
 	});
 
-	it("returns null when diffs is explicitly null (older agents)", () => {
-		expect(parseServerEditDiffs({ diffs: null })).toBeNull();
+	it("returns null when files is explicitly null (older agents)", () => {
+		expect(parseServerEditResults({ files: null })).toBeNull();
 	});
 
-	it("returns an empty array when diffs is an empty array", () => {
-		expect(parseServerEditDiffs({ diffs: [] })).toEqual([]);
+	it("returns an empty array when files is an empty array", () => {
+		expect(parseServerEditResults({ files: [] })).toEqual([]);
 	});
 
 	it("parses well-formed entries", () => {
-		const result = parseServerEditDiffs({
-			diffs: [
+		const result = parseServerEditResults({
+			files: [
 				{
 					path: "/abs/a.txt",
 					diff: "--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-a\n+A\n",
@@ -896,8 +896,8 @@ describe("parseServerEditDiffs", () => {
 	});
 
 	it("skips malformed entries without dropping the rest", () => {
-		const result = parseServerEditDiffs({
-			diffs: [
+		const result = parseServerEditResults({
+			files: [
 				null,
 				{ diff: "orphan" },
 				{ path: "", diff: "empty-path" },
@@ -908,13 +908,13 @@ describe("parseServerEditDiffs", () => {
 	});
 });
 
-describe("parseServerEditDiff", () => {
+describe("parseServerEditDiffText", () => {
 	it("returns null for an empty string (no-op edit)", () => {
-		expect(parseServerEditDiff("")).toBeNull();
+		expect(parseServerEditDiffText("")).toBeNull();
 	});
 
 	it("parses a unified diff into a FileDiffMetadata", () => {
-		const diff = parseServerEditDiff(
+		const diff = parseServerEditDiffText(
 			"--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-hello\n+HELLO\n",
 		);
 		expect(diff).not.toBeNull();

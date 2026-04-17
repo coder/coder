@@ -438,9 +438,9 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	resp := workspacesdk.FileEditResponse{}
 	if req.DiffRequest {
-		resp.Diffs = make([]workspacesdk.FileEditDiff, 0, len(pending))
+		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
-			resp.Diffs = append(resp.Diffs, workspacesdk.FileEditDiff{
+			resp.Files = append(resp.Files, workspacesdk.FileEditResult{
 				Path: p.origPath,
 				Diff: udiff.Unified(p.origPath, p.origPath, p.oldContent, p.content),
 			})
@@ -591,17 +591,114 @@ func splitEnding(line string) (content, ending string) {
 	return line, ""
 }
 
-// endingsMatch implements the D3 ending rule: identical endings
-// match, and "\n" interchanges with "\r\n" so LLMs can send LF
-// searches against CRLF content. The empty ending (EOF, no
-// terminator) matches only itself, preventing fuzzy matching from
-// slurping newline boundaries and folding adjacent lines.
+// endingsMatch decides whether two line endings may pair up during
+// fuzzy matching. Identical endings always match. "\n" and "\r\n"
+// interchange so LLMs can send LF searches against CRLF content.
+// An empty ending (EOF, no terminator) acts as a wildcard and
+// matches any ending, which lets the splice later substitute the
+// file's actual ending in place of a missing one.
 func endingsMatch(a, b string) bool {
+	if a == "" || b == "" {
+		return true
+	}
 	if a == b {
 		return true
 	}
 	newline := func(s string) bool { return s == "\n" || s == "\r\n" }
 	return newline(a) && newline(b)
+}
+
+// splitLineParts decomposes a line into its leading whitespace
+// (spaces and tabs only), middle body, trailing whitespace
+// (spaces and tabs only), and line ending. Used by the fuzzy
+// splice to substitute the file's whitespace at each position
+// when search and replace agree on what that position should be.
+func splitLineParts(line string) (lead, middle, trail, ending string) {
+	body, ending := splitEnding(line)
+	i := 0
+	for i < len(body) && (body[i] == ' ' || body[i] == '\t') {
+		i++
+	}
+	lead = body[:i]
+	rest := body[i:]
+	j := len(rest)
+	for j > 0 && (rest[j-1] == ' ' || rest[j-1] == '\t') {
+		j--
+	}
+	middle = rest[:j]
+	trail = rest[j:]
+	return lead, middle, trail, ending
+}
+
+// endingShapeEqual reports whether two line endings occupy the
+// same "position class" for the splice substitution: both empty,
+// or both in the newline class ({"\n", "\r\n"}). When this is
+// true and the pair matched during matching, the splice uses the
+// file's ending. When false, the splice keeps the replacement's
+// ending verbatim (the caller is signaling an intentional fold
+// or split).
+func endingShapeEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	newline := func(s string) bool { return s == "\n" || s == "\r\n" }
+	return newline(a) && newline(b)
+}
+
+// buildReplacementLines emits the replacement for a fuzzy match
+// by running per-position substitution on each search/content/
+// replace triple. At each of leading-whitespace, trailing-
+// whitespace, and line-ending: if search and replace agree, the
+// file's bytes at that position win; otherwise the replacement's
+// bytes are spliced verbatim. The middle (non-whitespace body)
+// is always emitted from the replacement. Extra replacement
+// lines beyond the matched region use the last search/content
+// line as their reference.
+func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace string) string {
+	repLines := strings.SplitAfter(replace, "\n")
+	// SplitAfter on a string ending in "\n" yields a trailing empty
+	// element. Drop it so it doesn't pair with a phantom line.
+	if len(repLines) > 0 && repLines[len(repLines)-1] == "" {
+		repLines = repLines[:len(repLines)-1]
+	}
+	matched := contentLines[start:end]
+	var b strings.Builder
+	for i, rLine := range repLines {
+		var refIdx int
+		if i < len(searchLines) {
+			refIdx = i
+		} else {
+			refIdx = len(searchLines) - 1
+		}
+		var refContent string
+		if refIdx < len(matched) {
+			refContent = matched[refIdx]
+		} else if len(matched) > 0 {
+			refContent = matched[len(matched)-1]
+		}
+		sLead, _, sTrail, sEnd := splitLineParts(searchLines[refIdx])
+		rLead, rMid, rTrail, rEnd := splitLineParts(rLine)
+		cLead, _, cTrail, cEnd := splitLineParts(refContent)
+
+		lead := rLead
+		if sLead == rLead {
+			lead = cLead
+		}
+		trail := rTrail
+		if sTrail == rTrail {
+			trail = cTrail
+		}
+		ending := rEnd
+		if endingShapeEqual(sEnd, rEnd) {
+			ending = cEnd
+		}
+
+		_, _ = b.WriteString(lead)
+		_, _ = b.WriteString(rMid)
+		_, _ = b.WriteString(trail)
+		_, _ = b.WriteString(ending)
+	}
+	return b.String()
 }
 
 // fuzzyReplace attempts to find `search` inside `content` and replace it
@@ -725,20 +822,6 @@ outer:
 	return count
 }
 
-// spliceLines replaces contentLines[start:end] with replacement text, returning
-// the full content as a single string.
-func spliceLines(contentLines []string, start, end int, replacement string) string {
-	var b strings.Builder
-	for _, l := range contentLines[:start] {
-		_, _ = b.WriteString(l)
-	}
-	_, _ = b.WriteString(replacement)
-	for _, l := range contentLines[end:] {
-		_, _ = b.WriteString(l)
-	}
-	return b.String()
-}
-
 // fuzzyReplaceLines handles fuzzy matching passes (2 and 3) for
 // fuzzyReplace. When replaceAll is false and there are multiple
 // matches, an error is returned. When replaceAll is true, all
@@ -767,11 +850,21 @@ func fuzzyReplaceLines(
 				"context to make the match unique, or set "+
 				"replace_all to true", count)
 		}
-		return spliceLines(contentLines, start, end, replace), true, nil
+		var b strings.Builder
+		for _, l := range contentLines[:start] {
+			_, _ = b.WriteString(l)
+		}
+		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace))
+		for _, l := range contentLines[end:] {
+			_, _ = b.WriteString(l)
+		}
+		return b.String(), true, nil
 	}
 
 	// Replace all: collect all match positions, then apply from last
-	// to first to preserve indices.
+	// to first to preserve indices. Each match runs through the same
+	// per-position splice as single-replace, using its own matched
+	// content slice as the reference.
 	type lineMatch struct{ start, end int }
 	var matches []lineMatch
 	for i := 0; i <= len(contentLines)-len(searchLines); {
@@ -790,19 +883,16 @@ func fuzzyReplaceLines(
 		}
 	}
 
-	// Apply replacements from last to first.
-	repLines := strings.SplitAfter(replace, "\n")
-	for i := len(matches) - 1; i >= 0; i-- {
-		m := matches[i]
-		newLines := make([]string, 0, m.start+len(repLines)+(len(contentLines)-m.end))
-		newLines = append(newLines, contentLines[:m.start]...)
-		newLines = append(newLines, repLines...)
-		newLines = append(newLines, contentLines[m.end:]...)
-		contentLines = newLines
-	}
-
 	var b strings.Builder
-	for _, l := range contentLines {
+	prev := 0
+	for _, m := range matches {
+		for _, l := range contentLines[prev:m.start] {
+			_, _ = b.WriteString(l)
+		}
+		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace))
+		prev = m.end
+	}
+	for _, l := range contentLines[prev:] {
 		_, _ = b.WriteString(l)
 	}
 	return b.String(), true, nil
