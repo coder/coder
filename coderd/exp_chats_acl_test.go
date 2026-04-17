@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,9 +14,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // createSharedChat creates a chat owned by the admin client for use in
@@ -43,6 +48,7 @@ func createSharedChat(
 	require.NoError(t, err)
 	return chat
 }
+
 func TestPatchChatACL_AddsUserAndGroup(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +85,7 @@ func TestPatchChatACL_AddsUserAndGroup(t *testing.T) {
 	require.Equal(t, group.ID, acl.Groups[0].ID)
 	require.Equal(t, codersdk.ChatRoleRead, acl.Groups[0].Role)
 }
+
 func TestPatchChatACL_RejectsNonReadRole(t *testing.T) {
 	t.Parallel()
 
@@ -212,17 +219,11 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 	require.Equal(t, viewer.ID, acl.Users[0].ID)
 }
 
-
-// TestDeleteChatACL_ClearsEntries covers the happy path of the DELETE
-// handler: after clearing, GET /acl returns an empty users/groups
-// response regardless of how many entries were present beforehand.
-// Pubsub invalidation is asserted separately once that channel lands
-// in the live-stream PR.
-func TestDeleteChatACL_ClearsEntries(t *testing.T) {
+func TestDeleteChatACL_ClearsEntriesAndPublishesInvalidation(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	rawClient := coderdtest.New(t, &coderdtest.Options{
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: chatDeploymentValues(t),
 	})
 	ownerClient := codersdk.NewExperimentalClient(rawClient)
@@ -231,7 +232,7 @@ func TestDeleteChatACL_ClearsEntries(t *testing.T) {
 
 	_, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
 
-	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "delete clears entries")
+	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "delete acl invalidation")
 
 	err := ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
@@ -240,6 +241,22 @@ func TestDeleteChatACL_ClearsEntries(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Subscribe to the chat's ACL invalidation channel BEFORE
+	// triggering the DELETE so the publish cannot race the
+	// subscription.
+	received := make(chan struct{}, 1)
+	cancelSub, err := api.Pubsub.SubscribeWithErr(
+		coderdpubsub.ChatACLInvalidationChannel(chat.ID),
+		func(_ context.Context, _ []byte, _ error) {
+			select {
+			case received <- struct{}{}:
+			default:
+			}
+		},
+	)
+	require.NoError(t, err)
+	defer cancelSub()
+
 	err = ownerClient.DeleteChatACL(ctx, chat.ID)
 	require.NoError(t, err)
 
@@ -247,6 +264,12 @@ func TestDeleteChatACL_ClearsEntries(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, acl.Users)
 	require.Empty(t, acl.Groups)
+
+	select {
+	case <-received:
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for chat acl invalidation publish: %v", ctx.Err())
+	}
 }
 
 func TestListChats_SharedFilter(t *testing.T) {
@@ -317,4 +340,254 @@ func chatIDSet(chats []codersdk.Chat) map[uuid.UUID]struct{} {
 		ids[c.ID] = struct{}{}
 	}
 	return ids
+}
+
+// TestChatStream_SharedViewerReceivesMessages covers plan id
+// [stream-shared]: a user added to a chat's ACL can open the stream
+// and receive the snapshot of historical user messages, confirming
+// authz gates read correctly for shared viewers.
+func TestChatStream_SharedViewerReceivesMessages(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	_ = createChatModelConfig(t, ownerClient)
+
+	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
+
+	const initialMessage = "shared stream initial message"
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: initialMessage,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			viewer.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	events, closer, err := viewerClient.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	hasTextPart := func(parts []codersdk.ChatMessagePart, want string) bool {
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for shared viewer stream event")
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before expected event")
+			require.Equal(t, chat.ID, event.ChatID)
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
+			if event.Type == codersdk.ChatStreamEventTypeMessage &&
+				event.Message != nil &&
+				event.Message.Role == codersdk.ChatMessageRoleUser &&
+				hasTextPart(event.Message.Content, initialMessage) {
+				return
+			}
+		}
+	}
+}
+
+// TestChatStream_ACLRevokePublishesInvalidationAndClosesStream covers
+// plan id [stream-revoke-invalidation]: when the owner revokes access
+// while a shared viewer's stream is open, the server publishes on the
+// per-chat ACL invalidation channel and closes the viewer's stream.
+func TestChatStream_ACLRevokePublishesInvalidationAndClosesStream(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: chatDeploymentValues(t),
+	})
+	ownerClient := codersdk.NewExperimentalClient(rawClient)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	_ = createChatModelConfig(t, ownerClient)
+
+	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
+
+	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "stream revoke")
+
+	err := ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			viewer.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	events, closer, err := viewerClient.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	// Drain the snapshot so the stream is fully attached before we
+	// trigger the revoke. The existing send loop only subscribes to
+	// the ACL invalidation channel after Accept; draining at least
+	// one event ensures the handler has progressed past Subscribe.
+	select {
+	case <-events:
+	case <-ctx.Done():
+		require.FailNow(t, "timed out waiting for initial snapshot event")
+	}
+
+	// Observe the invalidation publish to prove the handler fired
+	// pubsub after the transaction committed.
+	var invalidationCount atomic.Int32
+	cancelSub, err := api.Pubsub.SubscribeWithErr(
+		coderdpubsub.ChatACLInvalidationChannel(chat.ID),
+		func(_ context.Context, _ []byte, _ error) {
+			invalidationCount.Add(1)
+		},
+	)
+	require.NoError(t, err)
+	defer cancelSub()
+
+	// Revoke the viewer's access.
+	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			viewer.ID.String(): codersdk.ChatRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	// The viewer's events channel must close once the server
+	// re-authorizes and calls conn.Close(4403, ...). The SDK
+	// StreamChat helper closes the channel when the websocket read
+	// loop terminates, so we wait for that signal.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		select {
+		case _, ok := <-events:
+			return !ok
+		default:
+			return false
+		}
+	}, testutil.IntervalFast, "viewer stream did not close after ACL revocation")
+
+	require.GreaterOrEqual(t, invalidationCount.Load(), int32(1),
+		"expected at least one publish on chat acl invalidation channel")
+}
+
+// TestChatWatch_SharedViewerReceivesDualPublishLifecycle covers plan id
+// [watchlist-dualpub]: an owner shares a chat with a viewer, then
+// mutates the chat (archive) to trigger a lifecycle publish. The
+// viewer subscribed to /chats/watch receives the event because the
+// publisher dual-publishes to chat:owner:<owner> AND
+// chat:watchlist:<viewer>.
+func TestChatWatch_SharedViewerReceivesDualPublishLifecycle(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	_ = createChatModelConfig(t, ownerClient)
+
+	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
+
+	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "watchlist dualpub")
+
+	err := ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			viewer.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	// Open the watch connection as the viewer. The viewer does not
+	// own the chat; they can only see lifecycle events via the
+	// watchlist channel fed by the publisher's dual-publish path.
+	conn, err := viewerClient.Dial(ctx, "/api/experimental/chats/watch", nil)
+	require.NoError(t, err)
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+
+	// Trigger a lifecycle publish by archiving the shared chat.
+	// ArchiveChat fans out a Deleted-kind event through
+	// publishChatPubsubEvent which calls publishChatWatchlist.
+	err = ownerClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+		Archived: ptr.Ref(true),
+	})
+	require.NoError(t, err)
+
+	// Drain events until we see one for the shared chat. The viewer
+	// does not own the chat; receiving any lifecycle event proves the
+	// publisher dual-published to the watchlist channel. Archive can
+	// emit several event kinds (status_change, deleted) depending on
+	// prior chat state, so accept any kind that references the chat.
+	for {
+		var payload codersdk.ChatWatchEvent
+		err = wsjson.Read(ctx, conn, &payload)
+		require.NoError(t, err, "viewer should receive dual-published lifecycle event")
+		if payload.Chat.ID == chat.ID {
+			return
+		}
+	}
+}
+
+// TestChatWatch_GroupMemberReceivesLifecycle covers plan id
+// [watchlist-group]: a group is added to a chat's ACL. A member of
+// the group subscribed to /chats/watch receives lifecycle events via
+// their watchlist channel, proving the publisher resolves group
+// members through GetGroupMembersByGroupID.
+func TestChatWatch_GroupMemberReceivesLifecycle(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	_ = createChatModelConfig(t, ownerClient)
+
+	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
+
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: viewer.ID})
+
+	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "watchlist group")
+
+	err := ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		GroupRoles: map[string]codersdk.ChatRole{
+			group.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := viewerClient.Dial(ctx, "/api/experimental/chats/watch", nil)
+	require.NoError(t, err)
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+
+	err = ownerClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+		Archived: ptr.Ref(true),
+	})
+	require.NoError(t, err)
+
+	// Any lifecycle event for the chat arriving on the group
+	// member's socket proves the publisher resolved group members
+	// and dual-published. See the SharedViewer test for notes on
+	// why we accept multiple kinds.
+	for {
+		var payload codersdk.ChatWatchEvent
+		err = wsjson.Read(ctx, conn, &payload)
+		require.NoError(t, err, "group member should receive dual-published lifecycle event")
+		if payload.Chat.ID == chat.ID {
+			return
+		}
+	}
 }
