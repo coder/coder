@@ -61,7 +61,7 @@ export const DownloadSelectedAgentLogsButton: FC<
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent align="end" className="max-h-56 overflow-y-auto">
 				<DropdownMenuItem
 					disabled={!hasAllLogs}
 					onSelect={() => {
