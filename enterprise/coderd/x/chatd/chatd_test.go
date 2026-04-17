@@ -1560,10 +1560,10 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		return false
 	}, testutil.IntervalFast,
 		"retained buffer must still contain message_parts after the "+
-			"relay drains within grace — this confirms the multi-replica "+
-			"trigger path for the retained-buffer leak")
+			"relay drains within grace")
 }
 
+// TestSubscribeRelayEstablishedMidStream demonstrates that when the
 // relay is established while the worker is still streaming, the
 // subscriber receives buffered parts via the relay snapshot and live
 // parts through the relay channel.

@@ -3103,7 +3103,7 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 // cleanupStreamIfIdle removes the chat entry from the sync.Map when
 // there are no subscribers, the stream is not buffering, and any
 // grace period for late-connecting relay subscribers has elapsed. If
-// the grace window is still open it returns without rescheduling —
+// the grace window is still open it returns without rescheduling.
 // streamJanitorLoop is the backstop that re-checks on a timer.
 //
 // The caller must hold state.mu. The state pointer may have been
