@@ -179,7 +179,14 @@ export const InlinePromptInput: FC<{
 // -------------------------------------------------------------------
 
 interface CommentableDiffViewerProps
-	extends Omit<ManagedDiffViewerProps, "onLineNumberClick" | "onLineSelected"> {
+	extends Omit<
+		ManagedDiffViewerProps,
+		| "onLineNumberClick"
+		| "onLineSelected"
+		| "getLineAnnotations"
+		| "getSelectedLines"
+		| "renderAnnotation"
+	> {
 	/** Ref to the chat message input for inserting comments. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }

@@ -34,7 +34,7 @@ describe("useParsedDiffFiles", () => {
 		expect(result.current[0]?.name).toBe("src/main.ts");
 	});
 
-	it("re-parses when the cache key changes", () => {
+	it("reuses parsed metadata while refreshing worker cache keys", () => {
 		const { result, rerender } = renderHook(
 			({ diff, cacheKeyPrefix }: { diff?: string; cacheKeyPrefix?: string }) =>
 				useParsedDiffFiles(diff, cacheKeyPrefix),
@@ -51,6 +51,13 @@ describe("useParsedDiffFiles", () => {
 
 		expect(result.current).not.toBe(firstResult);
 		expect(result.current[0]?.cacheKey).not.toBe(firstResult[0]?.cacheKey);
+		expect(result.current[0]?.hunks).toBe(firstResult[0]?.hunks);
+		expect(result.current[0]?.additionLines).toBe(
+			firstResult[0]?.additionLines,
+		);
+		expect(result.current[0]?.deletionLines).toBe(
+			firstResult[0]?.deletionLines,
+		);
 	});
 
 	it("returns an empty result for invalid patches", () => {
