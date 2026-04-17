@@ -100,7 +100,7 @@ resource "coderd_template" "dogfood" {
 
 resource "coderd_template" "vscode_coder" {
   name            = "vscode-coder"
-  display_name    = "Write VS Code Extension on Coder"
+  display_name    = "Write Coder VS Code Extension on Coder"
   description     = "Develop the coder/vscode-coder VS Code extension on Coder."
   icon            = "/icon/code.svg"
   organization_id = data.coderd_organization.default.id
