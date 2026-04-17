@@ -2028,12 +2028,16 @@ func New(options *Options) *API {
 
 	// Embed routes (e.g. VS Code extension chat) are designed to be
 	// loaded inside iframes, so they need a relaxed frame-ancestors
-	// policy instead of the default 'self'.
+	// policy instead of the default 'self'. However, if the operator
+	// explicitly configured frame-ancestors via CODER_ADDITIONAL_CSP_POLICY,
+	// respect that setting.
 	embedCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(additionalCSPHeaders))
 	for k, v := range additionalCSPHeaders {
 		embedCSPHeaders[k] = v
 	}
-	embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{"*"}
+	if _, ok := additionalCSPHeaders[httpmw.CSPFrameAncestors]; !ok {
+		embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{"*"}
+	}
 	embedCSPMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, embedCSPHeaders)
 	embedHandler := embedCSPMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg)))
 	r.Get("/agents/{agentId}/embed", embedHandler.ServeHTTP)
