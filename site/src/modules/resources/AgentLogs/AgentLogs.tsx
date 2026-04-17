@@ -53,7 +53,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"pt-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
