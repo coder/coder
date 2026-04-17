@@ -202,9 +202,10 @@ func NewMultiReplicaSubscribeFn(
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
-			// err is non-nil when the dial failed. The retry loop
-			// uses it to classify the failure (via *RelayDialError)
-			// and decide whether to back off or tear down.
+			// err and parts are mutually exclusive: on a successful
+			// dial parts is non-nil and err is nil; on a failed dial
+			// parts and cancel are nil and err describes the failure
+			// (wrappable to *RelayDialError for classification).
 			err error
 		}
 		relayReadyCh := make(chan relayResult, 4)
@@ -639,6 +640,9 @@ func NewMultiReplicaSubscribeFn(
 // to reuse its φ-growth defaults but computes the next delay
 // without blocking so the merge loop can schedule a quartz.Clock
 // timer itself (and tests can advance that clock deterministically).
+//
+// Not safe for concurrent use: all method calls must happen on the
+// single merge-loop goroutine that owns the relay state.
 type relayRetryState struct {
 	retrier  *retry.Retrier
 	attempts int
