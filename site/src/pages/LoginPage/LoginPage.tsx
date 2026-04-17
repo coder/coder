@@ -11,7 +11,7 @@ import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 const LoginPage: FC = () => {
-	const location = useLocation();
+	const routerLocation = useLocation();
 	const {
 		isLoading,
 		isSignedIn,
@@ -22,7 +22,7 @@ const LoginPage: FC = () => {
 		user,
 	} = useAuthContext();
 	const authMethodsQuery = useQuery(authMethods());
-	const redirectTo = retrieveRedirect(location.search);
+	const redirectTo = retrieveRedirect(routerLocation.search);
 	const applicationName = getApplicationName();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
