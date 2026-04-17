@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -400,4 +401,75 @@ func Test_wrapTransportWithEntitlementsCheck(t *testing.T) {
 	expectedOutput := fmt.Sprintf("%s\n%s\n", pretty.Sprint(cliui.DefaultStyles.Warn, lines[0]),
 		pretty.Sprint(cliui.DefaultStyles.Warn, lines[1]))
 	require.Equal(t, expectedOutput, buf.String())
+}
+
+func Test_ensureTLSConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoFilesSpecified", func(t *testing.T) {
+		t.Parallel()
+		r := &RootCmd{}
+		err := r.ensureTLSConfig()
+		require.NoError(t, err)
+		require.Nil(t, r.tlsConfig)
+	})
+
+	t.Run("OnlyCertFileErrors", func(t *testing.T) {
+		t.Parallel()
+		r := &RootCmd{
+			tlsClientCertFile: "/some/cert.pem",
+		}
+		err := r.ensureTLSConfig()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must be specified together")
+	})
+
+	t.Run("OnlyKeyFileErrors", func(t *testing.T) {
+		t.Parallel()
+		r := &RootCmd{
+			tlsClientKeyFile: "/some/key.pem",
+		}
+		err := r.ensureTLSConfig()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must be specified together")
+	})
+
+	t.Run("InvalidCAFileErrors", func(t *testing.T) {
+		t.Parallel()
+		r := &RootCmd{
+			tlsCAFile: "/nonexistent/ca.pem",
+		}
+		err := r.ensureTLSConfig()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "read TLS CA file")
+	})
+
+	t.Run("AlreadySetSkipsLoading", func(t *testing.T) {
+		t.Parallel()
+		existingConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+		r := &RootCmd{
+			tlsConfig:         existingConfig,
+			tlsClientCertFile: "/some/cert.pem",
+		}
+		err := r.ensureTLSConfig()
+		require.NoError(t, err)
+		require.Same(t, existingConfig, r.tlsConfig)
+	})
+
+	t.Run("InvalidPEMContentErrors", func(t *testing.T) {
+		t.Parallel()
+		tmpFile, err := os.CreateTemp("", "invalid-ca-*.pem")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+		_, err = tmpFile.WriteString("this is not valid PEM data")
+		require.NoError(t, err)
+		require.NoError(t, tmpFile.Close())
+
+		r := &RootCmd{
+			tlsCAFile: tmpFile.Name(),
+		}
+		err = r.ensureTLSConfig()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to parse CA certificate")
+	})
 }

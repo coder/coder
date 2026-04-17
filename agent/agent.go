@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,6 +113,8 @@ type Options struct {
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
 	BoundaryLogProxySocketPath   string
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 type Client interface {
@@ -229,6 +232,7 @@ func New(options Options) Agent {
 		socketPath:                 options.SocketPath,
 		socketServerEnabled:        options.SocketServerEnabled,
 		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
+		derpTLSConfig:              options.DERPTLSConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -326,6 +330,8 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
+
+	derpTLSConfig *tls.Config
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1614,6 +1620,7 @@ func (a *agent) createTailnet(
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
 		DERPHeader:          &header,
+		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
 		BlockEndpoints:      disableDirectConnections,
