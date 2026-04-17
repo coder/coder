@@ -26,25 +26,22 @@ jobs:
         uses: dependabot/fetch-metadata@ffa630c65fa7e0ecfa0625b5ceda64399aea1b36 # v3.0.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+          alert-lookup: true
 
       - name: Add backport label to security updates
         id: security_backport
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'backport') }}
+        if: >-
+          ${{
+            steps.metadata.outputs.alert-state != '' &&
+            !contains(github.event.pull_request.labels.*.name, 'backport')
+          }}
         run: |
           set -euo pipefail
 
-          # Dependabot security PRs include alert or vulnerability language
-          # in the body. Version-update PRs do not.
-          if printf '%s' "$PR_BODY" | grep -Eiq 'dependabot alert|security vulnerabilit(y|ies)'; then
-            echo "Adding backport label to security update PR $PR_URL"
-            gh pr edit "$PR_URL" --add-label backport
-            echo "added=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Dependabot PR does not look like a security update."
-            echo "added=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "Adding backport label to security update PR $PR_URL"
+          gh pr edit "$PR_URL" --add-label backport
+          echo "added=true" >> "$GITHUB_OUTPUT"
         env:
-          PR_BODY: ${{ github.event.pull_request.body || '' }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
