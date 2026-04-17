@@ -2944,6 +2944,14 @@ func (q *querier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Ti
 	return q.db.GetChatsUpdatedAfter(ctx, updatedAfter)
 }
 
+func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg []uuid.UUID) ([]database.GetChildChatsByParentIDsRow, error) {
+	// Each child is independently authorized via post-filter.
+	// The handler calls this after GetChats already authorized
+	// the parent chats, but we still verify read access on
+	// every child row for defense in depth.
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChildChatsByParentIDs)(ctx, arg)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)

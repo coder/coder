@@ -820,6 +820,23 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because SQLFilter.
 		check.Args(params).Asserts()
 	}))
+	s.Run("GetChildChatsByParentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		parentA := testutil.Fake(s.T(), faker, database.Chat{})
+		parentB := testutil.Fake(s.T(), faker, database.Chat{})
+		childA := testutil.Fake(s.T(), faker, database.Chat{
+			ParentChatID: uuid.NullUUID{UUID: parentA.ID, Valid: true},
+		})
+		childB := testutil.Fake(s.T(), faker, database.Chat{
+			ParentChatID: uuid.NullUUID{UUID: parentB.ID, Valid: true},
+		})
+		parentIDs := []uuid.UUID{parentA.ID, parentB.ID}
+		rows := []database.GetChildChatsByParentIDsRow{
+			{Chat: childA},
+			{Chat: childB},
+		}
+		dbm.EXPECT().GetChildChatsByParentIDs(gomock.Any(), parentIDs).Return(rows, nil).AnyTimes()
+		check.Args(parentIDs).Asserts(childA, policy.ActionRead, childB, policy.ActionRead).Returns(rows)
+	}))
 	s.Run("GetAuthorizedChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}
 		dbm.EXPECT().GetAuthorizedChats(gomock.Any(), params, gomock.Any()).Return([]database.GetChatsRow{}, nil).AnyTimes()

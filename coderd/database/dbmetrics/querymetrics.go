@@ -1456,6 +1456,14 @@ func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg []uuid.UUID) ([]database.GetChildChatsByParentIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChildChatsByParentIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChildChatsByParentIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChildChatsByParentIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)

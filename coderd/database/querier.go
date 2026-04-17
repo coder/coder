@@ -349,6 +349,18 @@ type sqlcQuerier interface {
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
+	// Fetches all child chats for the given parent IDs. Used by the
+	// list handler and singular getChat to embed children under each
+	// root chat response. Returns every child for the given parents
+	// unconditionally. The archive invariant is enforced at write
+	// time: ArchiveChatByID cascades through root_chat_id, and
+	// patchChat rejects archive or unarchive requests on a child.
+	// An archive filter here would race those writes and could drop
+	// children whose archive flag had not yet caught up with the
+	// parent's, leaving a parent visually orphaned. We accept
+	// momentary parent/child archive-state mismatches during a
+	// cascade in exchange for never dropping a child from the tree.
+	GetChildChatsByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)

@@ -95,6 +95,12 @@ type Chat struct {
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
 	ClientType          ChatClientType    `json:"client_type"`
+	// Children holds child (subagent) chats nested under this root
+	// chat. Always initialized to an empty slice so the JSON field
+	// is present as []. Child chats cannot create their own
+	// subagents, so nesting depth is capped at 1 and this slice is
+	// always empty for child chats.
+	Children []Chat `json:"children"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file

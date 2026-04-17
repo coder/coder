@@ -1609,6 +1609,11 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
+	// Always initialize Children to an empty slice so the JSON
+	// field serializes as [] rather than null. Root chats may
+	// later have children populated; child chats remain empty
+	// because nesting depth is capped at 1.
+	chat.Children = []codersdk.Chat{}
 	switch {
 	case c.RootChatID.Valid:
 		rootChatID := c.RootChatID.UUID
@@ -1756,24 +1761,63 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 	}
 }
 
-// ChatRows converts a slice of database.GetChatsRow (which embeds
-// Chat plus HasUnread) to codersdk.Chat, looking up diff statuses
-// from the provided map. When diffStatusesByChatID is non-nil,
-// chats without an entry receive an empty DiffStatus.
-func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(rows))
-	for i, row := range rows {
-		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
+// ChildChatRows converts child chat rows to codersdk.Chat values,
+// resolving diff statuses from the shared map. When diffStatuses
+// is non-nil, children without an entry receive an empty DiffStatus.
+func ChildChatRows(
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(children))
+	for i, row := range children {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
 		if ok {
 			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
-			if diffStatusesByChatID != nil {
+			if diffStatuses != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus
 			}
 		}
 		result[i].HasUnread = row.HasUnread
+	}
+	return result
+}
+
+// ChatRowsWithChildren converts root chat rows and their child rows
+// into codersdk.Chat values with children embedded under each parent.
+// Both root and child diff statuses are resolved from the shared map.
+func ChatRowsWithChildren(
+	roots []database.GetChatsRow,
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	// Group children by parent ID.
+	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
+	for _, row := range children {
+		parentID := row.Chat.ParentChatID.UUID
+		childrenByParent[parentID] = append(childrenByParent[parentID], row)
+	}
+
+	result := make([]codersdk.Chat, len(roots))
+	for i, row := range roots {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
+		if ok {
+			result[i] = Chat(row.Chat, &diffStatus, nil)
+		} else {
+			result[i] = Chat(row.Chat, nil, nil)
+			if diffStatuses != nil {
+				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
+				result[i].DiffStatus = &emptyDiffStatus
+			}
+		}
+		result[i].HasUnread = row.HasUnread
+
+		// Embed child chats.
+		if childRows, ok := childrenByParent[row.Chat.ID]; ok {
+			result[i].Children = ChildChatRows(childRows, diffStatuses)
+		}
 	}
 	return result
 }

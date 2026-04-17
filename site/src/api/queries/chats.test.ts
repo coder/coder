@@ -4,6 +4,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
+	appendChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatCostSummary,
@@ -27,6 +28,7 @@ import {
 	unarchiveChat,
 	unpinChat,
 	updateChatPlanMode,
+	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -95,6 +97,7 @@ const makeChat = (
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -1673,5 +1676,109 @@ describe("mutation onMutate cancels pagination fetches", () => {
 		// overwrite the cache with stale oldPages.
 		const chat = readInfiniteChats(queryClient)?.find((c) => c.id === chatId);
 		expect(chat?.archived).toBe(true);
+	});
+});
+
+describe("appendChildToParentInCache", () => {
+	it("appends the child to the matching parent's children array", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		appendChildToParentInCache(queryClient, child, "parent-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result).toHaveLength(1);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-1");
+	});
+
+	it("silently drops the child when the parent is not in any page", () => {
+		const queryClient = createTestQueryClient();
+		const other = makeChat("other-root");
+		seedInfiniteChats(queryClient, [other]);
+
+		const child = makeChat("orphan-child", {
+			parent_chat_id: "missing-parent",
+			root_chat_id: "missing-parent",
+		});
+		appendChildToParentInCache(queryClient, child, "missing-parent");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result).toHaveLength(1);
+		expect(result?.[0].id).toBe("other-root");
+		expect(result?.[0].children).toHaveLength(0);
+	});
+
+	it("does not duplicate a child that already exists under the parent", () => {
+		const queryClient = createTestQueryClient();
+		const existingChild = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [existingChild] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		appendChildToParentInCache(queryClient, existingChild, "parent-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+	});
+});
+
+describe("updateChildInParentCache", () => {
+	it("applies the updater to a child nested under its parent", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			title: "Original title",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = updateChildInParentCache(
+			queryClient,
+			(c) => ({ ...c, title: "Updated title" }),
+			"child-1",
+		);
+		expect(found).toBe(true);
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children?.[0].title).toBe("Updated title");
+	});
+
+	it("returns false when the child is not present under any parent", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = updateChildInParentCache(
+			queryClient,
+			(c) => ({ ...c, title: "Never applied" }),
+			"missing-child",
+		);
+		expect(found).toBe(false);
+	});
+
+	it("preserves the same reference when the updater returns the child unchanged", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const before = readInfiniteChats(queryClient)?.[0];
+		const found = updateChildInParentCache(queryClient, (c) => c, "child-1");
+		const after = readInfiniteChats(queryClient)?.[0];
+
+		expect(found).toBe(false);
+		expect(after).toBe(before);
 	});
 });

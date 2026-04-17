@@ -1251,6 +1251,158 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, createdChats[1].ID, allPaginated[1].ID,
 			"pin_order=2 chat should be second")
 	})
+
+	t.Run("ChildChatsEmbeddedNotStandalone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a parent chat via the API.
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "root chat with children",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Insert child chats directly via the database.
+		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child one",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child two",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Also create a standalone root chat to verify it still appears.
+		standalone, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "standalone root chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		chats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+
+		// Only root chats should appear at the top level.
+		rootIDs := make(map[uuid.UUID]struct{}, len(chats))
+		for _, c := range chats {
+			rootIDs[c.ID] = struct{}{}
+			require.Nil(t, c.ParentChatID, "top-level entry should have no parent")
+		}
+		require.Contains(t, rootIDs, parentChat.ID)
+		require.Contains(t, rootIDs, standalone.ID)
+		require.NotContains(t, rootIDs, child1.ID, "child1 should not appear at top level")
+		require.NotContains(t, rootIDs, child2.ID, "child2 should not appear at top level")
+
+		// Find the parent in the list and verify children are embedded.
+		var parent codersdk.Chat
+		for _, c := range chats {
+			if c.ID == parentChat.ID {
+				parent = c
+				break
+			}
+		}
+		require.Len(t, parent.Children, 2, "parent should embed 2 children")
+
+		// Children should be ordered by created_at ASC.
+		childIDs := []uuid.UUID{parent.Children[0].ID, parent.Children[1].ID}
+		require.Equal(t, child1.ID, childIDs[0])
+		require.Equal(t, child2.ID, childIDs[1])
+
+		// Verify each child has correct parent/root references.
+		for _, child := range parent.Children {
+			require.NotNil(t, child.ParentChatID)
+			require.Equal(t, parentChat.ID, *child.ParentChatID)
+			require.NotNil(t, child.RootChatID)
+			require.Equal(t, parentChat.ID, *child.RootChatID)
+		}
+
+		// Standalone root chat should have an empty children slice.
+		for _, c := range chats {
+			if c.ID == standalone.ID {
+				require.NotNil(t, c.Children)
+				require.Empty(t, c.Children)
+				break
+			}
+		}
+	})
+
+	t.Run("PaginationCountsOnlyRootChats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create 3 root chats, each with 2 children.
+		for i := range 3 {
+			parent, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: user.OrganizationID,
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: fmt.Sprintf("parent %d", i),
+					},
+				},
+			})
+			require.NoError(t, err)
+			for j := range 2 {
+				_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+					OrganizationID:    user.OrganizationID,
+					Status:            database.ChatStatusWaiting,
+					ClientType:        database.ChatClientTypeUi,
+					OwnerID:           user.UserID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             fmt.Sprintf("child %d-%d", i, j),
+					ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+					RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+				})
+				require.NoError(t, err)
+			}
+		}
+
+		// Request with limit=2: should get 2 root chats (not 2 of
+		// the 9 total chats). Each root should have its children.
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, chats, 2, "limit should apply to root chats only")
+		for _, c := range chats {
+			require.Nil(t, c.ParentChatID)
+			require.Len(t, c.Children, 2, "each root should embed its 2 children")
+		}
+	})
 }
 
 func TestListChatModels(t *testing.T) {
@@ -3692,6 +3844,52 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 	})
+
+	t.Run("GetChatEmbedsChildren", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent for getChat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child for getChat",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Fetching the root chat should embed its children.
+		result, err := client.GetChat(ctx, parentChat.ID)
+		require.NoError(t, err)
+		require.Len(t, result.Children, 1)
+		require.Equal(t, child.ID, result.Children[0].ID)
+		require.NotNil(t, result.Children[0].ParentChatID)
+		require.Equal(t, parentChat.ID, *result.Children[0].ParentChatID)
+
+		// Fetching a child chat should not have children.
+		childResult, err := client.GetChat(ctx, child.ID)
+		require.NoError(t, err)
+		require.NotNil(t, childResult.Children)
+		require.Empty(t, childResult.Children)
+	})
 }
 
 func TestPatchChat(t *testing.T) {
@@ -4083,6 +4281,77 @@ func TestArchiveChat(t *testing.T) {
 		dbChild2, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child2.ID)
 		require.NoError(t, err)
 		require.True(t, dbChild2.Archived, "child2 should be archived")
+
+		// archived:true should return the parent with both cascaded
+		// children embedded. GetChildChatsByParentIDs returns every
+		// child unconditionally, so this verifies the handler does
+		// attach them (rather than dropping them in db2sdk).
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:true",
+		})
+		require.NoError(t, err)
+		var foundParent *codersdk.Chat
+		for _, chat := range archivedChats {
+			if chat.ID == parentChat.ID {
+				foundParent = &chat
+				break
+			}
+		}
+		require.NotNil(t, foundParent, "parent should appear in archived list")
+		require.True(t, foundParent.Archived, "parent should be archived")
+		require.Len(t, foundParent.Children, 2, "both archived children should be embedded under the archived parent")
+		childIDs := map[uuid.UUID]bool{}
+		for _, child := range foundParent.Children {
+			require.True(t, child.Archived, "embedded child should be archived")
+			childIDs[child.ID] = true
+		}
+		require.True(t, childIDs[child1.ID], "child1 should be embedded under archived parent")
+		require.True(t, childIDs[child2.ID], "child2 should be embedded under archived parent")
+	})
+
+	t.Run("RejectsChildChatDirectly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a parent chat via the API.
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Insert a child chat directly via the database.
+		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Archiving a child directly must be rejected so sidebar
+		// views do not produce ghost records (child invisible in
+		// both active and archived lists).
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		requireSDKError(t, err, http.StatusBadRequest)
+
+		// Confirm the child was not archived in the DB.
+		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild.Archived, "child should not be archived")
 	})
 }
 
@@ -4192,25 +4461,28 @@ func TestUnarchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var foundParent bool
-		var foundChild1 bool
-		var foundChild2 bool
+		// Children no longer appear as top-level entries.
+		// They are embedded inside the parent's Children field.
+		var foundParent *codersdk.Chat
 		for _, chat := range activeChats {
-			switch chat.ID {
-			case parentChat.ID:
-				foundParent = true
-				require.False(t, chat.Archived)
-			case child1.ID:
-				foundChild1 = true
-				require.False(t, chat.Archived)
-			case child2.ID:
-				foundChild2 = true
-				require.False(t, chat.Archived)
+			require.NotEqual(t, child1.ID, chat.ID, "child1 should not appear at top level")
+			require.NotEqual(t, child2.ID, chat.ID, "child2 should not appear at top level")
+			if chat.ID == parentChat.ID {
+				foundParent = &chat
 			}
 		}
-		require.True(t, foundParent, "parent should be listed as active")
-		require.True(t, foundChild1, "child1 should be listed as active")
-		require.True(t, foundChild2, "child2 should be listed as active")
+		require.NotNil(t, foundParent, "parent should be listed as active")
+		require.False(t, foundParent.Archived)
+
+		// Verify children are embedded and unarchived.
+		require.Len(t, foundParent.Children, 2)
+		childIDs := map[uuid.UUID]bool{}
+		for _, child := range foundParent.Children {
+			require.False(t, child.Archived)
+			childIDs[child.ID] = true
+		}
+		require.True(t, childIDs[child1.ID], "child1 should be embedded")
+		require.True(t, childIDs[child2.ID], "child2 should be embedded")
 
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: "archived:true",
@@ -4218,8 +4490,6 @@ func TestUnarchiveChat(t *testing.T) {
 		require.NoError(t, err)
 		for _, chat := range archivedChats {
 			require.NotEqual(t, parentChat.ID, chat.ID, "parent should not remain archived")
-			require.NotEqual(t, child1.ID, chat.ID, "child1 should not remain archived")
-			require.NotEqual(t, child2.ID, chat.ID, "child2 should not remain archived")
 		}
 
 		dbParent, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), parentChat.ID)
@@ -4258,6 +4528,103 @@ func TestUnarchiveChat(t *testing.T) {
 		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
+
+	t.Run("RejectsChildChatWhenParentArchived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a parent chat via the API.
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Insert a child directly via the database, then archive the
+		// parent so the whole family is archived (cascade).
+		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		// Unarchiving the child while the parent stays archived
+		// must be rejected. Otherwise the child becomes a ghost
+		// (active list excludes the parent, archived list's child
+		// query filters archived=true so the now-unarchived child
+		// is also excluded).
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		requireSDKError(t, err, http.StatusBadRequest)
+
+		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
+		require.NoError(t, err)
+		require.True(t, dbChild.Archived, "child should still be archived")
+	})
+
+	t.Run("AllowsChildChatWhenParentNotArchived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Simulate legacy lone-archived child (from before the
+		// child-archive gate existed) by inserting it directly
+		// with archived=true while the parent is not archived.
+		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "legacy child",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
+		require.NoError(t, err)
+
+		// Unarchiving the child is permitted because the parent is
+		// already active; this is the recovery path for legacy
+		// data.
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		require.NoError(t, err)
+
+		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild.Archived, "child should be unarchived")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 

@@ -4976,15 +4976,11 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 6. Verify the child chat has Mode = computer_use in
 	//    the DB.
-	allChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnerID: user.ID,
-	})
+	childRows, err := db.GetChildChatsByParentIDs(ctx, []uuid.UUID{chat.ID})
 	require.NoError(t, err)
-	var children []database.Chat
-	for _, c := range allChats {
-		if c.Chat.ParentChatID.Valid && c.Chat.ParentChatID.UUID == chat.ID {
-			children = append(children, c.Chat)
-		}
+	children := make([]database.Chat, 0, len(childRows))
+	for _, row := range childRows {
+		children = append(children, row.Chat)
 	}
 	require.Len(t, children, 1)
 	require.True(t, children[0].Mode.Valid)

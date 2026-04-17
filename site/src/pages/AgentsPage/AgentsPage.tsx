@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
+	appendChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -26,6 +27,7 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -560,59 +562,80 @@ const AgentsPage: FC = () => {
 					// page, so a naive prepend would duplicate the
 					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
-						prependToInfiniteChatsCache(queryClient, updatedChat);
+						if (updatedChat.parent_chat_id) {
+							// Child chat: append to its parent's children
+							// array. If the parent is not in any loaded
+							// page, the child is silently dropped.
+							appendChildToParentInCache(
+								queryClient,
+								updatedChat,
+								updatedChat.parent_chat_id,
+							);
+						} else {
+							prependToInfiniteChatsCache(queryClient, updatedChat);
+						}
 					} else {
+						// Build a field updater shared between root and
+						// child cache update paths.
+						const applyFields = (c: TypesGen.Chat): TypesGen.Chat => {
+							const nextStatus = isStatusEvent ? updatedChat.status : c.status;
+							const nextTitle = isTitleEvent ? updatedChat.title : c.title;
+							const nextDiffStatus = isDiffStatusEvent
+								? updatedChat.diff_status
+								: c.diff_status;
+							const nextWorkspaceId =
+								updatedChat.workspace_id ?? c.workspace_id;
+							const nextBuildId = updatedChat.build_id ?? c.build_id;
+							const nextUpdatedAt =
+								c.updated_at > updatedChat.updated_at
+									? c.updated_at
+									: updatedChat.updated_at;
+							// The server's pubsub path does not compute
+							// has_unread (it always sends false). For
+							// status_change events on non-active chats,
+							// optimistically mark as unread since the
+							// assistant produced new output.
+							const nextHasUnread =
+								isStatusEvent && updatedChat.id !== activeChatIDRef.current
+									? true
+									: c.has_unread;
+							if (
+								nextStatus === c.status &&
+								nextTitle === c.title &&
+								diffStatusEqual(nextDiffStatus, c.diff_status) &&
+								nextWorkspaceId === c.workspace_id &&
+								nextBuildId === c.build_id &&
+								nextHasUnread === c.has_unread
+							) {
+								return c;
+							}
+							return {
+								...c,
+								status: nextStatus,
+								title: nextTitle,
+								diff_status: nextDiffStatus,
+								workspace_id: nextWorkspaceId,
+								build_id: nextBuildId,
+								updated_at: nextUpdatedAt,
+								has_unread: nextHasUnread,
+							};
+						};
+
+						// Try root-level update first.
 						updateInfiniteChatsCache(queryClient, (chats) => {
 							let didUpdate = false;
 							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
-								const nextStatus = isStatusEvent
-									? updatedChat.status
-									: c.status;
-								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-								const nextDiffStatus = isDiffStatusEvent
-									? updatedChat.diff_status
-									: c.diff_status;
-								const nextWorkspaceId =
-									updatedChat.workspace_id ?? c.workspace_id;
-								const nextBuildId = updatedChat.build_id ?? c.build_id;
-								const nextUpdatedAt =
-									c.updated_at > updatedChat.updated_at
-										? c.updated_at
-										: updatedChat.updated_at;
-								// The server's pubsub path does not compute
-								// has_unread (it always sends false). For
-								// status_change events on non-active chats,
-								// optimistically mark as unread since the
-								// assistant produced new output.
-								const nextHasUnread =
-									isStatusEvent && updatedChat.id !== activeChatIDRef.current
-										? true
-										: c.has_unread;
-								if (
-									nextStatus === c.status &&
-									nextTitle === c.title &&
-									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id &&
-									nextBuildId === c.build_id &&
-									nextHasUnread === c.has_unread
-								) {
-									return c;
-								}
-								didUpdate = true;
-								return {
-									...c,
-									status: nextStatus,
-									title: nextTitle,
-									diff_status: nextDiffStatus,
-									workspace_id: nextWorkspaceId,
-									build_id: nextBuildId,
-									updated_at: nextUpdatedAt,
-									has_unread: nextHasUnread,
-								};
+								const result = applyFields(c);
+								if (result !== c) didUpdate = true;
+								return result;
 							});
 							return didUpdate ? nextChats : chats;
 						});
+
+						// Also update inside parent's children array
+						// in case the event targets a child chat.
+						updateChildInParentCache(queryClient, applyFields, updatedChat.id);
 					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),

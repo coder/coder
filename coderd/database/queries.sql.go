@@ -6620,6 +6620,11 @@ WHERE
         WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -6824,6 +6829,93 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.LastModelConfigID,
 			&i.ClientType,
 			&i.PullRequestState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
+SELECT
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY($1 :: uuid[])
+ORDER BY
+    chats.created_at ASC,
+    chats.id ASC
+`
+
+type GetChildChatsByParentIDsRow struct {
+	Chat      Chat `db:"chat" json:"chat"`
+	HasUnread bool `db:"has_unread" json:"has_unread"`
+}
+
+// Fetches all child chats for the given parent IDs. Used by the
+// list handler and singular getChat to embed children under each
+// root chat response. Returns every child for the given parents
+// unconditionally. The archive invariant is enforced at write
+// time: ArchiveChatByID cascades through root_chat_id, and
+// patchChat rejects archive or unarchive requests on a child.
+// An archive filter here would race those writes and could drop
+// children whose archive flag had not yet caught up with the
+// parent's, leaving a parent visually orphaned. We accept
+// momentary parent/child archive-state mismatches during a
+// cascade in exchange for never dropping a child from the tree.
+func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]GetChildChatsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(parentIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChildChatsByParentIDsRow
+	for rows.Next() {
+		var i GetChildChatsByParentIDsRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.LastInjectedContext,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.HasUnread,
 		); err != nil {
 			return nil, err
 		}
