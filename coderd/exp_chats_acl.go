@@ -21,9 +21,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// chatACL returns the ACL on a chat, hydrated with display info for
-// each user and group. Authorization is ActionRead on the chat; shared
-// viewers can inspect the ACL they were added to.
+// chatACL returns the ACL on a chat, hydrated with user and group display info.
 func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -41,9 +39,6 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hydrate users. We use AsSystemRestricted so that display info
-	// (username, avatar) is returned even for users the caller cannot
-	// normally read. This follows the workspace ACL handler precedent.
 	userIDs := make([]uuid.UUID, 0, len(chatACL.Users))
 	for userID := range chatACL.Users {
 		id, err := uuid.Parse(userID)
@@ -53,7 +48,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// nolint:gocritic // See coderd/workspaces.go:workspaceACL for context.
+	// nolint:gocritic // system context so display info is returned regardless of caller perms
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -80,7 +75,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
-		// nolint:gocritic // Same rationale as the users hydration above.
+		// nolint:gocritic // system context so display info is returned regardless of caller perms
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.InternalServerError(rw, err)
@@ -91,7 +86,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
 		var members []database.GroupMember
-		// nolint:gocritic // See above.
+		// nolint:gocritic // system context so display info is returned regardless of caller perms
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
 			GroupID:       it.Group.ID,
 			IncludeSystem: false,
@@ -116,14 +111,8 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// patchChatACL updates the ACL on a chat. Owners cannot change their
-// own role (matches patchWorkspaceACL). Roles other than ChatRoleRead
-// and ChatRoleDeleted are rejected with 400.
-//
-// Before persisting, the handler computes whether the chat contains
-// tool calls or attachments that the owner must explicitly acknowledge
-// shared viewers will see, and returns 400 if any required confirmation
-// flag is missing. See codersdk.UpdateChatACL.
+// patchChatACL updates the ACL on a chat. Owners cannot change their own role,
+// and only ChatRoleRead or ChatRoleDeleted are accepted.
 func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -152,11 +141,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Share-confirmation checks. We require the owner to explicitly
-	// acknowledge that shared viewers will see tool calls and/or
-	// attachments already present in the chat. Runs only when the
-	// request adds at least one shared viewer, since an empty PATCH
-	// (or a removal-only PATCH) should not surface the prompt.
+	// Only enforce share-confirmation prompts when the PATCH actually adds viewers.
 	if hasShareAdditions(req) {
 		if !api.requireShareConfirmations(ctx, rw, chat, req) {
 			return
@@ -171,7 +156,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatByID(ctx, chat.ID)
@@ -252,19 +236,14 @@ func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// writeChatACLSubChatError is the canonical 400 response for any ACL
-// endpoint invoked on a sub-chat. It includes the root chat id so the
-// frontend can redirect the user to the place where ACL writes
-// actually work.
+// writeChatACLSubChatError is the 400 response for ACL endpoints invoked on a sub-chat.
 func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat database.Chat) {
 	var rootID uuid.UUID
 	switch {
 	case chat.RootChatID.Valid:
 		rootID = chat.RootChatID.UUID
 	case chat.ParentChatID.Valid:
-		// Sub-chat inserted before root_chat_id was denormalized.
-		// Fall back to the parent id; the frontend can follow the
-		// parent chain itself if necessary.
+		// Fallback for sub-chats inserted before root_chat_id was denormalized.
 		rootID = chat.ParentChatID.UUID
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -273,9 +252,7 @@ func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat 
 	})
 }
 
-// ChatACLUpdateValidator implements acl.UpdateValidator[codersdk.ChatRole]
-// for the chat share endpoint. Only ChatRoleRead (or the delete
-// sentinel) is accepted today; any other value fails validation.
+// ChatACLUpdateValidator implements acl.UpdateValidator[codersdk.ChatRole] for the chat share endpoint.
 type ChatACLUpdateValidator codersdk.UpdateChatACL
 
 var (
@@ -303,11 +280,8 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
-// convertToChatRole is the inverse of db2sdk.ChatRoleActions. If the
-// stored permissions do not match a known role we return the empty
-// string so clients surface "unknown" rather than misreporting. Writes
-// must not round-trip the empty role back to the server except when
-// deliberately removing an entry.
+// convertToChatRole is the inverse of db2sdk.ChatRoleActions. Unknown permission
+// sets map to ChatRoleDeleted so clients surface "unknown" rather than misreport.
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead
@@ -315,10 +289,7 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	return codersdk.ChatRoleDeleted
 }
 
-// hasShareAdditions reports whether the PATCH request would add or
-// update at least one viewer (as opposed to being removal-only).
-// The share-confirmation prompt is noise when the owner is only
-// revoking, so we suppress it in that case.
+// hasShareAdditions reports whether the PATCH would add or update at least one viewer.
 func hasShareAdditions(req codersdk.UpdateChatACL) bool {
 	for _, role := range req.UserRoles {
 		if role != codersdk.ChatRoleDeleted {
@@ -333,13 +304,8 @@ func hasShareAdditions(req codersdk.UpdateChatACL) bool {
 	return false
 }
 
-// requireShareConfirmations enforces the confirm_share_tool_calls /
-// confirm_share_attachments flags. It returns true if the request
-// may proceed, or false after writing a 400 response. Both flag
-// names are deliberately verbose: the error quotes them in the
-// validations array so a human reading the response knows exactly
-// which checkbox to flip. A future participate role can add more
-// confirm_* flags without renaming these two.
+// requireShareConfirmations enforces the confirm_share_tool_calls and
+// confirm_share_attachments flags. Returns true if the request may proceed.
 func (api *API) requireShareConfirmations(
 	ctx context.Context,
 	rw http.ResponseWriter,
@@ -396,15 +362,11 @@ func (api *API) requireShareConfirmations(
 	})
 	return false
 }
-// allowChatSharing enforces the chat-sharing gate for an
-// organization. Returns false after writing an HTTP error response
-// when the org has shareable_chat_owners = 'none', or when
-// shareable_chat_owners = 'service_accounts' and the chat's owner is
-// not a service account. Mirrors allowWorkspaceSharing in
-// coderd/workspaces.go.
+
+// allowChatSharing enforces the org-level chat-sharing gate. Returns false after
+// writing an HTTP error when sharing is disabled or restricted to service accounts.
 func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, chat database.Chat) bool {
-	// nolint:gocritic // System context so the check does not depend on
-	// the caller's organization:read permissions.
+	// nolint:gocritic // system context so the check ignores caller org:read perms
 	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), chat.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -417,7 +379,7 @@ func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, ch
 		})
 		return false
 	case database.ShareableChatOwnersServiceAccounts:
-		// nolint:gocritic // See above.
+		// nolint:gocritic // system context so the check ignores caller user:read perms
 		owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), chat.OwnerID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -432,4 +394,3 @@ func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, ch
 	}
 	return true
 }
-

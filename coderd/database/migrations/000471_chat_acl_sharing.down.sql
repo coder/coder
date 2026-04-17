@@ -3,13 +3,7 @@
 ALTER TABLE organizations DROP COLUMN shareable_chat_owners;
 DROP TYPE shareable_chat_owners;
 
--- Postgres cannot drop an enum value, so we mirror the no-op posture
--- of 000384_add_workspace_share_scope.down.sql rather than rebuild
--- api_key_scope. The 'chat:share' value is retained; nothing references
--- it once the feature is rolled back. If strict removal is ever
--- required, it should be a separate, deliberate migration that rebuilds
--- the enum type and casts every column through text, consistent with
--- whatever the canonical enum-rebuild pattern is at that time.
+-- Postgres cannot drop an enum value; leave 'chat:share' on api_key_scope.
 
 DROP VIEW chats_with_acl;
 

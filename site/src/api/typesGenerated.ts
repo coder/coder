@@ -7632,18 +7632,13 @@ export interface UpdateAppearanceConfig {
 /**
  * UpdateChatACL is the request body for PATCH /chats/{chat}/acl.
  *
- * UserRoles and GroupRoles map ids to the role the owner wants each
- * actor to have. A value of ChatRoleDeleted (the empty string)
- * removes the entry. Roles other than ChatRoleRead are rejected with
- * a 400.
+ * UserRoles and GroupRoles map ids to the role the owner wants each actor to
+ * have. A value of ChatRoleDeleted (the empty string) removes the entry.
+ * Roles other than ChatRoleRead are rejected with a 400.
  *
- * ConfirmShareToolCalls and ConfirmShareAttachments are required
- * confirmations that the owner understands shared viewers will see
- * tool calls and/or attachments already present in the chat. The
- * server computes whether each is required and refuses the PATCH
- * with a 400 naming the missing flag. They are deliberately verbose
- * so the error message tells the caller exactly which checkbox to
- * flip.
+ * ConfirmShareToolCalls and ConfirmShareAttachments acknowledge that shared
+ * viewers will see tool calls and/or attachments already in the chat; the
+ * server returns 400 naming any missing required flag.
  */
 export interface UpdateChatACL {
 	readonly user_roles?: Record<string, ChatRole>;

@@ -71,18 +71,10 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
-	// Returns true if the chat has any attachment that a shared viewer
-	// could see: a chat_file_links row or a non-deleted message with a
-	// file / file-reference / context-file part. Backs the
-	// confirm_share_attachments gate on PATCH /chats/{chat}/acl.
+	// Returns true if the chat has any attachment a shared viewer could see.
 	ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error)
-	// Returns true if the chat has any non-deleted message containing a
-	// tool-call or tool-result part. Backs the
-	// confirm_share_tool_calls gate on PATCH /chats/{chat}/acl. We use
-	// the jsonb containment operator @> on purpose: it can use a GIN
-	// index on chat_messages.content if one is added later. Soft-
-	// deleted messages are invisible to shared viewers (decision h in
-	// the plan) and are excluded from the classifier.
+	// Returns true if the chat has any non-deleted message containing a tool-call
+	// or tool-result part. Backs confirm_share_tool_calls on PATCH /chats/{chat}/acl.
 	ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
@@ -116,10 +108,8 @@ type sqlcQuerier interface {
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteChatACLByID(ctx context.Context, id uuid.UUID) error
-	// Clears every chat ACL in an organization, optionally preserving
-	// chats owned by service accounts so the 'service_accounts' org
-	// mode can leave shared bots untouched while clearing human-owned
-	// shares. Mirrors DeleteWorkspaceACLsByOrganization.
+	// Clears every chat ACL in an organization, optionally preserving chats
+	// owned by service accounts for the 'service_accounts' org mode.
 	DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
 	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -274,10 +264,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	// Returns the ACL stored on the chat row itself (not the effective
-	// ACL from chats_with_acl). The read path for authorization uses
-	// chats_with_acl / the handler-level overlay; this query backs the
-	// ACL-management endpoints, which always operate on the root chat.
+	// Returns the ACL stored on the chat row itself (not the effective ACL from chats_with_acl).
 	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -979,9 +966,7 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
-	// Writes the ACL on the given chat row. Callers must have refused
-	// the request earlier if the chat is a sub-chat; this query does
-	// not enforce that.
+	// Writes the ACL on the given chat row; sub-chat rejection happens in the caller.
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
@@ -1038,9 +1023,7 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
-	// Mirrors UpdateOrganizationWorkspaceSharingSettings for the new
-	// shareable_chat_owners column. Called from the enterprise chat-
-	// sharing settings handler and audited at the organization row.
+	// Updates the shareable_chat_owners column; called from the enterprise handler.
 	UpdateOrganizationChatSharingSettings(ctx context.Context, arg UpdateOrganizationChatSharingSettingsParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)

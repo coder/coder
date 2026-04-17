@@ -219,10 +219,7 @@ WHERE
     id = @id::uuid;
 
 -- name: GetChatACLByID :one
--- Returns the ACL stored on the chat row itself (not the effective
--- ACL from chats_with_acl). The read path for authorization uses
--- chats_with_acl / the handler-level overlay; this query backs the
--- ACL-management endpoints, which always operate on the root chat.
+-- Returns the ACL stored on the chat row itself (not the effective ACL from chats_with_acl).
 SELECT
     user_acl  AS users,
     group_acl AS groups
@@ -232,9 +229,7 @@ WHERE
     id = @id::uuid;
 
 -- name: UpdateChatACLByID :exec
--- Writes the ACL on the given chat row. Callers must have refused
--- the request earlier if the chat is a sub-chat; this query does
--- not enforce that.
+-- Writes the ACL on the given chat row; sub-chat rejection happens in the caller.
 UPDATE
     chats
 SET
@@ -253,10 +248,8 @@ WHERE
     id = @id::uuid;
 
 -- name: DeleteChatACLsByOrganization :exec
--- Clears every chat ACL in an organization, optionally preserving
--- chats owned by service accounts so the 'service_accounts' org
--- mode can leave shared bots untouched while clearing human-owned
--- shares. Mirrors DeleteWorkspaceACLsByOrganization.
+-- Clears every chat ACL in an organization, optionally preserving chats
+-- owned by service accounts for the 'service_accounts' org mode.
 UPDATE
     chats
 SET
@@ -401,12 +394,8 @@ WHERE
         WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
         ELSE true
     END
-    -- Viewer-scoped shared filter. Both params default to false:
-    --   both false  -> no viewer filter (owned + shared, intersected
-    --                  with the RBAC filter injected below).
-    --   owned_only  -> chats.owner_id = @viewer_id.
-    --   shared_only -> chats.owner_id != @viewer_id.
-    -- The handler rejects both=true as a 400 before reaching here.
+    -- Viewer-scoped shared filter: owned_only restricts to the viewer's own
+    -- chats, shared_only excludes them. Both false means no viewer filter.
     AND CASE
         WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
         ELSE true
@@ -1427,13 +1416,8 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: ChatHasVisibleToolParts :one
--- Returns true if the chat has any non-deleted message containing a
--- tool-call or tool-result part. Backs the
--- confirm_share_tool_calls gate on PATCH /chats/{chat}/acl. We use
--- the jsonb containment operator @> on purpose: it can use a GIN
--- index on chat_messages.content if one is added later. Soft-
--- deleted messages are invisible to shared viewers (decision h in
--- the plan) and are excluded from the classifier.
+-- Returns true if the chat has any non-deleted message containing a tool-call
+-- or tool-result part. Backs confirm_share_tool_calls on PATCH /chats/{chat}/acl.
 SELECT EXISTS (
     SELECT 1
     FROM chat_messages
@@ -1446,10 +1430,7 @@ SELECT EXISTS (
 );
 
 -- name: ChatHasVisibleAttachments :one
--- Returns true if the chat has any attachment that a shared viewer
--- could see: a chat_file_links row or a non-deleted message with a
--- file / file-reference / context-file part. Backs the
--- confirm_share_attachments gate on PATCH /chats/{chat}/acl.
+-- Returns true if the chat has any attachment a shared viewer could see.
 SELECT EXISTS (
     SELECT 1
     FROM chat_file_links

@@ -154,9 +154,7 @@ WHERE
 RETURNING *;
 
 -- name: UpdateOrganizationChatSharingSettings :one
--- Mirrors UpdateOrganizationWorkspaceSharingSettings for the new
--- shareable_chat_owners column. Called from the enterprise chat-
--- sharing settings handler and audited at the organization row.
+-- Updates the shareable_chat_owners column; called from the enterprise handler.
 UPDATE
     organizations
 SET

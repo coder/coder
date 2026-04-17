@@ -335,10 +335,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The viewer filter is caller-relative (= / != the caller) while
-	// the OwnerID filter is caller-agnostic (admin tooling can scope
-	// to any owner). Keep them independent so neither trumps the
-	// other.
 	params := database.GetChatsParams{
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,

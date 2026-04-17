@@ -2712,22 +2712,17 @@ type PRInsightsPullRequest struct {
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
 
-// ChatRole is the role a shared viewer holds on a chat. v1 only
-// supports read; the enum leaves room for a future participate role.
+// ChatRole is the role a shared viewer holds on a chat.
 type ChatRole string
 
 const (
 	ChatRoleRead ChatRole = "read"
-	// ChatRoleDeleted is the sentinel role used in UpdateChatACL
-	// requests to remove a user or group entry. It matches the
-	// WorkspaceRole pattern.
+	// ChatRoleDeleted is the sentinel used in UpdateChatACL to remove an entry.
 	ChatRoleDeleted ChatRole = ""
 )
 
-// ChatSharedFilter is a three-state selector on GET /chats. Default
-// (empty) preserves pre-feature behaviour and returns only the
-// caller's own chats. "include" expands to owned + shared. "only"
-// returns chats the caller does not own but has access to via ACL.
+// ChatSharedFilter selects which chats GET /chats returns: the caller's own
+// chats by default, owned + shared with "include", or shared-only with "only".
 type ChatSharedFilter string
 
 const (
@@ -2756,18 +2751,13 @@ type ChatACL struct {
 
 // UpdateChatACL is the request body for PATCH /chats/{chat}/acl.
 //
-// UserRoles and GroupRoles map ids to the role the owner wants each
-// actor to have. A value of ChatRoleDeleted (the empty string)
-// removes the entry. Roles other than ChatRoleRead are rejected with
-// a 400.
+// UserRoles and GroupRoles map ids to the role the owner wants each actor to
+// have. A value of ChatRoleDeleted (the empty string) removes the entry.
+// Roles other than ChatRoleRead are rejected with a 400.
 //
-// ConfirmShareToolCalls and ConfirmShareAttachments are required
-// confirmations that the owner understands shared viewers will see
-// tool calls and/or attachments already present in the chat. The
-// server computes whether each is required and refuses the PATCH
-// with a 400 naming the missing flag. They are deliberately verbose
-// so the error message tells the caller exactly which checkbox to
-// flip.
+// ConfirmShareToolCalls and ConfirmShareAttachments acknowledge that shared
+// viewers will see tool calls and/or attachments already in the chat; the
+// server returns 400 naming any missing required flag.
 type UpdateChatACL struct {
 	UserRoles               map[string]ChatRole `json:"user_roles,omitempty"`
 	GroupRoles              map[string]ChatRole `json:"group_roles,omitempty"`
@@ -2789,9 +2779,7 @@ func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (Cha
 	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
-// UpdateChatACL sets the ACL for a chat. The request must include
-// the ConfirmShare* flags that the server reports as required for
-// the chat's current content; see UpdateChatACL.
+// UpdateChatACL sets the ACL for a chat.
 func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
 	if err != nil {

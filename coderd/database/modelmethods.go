@@ -180,11 +180,7 @@ func (c Chat) RBACObject() rbac.Object {
 		WithOwner(c.OwnerID.String()).
 		InOrg(c.OrganizationID)
 
-	// The kill switch from the workspace path is reused verbatim: if
-	// sharing is globally disabled we drop the ACL entirely so cached
-	// policies cannot evaluate against it. The name WorkspaceACLDisabled
-	// is a misnomer now that chats also honour it; renaming the atomic
-	// is out of scope for this feature (see plan §2.2).
+	// When sharing is globally disabled, skip ACL evaluation.
 	if rbac.WorkspaceACLDisabled() {
 		return obj
 	}

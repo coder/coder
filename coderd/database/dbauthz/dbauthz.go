@@ -32,13 +32,11 @@ var _ database.Store = (*querier)(nil)
 const wrapname = "dbauthz.querier"
 
 // ErrNoActor is returned if no actor is present in the context.
-// ErrNoActor is returned if no actor is present in the context.
 var ErrNoActor = xerrors.Errorf("no authorization actor in context")
 
 // ErrChatACLSubChat is returned when an ACL write targets a sub-chat.
 // Chat ACLs live on root chats only; sub-chats inherit via the
-// chats_with_acl view. Handlers surface this as a 400 with the root
-// chat id, per the design in the chat-acl-sharing plan §3.5.
+// chats_with_acl view.
 var ErrChatACLSubChat = xerrors.New("chat acl can only be set on root chats")
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
@@ -1904,9 +1902,7 @@ func (q *querier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) DeleteChatACLsByOrganization(ctx context.Context, arg database.DeleteChatACLsByOrganizationParams) error {
-	// Reconciling all chat ACLs in an organization is a system
-	// operation: it runs from the org settings handler under an
-	// AsSystemRestricted context, same as the workspace equivalent.
+	// Org-wide chat ACL reconciliation is a system operation.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}

@@ -804,10 +804,11 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
 			&i.Chat.PlanMode,
-				&i.Chat.ClientType,
-				&i.Chat.UserACL,
-				&i.Chat.GroupACL,
-				&i.HasUnread); err != nil {			return nil, err
+			&i.Chat.ClientType,
+			&i.Chat.UserACL,
+			&i.Chat.GroupACL,
+			&i.HasUnread); err != nil {
+			return nil, err
 		}
 		items = append(items, i)
 	}

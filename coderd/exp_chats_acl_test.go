@@ -18,10 +18,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// createSharedChat creates a chat owned by the admin client for use in
-// sharing tests. Callers must have already invoked
-// createChatModelConfig(t, ownerClient). The returned chat has no ACL
-// entries yet; share it by calling ownerClient.UpdateChatACL.
+// createSharedChat creates a chat owned by the admin client for use in sharing tests.
 func createSharedChat(
 	ctx context.Context,
 	t *testing.T,
@@ -43,6 +40,7 @@ func createSharedChat(
 	require.NoError(t, err)
 	return chat
 }
+
 func TestPatchChatACL_AddsUserAndGroup(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +77,7 @@ func TestPatchChatACL_AddsUserAndGroup(t *testing.T) {
 	require.Equal(t, group.ID, acl.Groups[0].ID)
 	require.Equal(t, codersdk.ChatRoleRead, acl.Groups[0].Role)
 }
+
 func TestPatchChatACL_RejectsNonReadRole(t *testing.T) {
 	t.Parallel()
 
@@ -93,8 +92,6 @@ func TestPatchChatACL_RejectsNonReadRole(t *testing.T) {
 
 	err := ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			// "admin" is not a valid ChatRole in v1 (only "read" and
-			// the empty delete sentinel are accepted).
 			viewer.ID.String(): codersdk.ChatRole("admin"),
 		},
 	})
@@ -113,7 +110,6 @@ func TestPatchChatACL_SubChatRejected(t *testing.T) {
 
 	parent := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "root chat for sub-chat patch")
 
-	// Insert a sub-chat directly so ParentChatID/RootChatID are set.
 	subChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
@@ -147,8 +143,6 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 
 	chat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "acl patch tool confirm")
 
-	// Insert an assistant message with a tool-call part so the chat
-	// is flagged as containing visible tool calls.
 	toolCallPart := codersdk.ChatMessageToolCall(
 		"call_abc",
 		"demo_tool",
@@ -178,8 +172,6 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// First PATCH without the confirmation flag: must be rejected
-	// with 400 and a validation pointing at confirm_share_tool_calls.
 	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
 			viewer.ID.String(): codersdk.ChatRoleRead,
@@ -197,7 +189,6 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 	require.True(t, foundConfirmField,
 		"expected validation error on confirm_share_tool_calls, got: %+v", sdkErr.Validations)
 
-	// Second PATCH with the confirmation flag set: must succeed.
 	err = ownerClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
 			viewer.ID.String(): codersdk.ChatRoleRead,
@@ -212,12 +203,7 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 	require.Equal(t, viewer.ID, acl.Users[0].ID)
 }
 
-
-// TestDeleteChatACL_ClearsEntries covers the happy path of the DELETE
-// handler: after clearing, GET /acl returns an empty users/groups
-// response regardless of how many entries were present beforehand.
-// Pubsub invalidation is asserted separately once that channel lands
-// in the live-stream PR.
+// TestDeleteChatACL_ClearsEntries covers the DELETE handler happy path.
 func TestDeleteChatACL_ClearsEntries(t *testing.T) {
 	t.Parallel()
 
@@ -271,13 +257,10 @@ func TestListChats_SharedFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Viewer has no owned chats, so the default (no shared filter)
-	// must return an empty list.
 	defaultList, err := viewerClient.ListChats(ctx, nil)
 	require.NoError(t, err)
 	require.Empty(t, defaultList, "default list should only include owned chats")
 
-	// ?shared=include returns owned + shared.
 	includeList, err := viewerClient.ListChats(ctx, &codersdk.ListChatsOptions{
 		Shared: codersdk.ChatSharedFilterInclude,
 	})
@@ -286,8 +269,6 @@ func TestListChats_SharedFilter(t *testing.T) {
 	require.Contains(t, includeIDs, sharedChat.ID)
 	require.NotContains(t, includeIDs, ownedOnly.ID, "viewer does not own or share the first chat")
 
-	// ?shared=only returns only chats the caller does not own but
-	// has access to via ACL.
 	onlyList, err := viewerClient.ListChats(ctx, &codersdk.ListChatsOptions{
 		Shared: codersdk.ChatSharedFilterOnly,
 	})
@@ -296,15 +277,13 @@ func TestListChats_SharedFilter(t *testing.T) {
 	require.Contains(t, onlyIDs, sharedChat.ID)
 	require.Len(t, onlyIDs, 1, "viewer has exactly one shared chat")
 
-	// Owner sees both chats under the default filter.
 	ownerList, err := ownerClient.ListChats(ctx, nil)
 	require.NoError(t, err)
 	ownerIDs := chatIDSet(ownerList)
 	require.Contains(t, ownerIDs, ownedOnly.ID)
 	require.Contains(t, ownerIDs, sharedChat.ID)
 
-	// Unknown shared filter values return 400. The SDK wrapper
-	// guards the known values, so issue the request directly.
+	// Unknown shared filter values return 400.
 	res, err := viewerClient.Request(ctx, http.MethodGet, "/api/experimental/chats?shared=wat", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()

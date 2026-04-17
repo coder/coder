@@ -994,10 +994,7 @@ const (
 	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
 )
 
-// ShareableChatOwners is the rbac mirror of
-// database.ShareableChatOwners. Lives in this package to avoid a
-// cyclic import from the database package when the rolestore builds
-// an OrgSettings.
+// ShareableChatOwners mirrors database.ShareableChatOwners without the cyclic import.
 type ShareableChatOwners string
 
 const (
@@ -1055,8 +1052,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	}
 
 	if org.ShareableChatOwners == ShareableChatOwnersNone {
-		// Same override as workspaces: org-level negation on chat
-		// share applies across the org regardless of role.
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
@@ -1108,10 +1103,8 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	}
 
 	if org.ShareableChatOwners != ShareableChatOwnersEveryone {
-		// Non-'everyone' modes deny chat:share on member-scoped
-		// chats. The service_accounts mode keeps the permission on
-		// OrgServiceAccountPermissions so service-account chats can
-		// still be shared.
+		// Non-'everyone' modes deny chat:share on member-scoped chats;
+		// service-account chats retain share via OrgServiceAccountPermissions.
 		memberPerms = append(memberPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
@@ -1157,7 +1150,6 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 	}
 
 	if org.ShareableChatOwners == ShareableChatOwnersNone {
-		// None mode denies chat:share on service-account chats too.
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
