@@ -287,11 +287,6 @@ type sqlcQuerier interface {
 	// by dbpurge. Returns 90 (days) when no value has been configured.
 	// A value of 0 disables auto-archive entirely.
 	GetChatAutoArchiveDays(ctx context.Context) (int32, error)
-	// Returns the last-sent timestamp for each requested owner. Owners
-	// without a row are simply absent from the result; callers treat
-	// them as "never sent". Used by dbpurge to decide whether to skip
-	// a digest enqueue during the 24 h dedupe window.
-	GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]ChatAutoArchiveDigestLog, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
@@ -1190,11 +1185,6 @@ type sqlcQuerier interface {
 	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
-	// Records that we sent (or attempted to send) a chat auto-archive
-	// digest to the given owner at the given timestamp. Written AFTER
-	// the notification enqueue succeeds so an enqueue failure allows a
-	// retry on the next tick.
-	UpsertChatAutoArchiveDigestLog(ctx context.Context, arg UpsertChatAutoArchiveDigestLogParams) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error

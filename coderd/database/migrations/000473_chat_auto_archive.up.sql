@@ -1,14 +1,3 @@
--- Per-owner dedupe record for the chat auto-archive digest
--- notification. Presence of a row indicates a digest was sent to the
--- owner; dbpurge skips re-sending until last_sent_at is older than
--- the dedupe window (24 h).
-CREATE TABLE chat_auto_archive_digest_log (
-    owner_id     UUID        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-COMMENT ON TABLE chat_auto_archive_digest_log IS 'Per-owner dedupe record for the chat auto-archive digest notification. Presence of a row indicates a digest was sent to the owner; dbpurge skips re-sending until last_sent_at is older than the dedupe window (24 h).';
-
 -- Partial index supporting the AutoArchiveInactiveChats CTE predicate.
 -- Auto-archive only considers active (archived = false), unpinned
 -- (pin_order = 0) root chats (parent_chat_id IS NULL), so a partial
@@ -22,7 +11,10 @@ CREATE INDEX IF NOT EXISTS idx_chats_auto_archive_candidates
       AND parent_chat_id IS NULL;
 
 -- Notification template used by dbpurge to send the per-owner
--- digest of auto-archived chats.
+-- digest of auto-archived chats. Per-owner deduplication is handled
+-- by the native notification_messages dedupe hash (template_id,
+-- user_id, payload, day); users who find the digest noisy can
+-- disable this template in their notification preferences.
 INSERT INTO notification_templates (
     id,
     name,

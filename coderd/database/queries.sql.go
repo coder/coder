@@ -2900,60 +2900,6 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
-const getChatAutoArchiveDigestLogsForOwners = `-- name: GetChatAutoArchiveDigestLogsForOwners :many
-SELECT owner_id, last_sent_at
-FROM chat_auto_archive_digest_log
-WHERE owner_id = ANY($1::uuid[])
-`
-
-// Returns the last-sent timestamp for each requested owner. Owners
-// without a row are simply absent from the result; callers treat
-// them as "never sent". Used by dbpurge to decide whether to skip
-// a digest enqueue during the 24 h dedupe window.
-func (q *sqlQuerier) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]ChatAutoArchiveDigestLog, error) {
-	rows, err := q.db.QueryContext(ctx, getChatAutoArchiveDigestLogsForOwners, pq.Array(ownerIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatAutoArchiveDigestLog
-	for rows.Next() {
-		var i ChatAutoArchiveDigestLog
-		if err := rows.Scan(&i.OwnerID, &i.LastSentAt); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const upsertChatAutoArchiveDigestLog = `-- name: UpsertChatAutoArchiveDigestLog :exec
-INSERT INTO chat_auto_archive_digest_log (owner_id, last_sent_at)
-VALUES ($1::uuid, $2::timestamptz)
-ON CONFLICT (owner_id) DO UPDATE
-    SET last_sent_at = EXCLUDED.last_sent_at
-`
-
-type UpsertChatAutoArchiveDigestLogParams struct {
-	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
-	LastSentAt time.Time `db:"last_sent_at" json:"last_sent_at"`
-}
-
-// Records that we sent (or attempted to send) a chat auto-archive
-// digest to the given owner at the given timestamp. Written AFTER
-// the notification enqueue succeeds so an enqueue failure allows a
-// retry on the next tick.
-func (q *sqlQuerier) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg UpsertChatAutoArchiveDigestLogParams) error {
-	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDigestLog, arg.OwnerID, arg.LastSentAt)
-	return err
-}
-
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id

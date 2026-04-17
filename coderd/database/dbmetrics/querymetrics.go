@@ -1120,14 +1120,6 @@ func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context) (int32, e
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]database.ChatAutoArchiveDigestLog, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatAutoArchiveDigestLogsForOwners(ctx, ownerIds)
-	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDigestLogsForOwners").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDigestLogsForOwners").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByID(ctx, id)
@@ -5245,14 +5237,6 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg database.UpsertChatAutoArchiveDigestLogParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatAutoArchiveDigestLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDigestLog").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDigestLog").Inc()
 	return r0
 }
 

@@ -4370,12 +4370,6 @@ type Chat struct {
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 }
 
-// Per-owner dedupe record for the chat auto-archive digest notification. Presence of a row indicates a digest was sent to the owner; dbpurge skips re-sending until last_sent_at is older than the dedupe window (24 h).
-type ChatAutoArchiveDigestLog struct {
-	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
-	LastSentAt time.Time `db:"last_sent_at" json:"last_sent_at"`
-}
-
 type ChatDebugRun struct {
 	ID                  uuid.UUID       `db:"id" json:"id"`
 	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`

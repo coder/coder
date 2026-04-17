@@ -2570,15 +2570,6 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
 	return q.db.GetChatAutoArchiveDays(ctx)
 }
 
-func (q *querier) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIDs []uuid.UUID) ([]database.ChatAutoArchiveDigestLog, error) {
-	// System-level read performed by dbpurge while deciding which
-	// owners are still inside their 24 h digest dedupe window.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatAutoArchiveDigestLogsForOwners(ctx, ownerIDs)
-}
-
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
@@ -7342,15 +7333,6 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
-}
-
-func (q *querier) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg database.UpsertChatAutoArchiveDigestLogParams) error {
-	// System-level write performed by dbpurge after a digest is
-	// enqueued, to record the dedupe timestamp.
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertChatAutoArchiveDigestLog(ctx, arg)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {

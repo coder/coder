@@ -51,12 +51,6 @@ const (
 	// backfill rolls out over many ticks rather than blocking one
 	// tick for minutes.
 	chatsAutoArchiveBatchSize = 1000
-	// chatAutoArchiveDigestDedupe is the window within which a
-	// single owner receives at most one chat-auto-archive digest.
-	// A fixed 24 h window matches the "daily digest" UX expected
-	// by users and prevents noisy churn if a cohort of old chats
-	// is backfilled across many ticks.
-	chatAutoArchiveDigestDedupe = 24 * time.Hour
 	// chatAutoArchiveDigestMaxChats caps the number of titles
 	// listed in a single digest. Beyond this, the template shows
 	// a "...and N more" summary line. Prevents pathologically
@@ -398,7 +392,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
 		dispatchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatAutoArchiveDispatchTimeout)
-		i.dispatchChatAutoArchive(dispatchCtx, db, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+		i.dispatchChatAutoArchive(dispatchCtx, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
 		cancel()
 	}
 
@@ -478,8 +472,11 @@ func labelsFromRaw(raw json.RawMessage) database.StringMap {
 
 // dispatchChatAutoArchive emits one BackgroundAudit entry per
 // archived chat (roots and children) and enqueues a per-owner
-// digest notification, subject to a 24 h dedupe window.
-func (i *instance) dispatchChatAutoArchive(ctx context.Context, db database.Store, now time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
+// digest notification. Duplicate digests within the same UTC day
+// are suppressed by the native notification_messages dedupe hash;
+// users who find the digest noisy can disable the template in
+// their notification preferences.
+func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
 	for _, row := range archived {
 		after := chatFromAutoArchiveRow(row)
 		before := after
@@ -498,39 +495,7 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, db database.Stor
 	}
 
 	digests := buildDigests(archived, autoArchiveDays, retentionDays)
-	if len(digests) == 0 {
-		return
-	}
-
-	ownerIDs := make([]uuid.UUID, 0, len(digests))
-	for ownerID := range digests {
-		ownerIDs = append(ownerIDs, ownerID)
-	}
-
-	// nolint:gocritic // Runs as system; we trust our own subsystem.
-	logRows, err := db.GetChatAutoArchiveDigestLogsForOwners(dbauthz.AsSystemRestricted(ctx), ownerIDs)
-	if err != nil {
-		// Log and continue — without the dedupe data we skip
-		// enqueue rather than risk spamming owners. A transient
-		// error re-attempts on the next tick.
-		i.logger.Warn(ctx, "failed to load chat auto-archive digest dedupe log; skipping digests",
-			slog.Error(err))
-		i.chatAutoArchiveDigests.WithLabelValues("skipped_dedupe_error").Add(float64(len(digests)))
-		return
-	}
-	lastSent := make(map[uuid.UUID]time.Time, len(logRows))
-	for _, r := range logRows {
-		lastSent[r.OwnerID] = r.LastSentAt
-	}
-
-	dedupeWindowStart := now.Add(-chatAutoArchiveDigestDedupe)
 	for ownerID, digest := range digests {
-		if ts, ok := lastSent[ownerID]; ok && ts.After(dedupeWindowStart) {
-			// Within dedupe window: skip enqueue.
-			i.chatAutoArchiveDigests.WithLabelValues("skipped_deduped").Inc()
-			continue
-		}
-
 		data := buildDigestData(digest, autoArchiveDays, retentionDays, now)
 
 		// nolint:gocritic // Background digest runs as the notifier subject.
@@ -547,23 +512,6 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, db database.Stor
 				slog.Error(err))
 			i.chatAutoArchiveDigests.WithLabelValues("enqueue_failed").Inc()
 			continue
-		}
-
-		// Upsert dedupe log ONLY after a successful enqueue so a
-		// failed enqueue is retried next tick instead of being
-		// silently dropped. The window is still bounded by the
-		// next successful enqueue bumping last_sent_at.
-		// nolint:gocritic // System-level upsert.
-		if err := db.UpsertChatAutoArchiveDigestLog(dbauthz.AsSystemRestricted(ctx), database.UpsertChatAutoArchiveDigestLogParams{
-			OwnerID:    ownerID,
-			LastSentAt: now,
-		}); err != nil {
-			i.logger.Warn(ctx, "failed to upsert chat auto-archive digest dedupe log",
-				slog.F("owner_id", ownerID),
-				slog.Error(err))
-			// Notification already sent; don't double-count as
-			// failed. Next tick will see the duplicate and skip
-			// it via a fresh query of last_sent_at.
 		}
 		i.chatAutoArchiveDigests.WithLabelValues("enqueued").Inc()
 	}

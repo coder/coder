@@ -25,15 +25,18 @@ after its last message should pin it.
 
 ## Notifications
 
-The first time one of your chats is auto-archived in a given 24-hour
-window, you receive a single digest notification listing the titles
-of the archived conversations and the auto-archive window currently
-configured. Subsequent archives inside the same window are absorbed
-into the next digest rather than generating more notifications.
+When your chats are auto-archived, you receive a digest notification
+listing the titles of the archived conversations and the
+auto-archive window currently configured. Notifications delivered to
+the same user with the same payload on the same UTC day are
+automatically deduplicated by the notifications subsystem.
 
-This notification is sent via the standard notifications subsystem,
-so delivery respects each user's notification preferences and the
-configured SMTP/webhook dispatcher.
+If you find the digest noisy you can disable the "Chats
+Auto-Archived" template entirely from your notification preferences.
+
+Delivery goes through the standard notifications subsystem, so it
+respects each user's notification preferences and the configured
+SMTP/webhook dispatcher.
 
 ## Interaction with retention
 

@@ -2311,11 +2311,6 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, sent, 1, "expected one digest notification")
 				require.Equal(t, notifications.TemplateChatAutoArchiveDigest, sent[0].TemplateID)
 				require.Equal(t, deps.user.ID, sent[0].UserID)
-
-				// Dedupe log entry was recorded.
-				dedupes, err := db.GetChatAutoArchiveDigestLogsForOwners(ctx, []uuid.UUID{deps.user.ID})
-				require.NoError(t, err)
-				require.Len(t, dedupes, 1)
 			},
 		},
 		{
@@ -2373,46 +2368,6 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				// Two audit entries expected (root + child).
 				require.Len(t, auditor.AuditLogs(), 2)
-			},
-		},
-		{
-			name: "DedupesDigestWithin24h",
-			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
-
-				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
-
-				// Pre-seed dedupe log to pretend a digest was sent
-				// 1 hour ago. dbpurge should skip enqueue.
-				require.NoError(t, db.UpsertChatAutoArchiveDigestLog(ctx, database.UpsertChatAutoArchiveDigestLogParams{
-					OwnerID:    deps.user.ID,
-					LastSentAt: now.Add(-1 * time.Hour),
-				}))
-
-				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale", now.Add(-60*24*time.Hour))
-
-				auditor := audit.NewMock()
-				enqueuer := notificationstest.NewFakeEnqueuer()
-				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditor, enqueuer)
-				defer closer.Close()
-				testutil.TryReceive(ctx, t, done)
-
-				refreshed, err := db.GetChatByID(ctx, staleChat.ID)
-				require.NoError(t, err)
-				require.True(t, refreshed.Archived, "chat should still be archived")
-
-				// Audit still fires — it's per-archive, not per-digest.
-				require.Len(t, auditor.AuditLogs(), 1)
-
-				// Digest is suppressed.
-				require.Empty(t, enqueuer.Sent(), "digest should be suppressed by dedupe window")
 			},
 		},
 	}
