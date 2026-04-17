@@ -1923,6 +1923,218 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
+// TestEditMessageDebugCleanupDeletesPreEditRuns verifies that
+// EditMessage schedules the chat debug cleanup goroutine when debug
+// logging is enabled and that it deletes debug runs tied to the
+// pre-edit conversation branch. This exercises the chatd wiring end
+// to end: lazy debugService init, editCutoff sampling from the DB,
+// and the scheduleDebugCleanup retry loop against a real Postgres
+// store.
+func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "debug-edit-cleanup",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	})
+	require.NoError(t, err)
+
+	msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID, AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	editedMsgID := msgs[0].ID
+
+	// Stale debug run tied to the pre-edit message branch. Stamped
+	// well outside the clock-skew buffer so the fast retry path
+	// deletes it instead of deferring to the stale sweeper.
+	staleStart := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
+	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: editedMsgID, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: editedMsgID, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: model.Model, Valid: true},
+		StartedAt:           sql.NullTime{Time: staleStart, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleStart, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Run tied to an earlier message branch that the message-id
+	// filter should leave alone even though it predates the edit.
+	unrelatedRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: editedMsgID - 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: editedMsgID - 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: model.Model, Valid: true},
+		StartedAt:           sql.NullTime{Time: staleStart, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleStart, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: editedMsgID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	require.NoError(t, err)
+
+	chatd.WaitUntilIdleForTest(replica)
+
+	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"pre-edit run matching the message-id filter should be deleted")
+
+	remaining, err := db.GetChatDebugRunByID(ctx, unrelatedRun.ID)
+	require.NoError(t, err,
+		"runs outside the edited message branch must survive cleanup")
+	require.Equal(t, unrelatedRun.ID, remaining.ID)
+}
+
+// TestEditMessageDebugCleanupPreservesRecentRuns verifies that the
+// clock-skew buffer in the edit-cleanup cutoff prevents the fast
+// retry from deleting debug runs that started within the buffer
+// window. The stale sweep handles those leftovers later.
+func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "debug-edit-buffer",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	})
+	require.NoError(t, err)
+
+	msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID, AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	editedMsgID := msgs[0].ID
+
+	// Within the 30s skew buffer, so the fast retry must leave it
+	// alone even though its message ID matches the delete filter.
+	recentStart := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
+	recentRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: editedMsgID, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: editedMsgID, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: model.Model, Valid: true},
+		StartedAt:           sql.NullTime{Time: recentStart, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: recentStart, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: editedMsgID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	require.NoError(t, err)
+
+	chatd.WaitUntilIdleForTest(replica)
+
+	remaining, err := db.GetChatDebugRunByID(ctx, recentRun.ID)
+	require.NoError(t, err,
+		"runs inside the clock-skew buffer must survive the fast retry")
+	require.Equal(t, recentRun.ID, remaining.ID)
+}
+
+// TestArchiveChatDebugCleanupDeletesPreArchiveRuns verifies that
+// ArchiveChat schedules cleanup that deletes pre-archive debug runs
+// for the archived chat. Covers the archiveCutoff sampled from
+// ArchiveChatByID's DB-stamped updated_at and the DeleteByChatID
+// delete path.
+func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "debug-archive-cleanup",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	staleStart := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
+	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: "openai", Valid: true},
+		Model:         sql.NullString{String: model.Model, Valid: true},
+		StartedAt:     sql.NullTime{Time: staleStart, Valid: true},
+		UpdatedAt:     sql.NullTime{Time: staleStart, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Freshly-inserted run inside the skew buffer must survive the
+	// fast retry for the same reason as the edit-cleanup buffer test.
+	recentStart := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
+	recentRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: "openai", Valid: true},
+		Model:         sql.NullString{String: model.Model, Valid: true},
+		StartedAt:     sql.NullTime{Time: recentStart, Valid: true},
+		UpdatedAt:     sql.NullTime{Time: recentStart, Valid: true},
+	})
+	require.NoError(t, err)
+
+	err = replica.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	chatd.WaitUntilIdleForTest(replica)
+
+	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"pre-archive run outside the buffer should be deleted")
+
+	remaining, err := db.GetChatDebugRunByID(ctx, recentRun.ID)
+	require.NoError(t, err,
+		"runs inside the clock-skew buffer must survive the fast retry")
+	require.Equal(t, recentRun.ID, remaining.ID)
+}
+
 func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	t.Parallel()
 
@@ -4002,6 +4214,34 @@ func newTestServer(
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: testutil.WaitLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
+// newDebugEnabledTestServer creates a passive test server with
+// AlwaysEnableDebugLogs=true so that IsEnabled(ctx, chatID, ownerID)
+// always returns true regardless of runtime admin config. This lets
+// chatd-level integration tests exercise the debug cleanup wiring
+// without seeding the admin/user opt-in settings tables.
+func newDebugEnabledTestServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	replicaID uuid.UUID,
+) *chatd.Server {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		AlwaysEnableDebugLogs:      true,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
