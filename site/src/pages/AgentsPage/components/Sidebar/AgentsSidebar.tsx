@@ -1116,28 +1116,48 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>
 								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										<button
-											type="button"
-											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-											onClick={() =>
-												onArchivedFilterChange?.(
-													archivedFilter === "archived" ? "active" : "archived",
-												)
-											}
-										>
-											{archivedFilter === "archived"
-												? "← Back to active"
-												: "View archived →"}
-										</button>
-									</div>
+									<>
+										{/*
+										 * Always render the filter dropdown in the empty
+										 * state so a viewer with no chats of their own can
+										 * still switch to "Shared with me" / "All
+										 * accessible" and see chats shared with them.
+										 * Without this the filter only attached to the
+										 * first non-empty time group and became
+										 * unreachable when that group disappeared.
+										 */}
+										{onSharedFilterChange && (
+											<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-end">
+												{filterDropdown}
+											</div>
+										)}
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: sharedFilter === "only"
+															? "No agents shared with you"
+															: "No agents yet"}
+											</p>
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() =>
+													onArchivedFilterChange?.(
+														archivedFilter === "archived"
+															? "active"
+															: "archived",
+													)
+												}
+											>
+												{archivedFilter === "archived"
+													? "← Back to active"
+													: "View archived →"}
+											</button>
+										</div>
+									</>
 								) : (
 									<div>
 										{visibleRootIDs.length > 0 && (
