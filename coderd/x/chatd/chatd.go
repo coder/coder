@@ -3184,11 +3184,14 @@ func (p *Server) sweepIdleStreams() {
 		if !ok {
 			return true
 		}
-		state.mu.Lock()
-		defer state.mu.Unlock()
-		if p.cleanupStreamIfIdle(chatID, state) {
-			reaped.Add(1)
-		}
+		// guard against any panic from cleanupStreamIfIdle locking state.mu for all time
+		func() {
+			state.mu.Lock()
+			defer state.mu.Unlock()
+			if p.cleanupStreamIfIdle(chatID, state) {
+				reaped.Add(1)
+			}
+		}()
 		return true
 	})
 }
