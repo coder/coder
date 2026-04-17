@@ -1455,6 +1455,9 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	})
 
 	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Freeze the worker's clock so streamJanitorLoop cannot race the
+	// buffer-retained assertion on slow CI.
+	workerClock := quartz.NewMock(t)
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,
@@ -1462,6 +1465,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: time.Hour,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Clock:                      workerClock,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
