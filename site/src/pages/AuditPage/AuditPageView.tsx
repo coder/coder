@@ -13,7 +13,6 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -56,11 +55,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
-						<span>Audit</span>
+						<div className="flex flex-row gap-2 items-center">						<span>Audit</span>
 						<AuditHelpPopover />
-					</Stack>
-				</PageHeaderTitle>
+						</div>				</PageHeaderTitle>
 				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
 			</PageHeader>
 

@@ -12,7 +12,6 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import { Pill } from "#/components/Pill/Pill";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,6 +21,7 @@ import type {
 	AutofillBuildParameter,
 	AutofillSource,
 } from "#/utils/richParameters";
+import { cn } from "#/utils/cn";
 import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
@@ -182,7 +182,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 
 	return (
 		<label htmlFor={parameter.name}>
-			<Stack direction="row" alignItems="center">
+			<div className="flex flex-row items-center gap-4">
 				{parameter.icon && (
 					<span css={styles.labelIconWrapper}>
 						<ExternalImage
@@ -194,16 +194,16 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 				)}
 
 				{hasDescription ? (
-					<Stack spacing={0}>
+					<div className="flex flex-col gap-0">
 						{labelPrimary}
 						<MemoizedMarkdown css={styles.labelCaption}>
 							{parameter.description}
 						</MemoizedMarkdown>
-					</Stack>
+					</div>
 				) : (
 					labelPrimary
 				)}
-			</Stack>
+			</div>
 		</label>
 	);
 };
@@ -235,10 +235,8 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 	const [hideSuggestion, setHideSuggestion] = useState(false);
 
 	return (
-		<Stack
-			direction="column"
-			spacing={size === "small" ? 1.25 : 2}
-			className={size}
+		<div
+			className={cn("flex flex-col", size === "small" ? "gap-2.5" : "gap-4", size)}
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
@@ -276,7 +274,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 					</div>
 				)}
 			</div>
-		</Stack>
+		</div>
 	);
 };
 
@@ -332,22 +330,23 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 						value={option.value}
 						control={<Radio size="small" />}
 						label={
-							<Stack direction="row" alignItems="center">
-								{option.icon && (
-									<ExternalImage
-										css={styles.optionIcon}
-										src={option.icon}
-										alt="Parameter icon"
-									/>
-								)}
-								{option.description ? (
-									<Stack
-										spacing={small ? 1 : 0}
-										alignItems={small ? "center" : undefined}
-										direction={small ? "row" : "column"}
-										className={small ? undefined : "py-1"}
-									>
-										{small ? (
+								<div className="flex flex-row items-center gap-4">
+									{option.icon && (
+										<ExternalImage
+											css={styles.optionIcon}
+											src={option.icon}
+											alt="Parameter icon"
+										/>
+									)}
+									{option.description ? (
+										<div
+											className={cn(
+												"flex",
+												small ? "flex-row gap-2 items-center" : "flex-col gap-0 py-1",
+											)}
+											>
+												{small ? (
+
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div>{option.name}</div>
@@ -366,12 +365,13 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 												</MemoizedMarkdown>
 											</>
 										)}
-									</Stack>
-								) : (
-									option.name
-								)}
-							</Stack>
-						}
+										</div>
+									) : (
+										option.name
+									)}
+									</div>
+								}
+
 					/>
 				))}
 			</RadioGroup>

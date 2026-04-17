@@ -19,7 +19,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -132,8 +131,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<Stack direction="row" alignItems="center" spacing={1}>
-					<Avatar variant="icon" src={app.display_icon} fallback={name} />
+					<div className="flex flex-row items-center gap-2">					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*
 					 * If the link is authenticated and has a refresh token, show that it will automatically
@@ -160,8 +158,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							{link?.validate_error}
 						</span>
 					)}
-				</Stack>
-			</TableCell>
+					</div>			</TableCell>
 			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}

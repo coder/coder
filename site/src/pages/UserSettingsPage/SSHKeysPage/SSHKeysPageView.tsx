@@ -5,7 +5,6 @@ import type { GitSSHKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { Stack } from "#/components/Stack/Stack";
 
 interface SSHKeysPageViewProps {
 	isLoading: boolean;
@@ -31,7 +30,7 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 	}
 
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			{/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
 			{Boolean(getSSHKeyError) && <ErrorAlert error={getSSHKeyError} />}
@@ -73,6 +72,6 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 					</div>
 				</>
 			)}
-		</Stack>
+		</div>
 	);
 };

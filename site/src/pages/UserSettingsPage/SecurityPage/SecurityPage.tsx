@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
-import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
@@ -71,12 +70,12 @@ export const SecurityPageView: FC<SecurityPageViewProps> = ({
 	oidc,
 }) => {
 	return (
-		<Stack spacing={6}>
+		<div className="flex flex-col gap-12">
 			<Section title="Security" description="Update your account password">
 				<SecurityForm {...security.form} />
 			</Section>
 			{oidc && <SingleSignOnSection {...oidc.section} />}
-		</Stack>
+		</div>
 	);
 };
 

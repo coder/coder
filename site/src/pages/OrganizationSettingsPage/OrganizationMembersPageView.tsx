@@ -25,7 +25,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -113,23 +112,23 @@ export const OrganizationMembersPageView: FC<
 							<TableRow>
 								<TableHead className="w-2/6">User</TableHead>
 								<TableHead className="w-2/6">
-									<Stack direction="row" spacing={1} alignItems="center">
+									<div className="flex flex-row gap-2 items-center">
 										<span>Roles</span>
 										<TableColumnHelpPopover variant="roles" />
-									</Stack>
+									</div>
 								</TableHead>
 								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
-									<Stack direction="row" spacing={1} alignItems="center">
+									<div className="flex flex-row gap-2 items-center">
 										<span>Groups</span>
 										<TableColumnHelpPopover variant="groups" />
-									</Stack>
+									</div>
 								</TableHead>
 								{showAISeatColumn && (
 									<TableHead className="w-1/6">
-										<Stack direction="row" spacing={1} alignItems="center">
+										<div className="flex flex-row gap-2 items-center">
 											<span>AI add-on</span>
 											<TableColumnHelpPopover variant="ai_addon" />
-										</Stack>
+										</div>
 									</TableHead>
 								)}
 								<TableHead className="w-px whitespace-nowrap text-right" />
@@ -253,7 +252,7 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 				}
 			}}
 		>
-			<Stack direction="row" alignItems="center" spacing={1}>
+			<div className="flex flex-row items-center gap-2">
 				<UserAutocomplete
 					className="w-[300px]"
 					value={selectedUser}
@@ -272,7 +271,7 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 					</Spinner>
 					Add user
 				</Button>
-			</Stack>
+			</div>
 		</form>
 	);
 };

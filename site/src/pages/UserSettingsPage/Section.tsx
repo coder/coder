@@ -4,7 +4,6 @@ import {
 	FeatureStageBadge,
 	type featureStageBadgeTypes,
 } from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { Stack } from "#/components/Stack/Stack";
 
 type SectionLayout = "fixed" | "fluid";
 
@@ -39,8 +38,7 @@ export const Section: FC<SectionProps> = ({
 					<div css={styles.header}>
 						<div>
 							{title && (
-								<Stack direction="row" alignItems="center">
-									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
+									<div className="flex flex-row items-center gap-4">									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
@@ -48,8 +46,7 @@ export const Section: FC<SectionProps> = ({
 											className="mb-[5px]"
 										/>
 									)}
-								</Stack>
-							)}
+									</div>							)}
 							{description && typeof description === "string" && (
 								<p css={styles.description}>{description}</p>
 							)}

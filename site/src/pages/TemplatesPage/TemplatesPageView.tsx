@@ -26,7 +26,6 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -228,11 +227,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<Stack spacing={1} direction="row" alignItems="center">
-						Templates
+						<div className="flex flex-row gap-2 items-center">						Templates
 						<TemplateHelpPopover />
-					</Stack>
-				</PageHeaderTitle>
+						</div>				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Select a template to create a workspace.
 				</PageHeaderSubtitle>

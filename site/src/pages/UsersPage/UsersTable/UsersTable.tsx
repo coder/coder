@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -64,24 +63,21 @@ export const UsersTable: FC<UsersTableProps> = ({
 				<TableRow>
 					<TableHead className="w-2/6">User</TableHead>
 					<TableHead className="w-2/6">
-						<Stack direction="row" spacing={1} alignItems="center">
-							<span>Roles</span>
-							<TableColumnHelpPopover variant="roles" />
-						</Stack>
-					</TableHead>
+							<div className="flex flex-row gap-2 items-center">
+								<span>Roles</span>
+								<TableColumnHelpPopover variant="roles" />
+							</div>					</TableHead>
 					<TableHead className="w-1/6">
-						<Stack direction="row" spacing={1} alignItems="center">
-							<span>Groups</span>
-							<TableColumnHelpPopover variant="groups" />
-						</Stack>
-					</TableHead>
+							<div className="flex flex-row gap-2 items-center">
+								<span>Groups</span>
+								<TableColumnHelpPopover variant="groups" />
+							</div>					</TableHead>
 					{showAISeatColumn && (
 						<TableHead className="w-1/6">
-							<Stack direction="row" spacing={1} alignItems="center">
-								<span>AI add-on</span>
-								<TableColumnHelpPopover variant="ai_addon" />
-							</Stack>
-						</TableHead>
+								<div className="flex flex-row gap-2 items-center">
+									<span>AI add-on</span>
+									<TableColumnHelpPopover variant="ai_addon" />
+								</div>						</TableHead>
 					)}
 					<TableHead className="w-1/6">Login Type</TableHead>
 					<TableHead className="w-1/6">Status</TableHead>

@@ -6,7 +6,6 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Pill } from "#/components/Pill/Pill";
-import { Stack } from "#/components/Stack/Stack";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
@@ -41,24 +40,18 @@ export const VersionRow: FC<VersionRowProps> = ({
 			className={clickableProps.className}
 		>
 			<TableCell css={styles.versionCell}>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.versionWrapper}
-					justifyContent="space-between"
-				>
-					<Stack direction="row" alignItems="center">
+					<div
+						className="flex flex-row items-center justify-between gap-4"
+						css={styles.versionWrapper}
+					>					<div className="flex flex-row items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-						<Stack
-							css={styles.versionSummary}
-							direction="row"
-							alignItems="center"
-							spacing={1}
-						>
-							<span>
+							<div
+								className="flex flex-row items-center gap-2"
+								css={styles.versionSummary}
+							>							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>
 							</span>
@@ -70,10 +63,10 @@ export const VersionRow: FC<VersionRowProps> = ({
 							<span css={styles.versionTime}>
 								{new Date(version.created_at).toLocaleTimeString()}
 							</span>
-						</Stack>
-					</Stack>
+						</div>
+					</div>
 
-					<Stack direction="row" alignItems="center" spacing={2}>
+					<div className="flex flex-row items-center gap-4">
 						{isActive && (
 							<Pill role="status" type="success">
 								Active
@@ -132,8 +125,8 @@ export const VersionRow: FC<VersionRowProps> = ({
 								Promote&hellip;
 							</Button>
 						)}
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			</TableCell>
 		</TimelineEntry>
 	);

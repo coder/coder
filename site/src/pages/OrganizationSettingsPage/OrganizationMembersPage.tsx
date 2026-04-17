@@ -17,7 +17,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
@@ -152,7 +151,7 @@ const OrganizationMembersPage: FC = () => {
 					}
 				}}
 				description={
-					<Stack>
+					<div className="flex flex-col gap-4">
 						<p>
 							Removing this member will:
 							<ul>
@@ -166,7 +165,7 @@ const OrganizationMembersPage: FC = () => {
 						</p>
 
 						<p className="pb-5">Are you sure you want to remove this member?</p>
-					</Stack>
+					</div>
 				}
 			/>
 		</>

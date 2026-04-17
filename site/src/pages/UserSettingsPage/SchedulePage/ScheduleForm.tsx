@@ -12,7 +12,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import { getFormHelpers } from "#/utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
 import { getPreferredTimezone, timeZones } from "#/utils/timeZones";
@@ -102,8 +101,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 					</Alert>
 				)}
 
-				<Stack direction="row">
-					<TextField
+					<div className="flex flex-row gap-4">					<TextField
 						{...getFieldHelpers("time")}
 						disabled={isLoading || !initialValues.user_can_set}
 						label="Start time"
@@ -123,8 +121,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 							</MenuItem>
 						))}
 					</TextField>
-				</Stack>
-
+					</div>
 				<TextField
 					disabled
 					fullWidth
