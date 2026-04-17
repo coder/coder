@@ -884,8 +884,11 @@ export const createChatMessage = (
 ) => ({
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
-	onSuccess: async () => {
-		await invalidateChatDebugRuns(queryClient, chatId);
+	onSuccess: () => {
+		// Fire-and-forget: callers use `mutateAsync` and await send-side UI
+		// updates, so we must not block on a Debug-panel refetch that can
+		// run in the background.
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 	// The per-chat and sidebar WebSockets cover message/status updates,
 	// but the Debug panel uses polling. Kick its list query immediately
@@ -1008,8 +1011,11 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
-	onSuccess: async () => {
-		await invalidateChatDebugRuns(queryClient, chatId);
+	onSuccess: () => {
+		// Fire-and-forget: same reasoning as createChatMessage – the caller
+		// awaits the promise to upsert the promoted message, so the Debug
+		// panel refetch must not gate the mutation settling.
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 	// The caller still upserts the promoted message directly, but the
 	// Debug panel needs an explicit refresh to discover the new run.
