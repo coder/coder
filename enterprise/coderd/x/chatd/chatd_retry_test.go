@@ -27,12 +27,10 @@ import (
 )
 
 // mulPhi mirrors the per-attempt delay growth in retry.Retrier.Wait
-// (see github.com/coder/retry/retrier.go). Keeping the constant
-// inline avoids importing math just for this one tiny helper.
-//
-// This constant must stay in sync with retry.Retrier's growth factor.
-// If TestRelayReconnectUsesExponentialBackoff starts failing after a
-// retry library bump, update phi to match the new growth.
+// (github.com/coder/retry/retrier.go). Must stay in sync with the
+// retry library's growth factor — if
+// TestRelayReconnectUsesExponentialBackoff breaks after a bump,
+// update phi.
 const phi = 1.6180339887498949
 
 func mulPhi(d time.Duration) time.Duration {

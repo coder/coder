@@ -34,30 +34,19 @@ const (
 	// the relay is torn down.
 	relayDrainTimeout = 200 * time.Millisecond
 
-	// Retry knobs for the cross-replica relay handshake. We use the
-	// defaults from github.com/coder/retry (φ-growth, no jitter) via
-	// retry.New(relayRetryFloor, relayRetryCeil) but drive the delay
-	// ourselves because retry.Retrier.Wait uses time.After and the
-	// merge loop runs on a quartz.Clock for deterministic tests.
-	//
-	// relayRetryFloor preserves the previous fixed-delay responsiveness
-	// for the first reconnect. relayRetryCeil caps the delay so a
-	// permanently-broken replica cannot silently stall events for too
-	// long. relayRetryMaxAttempts bounds how many consecutive
-	// intermittent failures we tolerate before tearing down the relay
-	// leg so the client can reconnect cleanly.
-	relayRetryFloor       = 500 * time.Millisecond
-	relayRetryCeil        = 15 * time.Second
-	relayRetryMaxAttempts = 6
+	// Retry knobs for the cross-replica relay handshake. Uses the
+	// github.com/coder/retry defaults (φ-growth, no jitter) but
+	// drives the delay manually because retry.Retrier.Wait blocks on
+	// time.After, which breaks quartz.Clock-driven tests.
+	relayRetryFloor       = 500 * time.Millisecond // matches old fixed delay
+	relayRetryCeil        = 15 * time.Second       // cap stall before tear-down
+	relayRetryMaxAttempts = 6                      // tear down after this many failures
 )
 
-// RelayDialError is returned from dialRelay when the handshake to a
-// peer replica fails. It carries the HTTP status code (when
-// available) so the reconnect loop can decide whether to keep
-// retrying or tear the relay leg down.
-//
-// HTTPStatus is 0 when the failure occurred before a response was
-// received (DNS, TCP, TLS, timeout, context cancel).
+// RelayDialError wraps a failed relay handshake. HTTPStatus is 0
+// when the failure happened before a response (DNS, TCP, TLS,
+// timeout, context cancel); otherwise it carries the peer's status
+// code for the reconnect loop to classify.
 type RelayDialError struct {
 	HTTPStatus int
 	Err        error
@@ -66,11 +55,10 @@ type RelayDialError struct {
 func (e *RelayDialError) Error() string { return e.Err.Error() }
 func (e *RelayDialError) Unwrap() error { return e.Err }
 
-// IsUnrecoverable reports whether the dial error is expected to keep
-// failing with the same captured session token. 401 and 403 are the
-// canonical cases — the user's session is dead or the peer won't
-// authorize them. Everything else (5xx, 429, network, context) is
-// treated as intermittent and retried with backoff.
+// IsUnrecoverable reports whether retrying with the same captured
+// session token is futile. Only 401/403 qualify — the token is dead
+// or the peer won't authorize it. 5xx, 429, network, and context
+// errors fall through to backoff.
 func (e *RelayDialError) IsUnrecoverable() bool {
 	return e.HTTPStatus == http.StatusUnauthorized ||
 		e.HTTPStatus == http.StatusForbidden
@@ -104,10 +92,8 @@ type MultiReplicaSubscribeConfig struct {
 	Clock quartz.Clock
 }
 
-// dial returns the dialer function to use for relay connections.
-// If DialerFn is set (e.g. in tests), it takes precedence.
-// Otherwise, dialRelay is used with the real MultiReplicaSubscribeConfig dependencies.
-// Returns nil when no relay capability is configured.
+// dial returns the configured dialer, preferring DialerFn (tests)
+// over the real dialRelay. Returns nil when relay is not configured.
 func (c MultiReplicaSubscribeConfig) dial() func(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -202,19 +188,15 @@ func NewMultiReplicaSubscribeFn(
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
-			// err and parts are mutually exclusive: on a successful
-			// dial parts is non-nil and err is nil; on a failed dial
-			// parts and cancel are nil and err describes the failure
-			// (wrappable to *RelayDialError for classification).
+			// err and parts are mutually exclusive: success sets
+			// parts; failure sets err (unwrap to *RelayDialError
+			// for classification).
 			err error
 		}
 		relayReadyCh := make(chan relayResult, 4)
 
-		// retryState drives the backoff + give-up policy for
-		// the reconnect timer. Reset on successful dial or when
-		// closeRelay is called (e.g. chat migrated to a new
-		// worker) so the first retry after a fresh target
-		// starts at the floor delay.
+		// Reset on successful dial or when the relay target
+		// changes, so a fresh target starts at the floor delay.
 		retryState := newRelayRetryState()
 		// Per-dial context so in-flight dials can be canceled when
 		// a new dial is initiated or the relay is closed.
@@ -289,12 +271,9 @@ func NewMultiReplicaSubscribeFn(
 			if cfg.dial() == nil {
 				return
 			}
-			// A new target means the retry history from the old
-			// target doesn't apply; start the backoff counter
-			// over. We scope the reset here rather than inside
-			// closeRelay so back-to-back dials against the same
-			// worker keep the attempt counter and correctly trip
-			// the cap.
+			// Scoped here (not in closeRelay) so repeated dials
+			// against the same worker keep the attempt counter and
+			// correctly trip the cap.
 			if workerID != expectedWorkerID {
 				retryState.reset()
 			}
@@ -318,19 +297,16 @@ func NewMultiReplicaSubscribeFn(
 							slog.Error(err),
 						)
 					}
-					// Send an empty result so the merge loop
-					// can schedule a reconnect attempt, or tear the
-					// relay down if the error is unrecoverable or
-					// the retry cap has been hit.
+					// Hand the error to the merge loop, which will
+					// classify it and either back off or tear down.
 					select {
 					case relayReadyCh <- relayResult{workerID: workerID, err: err}:
 					case <-dialCtx.Done():
 					}
 					return
-				} // If the dial context was canceled while the
-				// dial was in progress, discard the result to
-				// avoid starting a wrappedParts goroutine for
-				// a stale connection.
+				}
+				// Discard stale dials so we don't start a
+				// wrappedParts goroutine on a canceled connection.
 				if dialCtx.Err() != nil {
 					cancel()
 					return
@@ -381,11 +357,9 @@ func NewMultiReplicaSubscribeFn(
 		}
 
 		// scheduleRelayReconnect arms a timer so the select loop
-		// can re-check chat status and reopen the relay without
-		// spinning in a tight loop. The delay is supplied by the
-		// caller so the failed-dial branch can apply backoff while
-		// transient error branches (DB lookup failures, drop-on-
-		// close) stay at the floor delay.
+		// can re-check chat status and reopen the relay. Callers
+		// pass the delay from retryState so the failed-dial branch
+		// gets backoff while transient branches stay at the floor.
 		scheduleRelayReconnect := func(delay time.Duration) {
 			if cfg.dial() == nil {
 				return
@@ -397,13 +371,10 @@ func NewMultiReplicaSubscribeFn(
 			reconnectCh = reconnectTimer.C
 		}
 
-		// sendRelayTerminalError enqueues a single error event on
-		// mergedEvents describing an unrecoverable relay failure.
-		// Callers return from the merge goroutine afterwards so the
-		// defer close(mergedEvents) fires. The OSS merge loop nils
-		// relayEvents when mergedEvents closes, so pubsub / local
-		// sources continue to feed the outer stream — only the
-		// relay leg is torn down.
+		// sendRelayTerminalError enqueues one error event for the
+		// subscriber; callers return afterwards so the deferred
+		// close(mergedEvents) fires and the OSS merge loop tears
+		// the relay leg down while pubsub/local sources keep going.
 		sendRelayTerminalError := func(msg string) {
 			select {
 			case mergedEvents <- codersdk.ChatStreamEvent{
@@ -599,10 +570,8 @@ func NewMultiReplicaSubscribeFn(
 							relayCancel = nil
 						}
 						relayParts = nil
-						// Schedule reconnection with backoff
-						// instead of giving up. The same retry
-						// state applies so a relay that
-						// repeatedly drops is torn down.
+						// Reuse the retry state so a relay that
+						// repeatedly drops eventually tears down.
 						delay, giveUp := retryState.next()
 						if giveUp {
 							sendRelayTerminalError(fmt.Sprintf(
@@ -635,14 +604,12 @@ func NewMultiReplicaSubscribeFn(
 	}
 }
 
-// relayRetryState drives the backoff + give-up policy for the
-// cross-replica relay reconnect loop. It wraps github.com/coder/retry
-// to reuse its φ-growth defaults but computes the next delay
-// without blocking so the merge loop can schedule a quartz.Clock
-// timer itself (and tests can advance that clock deterministically).
+// relayRetryState drives the retry policy for the relay reconnect
+// loop. Wraps github.com/coder/retry to reuse its φ-growth defaults
+// but computes the delay without blocking so the merge loop can
+// schedule its own quartz.Clock timer.
 //
-// Not safe for concurrent use: all method calls must happen on the
-// single merge-loop goroutine that owns the relay state.
+// Not safe for concurrent use.
 type relayRetryState struct {
 	retrier  *retry.Retrier
 	attempts int
@@ -654,13 +621,9 @@ func newRelayRetryState() *relayRetryState {
 	}
 }
 
-// next advances the backoff and returns the delay for the next
-// reconnect attempt. giveUp is true once attempts exceed
-// relayRetryMaxAttempts — callers should tear the relay leg down
-// instead of scheduling more reconnects.
-//
-// This mirrors the math in retry.Retrier.Wait (see
-// github.com/coder/retry/retrier.go) but never blocks.
+// next returns the delay before the next dial and sets giveUp once
+// attempts exceed relayRetryMaxAttempts. Mirrors retry.Retrier.Wait
+// (github.com/coder/retry/retrier.go) without blocking.
 func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
 	s.attempts++
 	if s.attempts > relayRetryMaxAttempts {
@@ -678,34 +641,24 @@ func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
 	return d, false
 }
 
-// reset restores the retry state to the floor delay and zero
-// attempts. Called after a successful dial or when the relay target
-// changes (e.g. the chat migrates to a new worker).
+// reset returns the state to the floor delay and zero attempts.
+// Called after a successful dial or a relay target change.
 func (s *relayRetryState) reset() {
 	s.retrier.Reset()
 	s.attempts = 0
 }
 
-// afterIDMaxInt64 is passed as the after_id query parameter when
-// dialing a peer replica. It tells the peer to skip the full
-// message-history snapshot — relays only need live message_part
-// events.
+// afterIDMaxInt64 is sent as after_id to tell the peer to skip the
+// history snapshot — relays only need live message_part events.
 const afterIDMaxInt64 = "9223372036854775807"
 
-// dialRelay opens a WebSocket relay connection to the replica
-// identified by workerID and returns a snapshot of buffered
-// message_part events plus a live channel of subsequent events.
+// dialRelay opens a WebSocket to the replica owning chatID and
+// returns any buffered message_part snapshot plus a live channel of
+// subsequent events. Handshake failures return an error unwrapping
+// to *RelayDialError so callers can classify via IsUnrecoverable.
 //
-// On handshake failure it returns an error that unwraps to
-// *RelayDialError carrying the peer's HTTP status code (or 0 for
-// pre-response failures). Callers use RelayDialError.IsUnrecoverable
-// to decide whether the retry loop should give up.
-//
-// We call websocket.Dial directly rather than routing through
-// codersdk.ExperimentalClient.StreamChat because that wrapper hides
-// the *http.Response we need for status classification, and the
-// relay is an internal replica-to-replica channel where the SDK's
-// browser-shaped ergonomics add no value.
+// websocket.Dial is called directly (not via the SDK wrapper) so we
+// can read *http.Response.StatusCode for classification.
 func dialRelay(
 	ctx context.Context,
 	chatID uuid.UUID,
