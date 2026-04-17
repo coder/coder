@@ -375,10 +375,32 @@ func TestDevConfigValidate(t *testing.T) {
 		cfg := base()
 		cfg.prometheusServer = true
 		cfg.apiPort = defaultPrometheusServerPort
+		cfg.prometheusPort = 2114
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "prometheus server port")
 		assert.Contains(t, err.Error(), "conflicts with API server")
+	})
+
+	t.Run("PrometheusServerPortConflictWithProxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.useProxy = true
+		cfg.proxyPort = defaultPrometheusServerPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prometheus server port")
+		assert.Contains(t, err.Error(), "conflicts with workspace proxy")
+	})
+
+	t.Run("PrometheusServerPortNoProxyConflictWithoutFlag", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.proxyPort = defaultPrometheusServerPort
+		// useProxy is false, so no conflict.
+		assert.NoError(t, cfg.validate())
 	})
 
 	t.Run("PrometheusServerPortConflictWithMetrics", func(t *testing.T) {

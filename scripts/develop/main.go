@@ -39,9 +39,12 @@ import (
 )
 
 const (
-	defaultAPIPort                    = "3000"
-	defaultWebPort                    = "8080"
-	defaultProxyPort                  = "3010"
+	defaultAPIPort   = "3000"
+	defaultWebPort   = "8080"
+	defaultProxyPort = "3010"
+	// defaultPrometheusServerPort is an int64 (not a string
+	// like the user-facing defaults) because it is not exposed
+	// as a CLI flag.
 	defaultPrometheusServerPort int64 = 9090
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
@@ -253,15 +256,21 @@ func (c *devConfig) validate() error {
 		return xerrors.New("--prometheus-server requires prometheus to be enabled (--prometheus-port != 0)")
 	}
 	if c.prometheusServer {
-		for _, conflict := range []struct {
+		conflicts := []struct {
 			name string
 			val  int64
 		}{
 			{"API server", c.apiPort},
 			{"frontend dev server", c.webPort},
-			{"workspace proxy", c.proxyPort},
 			{"prometheus metrics", c.prometheusPort},
-		} {
+		}
+		if c.useProxy {
+			conflicts = append(conflicts, struct {
+				name string
+				val  int64
+			}{"workspace proxy", c.proxyPort})
+		}
+		for _, conflict := range conflicts {
 			if defaultPrometheusServerPort == conflict.val {
 				return xerrors.Errorf("prometheus server port %d conflicts with %s", defaultPrometheusServerPort, conflict.name)
 			}
@@ -940,6 +949,11 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 // endpoint. It uses --net=host so the container can reach the
 // host-bound metrics port directly.
 func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig, group *procGroup) error {
+	// Verify Docker is available before attempting anything.
+	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
+		return xerrors.New("docker is required for --prometheus-server but does not appear to be available")
+	}
+
 	// Remove any leftover container from a previous run.
 	// Failure is fine — it just means the container doesn't exist.
 	rmCmd := exec.CommandContext(ctx, "docker", "rm", "-f", "coder-prometheus")
@@ -969,12 +983,6 @@ scrape_configs:
 	}
 	_ = tmpFile.Close()
 
-	// Clean up the temp file when the context is done.
-	go func() {
-		<-ctx.Done()
-		_ = os.Remove(tmpFile.Name())
-	}()
-
 	cmd := exec.CommandContext(ctx, "docker", "run", //nolint:gosec // args are all controlled constants or our own temp file path
 		"--rm",
 		"--name", "coder-prometheus",
@@ -991,7 +999,18 @@ scrape_configs:
 		slog.F("ui", fmt.Sprintf("http://localhost:%d", defaultPrometheusServerPort)),
 	)
 
-	return group.Start("prometheus", cmd)
+	if err := group.Start("prometheus", cmd); err != nil {
+		_ = os.Remove(tmpFile.Name())
+		return err
+	}
+
+	// Clean up the temp file when the context is done.
+	go func() {
+		<-ctx.Done()
+		_ = os.Remove(tmpFile.Name())
+	}()
+
+	return nil
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
