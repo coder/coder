@@ -3028,7 +3028,9 @@ func (p *Server) cacheDurableMessage(chatID uuid.UUID, event codersdk.ChatStream
 		if evicted := state.durableMessages[0]; evicted.Message != nil {
 			state.durableEvictedBefore = evicted.Message.ID
 		}
-		state.durableMessages[0] = codersdk.ChatStreamEvent{} // make the evictee GC-eligible
+		// Zero the dropped slot so the evicted *ChatMessage is
+		// GC-eligible; see publishToStream for the same pattern.
+		state.durableMessages[0] = codersdk.ChatStreamEvent{}
 		state.durableMessages = state.durableMessages[1:]
 	}
 	state.durableMessages = append(state.durableMessages, event)
@@ -3144,9 +3146,23 @@ func (p *Server) streamJanitorLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			p.sweepIdleStreams()
+			p.safeSweepIdleStreams(ctx)
 		}
 	}
+}
+
+// safeSweepIdleStreams runs sweepIdleStreams under a panic recovery
+// so an unexpected panic in the sweep cannot kill the janitor
+// goroutine and silently reintroduce the very leak it exists to
+// prevent. The next tick retries.
+func (p *Server) safeSweepIdleStreams(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Error(ctx, "stream janitor sweep panicked, will retry next tick",
+				slog.F("panic", r))
+		}
+	}()
+	p.sweepIdleStreams()
 }
 
 // sweepIdleStreams iterates chatStreams once and delegates each entry

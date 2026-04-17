@@ -3338,3 +3338,27 @@ func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
 	require.Same(t, fresh, got,
 		"cleanup must not replace the fresh entry with the stale one")
 }
+
+// TestSafeSweepIdleStreams_RecoversFromPanic verifies that an
+// unexpected panic inside sweepIdleStreams is recovered rather than
+// killing the janitor goroutine. Without this guard, a panic would
+// silently reintroduce the very leak the janitor exists to prevent.
+func TestSafeSweepIdleStreams_RecoversFromPanic(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:  quartz.NewMock(t),
+	}
+
+	chatID := uuid.New()
+	// A nil *chatStreamState passes the type assertion in sweepIdleStreams
+	// but panics on state.mu.Lock with a nil-pointer deref. Any future
+	// panic source in the sweep would trigger the same recovery path.
+	var nilState *chatStreamState
+	server.chatStreams.Store(chatID, nilState)
+
+	require.NotPanics(t, func() {
+		server.safeSweepIdleStreams(context.Background())
+	}, "safeSweepIdleStreams must recover panics so the janitor loop keeps running")
+}
