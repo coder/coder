@@ -177,6 +177,21 @@ func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), ctx, arg)
 }
 
+// AutoArchiveInactiveChats mocks base method.
+func (m *MockStore) AutoArchiveInactiveChats(ctx context.Context, arg database.AutoArchiveInactiveChatsParams) ([]database.AutoArchiveInactiveChatsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AutoArchiveInactiveChats", ctx, arg)
+	ret0, _ := ret[0].([]database.AutoArchiveInactiveChatsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AutoArchiveInactiveChats indicates an expected call of AutoArchiveInactiveChats.
+func (mr *MockStoreMockRecorder) AutoArchiveInactiveChats(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoArchiveInactiveChats", reflect.TypeOf((*MockStore)(nil).AutoArchiveInactiveChats), ctx, arg)
+}
+
 // BackoffChatDiffStatus mocks base method.
 func (m *MockStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	m.ctrl.T.Helper()
@@ -2025,6 +2040,36 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
+}
+
+// GetChatAutoArchiveDays mocks base method.
+func (m *MockStore) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutoArchiveDays", ctx)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutoArchiveDays indicates an expected call of GetChatAutoArchiveDays.
+func (mr *MockStoreMockRecorder) GetChatAutoArchiveDays(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDays), ctx)
+}
+
+// GetChatAutoArchiveDigestLogsForOwners mocks base method.
+func (m *MockStore) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]database.ChatAutoArchiveDigestLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutoArchiveDigestLogsForOwners", ctx, ownerIds)
+	ret0, _ := ret[0].([]database.ChatAutoArchiveDigestLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutoArchiveDigestLogsForOwners indicates an expected call of GetChatAutoArchiveDigestLogsForOwners.
+func (mr *MockStoreMockRecorder) GetChatAutoArchiveDigestLogsForOwners(ctx, ownerIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDigestLogsForOwners", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDigestLogsForOwners), ctx, ownerIds)
 }
 
 // GetChatByID mocks base method.
@@ -9800,6 +9845,34 @@ func (m *MockStore) UpsertBoundaryUsageStats(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpsertBoundaryUsageStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertBoundaryUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertBoundaryUsageStats), ctx, arg)
+}
+
+// UpsertChatAutoArchiveDays mocks base method.
+func (m *MockStore) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatAutoArchiveDays", ctx, autoArchiveDays)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatAutoArchiveDays indicates an expected call of UpsertChatAutoArchiveDays.
+func (mr *MockStoreMockRecorder) UpsertChatAutoArchiveDays(ctx, autoArchiveDays any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).UpsertChatAutoArchiveDays), ctx, autoArchiveDays)
+}
+
+// UpsertChatAutoArchiveDigestLog mocks base method.
+func (m *MockStore) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg database.UpsertChatAutoArchiveDigestLogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatAutoArchiveDigestLog", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatAutoArchiveDigestLog indicates an expected call of UpsertChatAutoArchiveDigestLog.
+func (mr *MockStoreMockRecorder) UpsertChatAutoArchiveDigestLog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAutoArchiveDigestLog", reflect.TypeOf((*MockStore)(nil).UpsertChatAutoArchiveDigestLog), ctx, arg)
 }
 
 // UpsertChatDebugLoggingAllowUsers mocks base method.

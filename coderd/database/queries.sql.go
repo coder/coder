@@ -2900,6 +2900,60 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const getChatAutoArchiveDigestLogsForOwners = `-- name: GetChatAutoArchiveDigestLogsForOwners :many
+SELECT owner_id, last_sent_at
+FROM chat_auto_archive_digest_log
+WHERE owner_id = ANY($1::uuid[])
+`
+
+// Returns the last-sent timestamp for each requested owner. Owners
+// without a row are simply absent from the result; callers treat
+// them as "never sent". Used by dbpurge to decide whether to skip
+// a digest enqueue during the 24 h dedupe window.
+func (q *sqlQuerier) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]ChatAutoArchiveDigestLog, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutoArchiveDigestLogsForOwners, pq.Array(ownerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutoArchiveDigestLog
+	for rows.Next() {
+		var i ChatAutoArchiveDigestLog
+		if err := rows.Scan(&i.OwnerID, &i.LastSentAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertChatAutoArchiveDigestLog = `-- name: UpsertChatAutoArchiveDigestLog :exec
+INSERT INTO chat_auto_archive_digest_log (owner_id, last_sent_at)
+VALUES ($1::uuid, $2::timestamptz)
+ON CONFLICT (owner_id) DO UPDATE
+    SET last_sent_at = EXCLUDED.last_sent_at
+`
+
+type UpsertChatAutoArchiveDigestLogParams struct {
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+	LastSentAt time.Time `db:"last_sent_at" json:"last_sent_at"`
+}
+
+// Records that we sent (or attempted to send) a chat auto-archive
+// digest to the given owner at the given timestamp. Written AFTER
+// the notification enqueue succeeds so an enqueue failure allows a
+// retry on the next tick.
+func (q *sqlQuerier) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg UpsertChatAutoArchiveDigestLogParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDigestLog, arg.OwnerID, arg.LastSentAt)
+	return err
+}
+
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id
@@ -5185,6 +5239,138 @@ func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat,
 	var items []Chat
 	for rows.Next() {
 		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.LastInjectedContext,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const autoArchiveInactiveChats = `-- name: AutoArchiveInactiveChats :many
+WITH to_archive AS (
+    SELECT c.id
+    FROM chats c
+    LEFT JOIN LATERAL (
+        SELECT MAX(cm.created_at) AS last_activity_at
+        FROM chat_messages cm
+        JOIN chats fc ON fc.id = cm.chat_id
+        WHERE (fc.id = c.id OR fc.root_chat_id = c.id)
+          AND cm.deleted = false
+    ) activity ON TRUE
+    WHERE c.archived = false
+      AND c.pin_order = 0
+      AND c.parent_chat_id IS NULL
+      AND COALESCE(activity.last_activity_at, c.created_at) < $1::timestamptz
+    ORDER BY COALESCE(activity.last_activity_at, c.created_at) ASC
+    LIMIT $2
+),
+archived AS (
+    UPDATE chats c
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    FROM to_archive t
+    WHERE (c.id = t.id OR c.root_chat_id = t.id)
+      AND c.archived = false
+    RETURNING c.id, c.owner_id, c.workspace_id, c.title, c.status, c.worker_id, c.started_at, c.heartbeat_at, c.created_at, c.updated_at, c.parent_chat_id, c.root_chat_id, c.last_model_config_id, c.archived, c.last_error, c.mode, c.mcp_server_ids, c.labels, c.build_id, c.agent_id, c.pin_order, c.last_read_message_id, c.last_injected_context, c.dynamic_tools, c.organization_id, c.plan_mode, c.client_type
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
+FROM archived
+ORDER BY (root_chat_id IS NULL) DESC, owner_id ASC, created_at ASC, id ASC
+`
+
+type AutoArchiveInactiveChatsParams struct {
+	ArchiveCutoff time.Time `db:"archive_cutoff" json:"archive_cutoff"`
+	LimitCount    int32     `db:"limit_count" json:"limit_count"`
+}
+
+type AutoArchiveInactiveChatsRow struct {
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title               string                `db:"title" json:"title"`
+	Status              ChatStatus            `db:"status" json:"status"`
+	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived            bool                  `db:"archived" json:"archived"`
+	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	Mode                NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels              json.RawMessage       `db:"labels" json:"labels"`
+	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+}
+
+// Archives root chat families whose newest non-deleted message is
+// older than archive_cutoff, cascading to children via root_chat_id
+// (matching ArchiveChatByID semantics). Pinned chats and families
+// without any recent activity are skipped.
+//
+// Activity is defined as the MAX(chat_messages.created_at) over all
+// non-deleted messages in the family, falling back to the root's
+// created_at when the family has no messages. All message roles
+// count: if any agent is still generating a response, the chat is
+// considered active.
+//
+// The limit bounds the number of ROOTS archived per call, not the
+// total number of rows affected -- one root can pull in many
+// children via the cascade. Used by dbpurge with a bounded batch
+// so a large initial backfill doesn't stall a single tick.
+func (q *sqlQuerier) AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, autoArchiveInactiveChats, arg.ArchiveCutoff, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AutoArchiveInactiveChatsRow
+	for rows.Next() {
+		var i AutoArchiveInactiveChatsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -20195,6 +20381,25 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatAutoArchiveDays = `-- name: GetChatAutoArchiveDays :one
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_auto_archive_days'),
+    90
+) :: integer AS auto_archive_days
+`
+
+// Returns the chat auto-archive period in days. Chats whose newest
+// non-deleted message is older than this are automatically archived
+// by dbpurge. Returns 90 (days) when no value has been configured.
+// A value of 0 disables auto-archive entirely.
+func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getChatAutoArchiveDays)
+	var auto_archive_days int32
+	err := row.Scan(&auto_archive_days)
+	return auto_archive_days, err
+}
+
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
@@ -20542,6 +20747,18 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertChatAutoArchiveDays = `-- name: UpsertChatAutoArchiveDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_auto_archive_days', CAST($1 AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST($1 AS integer)::text
+WHERE site_configs.key = 'agents_chat_auto_archive_days'
+`
+
+func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
+	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
 	return err
 }
 

@@ -736,6 +736,26 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatRetentionDays(gomock.Any(), int32(30)).Return(nil).AnyTimes()
 		check.Args(int32(30)).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetChatAutoArchiveDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatAutoArchiveDays(gomock.Any()).Return(int32(90), nil).AnyTimes()
+		check.Args().Asserts()
+	}))
+	s.Run("UpsertChatAutoArchiveDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatAutoArchiveDays(gomock.Any(), int32(90)).Return(nil).AnyTimes()
+		check.Args(int32(90)).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("AutoArchiveInactiveChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().AutoArchiveInactiveChats(gomock.Any(), database.AutoArchiveInactiveChatsParams{}).Return([]database.AutoArchiveInactiveChatsRow{}, nil).AnyTimes()
+		check.Args(database.AutoArchiveInactiveChatsParams{}).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+	}))
+	s.Run("GetChatAutoArchiveDigestLogsForOwners", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatAutoArchiveDigestLogsForOwners(gomock.Any(), []uuid.UUID{}).Return([]database.ChatAutoArchiveDigestLog{}, nil).AnyTimes()
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertChatAutoArchiveDigestLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatAutoArchiveDigestLog(gomock.Any(), database.UpsertChatAutoArchiveDigestLogParams{}).Return(nil).AnyTimes()
+		check.Args(database.UpsertChatAutoArchiveDigestLogParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 	s.Run("GetChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})

@@ -1592,6 +1592,17 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
 }
 
+func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.AutoArchiveInactiveChatsParams) ([]database.AutoArchiveInactiveChatsRow, error) {
+	// System-level write performed by dbpurge. Both policy.ActionRead
+	// (for chat_messages in the LATERAL subquery) and policy.ActionUpdate
+	// (for the UPDATE) are covered by subjectSystemRestricted's
+	// ResourceChat permissions.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.AutoArchiveInactiveChats(ctx, arg)
+}
+
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same
@@ -2547,6 +2558,25 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+	// Chat auto-archive is a deployment-wide config read by dbpurge
+	// and also surfaced to any authenticated user via the experimental
+	// HTTP endpoint (mirroring GetChatRetentionDays).
+	if _, ok := ActorFromContext(ctx); !ok {
+		return 0, ErrNoActor
+	}
+	return q.db.GetChatAutoArchiveDays(ctx)
+}
+
+func (q *querier) GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIDs []uuid.UUID) ([]database.ChatAutoArchiveDigestLog, error) {
+	// System-level read performed by dbpurge while deciding which
+	// owners are still inside their 24 h digest dedupe window.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutoArchiveDigestLogsForOwners(ctx, ownerIDs)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -7305,6 +7335,22 @@ func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.Ups
 		return false, err
 	}
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
+}
+
+func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
+}
+
+func (q *querier) UpsertChatAutoArchiveDigestLog(ctx context.Context, arg database.UpsertChatAutoArchiveDigestLogParams) error {
+	// System-level write performed by dbpurge after a digest is
+	// enqueued, to record the dedupe timestamp.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAutoArchiveDigestLog(ctx, arg)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {

@@ -294,3 +294,20 @@ INSERT INTO site_configs (key, value)
 VALUES ('agents_chat_retention_days', CAST(@retention_days AS integer)::text)
 ON CONFLICT (key) DO UPDATE SET value = CAST(@retention_days AS integer)::text
 WHERE site_configs.key = 'agents_chat_retention_days';
+
+-- name: GetChatAutoArchiveDays :one
+-- Returns the chat auto-archive period in days. Chats whose newest
+-- non-deleted message is older than this are automatically archived
+-- by dbpurge. Returns 90 (days) when no value has been configured.
+-- A value of 0 disables auto-archive entirely.
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_auto_archive_days'),
+    90
+) :: integer AS auto_archive_days;
+
+-- name: UpsertChatAutoArchiveDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_auto_archive_days', CAST(@auto_archive_days AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST(@auto_archive_days AS integer)::text
+WHERE site_configs.key = 'agents_chat_auto_archive_days';

@@ -1266,6 +1266,13 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_auto_archive_digest_log (
+    owner_id uuid NOT NULL,
+    last_sent_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_auto_archive_digest_log IS 'Per-owner dedupe record for the chat auto-archive digest notification. Presence of a row indicates a digest was sent to the owner; dbpurge skips re-sending until last_sent_at is older than the dedupe window (24 h).';
+
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     chat_id uuid NOT NULL,
@@ -3411,6 +3418,9 @@ ALTER TABLE ONLY audit_logs
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_auto_archive_digest_log
+    ADD CONSTRAINT chat_auto_archive_digest_log_pkey PRIMARY KEY (owner_id);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_pkey PRIMARY KEY (id);
 
@@ -4129,6 +4139,9 @@ ALTER TABLE ONLY aibridge_interceptions
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_auto_archive_digest_log
+    ADD CONSTRAINT chat_auto_archive_digest_log_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

@@ -61,6 +61,22 @@ type sqlcQuerier interface {
 	// Only unused template versions will be archived, which are any versions not
 	// referenced by the latest build of a workspace.
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
+	// Archives root chat families whose newest non-deleted message is
+	// older than archive_cutoff, cascading to children via root_chat_id
+	// (matching ArchiveChatByID semantics). Pinned chats and families
+	// without any recent activity are skipped.
+	//
+	// Activity is defined as the MAX(chat_messages.created_at) over all
+	// non-deleted messages in the family, falling back to the root's
+	// created_at when the family has no messages. All message roles
+	// count: if any agent is still generating a response, the chat is
+	// considered active.
+	//
+	// The limit bounds the number of ROOTS archived per call, not the
+	// total number of rows affected -- one root can pull in many
+	// children via the cascade. Used by dbpurge with a bounded batch
+	// so a large initial backfill doesn't stall a single tick.
+	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
@@ -266,6 +282,16 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	// Returns the chat auto-archive period in days. Chats whose newest
+	// non-deleted message is older than this are automatically archived
+	// by dbpurge. Returns 90 (days) when no value has been configured.
+	// A value of 0 disables auto-archive entirely.
+	GetChatAutoArchiveDays(ctx context.Context) (int32, error)
+	// Returns the last-sent timestamp for each requested owner. Owners
+	// without a row are simply absent from the result; callers treat
+	// them as "never sent". Used by dbpurge to decide whether to skip
+	// a digest enqueue during the 24 h dedupe window.
+	GetChatAutoArchiveDigestLogsForOwners(ctx context.Context, ownerIds []uuid.UUID) ([]ChatAutoArchiveDigestLog, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
@@ -1163,6 +1189,12 @@ type sqlcQuerier interface {
 	// cumulative values for unique counts (accurate period totals). Request counts
 	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
+	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
+	// Records that we sent (or attempted to send) a chat auto-archive
+	// digest to the given owner at the given timestamp. Written AFTER
+	// the notification enqueue succeeds so an enqueue failure allows a
+	// retry on the next tick.
+	UpsertChatAutoArchiveDigestLog(ctx context.Context, arg UpsertChatAutoArchiveDigestLogParams) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error
