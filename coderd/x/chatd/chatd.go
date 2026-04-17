@@ -1456,35 +1456,23 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	return nil
 }
 
-// ErrChildUnarchiveParentArchived is returned by UnarchiveChat when
-// the caller attempts to unarchive a child chat whose parent is
-// archived. Callers (the patchChat handler) translate this to a 400
-// response so the user is told why the operation is rejected.
+// ErrChildUnarchiveParentArchived is returned by UnarchiveChat when a
+// child unarchive is rejected because the parent is still archived.
+// The patchChat handler maps this to a 400 response.
 var ErrChildUnarchiveParentArchived = xerrors.New(
 	"cannot unarchive child chat while parent is archived",
 )
 
-// UnarchiveChat unarchives a chat family and publishes created events for
-// each affected chat so watching clients see every chat that reappeared.
+// UnarchiveChat unarchives a chat family and broadcasts created events.
+// Root chats cascade through UnarchiveChatByID. Child chats run under
+// a row-level lock on the child (GetChatByIDForUpdate) with an
+// in-transaction re-read of the parent, returning
+// ErrChildUnarchiveParentArchived when the parent is archived and a
+// no-op when the child is already active.
 //
-// For a root chat this delegates to UnarchiveChatByID which cascades via
-// root_chat_id. For a child chat the unarchive runs atomically under a
-// row-level lock on the child so a concurrent ArchiveChatByID cascade on
-// the parent cannot race the patchChat pre-flight guard into the
-// forbidden (parent archived, child active) state:
-//
-//  1. GetChatByIDForUpdate(child.ID) takes a row lock on the child. A
-//     concurrent ArchiveChatByID(parent.ID) must UPDATE the child row
-//     (via the root_chat_id cascade predicate) and serializes behind
-//     this lock.
-//  2. Re-read the parent inside the transaction. If the parent is
-//     archived, return ErrChildUnarchiveParentArchived. If the child
-//     is already active, return with no write (idempotent recovery).
-//  3. Otherwise UnarchiveChatByID(child.ID) and broadcast the events.
-//
-// Locking the child before reading the parent is deliberate: locking
-// the parent first would deadlock with the cascade, which takes
-// child-row locks in scan order before reaching the parent.
+// The child is locked before the parent is read to avoid deadlocking
+// with a concurrent ArchiveChatByID cascade, which visits child rows
+// before the parent.
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
@@ -1507,8 +1495,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 			return xerrors.Errorf("lock child for unarchive: %w", err)
 		}
 		if !locked.Archived {
-			// Already unarchived by a concurrent caller. No write,
-			// no broadcast; callers treat this as idempotent success.
+			// Already unarchived by a concurrent caller; idempotent no-op.
 			return nil
 		}
 		parent, err := tx.GetChatByID(ctx, chat.ParentChatID.UUID)

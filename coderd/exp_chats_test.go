@@ -3890,13 +3890,9 @@ func TestGetChat(t *testing.T) {
 		require.NotNil(t, childResult.Children)
 		require.Empty(t, childResult.Children)
 
-		// After archiving the family, fetching the archived root
-		// should still embed the cascaded archived children. The
-		// handler passes the parent's own Archived value as the
-		// filter (sql.NullBool{Bool: chat.Archived, Valid: true});
-		// a regression that hardcoded Bool: false would silently
-		// drop every child from the archived-root view while the
-		// active-root assertions above still pass.
+		// An archived root should still embed its cascaded
+		// archived children (guards against the filter getting
+		// hardcoded to false).
 		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
 
@@ -4299,12 +4295,8 @@ func TestArchiveChat(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, dbChild2.Archived, "child2 should be archived")
 
-		// archived:true should return the parent with both cascaded
-		// children embedded. The handler passes archived=true to
-		// GetChildChatsByParentIDs so embedded children match the
-		// archive state the caller is viewing. Inverting the narg
-		// or dropping the filter would silently drop archived
-		// children from the archived-parent view.
+		// archived:true should return the parent with both
+		// cascaded children embedded.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: "archived:true",
 		})
@@ -4361,9 +4353,8 @@ func TestArchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Individual child archive is permitted. The parent is
-		// untouched; the archive invariant is one-way (parent
-		// archived implies child archived), not symmetric.
+		// Individual child archive is permitted and leaves the
+		// parent active; the invariant is one-way.
 		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
 
@@ -4375,12 +4366,8 @@ func TestArchiveChat(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, dbParent.Archived, "parent should stay active")
 
-		// The individually-archived child is hidden from the
-		// active-parent sidebar view: the handler filters embedded
-		// children by the request's archive state.
-		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: "archived:false",
-		})
+		// Archived child is hidden under an active parent.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:false"})
 		require.NoError(t, err)
 		var activeParent *codersdk.Chat
 		for i := range activeChats {
@@ -4394,14 +4381,9 @@ func TestArchiveChat(t *testing.T) {
 			require.NotEqual(t, child.ID, c.ID, "archived child must not appear under active parent")
 		}
 
-		// The individually-archived child is also absent from the
-		// archived:true list because GetChats paginates over root
-		// chats only; the child has a parent so it is not a root.
-		// Finding individually-archived children via pagination is
-		// an accepted non-feature.
-		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: "archived:true",
-		})
+		// Nor does the child surface in the archived list (only
+		// roots paginate there).
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true"})
 		require.NoError(t, err)
 		for _, c := range archivedChats {
 			require.NotEqual(t, child.ID, c.ID, "archived child should not surface as a root in archived list")

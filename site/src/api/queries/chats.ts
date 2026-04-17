@@ -393,10 +393,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
-		// Strip the chat from the flat root list (root archive
-		// case) and from any parent's embedded children (individual
-		// child archive case). Children whose archive state differs
-		// from their parent are hidden by the sidebar.
+		// Flip archived flag in the flat root list; strip the
+		// chat from any parent's embedded children (individual
+		// child archive).
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,

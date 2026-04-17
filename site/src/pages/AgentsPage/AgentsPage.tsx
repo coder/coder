@@ -505,11 +505,9 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
-						// Remove the chat from the flat root list (root
-						// archive cascades match via root_chat_id) and
-						// from any parent's embedded children (individual
-						// child archive). Sidebar hides children whose
-						// archive state differs from the parent.
+						// Drop the chat from the flat root list (root or
+						// cascade via root_chat_id) and from any parent's
+						// embedded children (individual child archive).
 						updateInfiniteChatsCache(queryClient, (chats) =>
 							chats.filter(
 								(c) =>

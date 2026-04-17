@@ -305,10 +305,10 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
-	// Broadcast path: scope to the workspace directly.
-	// GetChatsByWorkspaceIDs filters archived=false by design, so
-	// archived chats are intentionally skipped; they are not shown
-	// in the active sidebar and do not need refreshed git refs.
+	// Broadcast path: scope by workspace. GetChatsByWorkspaceIDs
+	// filters archived=false, which is intentional: archived
+	// chats aren't in the active sidebar and don't need refreshed
+	// git refs.
 	chats, err := w.store.GetChatsByWorkspaceIDs(ctx, []uuid.UUID{p.WorkspaceID})
 	if err != nil {
 		w.logger.Warn(ctx, "list chats for git ref storage",

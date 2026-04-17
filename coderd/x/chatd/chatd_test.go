@@ -741,16 +741,9 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 	require.Zero(t, fromDB.PinOrder)
 }
 
-// TestUnarchiveChildChat covers the Server.UnarchiveChat child-chat
-// path: individually-archived child with an active parent returns to
-// active, concurrent archive cascade on the parent is serialized by
-// the row lock on the child, already-active child is a no-op, and a
-// child whose parent is archived is rejected with
-// ErrChildUnarchiveParentArchived. The atomicity guarantee (lock on
-// child before re-reading parent so a concurrent cascade serializes)
-// is reasoned about in the Server.UnarchiveChat doc comment;
-// asserting it in a reproducible test would require a pause hook
-// inside the transaction that does not exist in this codebase.
+// TestUnarchiveChildChat covers the deterministic branches of the
+// Server.UnarchiveChat child path: happy path, archived-parent reject,
+// and already-active no-op.
 func TestUnarchiveChildChat(t *testing.T) {
 	t.Parallel()
 

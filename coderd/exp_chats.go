@@ -344,12 +344,8 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		rootIDs[i] = row.Chat.ID
 	}
 
-	// Fetch children for all root chats in a single query.
-	// Children are filtered to match the archive state the
-	// caller is viewing so individually-archived children are
-	// hidden from an active-parent sidebar and vice versa. A
-	// future "include archived children" option on the list
-	// endpoint can pass sql.NullBool{} (all) when added.
+	// Embed children matching the caller's archive filter so
+	// sidebar views don't surface state-mismatched rows.
 	var childRows []database.GetChildChatsByParentIDsRow
 	if len(rootIDs) > 0 {
 		childRows, err = api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
@@ -1543,12 +1539,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// For root chats, embed children so callers get a complete
 	// tree in a single response.
 	if !chat.ParentChatID.Valid {
-		// Filter embedded children to match the parent's own
-		// archive state. An archived root always has archived
-		// children (cascade); an active root may have
-		// individually-archived children that should stay
-		// hidden here until a future "include archived
-		// children" option is added.
+		// Embed children matching the parent's archive state.
 		childRows, err := api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{chat.ID},
 			Archived:  sql.NullBool{Bool: chat.Archived, Valid: true},
@@ -1978,23 +1969,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// The archive invariant is one-way: parent archived
-		// implies child archived. Archive on parent cascades via
-		// root_chat_id (ArchiveChatByID). Archive on a child is
-		// permitted and leaves the parent untouched; the sidebar
-		// hides individually-archived children from an active
-		// parent's embedded list (see GetChildChatsByParentIDs
-		// archived narg). Unarchive on a child must be rejected
-		// while the parent is still archived, otherwise the family
-		// reaches the forbidden (parent archived, child active)
-		// state.
+		// Archive invariant is one-way: parent archived implies
+		// child archived. Parent archive/unarchive cascade via
+		// root_chat_id; individual child archive is permitted;
+		// child unarchive while the parent is archived is rejected
+		// (enforced atomically in chatd.Server.UnarchiveChat).
 		if chat.ParentChatID.Valid && !archived {
-			// writeChildUnarchiveGuard is advisory pre-flight UX.
-			// The durable invariant lives in chatd.Server.UnarchiveChat
-			// (and the matching UnarchiveChatByID path when no
-			// daemon is running), which re-reads the parent under a
-			// row lock on the child so a concurrent archive cascade
-			// cannot race us into the forbidden state.
 			if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
 				return
 			}
@@ -2144,19 +2124,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// writeChildUnarchiveGuard is the pre-flight UX half of the
-// child-unarchive policy. It returns 400 early when the caller's
-// request is obviously racing against an archived parent at
-// request time. The durable invariant is enforced by
-// chatd.Server.UnarchiveChat under a row lock on the child chat;
-// this guard exists only to return a descriptive error at the
-// earliest point instead of at the transaction boundary.
+// writeChildUnarchiveGuard returns a 400 early when a child unarchive
+// request obviously races an archived parent. The durable invariant
+// is enforced atomically in chatd.Server.UnarchiveChat; this guard
+// just surfaces the error before we take any locks.
 //
-// Callers must only invoke this when chat.ParentChatID.Valid is
-// true and the request is an unarchive.
-//
-// Returns true when a response has been written (caller must
-// return). Returns false when the request is allowed to proceed.
+// Returns true when a response has been written.
 func (api *API) writeChildUnarchiveGuard(
 	ctx context.Context,
 	rw http.ResponseWriter,

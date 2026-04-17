@@ -349,24 +349,10 @@ type sqlcQuerier interface {
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
-	// Fetches child chats for the given parent IDs. Used by the list
-	// handler and singular getChat to embed children under each root
-	// chat response.
-	//
-	// The archived narg is three-state: NULL returns every child,
-	// true returns archived children only, false returns active
-	// children only. Callers pass the archive state that matches the
-	// parent list they are rendering, so sidebar views never surface
-	// children whose archive state differs from the parent.
-	//
-	// The archive invariant (parent archived implies child archived)
-	// is enforced at write time, not here: ArchiveChatByID cascades
-	// through root_chat_id, patchChat allows individual child
-	// archive, and chatd.Server.UnarchiveChat rejects unarchive of a
-	// child while the parent is archived (atomically under a row
-	// lock on the child). A stale read during a concurrent cascade
-	// can momentarily return an archive-state mismatch; the caller's
-	// next refetch converges.
+	// Fetches child chats of the given parents, optionally filtered by
+	// archive state (NULL = all, true/false = match). The archive
+	// invariant (parent archived implies child archived) is enforced
+	// at write time, not here.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
