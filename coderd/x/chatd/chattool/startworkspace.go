@@ -49,8 +49,9 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 		"Start the chat's workspace if it is currently stopped. "+
 			"This tool is idempotent — if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
-			"first if no workspace exists yet. Optionally provide "+
-			"parameter values (from read_template).",
+			"first if no workspace exists yet. Provide parameter "+
+			"values (from read_template) only if necessary or "+
+			"explicitly requested by the user.",
 		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.StartFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
