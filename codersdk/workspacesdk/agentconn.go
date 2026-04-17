@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -41,6 +42,24 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 		Conn: conn,
 		opts: opts,
 	}
+}
+
+// WrapAgentConn returns an AgentConn that delegates every operation to conn and
+// applies closeFunc when the logical agent session is closed.
+func WrapAgentConn(conn AgentConn, closeFunc func() error) AgentConn {
+	if conn == nil || closeFunc == nil {
+		return conn
+	}
+	return &wrappedAgentConn{AgentConn: conn, closeFunc: closeFunc}
+}
+
+type wrappedAgentConn struct {
+	AgentConn
+	closeFunc func() error
+}
+
+func (c *wrappedAgentConn) Close() error {
+	return errors.Join(c.closeFunc(), c.AgentConn.Close())
 }
 
 const (

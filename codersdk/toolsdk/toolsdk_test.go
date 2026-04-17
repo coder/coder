@@ -61,6 +61,40 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	return userClient, r.Workspace, r.AgentToken
 }
 
+type recordingAgentDialer struct {
+	conn    workspacesdk.AgentConn
+	agentID uuid.UUID
+	calls   int
+	options *workspacesdk.DialAgentOptions
+}
+
+func (d *recordingAgentDialer) DialAgent(_ context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error) {
+	d.calls++
+	d.agentID = agentID
+	if options != nil {
+		optsCopy := *options
+		d.options = &optsCopy
+	}
+	return d.conn, nil
+}
+
+type lsOnlyAgentConn struct {
+	workspacesdk.AgentConn
+	response   workspacesdk.LSResponse
+	path       string
+	closeCalls int
+}
+
+func (c *lsOnlyAgentConn) LS(_ context.Context, path string, _ workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
+	c.path = path
+	return c.response, nil
+}
+
+func (c *lsOnlyAgentConn) Close() error {
+	c.closeCalls++
+	return nil
+}
+
 // These tests are dependent on the state of the coder server.
 // Running them in parallel is prone to racy behavior.
 // nolint:tparallel,paralleltest
@@ -595,6 +629,48 @@ func TestTools(t *testing.T) {
 				IsDir: false,
 			},
 		}, res.Contents)
+	})
+
+	t.Run("WorkspaceLSUsesInjectedDialer", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		ws, err := client.Workspace(t.Context(), workspace.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, ws.LatestBuild.Resources)
+		require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+
+		stubConn := &lsOnlyAgentConn{
+			response: workspacesdk.LSResponse{
+				Contents: []workspacesdk.LSFile{{
+					AbsolutePathString: "/tmp/from-dialer",
+					IsDir:              false,
+				}},
+			},
+		}
+		dialer := &recordingAgentDialer{conn: stubConn}
+		tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentDialer(dialer))
+		require.NoError(t, err)
+
+		res, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+			Workspace: workspace.Name,
+			Path:      "/tmp",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []toolsdk.WorkspaceLSFile{{
+			Path:  "/tmp/from-dialer",
+			IsDir: false,
+		}}, res.Contents)
+		require.Equal(t, 1, dialer.calls)
+		require.Equal(t, agentID, dialer.agentID)
+		require.NotNil(t, dialer.options)
+		require.False(t, dialer.options.BlockEndpoints)
+		require.Equal(t, "/tmp", stubConn.path)
+		require.Equal(t, 1, stubConn.closeCalls)
 	})
 
 	t.Run("WorkspaceReadFile", func(t *testing.T) {
