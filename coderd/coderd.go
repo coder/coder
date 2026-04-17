@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -813,6 +814,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.mcpMetrics = mcp.NewMetrics(options.PrometheusRegistry)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -2119,6 +2121,7 @@ type API struct {
 	statsReporter    *workspacestats.Reporter
 	metadataBatcher  *metadatabatcher.Batcher
 	lifecycleMetrics *agentapi.LifecycleMetrics
+	mcpMetrics       *mcp.Metrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

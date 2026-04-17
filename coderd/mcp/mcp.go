@@ -18,6 +18,15 @@ import (
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
 
+// Option configures a Server at construction time.
+type Option func(*Server)
+
+// WithMetrics attaches a Metrics sink to the Server. Nil is accepted and
+// disables metric recording.
+func WithMetrics(m *Metrics) Option {
+	return func(s *Server) { s.metrics = m }
+}
+
 const (
 	// MCPServerName is the name used for the MCP server.
 	MCPServerName = "Coder"
@@ -37,10 +46,12 @@ type Server struct {
 
 	// streamableServer handles HTTP transport
 	streamableServer *server.StreamableHTTPServer
+
+	metrics *Metrics
 }
 
-// NewServer creates a new MCP HTTP server
-func NewServer(logger slog.Logger) (*Server, error) {
+// NewServer creates a new MCP HTTP server.
+func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 	// Create the core MCP server
 	mcpSrv := server.NewMCPServer(
 		MCPServerName,
@@ -57,16 +68,32 @@ func NewServer(logger slog.Logger) (*Server, error) {
 		server.WithLogger(mcpLogger),
 	)
 
-	return &Server{
+	s := &Server{
 		Logger:           logger,
 		mcpServer:        mcpSrv,
 		streamableServer: streamableServer,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
-// ServeHTTP implements http.Handler interface
+// ServeHTTP implements http.Handler interface.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.metrics.sessionInc()
+	defer s.metrics.sessionDec()
 	s.streamableServer.ServeHTTP(w, r)
+}
+
+// toolDepsOpts returns the toolsdk.NewDeps option set derived from this
+// Server's configuration.
+func (s *Server) toolDepsOpts() []func(*toolsdk.Deps) {
+	var opts []func(*toolsdk.Deps)
+	if obs := s.metrics.AgentDialObserver(); obs != nil {
+		opts = append(opts, toolsdk.WithAgentConnObserver(obs))
+	}
+	return opts
 }
 
 // Register all available MCP tools with the server excluding:
@@ -78,7 +105,7 @@ func (s *Server) RegisterTools(client *codersdk.Client) error {
 	}
 
 	// Create tool dependencies
-	toolDeps, err := toolsdk.NewDeps(client)
+	toolDeps, err := toolsdk.NewDeps(client, s.toolDepsOpts()...)
 	if err != nil {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
@@ -91,7 +118,7 @@ func (s *Server) RegisterTools(client *codersdk.Client) error {
 			continue
 		}
 
-		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
+		s.mcpServer.AddTools(s.mcpFromSDK(tool, toolDeps))
 	}
 	return nil
 }
@@ -106,7 +133,7 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client) error {
 	}
 
 	// Create tool dependencies
-	toolDeps, err := toolsdk.NewDeps(client)
+	toolDeps, err := toolsdk.NewDeps(client, s.toolDepsOpts()...)
 	if err != nil {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
@@ -116,13 +143,15 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client) error {
 			continue
 		}
 
-		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
+		s.mcpServer.AddTools(s.mcpFromSDK(tool, toolDeps))
 	}
 	return nil
 }
 
-// mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool
-func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
+// mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool. The
+// returned handler records duration and outcome to s.metrics and emits a
+// structured log line for every invocation.
+func (s *Server) mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
 	if sdkTool.Schema.Properties == nil {
 		panic("developer error: schema properties cannot be nil")
 	}
@@ -148,10 +177,40 @@ func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool 
 			if err := json.NewEncoder(&buf).Encode(request.Params.Arguments); err != nil {
 				return nil, xerrors.Errorf("failed to encode request arguments: %w", err)
 			}
+
+			start := time.Now()
 			result, err := sdkTool.Handler(ctx, tb, buf.Bytes())
+			elapsed := time.Since(start)
+
+			outcome := "success"
 			if err != nil {
+				outcome = "error"
+			}
+			s.metrics.observeTool(sdkTool.Name, outcome, elapsed.Seconds())
+
+			fields := []slog.Field{
+				slog.F("tool", sdkTool.Name),
+				slog.F("outcome", outcome),
+				slog.F("duration_ms", elapsed.Milliseconds()),
+				slog.F("arg_bytes", buf.Len()),
+				slog.F("result_bytes", len(result)),
+			}
+			if r, ok := RequestorFromContext(ctx); ok {
+				fields = append(fields,
+					slog.F("requestor_id", r.UserID),
+					slog.F("requestor_name", r.Username),
+					slog.F("requestor_email", r.Email),
+					slog.F("api_key_id", r.APIKeyID),
+					slog.F("request_id", r.RequestID),
+					slog.F("user_agent", r.UserAgent),
+				)
+			}
+			if err != nil {
+				s.Logger.Warn(ctx, "mcp tool call failed", append(fields, slog.Error(err))...)
 				return nil, err
 			}
+			s.Logger.Debug(ctx, "mcp tool call", fields...)
+
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
 					mcp.NewTextContent(string(result)),

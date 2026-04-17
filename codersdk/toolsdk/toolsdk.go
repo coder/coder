@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -74,6 +75,12 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 type Deps struct {
 	coderClient *codersdk.Client
 	report      func(ReportTaskArgs) error
+	// onAgentConn is invoked once per successful workspacesdk.DialAgent made
+	// on behalf of a tool handler. Each call materializes a fresh
+	// tailnet.Conn (and therefore a fresh wireguard Device), so this hook is
+	// the natural place to correlate tool usage with per-call connection cost.
+	// The returned func, if non-nil, is invoked when the conn is released.
+	onAgentConn func() (release func())
 }
 
 func (d Deps) ServerURL() string {
@@ -86,6 +93,16 @@ func (d Deps) ServerURL() string {
 func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	return func(d *Deps) {
 		d.report = fn
+	}
+}
+
+// WithAgentConnObserver registers a callback invoked once per successful
+// workspacesdk.DialAgent triggered by a tool handler. The callback may
+// return a release func that the SDK invokes when the conn is closed, so
+// callers can maintain both counters and live-connection gauges.
+func WithAgentConnObserver(fn func() (release func())) func(*Deps) {
+	return func(d *Deps) {
+		d.onAgentConn = fn
 	}
 }
 
@@ -1501,7 +1518,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceLSResponse{}, err
 		}
@@ -1567,7 +1584,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
@@ -1641,7 +1658,7 @@ content you are trying to write, then re-encode it properly.
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1704,7 +1721,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1786,7 +1803,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -2228,8 +2245,12 @@ func NormalizeWorkspaceInput(input string) string {
 }
 
 // newAgentConn returns a connection to the agent specified by the workspace,
-// which must be in the format [owner/]workspace[.agent].
-func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+// which must be in the format [owner/]workspace[.agent]. Each successful call
+// materializes a fresh tailnet.Conn; if deps.onAgentConn is set it is invoked
+// after the conn is ready, and its release hook is chained into conn.Close so
+// observers can maintain accurate live-connection gauges.
+func newAgentConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
+	client := deps.coderClient
 	workspaceName := NormalizeWorkspaceInput(workspace)
 	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
 	if err != nil {
@@ -2259,7 +2280,27 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 		conn.Close()
 		return nil, xerrors.New("agent connection not reachable")
 	}
+
+	if deps.onAgentConn != nil {
+		if release := deps.onAgentConn(); release != nil {
+			conn = &observedAgentConn{AgentConn: conn, release: release}
+		}
+	}
 	return conn, nil
+}
+
+// observedAgentConn wraps an AgentConn so we can invoke a release hook
+// exactly once when the conn is closed. Must be used via pointer because
+// sync.Once cannot be copied.
+type observedAgentConn struct {
+	workspacesdk.AgentConn
+	release  func()
+	released sync.Once
+}
+
+func (o *observedAgentConn) Close() error {
+	o.released.Do(o.release)
+	return o.AgentConn.Close()
 }
 
 const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
