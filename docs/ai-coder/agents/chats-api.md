@@ -324,11 +324,10 @@ appear in the `files` field on subsequent
 
 ## Chat statuses
 
-| Status      | Meaning                                                      |
-|-------------|--------------------------------------------------------------|
-| `waiting`   | Idle — newly created, finished successfully, or interrupted. |
-| `pending`   | Queued for processing.                                       |
-| `running`   | Agent is actively working.                                   |
-| `paused`    | Agent is paused (e.g. waiting for user input).               |
-| `completed` | Agent finished and the task is complete.                     |
-| `error`     | Agent encountered an error.                                  |
+| Status            | Meaning                                                                      |
+|-------------------|------------------------------------------------------------------------------|
+| `waiting`         | No pending work (newly created, finished, or interrupted).                   |
+| `pending`         | Queued for processing.                                                       |
+| `running`         | Agent is actively working.                                                   |
+| `error`           | Agent encountered an error.                                                  |
+| `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
