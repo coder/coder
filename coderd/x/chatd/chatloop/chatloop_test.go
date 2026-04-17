@@ -491,14 +491,10 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	}
 }
 
-// TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout locks in R6
-// of CODAGT-212: an HTTP/2 transport error surfaced by the provider
-// stream must classify as KindTimeout with Retryable=true and the
-// Provider stamped from Model.Provider() (not from the error text).
-// The error string deliberately contains no provider hint, so a
-// passing test cannot be explained by detectProvider() reading the
-// URL out of the error. This is asserted across two providers to
-// make that property load-bearing.
+// TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout proves the
+// provider comes from Model.Provider() (not from sniffing the error
+// text) by using an error string with no provider hint and running
+// the same assertion across two providers.
 func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -526,10 +522,8 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 					attempts++
 					if attempts == 1 {
-						// Bare HTTP/2 transport error with no
-						// provider hint in the message. The
-						// classifier must stamp Provider from
-						// Model.Provider() via WithProvider.
+						// Bare transport error; Provider must
+						// come from Model.Provider().
 						return nil, xerrors.New(
 							"http2: client connection force closed via ClientConn.Close",
 						)
@@ -562,9 +556,7 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 				})
 			}()
 
-			// The first attempt returns synchronously with the
-			// transport error. No startup timer fires because the
-			// error preempts it. The second attempt succeeds.
+			// One guard per attempt.
 			trap.MustWait(ctx).MustRelease(ctx)
 			trap.MustWait(ctx).MustRelease(ctx)
 

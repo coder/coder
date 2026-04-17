@@ -289,20 +289,15 @@ func TestClassify_TransportFailuresUseBroaderRetryMessage(t *testing.T) {
 	}
 }
 
-// TestClassify_HTTP2TransportErrors locks in R1 and R2 of CODAGT-212:
-// HTTP/2 transport surface errors must classify as a retryable
-// KindTimeout regardless of provider. The classification is verified
-// on two independent axes: transport-only strings with no provider
-// hint (sub-table A), and full POST-wrapped strings with varied
-// provider URLs (sub-table B). Separating the axes means neither one
-// can accidentally compensate for a bug in the other.
+// TestClassify_HTTP2TransportErrors checks HTTP/2 transport errors
+// classify as retryable KindTimeout. Split into two sub-tables so a
+// bug in transport matching cannot be masked by provider detection
+// (and vice versa).
 func TestClassify_HTTP2TransportErrors(t *testing.T) {
 	t.Parallel()
 
-	// Sub-table A: transport-layer patterns, no provider hint.
-	// These prove Kind/Retryable do not depend on Anthropic-specific
-	// text. Provider is expected empty; Message uses the generic
-	// subject.
+	// Transport patterns, no provider hint. Provider stays empty and
+	// Message uses the generic subject.
 	transportOnly := []struct {
 		name string
 		err  string
@@ -345,11 +340,8 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 		})
 	}
 
-	// Sub-table B: the transport signature is the same; only the
-	// provider URL differs. The error text includes the provider
-	// host so detectProvider can stamp Provider correctly. The
-	// CustomerRegression case is the exact string from the CODAGT-212
-	// screenshot.
+	// Same transport signature with a provider host in the URL so
+	// detectProvider can stamp Provider.
 	providerDetection := []struct {
 		name        string
 		err         string
@@ -389,10 +381,8 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 	}
 }
 
-// TestClassify_StatusCodeBeatsHTTP2Transport guards R4: explicit
-// status codes continue to win over transport patterns. This prevents
-// the new HTTP/2 signals from swallowing classifications that should
-// fail fast (401) or fire a rate-limit retry.
+// TestClassify_StatusCodeBeatsHTTP2Transport ensures explicit status
+// codes still win over the new HTTP/2 patterns.
 func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
 	t.Parallel()
 

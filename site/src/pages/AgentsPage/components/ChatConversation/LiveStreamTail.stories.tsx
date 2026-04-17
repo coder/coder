@@ -105,12 +105,9 @@ export const TerminalOverloadedError: Story = {
 };
 
 /**
- * Terminal transport-layer timeouts render the per-provider
- * "temporarily unavailable" copy and the "Request timed out" heading
- * rather than the generic "Request failed" fallback. This is the
- * post-fix surface for CODAGT-212: before the classifier fix, an
- * HTTP/2 `force closed` / GOAWAY error was reaching the generic
- * branch and rendering "The chat request failed unexpectedly."
+ * Transport timeouts render the per-provider "temporarily
+ * unavailable" copy with a "Request timed out" heading rather than
+ * the generic "Request failed" fallback.
  */
 export const TerminalTimeoutErrorAnthropic: Story = {
 	args: {
@@ -132,21 +129,14 @@ export const TerminalTimeoutErrorAnthropic: Story = {
 		expect(
 			canvas.getByText(/anthropic is temporarily unavailable/i),
 		).toBeVisible();
-		// The generic fallback copy must not appear. Before the
-		// classifier fix, this is exactly the string the customer
-		// saw in the CODAGT-212 screenshot.
+		// Guard against the pre-fix generic fallback.
 		expect(
 			canvas.queryByText(/the chat request failed unexpectedly/i),
 		).not.toBeInTheDocument();
 	},
 };
 
-/**
- * Same surface with an unknown provider. Covers the case where an
- * HTTP/2 GOAWAY surfaces without any provider hint in the error
- * string and the classifier stamps Provider="" (or upstream
- * intentionally leaves it blank).
- */
+/** Transport timeout with an unknown provider uses the generic subject. */
 export const TerminalTimeoutErrorUnknownProvider: Story = {
 	args: {
 		...defaultArgs,
@@ -169,12 +159,7 @@ export const TerminalTimeoutErrorUnknownProvider: Story = {
 	},
 };
 
-/**
- * Retrying during a transport timeout shows the per-provider message
- * inside the retry callout with an attempt counter and countdown.
- * This closes the "retries were invisible during the demo" gap: the
- * user sees the agent is still trying, not hanging.
- */
+/** Retrying a transport timeout shows attempt + countdown. */
 export const RetryingTimeoutAnthropic: Story = {
 	args: {
 		...defaultArgs,

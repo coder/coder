@@ -37,15 +37,9 @@ var (
 		"broken pipe",
 		"bad gateway",
 		"gateway timeout",
-		// HTTP/2 transport-layer failures. These appear when
-		// the provider's stream connection is force-closed or
-		// drained mid-flight (e.g. Anthropic sending GOAWAY or
-		// the Go http2.Transport reaping a stuck conn). Treat
-		// them as transient transport errors so the retry loop
-		// keeps going and the user sees
-		// "<provider> is temporarily unavailable." instead of
-		// the generic "chat request failed unexpectedly"
-		// fallback (CODAGT-212).
+		// HTTP/2 transport-layer failures (force-closed streams,
+		// GOAWAY, etc). Classify as transient so the retry loop
+		// drives and the user sees a per-provider message.
 		"force closed",
 		"clientconn.close",
 		"goaway",

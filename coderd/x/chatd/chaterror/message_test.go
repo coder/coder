@@ -8,14 +8,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
-// TestTerminalMessage locks in R3 of CODAGT-212: the per-provider
-// "temporarily unavailable" copy is produced for Kind=KindTimeout with
-// Retryable=true, across multiple providers. Also guards the generic
-// fallback string for the path it is actually supposed to apply to
-// (unclassified, non-retryable failures) and the startup-timeout copy
-// (important because CODAGT-212's retry attempts were correctly
-// classified as KindStartupTimeout; only the terminal attempt was
-// misclassified).
+// TestTerminalMessage covers the per-provider "temporarily
+// unavailable" copy, the startup-timeout copy, and the generic
+// fallback string for its intended (unclassified, non-retryable)
+// path.
 func TestTerminalMessage(t *testing.T) {
 	t.Parallel()
 
@@ -70,12 +66,8 @@ func TestTerminalMessage(t *testing.T) {
 			want:      "OpenAI did not start responding in time.",
 		},
 		{
-			// This is the exact string the customer saw in
-			// CODAGT-212. Keep it locked in for the path it is
-			// actually supposed to apply to: genuinely
-			// unclassified, non-retryable failures. The fix is
-			// that a transport error was reaching this branch
-			// when it should have been classified as KindTimeout.
+			// Generic fallback reserved for genuinely
+			// unclassified non-retryable failures.
 			name:      "Generic_NotRetryable_NoStatus",
 			kind:      chaterror.KindGeneric,
 			provider:  "",
@@ -94,11 +86,8 @@ func TestTerminalMessage(t *testing.T) {
 				Retryable:  tt.retryable,
 				StatusCode: tt.statusCode,
 			}
-			// terminalMessage is unexported; exercise it via
-			// WithClassification + Classify, which round-trips
-			// through normalizeClassification and populates the
-			// Message field by calling terminalMessage when no
-			// explicit Message is supplied.
+			// terminalMessage is unexported; round-trip through
+			// WithClassification + Classify to exercise it.
 			wrapped := chaterror.WithClassification(
 				errString(tt.name),
 				classified,
@@ -108,9 +97,7 @@ func TestTerminalMessage(t *testing.T) {
 	}
 }
 
-// errString returns an error whose Error() is the given string, so
-// tests can verify that WithClassification's wrapped error preserves
-// the cause without depending on the underlying error text.
+// errString is an error whose Error() is the given string.
 func errString(s string) error { return stringError(s) }
 
 type stringError string
