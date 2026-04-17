@@ -166,20 +166,17 @@ export const CreateServer: Story = {
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Collapsible sections start collapsed and the Enabled switch is
-		// edit-only. PencilIcon sits next to the editable name.
-		expect(
-			body.getByRole("button", { name: /Connection/i }),
-		).toBeInTheDocument();
-		expect(body.queryByLabelText(/^Slug$/i)).not.toBeInTheDocument();
+		// Required fields (slug, server URL) are always visible. Optional
+		// sections start collapsed and the Enabled switch is edit-only.
+		// PencilIcon sits next to the editable name.
+		expect(body.getByLabelText(/^Slug/i)).toBeInTheDocument();
+		expect(body.getByLabelText(/Server URL/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Description/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("switch", { name: /Enabled/i }),
 		).not.toBeInTheDocument();
 		const nameRow = nameInput.closest("div")?.parentElement;
 		expect(nameRow?.querySelector("svg.lucide-pencil")).toBeTruthy();
-
-		// Expand Connection to reveal slug + server URL.
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
 
 		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
@@ -220,7 +217,6 @@ export const CreateServerOAuth2: Story = {
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "GitHub");
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://api.githubcopilot.com/mcp/",
@@ -273,7 +269,6 @@ export const CreateServerAPIKey: Story = {
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "Linear");
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.linear.app/v1",
@@ -339,12 +334,14 @@ export const EditServer: Story = {
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		expect(nameInput).toHaveValue("Sentry");
 
-		// Expand Connection to access slug, URL, and description.
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
+		// Slug and Server URL are always visible.
 		expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 		expect(body.getByLabelText(/Server URL/i)).toHaveValue(
 			"https://mcp.sentry.io/sse",
 		);
+
+		// Expand Details to reach the description field.
+		await userEvent.click(body.getByRole("button", { name: /Details/i }));
 
 		// Update the description.
 		const descField = body.getByLabelText(/Description/i);
@@ -595,7 +592,6 @@ export const CreateServerWithToolGovernance: Story = {
 			await body.findByLabelText(/Display Name/i),
 			"Restricted Server",
 		);
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
@@ -641,7 +637,6 @@ export const CustomHeadersAuthType: Story = {
 			await body.findByLabelText(/Display Name/i),
 			"Custom API",
 		);
-		await userEvent.click(body.getByRole("button", { name: /Connection/i }));
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",

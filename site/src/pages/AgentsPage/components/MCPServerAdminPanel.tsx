@@ -410,7 +410,7 @@ const ServerForm: FC<ServerFormProps> = ({
 	const formId = useId();
 	const isEditing = server !== null;
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [showConnection, setShowConnection] = useState(false);
+	const [showDetails, setShowDetails] = useState(false);
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
 
@@ -541,53 +541,89 @@ const ServerForm: FC<ServerFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{/* ── Connection section ── */}
+					<div className="space-y-4">
+						<Field label="Slug" htmlFor={`${formId}-slug`} required>
+							<Input
+								id={`${formId}-slug`}
+								className="h-9 text-[13px]"
+								value={form.values.slug}
+								onChange={(e) => {
+									form.setFieldValue("slugTouched", true);
+									form.setFieldValue("slug", e.target.value);
+								}}
+								placeholder="e.g. sentry"
+								disabled={isDisabled}
+							/>
+						</Field>
+						<div className="grid items-start gap-4 sm:grid-cols-[1fr_auto]">
+							<Field label="Server URL" htmlFor={`${formId}-url`} required>
+								<Input
+									id={`${formId}-url`}
+									className="h-9 text-[13px]"
+									{...form.getFieldProps("url")}
+									placeholder="https://mcp.example.com/sse"
+									disabled={isDisabled}
+								/>
+							</Field>
+
+							<Field label="Transport" htmlFor={`${formId}-transport`}>
+								<Select
+									value={form.values.transport}
+									onValueChange={(v) => {
+										form.setFieldValue("transport", v);
+									}}
+									disabled={isDisabled}
+								>
+									<SelectTrigger
+										id={`${formId}-transport`}
+										className="h-9 min-w-[160px] text-[13px]"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{TRANSPORT_OPTIONS.map((opt) => (
+											<SelectItem key={opt.value} value={opt.value}>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						</div>
+					</div>
+
+					{/* ── Details section ── */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
-							onClick={() => setShowConnection((v) => !v)}
+							onClick={() => setShowDetails((v) => !v)}
 							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
 						>
 							<div>
 								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Connection
+									Details
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
-									Endpoint, identity, and transport settings.
+									Optional description and icon shown to users.
 								</p>
 							</div>
-							{showConnection ? (
+							{showDetails ? (
 								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							) : (
 								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
-						{showConnection && (
+						{showDetails && (
 							<div className="space-y-4 pt-3">
-								<div className="grid items-start gap-4 sm:grid-cols-2">
-									<Field label="Slug" htmlFor={`${formId}-slug`} required>
-										<Input
-											id={`${formId}-slug`}
-											className="h-9 text-[13px]"
-											value={form.values.slug}
-											onChange={(e) => {
-												form.setFieldValue("slugTouched", true);
-												form.setFieldValue("slug", e.target.value);
-											}}
-											placeholder="e.g. sentry"
-											disabled={isDisabled}
-										/>
-									</Field>
-									<Field label="Description" htmlFor={`${formId}-desc`}>
-										<Input
-											id={`${formId}-desc`}
-											className="h-9 text-[13px]"
-											{...form.getFieldProps("description")}
-											placeholder="Optional description"
-											disabled={isDisabled}
-										/>
-									</Field>
-								</div>
+								<Field label="Description" htmlFor={`${formId}-desc`}>
+									<Input
+										id={`${formId}-desc`}
+										className="h-9 text-[13px]"
+										{...form.getFieldProps("description")}
+										placeholder="Optional description"
+										disabled={isDisabled}
+									/>
+								</Field>
 								<Field label="Icon">
 									<IconPickerField
 										value={form.values.iconURL}
@@ -600,45 +636,11 @@ const ServerForm: FC<ServerFormProps> = ({
 										disabled={isDisabled}
 									/>
 								</Field>
-								<div className="grid items-start gap-4 sm:grid-cols-[1fr_auto]">
-									<Field label="Server URL" htmlFor={`${formId}-url`} required>
-										<Input
-											id={`${formId}-url`}
-											className="h-9 text-[13px]"
-											{...form.getFieldProps("url")}
-											placeholder="https://mcp.example.com/sse"
-											disabled={isDisabled}
-										/>
-									</Field>
-
-									<Field label="Transport" htmlFor={`${formId}-transport`}>
-										<Select
-											value={form.values.transport}
-											onValueChange={(v) => {
-												form.setFieldValue("transport", v);
-											}}
-											disabled={isDisabled}
-										>
-											<SelectTrigger
-												id={`${formId}-transport`}
-												className="h-9 min-w-[160px] text-[13px]"
-											>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{TRANSPORT_OPTIONS.map((opt) => (
-													<SelectItem key={opt.value} value={opt.value}>
-														{opt.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</Field>
-								</div>
 							</div>
 						)}
 					</div>
-						{/* ── Authentication section ── */}
+
+					{/* ── Authentication section ── */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
