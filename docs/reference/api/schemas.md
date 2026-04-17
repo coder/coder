@@ -7327,6 +7327,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -7334,6 +7335,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -8677,6 +8679,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -8684,6 +8687,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -11616,6 +11620,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11623,6 +11628,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -11899,6 +11905,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "cron": "string",
       "display_name": "string",
+      "exit_code": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "log_path": "string",
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11906,6 +11913,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
+      "status": "ok",
       "timeout": 0
     }
   ],
@@ -12405,6 +12413,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "cron": "string",
   "display_name": "string",
+  "exit_code": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "log_path": "string",
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -12412,24 +12421,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "run_on_stop": true,
   "script": "string",
   "start_blocks_login": true,
+  "status": "ok",
   "timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `cron`               | string  | false    |              |             |
-| `display_name`       | string  | false    |              |             |
-| `id`                 | string  | false    |              |             |
-| `log_path`           | string  | false    |              |             |
-| `log_source_id`      | string  | false    |              |             |
-| `run_on_start`       | boolean | false    |              |             |
-| `run_on_stop`        | boolean | false    |              |             |
-| `script`             | string  | false    |              |             |
-| `start_blocks_login` | boolean | false    |              |             |
-| `timeout`            | integer | false    |              |             |
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `cron`               | string                                                                     | false    |              |             |
+| `display_name`       | string                                                                     | false    |              |             |
+| `exit_code`          | integer                                                                    | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `log_path`           | string                                                                     | false    |              |             |
+| `log_source_id`      | string                                                                     | false    |              |             |
+| `run_on_start`       | boolean                                                                    | false    |              |             |
+| `run_on_stop`        | boolean                                                                    | false    |              |             |
+| `script`             | string                                                                     | false    |              |             |
+| `start_blocks_login` | boolean                                                                    | false    |              |             |
+| `status`             | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `timeout`            | integer                                                                    | false    |              |             |
+
+## codersdk.WorkspaceAgentScriptStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                             |
+|------------------------------------------------------|
+| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -12775,6 +12801,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             {
               "cron": "string",
               "display_name": "string",
+              "exit_code": 0,
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -12782,6 +12809,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
+              "status": "ok",
               "timeout": 0
             }
           ],
@@ -13243,6 +13271,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         {
           "cron": "string",
           "display_name": "string",
+          "exit_code": 0,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "log_path": "string",
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -13250,6 +13279,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "run_on_stop": true,
           "script": "string",
           "start_blocks_login": true,
+          "status": "ok",
           "timeout": 0
         }
       ],
@@ -13591,6 +13621,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   {
                     "cron": "string",
                     "display_name": "string",
+                    "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -13598,6 +13629,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
+                    "status": "ok",
                     "timeout": 0
                   }
                 ],
@@ -15307,19 +15339,21 @@ None
 
 ### Properties
 
-| Name          | Type                         | Required | Restrictions | Description                                        |
-|---------------|------------------------------|----------|--------------|----------------------------------------------------|
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|--------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forceQuery` | boolean | false    |              | Forcequery indicates whether the original URL contained a query ('?') character. When set, the String method will include a trailing '?', even when RawQuery is empty. |
+| `fragment`   | string  | false    |              | fragment for references (without '#')                                                                                                                                  |
+| `host`       | string  | false    |              | "host" or "host:port" (see Hostname and Port methods)                                                                                                                  |
+| `omitHost`   | boolean | false    |              | Omithost indicates the URL has an empty host (authority). When set, the String method will not include the host when it is empty.                                      |
+| `opaque`     | string  | false    |              | encoded opaque data                                                                                                                                                    |
+| `path`       | string  | false    |              | path (relative paths may omit leading slash)                                                                                                                           |
+|`rawFragment`|string|false||Rawfragment is an optional field containing an encoded fragment hint. See the EscapedFragment method for more details.
+In general, code should call EscapedFragment instead of reading RawFragment.|
+|`rawPath`|string|false||Rawpath is an optional field containing an encoded path hint. See the EscapedPath method for more details.
+In general, code should call EscapedPath instead of reading RawPath.|
+|`rawQuery`|string|false||Rawquery contains the encoded query values, without the initial '?'. Use URL.Query to decode the query.|
+|`scheme`|string|false|||
+|`user`|[url.Userinfo](#urluserinfo)|false||username and password information|
 
 ## serpent.ValueSource
 

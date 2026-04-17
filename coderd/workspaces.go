@@ -860,7 +860,7 @@ func createWorkspace(
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
+		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
