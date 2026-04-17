@@ -596,6 +596,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 													sources={agent.log_sources}
 													overflowed={agent.logs_overflowed}
 													className="bg-transparent"
+													showSourceIcons={selectedLogTab === "all"}
 												/>
 											)}
 										</AutoSizer>
