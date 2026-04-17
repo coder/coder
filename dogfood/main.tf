@@ -15,6 +15,11 @@ import {
   id = "e75f1212-834c-4183-8bed-d6817cac60a5"
 }
 
+import {
+  to = coderd_template.vscode_coder
+  id = "2d5caceb-c6a3-4c46-a81d-005d92b83ffd"
+}
+
 data "coderd_organization" "default" {
   is_default = true
 }
