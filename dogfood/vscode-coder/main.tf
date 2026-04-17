@@ -551,6 +551,13 @@ locals {
     - Built-in tools for everything:
       (file operations, git commands, builds & installs, one-off shell commands)
 
+    -- Testing --
+    Integration tests launch a real VS Code instance and require a
+    virtual framebuffer. Run them headlessly with:
+      xvfb-run -a pnpm test:integration
+    This matches how CI runs them. Unit tests do not need xvfb-run:
+      pnpm test
+
     -- Workflow --
     When starting new work:
     1. If given a GitHub issue URL, use the `gh` CLI to read the full
