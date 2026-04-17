@@ -133,6 +133,19 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				BaseURL:        p.BaseURL,
 				CircuitBreaker: cbConfig,
 			}))
+		case aibridge.ProviderBedrock:
+			providers = append(providers, aibridge.NewBedrockProvider(aibridge.AWSBedrockProviderConfig{
+				Name:           name,
+				CircuitBreaker: cbConfig,
+				AWSBedrock: aibridge.AWSBedrockConfig{
+					Region:          p.BedrockRegion,
+					BaseURL:         p.BedrockBaseURL,
+					AccessKey:       p.BedrockAccessKey,
+					AccessKeySecret: p.BedrockAccessKeySecret,
+					Model:           p.BedrockModel,
+					SmallFastModel:  p.BedrockSmallFastModel,
+				},
+			}))
 		default:
 			return nil, xerrors.Errorf("unknown provider type %q for provider %q", p.Type, name)
 		}

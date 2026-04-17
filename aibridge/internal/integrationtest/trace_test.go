@@ -153,7 +153,7 @@ func TestTraceAnthropic(t *testing.T) {
 				withTracer(tracer),
 			}
 			if tc.bedrock {
-				opts = append(opts, withProvider(providerBedrock))
+				opts = append(opts, withProvider(providerBedrockAnthropic))
 			}
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, opts...)
 
@@ -269,7 +269,7 @@ func TestTraceAnthropicErr(t *testing.T) {
 				withTracer(tracer),
 			}
 			if tc.bedrock {
-				opts = append(opts, withProvider(providerBedrock))
+				opts = append(opts, withProvider(providerBedrockAnthropic))
 			}
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, opts...)
 
@@ -354,7 +354,7 @@ func TestInjectedToolsTrace(t *testing.T) {
 			path:           pathAnthropicMessages,
 			expectModel:    "beddel",
 			expectProvider: config.ProviderAnthropic,
-			opts:           []bridgeOption{withProvider(providerBedrock)},
+			opts:           []bridgeOption{withProvider(providerBedrockAnthropic)},
 		},
 		{
 			name:           "bedrock_streaming",
@@ -364,7 +364,7 @@ func TestInjectedToolsTrace(t *testing.T) {
 			path:           pathAnthropicMessages,
 			expectModel:    "beddel",
 			expectProvider: config.ProviderAnthropic,
-			opts:           []bridgeOption{withProvider(providerBedrock)},
+			opts:           []bridgeOption{withProvider(providerBedrockAnthropic)},
 		},
 		{
 			name:           "openai_blocking",

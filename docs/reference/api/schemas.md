@@ -774,7 +774,7 @@
 | `bedrock_region`           | string | false    |              |                                                                                            |
 | `bedrock_small_fast_model` | string | false    |              |                                                                                            |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
-| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
+| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", "copilot", or "bedrock".                 |
 
 ## codersdk.AIBridgeProxyConfig
 

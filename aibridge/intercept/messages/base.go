@@ -97,7 +97,7 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {
-	return i.reqPayload.correlatingToolCallID()
+	return i.reqPayload.CorrelatingToolCallID()
 }
 
 func (i *interceptionBase) Model() string {

@@ -1,0 +1,10 @@
+{
+  "anthropic_version": "bedrock-2023-05-31",
+  "max_tokens": 50,
+  "messages": [
+    {
+      "role": "user",
+      "content": "how many angels can dance on the head of a pin"
+    }
+  ]
+}

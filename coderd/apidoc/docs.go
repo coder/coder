@@ -13317,7 +13317,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "description": "Type is the provider type: \"openai\", \"anthropic\", \"copilot\", or \"bedrock\".",
                     "type": "string"
                 }
             }

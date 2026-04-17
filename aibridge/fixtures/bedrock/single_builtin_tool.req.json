@@ -1,0 +1,28 @@
+{
+  "anthropic_version": "bedrock-2023-05-31",
+  "max_tokens": 1024,
+  "tools": [
+    {
+      "name": "Read",
+      "description": "Read the contents of a file at the given path.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The absolute path to the file to read"
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "read the /tmp/foo file"
+    }
+  ]
+}

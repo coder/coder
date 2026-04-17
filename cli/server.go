@@ -3003,15 +3003,15 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		}
 
 		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot, aibridge.ProviderBedrock:
 		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, %s, or %s)",
+				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot, aibridge.ProviderBedrock)
 		}
 
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
+		if p.Type != aibridge.ProviderAnthropic && p.Type != aibridge.ProviderBedrock && hasBedrockFields(*p) {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
+				i, p.Type, aibridge.ProviderAnthropic, aibridge.ProviderBedrock)
 		}
 
 		if p.Name == "" {

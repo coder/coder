@@ -1,11 +1,15 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	ProviderAnthropic = "anthropic"
 	ProviderOpenAI    = "openai"
 	ProviderCopilot   = "copilot"
+	ProviderBedrock   = "bedrock"
 )
 
 type Anthropic struct {
@@ -27,6 +31,10 @@ type Anthropic struct {
 	MaxRetries *int
 }
 
+// AWSBedrock holds the AWS-specific parameters for connecting to
+// Bedrock. It is not a provider config on its own; it is used as a
+// component of [AWSBedrockProvider] (standalone native Bedrock) or
+// passed to the Anthropic provider for Bedrock-via-Anthropic mode.
 type AWSBedrock struct {
 	Region                     string
 	AccessKey, AccessKeySecret string
@@ -35,6 +43,28 @@ type AWSBedrock struct {
 	// (https://bedrock-runtime.{region}.amazonaws.com).
 	// This is useful for routing requests through a proxy or for testing.
 	BaseURL string
+}
+
+// ResolvedBaseURL returns BaseURL if set, otherwise the default AWS
+// Bedrock endpoint for the configured region.
+func (c AWSBedrock) ResolvedBaseURL() string {
+	if c.BaseURL != "" {
+		return c.BaseURL
+	}
+	return fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", c.Region)
+}
+
+// AWSBedrockProvider is the provider-level configuration for the
+// standalone native Bedrock provider. It accepts requests in native
+// Bedrock API format and acts as a SigV4-signing reverse proxy.
+// This is distinct from the Bedrock-via-Anthropic mode where
+// [AWSBedrock] is passed to the Anthropic provider.
+type AWSBedrockProvider struct {
+	// Name is the provider instance name. If empty, defaults to "bedrock".
+	Name           string
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	AWSBedrock
 }
 
 type OpenAI struct {

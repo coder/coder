@@ -76,7 +76,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	i.injectTools()
 
 	var prompt *string
-	promptText, promptFound, promptErr := i.reqPayload.lastUserPrompt()
+	promptText, promptFound, promptErr := i.reqPayload.LastUserPrompt()
 	if promptErr != nil {
 		i.logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(promptErr))
 	} else if promptFound {

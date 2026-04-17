@@ -172,6 +172,10 @@ func (ms *mockUpstream) handle(w http.ResponseWriter, r *http.Request) {
 			ms.writeRawHTTPResponse(w, r, resp.Streaming)
 			return
 		}
+		if isBedrockPath(r.URL.Path) && isBinaryEventStream(resp.Streaming) {
+			ms.writeEventStream(w, resp.Streaming)
+			return
+		}
 		ms.writeSSE(w, resp.Streaming)
 		return
 	}
@@ -232,6 +236,35 @@ func (ms *mockUpstream) writeSSE(w http.ResponseWriter, data []byte) {
 		}
 		flusher.Flush()
 	}
+}
+
+// isBedrockPath returns true if the URL path looks like a Bedrock invoke path.
+func isBedrockPath(path string) bool {
+	return strings.Contains(path, "/model/") && (strings.HasSuffix(path, "/invoke") || strings.HasSuffix(path, "/invoke-with-response-stream"))
+}
+
+// isBinaryEventStream returns true when data looks like an AWS
+// EventStream binary frame rather than SSE text. EventStream frames
+// start with a 4-byte big-endian total length; SSE starts with ASCII
+// text like "event:" or "data:".
+func isBinaryEventStream(data []byte) bool {
+	if len(data) < 4 {
+		return false
+	}
+	// SSE fixtures always start with printable ASCII (e.g. "event:",
+	// "data:"). A binary EventStream frame starts with a uint32 length
+	// whose high byte is almost always 0x00 for typical message sizes,
+	// so checking for a non-printable first byte is a reliable heuristic.
+	return data[0] == 0
+}
+
+// writeEventStream writes raw binary eventstream data as-is.
+func (ms *mockUpstream) writeEventStream(w http.ResponseWriter, data []byte) {
+	ms.t.Helper()
+	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write(data)
+	require.NoError(ms.t, err)
 }
 
 // isRawHTTPResponse returns true if data starts with "HTTP/", indicating

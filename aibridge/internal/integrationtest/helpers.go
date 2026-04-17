@@ -23,7 +23,9 @@ func anthropicCfgWithAPIDump(url string, key string, dumpDir string) config.Anth
 	return cfg
 }
 
-// bedrockCfg returns a test AWS Bedrock config pointing at the given URL.
+// bedrockCfg returns a test [config.AWSBedrock] pointing at the given URL.
+// This is the subordinate AWS connection config, used as a component of
+// [config.AWSBedrockProvider] or passed to the Anthropic provider.
 func bedrockCfg(url string) *config.AWSBedrock {
 	return &config.AWSBedrock{
 		Region:          "us-west-2",
@@ -32,6 +34,22 @@ func bedrockCfg(url string) *config.AWSBedrock {
 		Model:           "beddel",  // This model should override the request's given one.
 		SmallFastModel:  "modrock", // Unused but needed for validation.
 		BaseURL:         url,
+	}
+}
+
+// bedrockProviderCfg returns a test [config.AWSBedrockProvider] for the
+// standalone native Bedrock provider. The BaseURL points at the mock upstream.
+func bedrockProviderCfg(url string) config.AWSBedrockProvider {
+	return config.AWSBedrockProvider{
+		Name: config.ProviderBedrock,
+		AWSBedrock: config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			Model:           "beddel",
+			SmallFastModel:  "modrock",
+			BaseURL:         url,
+		},
 	}
 }
 

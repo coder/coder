@@ -111,7 +111,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		err         error
 	)
 
-	prompt, promptFound, err = i.reqPayload.lastUserPrompt()
+	prompt, promptFound, err = i.reqPayload.LastUserPrompt()
 	if err != nil {
 		logger.Warn(ctx, "failed to determine last user prompt", slog.Error(err))
 	}

@@ -32,9 +32,8 @@ const (
 	pathCopilotChatCompletions = "/copilot/chat/completions"
 	pathCopilotResponses       = "/copilot/responses"
 
-	// providerBedrock identifies a Bedrock provider in [withProvider].
-	// other providers use config.Provider* constants.
-	providerBedrock = "bedrock"
+	// providerBedrockAnthropic identifies a Bedrock-via-Anthropic provider.
+	providerBedrockAnthropic = "bedrock-anthropic"
 
 	// defaults
 	apiKey         = "api-key"
@@ -163,6 +162,7 @@ func newBridgeTestServer(
 		providers = []aibridge.Provider{
 			newDefaultProvider(config.ProviderAnthropic, upstreamURL),
 			newDefaultProvider(config.ProviderOpenAI, upstreamURL),
+			newDefaultProvider(config.ProviderBedrock, upstreamURL),
 		}
 	}
 
@@ -253,8 +253,10 @@ func newDefaultProvider(providerType string, addr string) aibridge.Provider {
 		return provider.NewAnthropic(anthropicCfg(addr, apiKey), nil)
 	case config.ProviderOpenAI:
 		return provider.NewOpenAI(openAICfg(addr, apiKey))
-	case providerBedrock:
+	case providerBedrockAnthropic:
 		return provider.NewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
+	case config.ProviderBedrock:
+		return provider.NewBedrock(bedrockProviderCfg(addr))
 	default:
 		panic("unknown provider type: " + providerType)
 	}

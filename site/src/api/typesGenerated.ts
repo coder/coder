@@ -132,7 +132,7 @@ export interface AIBridgeOpenAIConfig {
  */
 export interface AIBridgeProviderConfig {
 	/**
-	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 * Type is the provider type: "openai", "anthropic", "copilot", or "bedrock".
 	 */
 	readonly type: string;
 	/**

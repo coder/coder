@@ -19,6 +19,7 @@ const (
 	ProviderAnthropic = config.ProviderAnthropic
 	ProviderOpenAI    = config.ProviderOpenAI
 	ProviderCopilot   = config.ProviderCopilot
+	ProviderBedrock   = config.ProviderBedrock
 )
 
 type (
@@ -35,10 +36,11 @@ type (
 	Recorder                = recorder.Recorder
 	Metadata                = recorder.Metadata
 
-	AnthropicConfig  = config.Anthropic
-	AWSBedrockConfig = config.AWSBedrock
-	OpenAIConfig     = config.OpenAI
-	CopilotConfig    = config.Copilot
+	AnthropicConfig          = config.Anthropic
+	AWSBedrockConfig         = config.AWSBedrock
+	AWSBedrockProviderConfig = config.AWSBedrockProvider
+	OpenAIConfig             = config.OpenAI
+	CopilotConfig            = config.Copilot
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
@@ -55,6 +57,10 @@ func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {
 
 func NewCopilotProvider(cfg config.Copilot) provider.Provider {
 	return provider.NewCopilot(cfg)
+}
+
+func NewBedrockProvider(cfg config.AWSBedrockProvider) provider.Provider {
+	return provider.NewBedrock(cfg)
 }
 
 func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
