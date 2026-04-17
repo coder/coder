@@ -685,7 +685,7 @@ export const OpensSettingsForAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
+					"Custom instructions and debug controls that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -705,7 +705,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
+					"Custom instructions and debug controls that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -723,7 +723,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
+					"Custom instructions and debug controls that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
@@ -747,7 +747,7 @@ export const SettingsViewResets: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
+					"Custom instructions and debug controls that shape how the agent responds in your conversations.",
 				),
 			).toBeInTheDocument();
 		});
