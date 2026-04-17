@@ -1665,7 +1665,16 @@ type WorkspaceEditFileArgs struct {
 	Edits     []workspacesdk.FileEdit `json:"edits"`
 }
 
-var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
+// WorkspaceEditFilesResponse is the response shape for the edit-file
+// and edit-files tools. Message preserves the existing success text.
+// Diffs carries the per-file unified diffs returned by the agent
+// (populated when the agent-side DiffRequest flag was set).
+type WorkspaceEditFilesResponse struct {
+	Message string                      `json:"message"`
+	Diffs   []workspacesdk.FileEditDiff `json:"diffs,omitempty"`
+}
+
+var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFile,
 		Description: `Edit a file in a workspace.`,
@@ -1703,27 +1712,29 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	},
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
 		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{
 				{
 					Path:  args.Path,
 					Edits: args.Edits,
 				},
 			},
+			DiffRequest: true,
 		})
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 
-		return codersdk.Response{
+		return WorkspaceEditFilesResponse{
 			Message: "File edited successfully.",
+			Diffs:   resp.Diffs,
 		}, nil
 	},
 }
@@ -1733,7 +1744,7 @@ type WorkspaceEditFilesArgs struct {
 	Files     []workspacesdk.FileEdits `json:"files"`
 }
 
-var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
+var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFiles,
 		Description: `Edit one or more files in a workspace.`,
@@ -1785,20 +1796,24 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 	},
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
 		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files:       args.Files,
+			DiffRequest: true,
+		})
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 
-		return codersdk.Response{
+		return WorkspaceEditFilesResponse{
 			Message: "File(s) edited successfully.",
+			Diffs:   resp.Diffs,
 		}, nil
 	},
 }

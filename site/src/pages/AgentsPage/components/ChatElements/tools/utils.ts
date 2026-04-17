@@ -574,6 +574,56 @@ export const buildEditDiff = (
 };
 
 /**
+ * Server-side edit diff shape matching the agent's FileEditResponse.
+ * Path matches the caller-supplied path (pre-symlink-resolution) and
+ * diff is a unified-diff string, possibly empty for no-op edits.
+ */
+interface ServerEditDiff {
+	path: string;
+	diff: string;
+}
+
+/**
+ * Parses the structured `diffs` array from an edit_files tool
+ * response. The field is only populated when the agent observed the
+ * request's `diff_request` flag; older agents omit it entirely.
+ * Returns null when no diff array is present on the result (callers
+ * should fall back to the synthetic client-side path). Returns an
+ * empty array when the field is explicitly present but empty.
+ */
+export const parseServerEditDiffs = (
+	result: unknown,
+): ServerEditDiff[] | null => {
+	const rec = asRecord(result);
+	if (!rec) return null;
+	const raw = rec.diffs;
+	if (raw === undefined || raw === null) return null;
+	if (!Array.isArray(raw)) return null;
+	const diffs: ServerEditDiff[] = [];
+	for (const entry of raw) {
+		const entryRec = asRecord(entry);
+		if (!entryRec) continue;
+		const path = asString(entryRec.path).trim();
+		if (!path) continue;
+		diffs.push({ path, diff: asString(entryRec.diff) });
+	}
+	return diffs;
+};
+
+/**
+ * Parses a single server-supplied unified diff string into a
+ * FileDiffMetadata the diff viewer can render. Returns null when the
+ * diff string is empty (no-op edits) or when the parser produces no
+ * file entries.
+ */
+export const parseServerEditDiff = (diff: string): FileDiffMetadata | null => {
+	if (!diff) return null;
+	const parsed = parsePatchFiles(stripSvnIndexHeaders(diff));
+	if (!parsed.length || !parsed[0].files.length) return null;
+	return parsed[0].files[0];
+};
+
+/**
  * Converts an MCP-prefixed tool name into a human-readable label.
  * E.g. "linear__list_issues" with slug "linear" → "List issues"
  */

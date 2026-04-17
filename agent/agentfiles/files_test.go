@@ -1572,3 +1572,520 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "goodbye world", string(data))
 }
+
+func TestEditFiles_Diffs(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	t.Run("DiffRequestedSingleFile", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		api := agentfiles.NewAPI(logger, fs, nil)
+		path := filepath.Join(tmpdir, "diff-single")
+		require.NoError(t, afero.WriteFile(fs, path, []byte("hello world\n"), 0o644))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			DiffRequest: true,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{
+						{Search: "hello", Replace: "HELLO"},
+					},
+				},
+			},
+		})
+		require.Len(t, resp.Diffs, 1)
+		require.Equal(t, path, resp.Diffs[0].Path)
+		// udiff.Unified emits "--- <path>\n+++ <path>\n@@ ...".
+		require.Contains(t, resp.Diffs[0].Diff, "--- "+path+"\n")
+		require.Contains(t, resp.Diffs[0].Diff, "+++ "+path+"\n")
+		require.Contains(t, resp.Diffs[0].Diff, "-hello world")
+		require.Contains(t, resp.Diffs[0].Diff, "+HELLO world")
+	})
+
+	t.Run("DiffRequestedNoOpEdit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		api := agentfiles.NewAPI(logger, fs, nil)
+		path := filepath.Join(tmpdir, "diff-noop")
+		require.NoError(t, afero.WriteFile(fs, path, []byte("same\n"), 0o644))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			DiffRequest: true,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{
+						// Replace with identical text (no-op).
+						{Search: "same", Replace: "same"},
+					},
+				},
+			},
+		})
+		require.Len(t, resp.Diffs, 1)
+		require.Equal(t, path, resp.Diffs[0].Path)
+		require.Empty(t, resp.Diffs[0].Diff, "no-op edit produces empty diff")
+	})
+
+	t.Run("DiffNotRequested", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		api := agentfiles.NewAPI(logger, fs, nil)
+		path := filepath.Join(tmpdir, "diff-off")
+		require.NoError(t, afero.WriteFile(fs, path, []byte("hello\n"), 0o644))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			// DiffRequest omitted; default false.
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{
+						{Search: "hello", Replace: "HELLO"},
+					},
+				},
+			},
+		})
+		require.Nil(t, resp.Diffs, "Diffs must be nil when DiffRequest is false")
+	})
+
+	t.Run("DiffRequestedMultiFilePreservesOrder", func(t *testing.T) {
+		t.Parallel()
+
+		fs := afero.NewMemMapFs()
+		api := agentfiles.NewAPI(logger, fs, nil)
+		pathA := filepath.Join(tmpdir, "diff-multi-a")
+		pathB := filepath.Join(tmpdir, "diff-multi-b")
+		pathC := filepath.Join(tmpdir, "diff-multi-c")
+		require.NoError(t, afero.WriteFile(fs, pathA, []byte("A\n"), 0o644))
+		require.NoError(t, afero.WriteFile(fs, pathB, []byte("B\n"), 0o644))
+		require.NoError(t, afero.WriteFile(fs, pathC, []byte("C\n"), 0o644))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			DiffRequest: true,
+			Files: []workspacesdk.FileEdits{
+				{Path: pathA, Edits: []workspacesdk.FileEdit{{Search: "A", Replace: "a"}}},
+				{Path: pathB, Edits: []workspacesdk.FileEdit{{Search: "B", Replace: "b"}}},
+				{Path: pathC, Edits: []workspacesdk.FileEdit{{Search: "C", Replace: "c"}}},
+			},
+		})
+		require.Len(t, resp.Diffs, 3)
+		require.Equal(t, pathA, resp.Diffs[0].Path)
+		require.Equal(t, pathB, resp.Diffs[1].Path)
+		require.Equal(t, pathC, resp.Diffs[2].Path)
+	})
+
+	t.Run("DiffRequestedSymlinkReportsOriginalPath", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks are not reliably supported on Windows")
+		}
+
+		dir := t.TempDir()
+		osFs := afero.NewOsFs()
+		api := agentfiles.NewAPI(logger, osFs, nil)
+
+		realPath := filepath.Join(dir, "real.txt")
+		require.NoError(t, afero.WriteFile(osFs, realPath, []byte("hello\n"), 0o644))
+
+		linkPath := filepath.Join(dir, "link.txt")
+		require.NoError(t, os.Symlink(realPath, linkPath))
+
+		resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+			DiffRequest: true,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: linkPath,
+					Edits: []workspacesdk.FileEdit{
+						{Search: "hello", Replace: "HELLO"},
+					},
+				},
+			},
+		})
+		require.Len(t, resp.Diffs, 1)
+		// The response must report the caller-supplied path, not the
+		// symlink-resolved target.
+		require.Equal(t, linkPath, resp.Diffs[0].Path)
+		require.Contains(t, resp.Diffs[0].Diff, "--- "+linkPath+"\n")
+		require.Contains(t, resp.Diffs[0].Diff, "+++ "+linkPath+"\n")
+	})
+}
+
+// runEditFiles issues a single POST /edit-files call against api and
+// decodes the success body into FileEditResponse. It requires a 200
+// response; tests for error paths should decode the error shape
+// directly.
+func runEditFiles(t *testing.T, api *agentfiles.API, req workspacesdk.FileEditRequest) workspacesdk.FileEditResponse {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	t.Cleanup(cancel)
+
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	var resp workspacesdk.FileEditResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	return resp
+}
+
+// TestFuzzyReplace_ExactNewline exercises the D3 exact-newline
+// matching rule against single-replace and replace-all paths.
+//
+// Matcher rules (from
+// docs/plans/edit-tool-improvements.md § Stage 5):
+//
+//   - Each line is split into (content, ending).
+//   - Endings match iff identical or both in {"\n", "\r\n"}.
+//     "" matches only "" so fuzzy passes never slurp a newline.
+//   - Pass 2 compares content via TrimRight(c, " \t").
+//   - Pass 3 compares content via TrimSpace(c).
+//   - spliceLines is unchanged; the replacement is written verbatim.
+func TestFuzzyReplace_ExactNewline(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+		replaceAll      bool
+	}
+	tests := []struct {
+		name     string
+		content  string
+		edits    []edit
+		expected string // empty => expect an error response
+		errCode  int
+		errSub   string
+	}{
+		// Pass 2 - trailing-whitespace-tolerant.
+		{
+			name:     "Pass2_CRLFFile_LFSearch_Delete",
+			content:  "foo\r\nline\r\nbar\r\n",
+			edits:    []edit{{search: "line\n", replace: ""}},
+			expected: "foo\r\nbar\r\n",
+		},
+		{
+			name:     "Pass2_TrailingWhitespace_Delete",
+			content:  "foo\nline   \nbar\n",
+			edits:    []edit{{search: "line\n", replace: ""}},
+			expected: "foo\nbar\n",
+		},
+		{
+			// Pass 1 handles a search without a trailing newline
+			// when the content contains an exact substring match:
+			// strings.Replace preserves the surrounding "\n" bytes
+			// verbatim. The fuzzy-path rejection case lives in
+			// Pass2_SearchNoNewline_FuzzyRejects below.
+			name:     "Pass1_SearchNoNewline_ExactSubstringSucceeds",
+			content:  "foo\nfirst line\nbar\n",
+			edits:    []edit{{search: "first line", replace: "LINE"}},
+			expected: "foo\nLINE\nbar\n",
+		},
+		{
+			// Fuzzy-path proof: search has a trailing space the
+			// content does not, so pass 1 cannot match. Pass 2's
+			// content comparator (TrimRight " \t") would otherwise
+			// accept, but the D3 ending rule rejects because the
+			// search has empty ending and the content line ends
+			// with "\n". The same reasoning applies to pass 3.
+			name:    "Pass2_SearchNoNewline_FuzzyRejects",
+			content: "foo\nkey\nbar\n",
+			edits:   []edit{{search: "key ", replace: "KEY "}},
+			errCode: http.StatusBadRequest,
+			errSub:  "search string not found",
+		},
+		{
+			// Last-line-no-newline must use pass 1 exact match,
+			// not pass 2.
+			name:     "Pass1_LastLineNoNewline",
+			content:  "foo\nbar",
+			edits:    []edit{{search: "bar", replace: "BAR"}},
+			expected: "foo\nBAR",
+		},
+
+		// Pass 3 - indent-tolerant.
+		{
+			// D3 + D4 fixture: tab-indented CRLF content, space-
+			// indented LF search. Match via pass 3 (content
+			// differs in whitespace) and CRLF↔LF interchange.
+			// Splice is verbatim; the replacement carries its own
+			// ending, which is LF - the bar line keeps CRLF.
+			name:     "Pass3_IndentTolerance_CRLF",
+			content:  "foo\r\n\tline\r\nbar\r\n",
+			edits:    []edit{{search: "  line\n", replace: "  LINE\n"}},
+			expected: "foo\r\n  LINE\nbar\r\n",
+		},
+
+		// Replace-all variants.
+		{
+			// Replace-all mirror of the single-replace
+			// search-no-newline rejection: pass 1 is blocked because
+			// the search has a trailing space not present in
+			// content. Pass 2 and pass 3 must both reject via the
+			// D3 ending rule, in both single-replace AND
+			// replace-all paths (load-bearing; reviewer called this
+			// out explicitly).
+			name:    "ReplaceAll_SearchNoNewline_FuzzyRejects",
+			content: "key\nkey\nother\n",
+			edits: []edit{
+				{search: "key ", replace: "KEY ", replaceAll: true},
+			},
+			errCode: http.StatusBadRequest,
+			errSub:  "search string not found",
+		},
+		{
+			// Pass 2 replace-all on CRLF content with LF search.
+			name:    "ReplaceAll_CRLF_LFSearch",
+			content: "line one\r\nother\r\nline one\r\n",
+			edits: []edit{
+				{search: "line one\n", replace: "LINE\n", replaceAll: true},
+			},
+			expected: "LINE\nother\r\nLINE\n",
+		},
+
+		// User-chosen fold: LLM explicitly drops the trailing
+		// newline in the replacement. Pass 1 handles it (exact
+		// match); the following line folds into the replacement.
+		// Not a bug, matches pass 1 semantics.
+		{
+			name:     "UserChosenFold",
+			content:  "foo\nline\nbar\n",
+			edits:    []edit{{search: "line\n", replace: "LINE"}},
+			expected: "foo\nLINEbar\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "fuzzy-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
+			for _, e := range tt.edits {
+				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
+					Search:     e.search,
+					Replace:    e.replace,
+					ReplaceAll: e.replaceAll,
+				})
+			}
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			if tt.errCode != 0 {
+				require.Equal(t, tt.errCode, w.Code, "body: %s", w.Body.String())
+				got := &codersdk.Error{}
+				require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+				require.ErrorContains(t, got, tt.errSub)
+				// Error path: file must not have been modified.
+				data, err := afero.ReadFile(fs, path)
+				require.NoError(t, err)
+				require.Equal(t, tt.content, string(data))
+				return
+			}
+
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, string(data))
+		})
+	}
+}
+
+// TestHarnessScenarios converts selected scenarios from
+// /home/coder/edit-tool-tests/TEST_HARNESS.md into Go tests per plan
+// D7 (categories 3 and 6 where existing Go tests have gaps; 12.2 per
+// D2b). Scenario numbers reference TEST_HARNESS.md; see each subtest
+// for the specific mapping.
+//
+// Skipped by plan:
+//   - 3.2, 3.3, 10.5, 12.1: expect pass-3 rejection; D2 kept pass 3.
+//   - 12.3: superseded by D4 (CRLF via D3 interchange).
+func TestHarnessScenarios(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type tc struct {
+		// fixture content.
+		content string
+		// edits to apply.
+		search, replace string
+		replaceAll      bool
+		// expected post-state or "" when the test expects an error.
+		expected string
+		errSub   string
+	}
+	cases := map[string]tc{
+		// harness scenario 3.1: tab-indented content with exact tab
+		// matching. Only line 1 changes; tabs preserved.
+		"3.1_TabMatchExact": {
+			content: "\ttab indented line 1\n\ttab indented line 2\n    spaces line 3\n    spaces line 4\n\ttab indented line 5\n",
+			search:  "\ttab indented line 1",
+			replace: "\ttab indented line 1 EDITED",
+			expected: "\ttab indented line 1 EDITED\n\ttab indented line 2\n" +
+				"    spaces line 3\n    spaces line 4\n\ttab indented line 5\n",
+		},
+
+		// harness scenario 3.4: trailing whitespace preservation.
+		// Pass 1 matches the search string as a substring of the
+		// first line, so strings.Replace preserves the 3 trailing
+		// spaces after the match. This is the "trailing whitespace
+		// survives" branch of the scenario's documented
+		// either-or acceptance criterion.
+		"3.4_TrailingWhitespace": {
+			content:  "line with trailing spaces   \nno trailing ws\n",
+			search:   "line with trailing spaces",
+			replace:  "line with trailing spaces EDITED",
+			expected: "line with trailing spaces EDITED   \nno trailing ws\n",
+		},
+
+		// harness scenario 3.5: blank line exact matching. The
+		// file has two blank lines between above and below; the
+		// search omits them. Must reject (blank lines are
+		// significant content).
+		"3.5_BlankLineExactRejects": {
+			content: "above\n\n\nbelow\n",
+			search:  "above\nbelow",
+			replace: "above\nbelow",
+			errSub:  "search string not found",
+		},
+
+		// harness scenario 3.6: removing blank lines. Search
+		// matches exactly including the blank lines; replace
+		// collapses them.
+		"3.6_RemoveBlankLines": {
+			content:  "above\n\n\nbelow\n",
+			search:   "above\n\n\nbelow",
+			replace:  "above\nbelow",
+			expected: "above\nbelow\n",
+		},
+
+		// harness scenario 6.1: CRLF file editing. Pass 1
+		// (exact substring) matches "line two" inside the CRLF
+		// line; strings.Replace touches only the matched bytes
+		// and leaves the "\r\n" boundaries intact, so every
+		// line keeps CRLF.
+		"6.1_CRLFFileEdit_Pass1PreservesCRLF": {
+			content:  "line one\r\nline two\r\nline three\r\n",
+			search:   "line two",
+			replace:  "line two EDITED",
+			expected: "line one\r\nline two EDITED\r\nline three\r\n",
+		},
+
+		// harness scenario 6.2: search with LF in CRLF file.
+		// D3's ending rule lets pass 2 match via CRLF↔LF. The
+		// replacement carries LF endings so the two edited
+		// lines become LF while line three stays CRLF.
+		"6.2_CRLFSearchWithLF": {
+			content:  "line one\r\nline two\r\nline three\r\n",
+			search:   "line one\nline two\n",
+			replace:  "line one EDITED\nline two EDITED\n",
+			expected: "line one EDITED\nline two EDITED\nline three\r\n",
+		},
+
+		// harness scenario 6.3: no trailing newline preserved.
+		// Pass 1 exact match keeps the no-newline EOF.
+		"6.3_NoTrailingNewline": {
+			content:  "no trailing newline",
+			search:   "no trailing newline",
+			replace:  "no trailing newline EDITED",
+			expected: "no trailing newline EDITED",
+		},
+
+		// harness scenario 12.2: fuzzy matching consumes line
+		// boundaries. The content has tab-indented lines and
+		// the search uses 2 spaces. Pass 1 is blocked (content
+		// has tabs, search has spaces). D3 keeps the endings
+		// honest so pass 2/3 cannot slurp the trailing newline;
+		// the match is ambiguous between pass 3 (indent-
+		// tolerant) acceptance and rejection, but per the
+		// decision matrix (D2) pass 3 is kept with D3
+		// containment, so the match succeeds and the
+		// replacement is spliced verbatim. Verify no line
+		// folding occurred (item two keeps its newline).
+		"12.2_NoLineFolding": {
+			content:  "\titem one\n\titem two\n",
+			search:   "  item one\n",
+			replace:  "  item one EDITED\n",
+			expected: "  item one EDITED\n\titem two\n",
+		},
+	}
+
+	for name, ct := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "harness-"+name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(ct.content), 0o644))
+
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{{
+						Search:     ct.search,
+						Replace:    ct.replace,
+						ReplaceAll: ct.replaceAll,
+					}},
+				}},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			if ct.errSub != "" {
+				require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+				got := &codersdk.Error{}
+				require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+				require.ErrorContains(t, got, ct.errSub)
+				data, err := afero.ReadFile(fs, path)
+				require.NoError(t, err)
+				require.Equal(t, ct.content, string(data))
+				return
+			}
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, ct.expected, string(data))
+		})
+	}
+}

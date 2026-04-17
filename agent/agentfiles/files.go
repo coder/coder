@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/aymanbagabas/go-udiff"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -44,7 +45,16 @@ type HTTPResponseCode = int
 // pendingEdit holds the computed result of a file edit, ready to
 // be written to disk.
 type pendingEdit struct {
-	path    string
+	// origPath is the caller-supplied path, pre-symlink-resolution.
+	// Used for response labels so the caller can match responses to
+	// their original requests.
+	origPath string
+	// path is the symlink-resolved path; what actually gets written.
+	path string
+	// oldContent is the file content before edits were applied. Used
+	// for diff computation when the request asked for diffs.
+	oldContent string
+	// content is the file content after all edits.
 	content string
 	mode    os.FileMode
 }
@@ -426,9 +436,17 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-		Message: "Successfully edited file(s)",
-	})
+	resp := workspacesdk.FileEditResponse{}
+	if req.DiffRequest {
+		resp.Diffs = make([]workspacesdk.FileEditDiff, 0, len(pending))
+		for _, p := range pending {
+			resp.Diffs = append(resp.Diffs, workspacesdk.FileEditDiff{
+				Path: p.origPath,
+				Diff: udiff.Unified(p.origPath, p.origPath, p.oldContent, p.content),
+			})
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // prepareFileEdit validates, reads, and computes edits for a single
@@ -450,6 +468,7 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 	if err != nil {
 		return http.StatusInternalServerError, nil, xerrors.Errorf("resolve symlink %q: %w", path, err)
 	}
+	origPath := path
 	path = resolved
 
 	f, err := api.filesystem.Open(path)
@@ -479,6 +498,7 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 		return http.StatusInternalServerError, nil, xerrors.Errorf("read %s: %w", path, err)
 	}
 	content := string(data)
+	oldContent := content
 
 	for _, edit := range edits {
 		var err error
@@ -489,9 +509,11 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 	}
 
 	return 0, &pendingEdit{
-		path:    path,
-		content: content,
-		mode:    stat.Mode(),
+		origPath:   origPath,
+		path:       path,
+		oldContent: oldContent,
+		content:    content,
+		mode:       stat.Mode(),
 	}, nil
 }
 
@@ -555,6 +577,33 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	return 0, nil
 }
 
+// splitEnding separates a line produced by strings.SplitAfter(s,
+// "\n") into its content bytes and its line ending. The ending is
+// one of "\r\n", "\n", or "" (the last slice when the input lacks a
+// trailing newline).
+func splitEnding(line string) (content, ending string) {
+	if strings.HasSuffix(line, "\r\n") {
+		return line[:len(line)-2], "\r\n"
+	}
+	if strings.HasSuffix(line, "\n") {
+		return line[:len(line)-1], "\n"
+	}
+	return line, ""
+}
+
+// endingsMatch implements the D3 ending rule: identical endings
+// match, and "\n" interchanges with "\r\n" so LLMs can send LF
+// searches against CRLF content. The empty ending (EOF, no
+// terminator) matches only itself, preventing fuzzy matching from
+// slurping newline boundaries and folding adjacent lines.
+func endingsMatch(a, b string) bool {
+	if a == b {
+		return true
+	}
+	newline := func(s string) bool { return s == "\n" || s == "\r\n" }
+	return newline(a) && newline(b)
+}
+
 // fuzzyReplace attempts to find `search` inside `content` and replace it
 // with `replace`. It uses a cascading match strategy inspired by
 // openai/codex's apply_patch:
@@ -605,10 +654,16 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	}
 
 	trimRight := func(a, b string) bool {
-		return strings.TrimRight(a, " \t\r\n") == strings.TrimRight(b, " \t\r\n")
+		aContent, aEnding := splitEnding(a)
+		bContent, bEnding := splitEnding(b)
+		return endingsMatch(aEnding, bEnding) &&
+			strings.TrimRight(aContent, " \t") == strings.TrimRight(bContent, " \t")
 	}
 	trimAll := func(a, b string) bool {
-		return strings.TrimSpace(a) == strings.TrimSpace(b)
+		aContent, aEnding := splitEnding(a)
+		bContent, bEnding := splitEnding(b)
+		return endingsMatch(aEnding, bEnding) &&
+			strings.TrimSpace(aContent) == strings.TrimSpace(bContent)
 	}
 
 	// Pass 2 – trim trailing whitespace on each line.

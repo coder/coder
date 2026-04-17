@@ -50,10 +50,13 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiff,
+	parseServerEditDiffs,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
+
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -383,9 +386,16 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	const editDiffs = editFiles.map((file) =>
-		buildEditDiff(file.path, file.edits),
-	);
+	// Prefer the agent's server-side diffs when present (they carry
+	// full file context). Fall back to the synthetic client-side
+	// diffs for older agents or when DiffRequest was not set.
+	const serverDiffs = parseServerEditDiffs(result);
+	const editDiffs = serverDiffs
+		? editFiles.map((file) => {
+				const entry = serverDiffs.find((d) => d.path === file.path);
+				return entry ? parseServerEditDiff(entry.diff) : null;
+			})
+		: editFiles.map((file) => buildEditDiff(file.path, file.edits));
 
 	return (
 		<EditFilesTool

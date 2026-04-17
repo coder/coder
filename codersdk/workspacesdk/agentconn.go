@@ -86,7 +86,7 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
-	EditFiles(ctx context.Context, edits FileEditRequest) error
+	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -1043,6 +1043,26 @@ type FileEdits struct {
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
+	// DiffRequest asks the agent to compute a unified diff per file
+	// and return it in FileEditResponse.Diffs. When false (default)
+	// the agent skips diff computation and Diffs is nil.
+	DiffRequest bool `json:"diff_request,omitempty"`
+}
+
+// FileEditResponse is the success response for the edit-files endpoint.
+// When the request's DiffRequest flag is set, Diffs contains one entry
+// per edited file in request order, with Path matching the
+// caller-supplied path (pre-symlink resolution).
+type FileEditResponse struct {
+	Diffs []FileEditDiff `json:"diffs,omitempty"`
+}
+
+// FileEditDiff carries a per-file unified diff. Path is the original
+// caller-supplied path, not any symlink-resolved target. Diff is the
+// unified-diff string (may be empty when the edit was a no-op).
+type FileEditDiff struct {
+	Path string `json:"path"`
+	Diff string `json:"diff"`
 }
 
 // ListMCPToolsResponse is the response from the agent's
@@ -1219,24 +1239,26 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 }
 
 // EditFiles performs search and replace edits on one or more files.
-func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+// When edits.DiffRequest is true, the returned FileEditResponse
+// carries a unified diff per edited file.
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
-		return xerrors.Errorf("decode response body: %w", err)
+	var resp FileEditResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
-	return nil
+	return resp, nil
 }
 
 func agentAPIPath(path string, query neturl.Values) string {
