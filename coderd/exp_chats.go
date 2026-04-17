@@ -3637,7 +3637,7 @@ func (api *API) deploymentChatDebugLoggingEnabled() bool {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -6511,8 +6511,8 @@ func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	summaries := make([]codersdk.ChatDebugRunSummary, 0, len(runs))
-	for _, r := range runs {
-		summaries = append(summaries, db2sdk.ChatDebugRunSummary(r))
+	for _, run := range runs {
+		summaries = append(summaries, db2sdk.ChatDebugRunSummary(run))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, summaries)
 }

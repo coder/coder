@@ -1432,10 +1432,9 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
- * ChatDebugRun is the detailed run response including steps.
- * This type is consumed by the run-detail handler added in a later
- * PR in this stack; it is forward-declared here so that all SDK
- * types live in the same schema-layer commit.
+ * ChatDebugRun is the detailed run response returned by the run-detail
+ * endpoint. It includes the same summary fields as ChatDebugRunSummary
+ * along with the full step history for the run.
  */
 export interface ChatDebugRun {
 	readonly id: string;

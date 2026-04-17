@@ -722,10 +722,9 @@ type ChatDebugRunSummary struct {
 	FinishedAt *time.Time       `json:"finished_at,omitempty" format:"date-time"`
 }
 
-// ChatDebugRun is the detailed run response including steps.
-// This type is consumed by the run-detail handler added in a later
-// PR in this stack; it is forward-declared here so that all SDK
-// types live in the same schema-layer commit.
+// ChatDebugRun is the detailed run response returned by the run-detail
+// endpoint. It includes the same summary fields as ChatDebugRunSummary
+// along with the full step history for the run.
 type ChatDebugRun struct {
 	ID                  uuid.UUID        `json:"id" format:"uuid"`
 	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
@@ -2415,7 +2414,8 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// GetChatDebugRun returns a debug run for a chat.
+// GetChatDebugRun returns a single debug run along with its full step
+// history. Use GetChatDebugRuns when only the run summary list is needed.
 func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
 	if err != nil {
