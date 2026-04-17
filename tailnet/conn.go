@@ -600,9 +600,13 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
+	nodeKey := "<nil>"
+	if n := c.Node(); n != nil {
+		nodeKey = n.Key.ShortString()
+	}
 	c.logger.Debug(context.Background(), "awaiting reachable",
 		slog.F("target_ip", ip),
-		slog.F("node_key", c.Node().Key.ShortString()),
+		slog.F("node_key", nodeKey),
 	)
 	var pingAttempts atomic.Int32
 
@@ -654,7 +658,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 				slog.F("target_ip", ip),
 				slog.F("reachable", reachable),
 				slog.F("ping_attempts", pingAttempts.Load()),
-				slog.F("node_key", c.Node().Key.ShortString()),
+				slog.F("node_key", nodeKey),
 			)
 			return reachable
 		case <-t.C:
@@ -667,7 +671,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 				slog.F("target_ip", ip),
 				slog.F("reachable", reachable),
 				slog.F("ping_attempts", pingAttempts.Load()),
-				slog.F("node_key", c.Node().Key.ShortString()),
+				slog.F("node_key", nodeKey),
 			)
 			return reachable
 		}
