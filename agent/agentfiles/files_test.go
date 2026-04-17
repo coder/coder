@@ -1883,6 +1883,53 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			edits:    []edit{{search: "line\n", replace: "LINE"}},
 			expected: "foo\nLINEbar\n",
 		},
+
+		// Caller deliberately rewrites indent: search leads with
+		// a tab, replace leads with two spaces. Disagreement on
+		// the leading-whitespace position means the replacement's
+		// spaces win on the edited line. The untouched following
+		// line keeps its tab.
+		{
+			name:     "CallerRewritesIndent_ReplaceLeadingWins",
+			content:  "foo\n\tline\n\tbar\n",
+			edits:    []edit{{search: "\tline\n", replace: "  line\n"}},
+			expected: "foo\n  line\n\tbar\n",
+		},
+
+		// Expansion: replace has more lines than the matched
+		// region. Extras reference the last paired search/content
+		// line, so an extra whose leading whitespace agrees with
+		// the last paired search line picks up the file's
+		// leading whitespace. Search uses 4 spaces to force the
+		// fuzzy path (pass 1 would splice verbatim).
+		{
+			name:     "Expansion_ExtraLinesTrackLastPair",
+			content:  "foo\n\tline\nbar\n",
+			edits:    []edit{{search: "    line\n", replace: "    line\n    extra\n"}},
+			expected: "foo\n\tline\n\textra\nbar\n",
+		},
+
+		// Collapse: replace has fewer lines than the matched
+		// region. Unpaired matched lines are consumed without
+		// output.
+		{
+			name:     "Collapse_ReplaceShorterThanSearch",
+			content:  "foo\nkeep\ndrop\nbar\n",
+			edits:    []edit{{search: "keep\ndrop\n", replace: "keep\n"}},
+			expected: "foo\nkeep\nbar\n",
+		},
+
+		// Empty-ending wildcard: search's last line has no
+		// terminator and content's line ends with "\r\n". The
+		// empty ending wildcards at match time; at splice,
+		// search and replace agree on empty ending shape so the
+		// file's "\r\n" wins.
+		{
+			name:     "EmptyEndingWildcard_CRLFContent_FileEndingWins",
+			content:  "foo\r\nkey\r\nbar\r\n",
+			edits:    []edit{{search: "key", replace: "KEY"}},
+			expected: "foo\r\nKEY\r\nbar\r\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2084,6 +2131,150 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 			data, err := afero.ReadFile(fs, path)
 			require.NoError(t, err)
 			require.Equal(t, ct.expected, string(data))
+		})
+	}
+}
+
+// TestFuzzyReplace_Rejects pins the cases the matcher rejects, so
+// regressions that weaken the guardrails get caught. Each case runs
+// through the HTTP handler; the handler must return 400 with an
+// error message matching errSub, and the file must be unchanged.
+//
+// Rejection sources:
+//
+//   - Empty search (meaningful search text is required; the old
+//     behavior matched at every byte position when combined with
+//     replace_all).
+//   - Ambiguous match without replace_all (N > 1 occurrences of the
+//     search text).
+//   - Search not found in file (after all three passes fail).
+//   - Content mismatch that cannot be recovered by trimming
+//     whitespace on either side.
+//   - Blank-line count mismatch inside the matched region.
+//   - CRLF-only search against a last-line-no-newline content line
+//     that lacks any ending at all.
+func TestFuzzyReplace_Rejects(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+		replaceAll      bool
+	}
+	tests := []struct {
+		name    string
+		content string
+		edits   []edit
+		errSub  string
+	}{
+		// Empty search with replace_all=false: reject to prevent
+		// the ambiguous "prepend at byte 0" behavior.
+		{
+			name:    "EmptySearch_Rejects",
+			content: "hello\n",
+			edits:   []edit{{search: "", replace: "X"}},
+			errSub:  "search string must not be empty",
+		},
+		// Empty search with replace_all=true: historically
+		// injected the replacement between every byte, silently
+		// corrupting the file. Reject explicitly.
+		{
+			name:    "EmptySearch_ReplaceAll_Rejects",
+			content: "hello\n",
+			edits:   []edit{{search: "", replace: "X", replaceAll: true}},
+			errSub:  "search string must not be empty",
+		},
+		// Ambiguous single-replace: 3 distinct matches, caller
+		// did not ask for replace_all.
+		{
+			name:    "Ambiguous_SingleReplace_Rejects",
+			content: "a\na\na\nother\n",
+			edits:   []edit{{search: "a", replace: "A"}},
+			errSub:  "matches 3 occurrences",
+		},
+		// Search text does not appear anywhere in the file. All
+		// three passes miss.
+		{
+			name:    "NotFound_Rejects",
+			content: "hello\nworld\n",
+			edits:   []edit{{search: "nonexistent\n", replace: "X\n"}},
+			errSub:  "search string not found",
+		},
+		// Content mismatch that trimming cannot recover: search
+		// has different letters, not just different whitespace.
+		{
+			name:    "ContentMismatch_Rejects",
+			content: "hello\n",
+			edits:   []edit{{search: "Hello\n", replace: "HELLO\n"}},
+			errSub:  "search string not found",
+		},
+		// Blank lines in the file that the search omits: the
+		// fuzzy window cannot align against the blank lines, so
+		// the multi-line match fails.
+		{
+			name:    "BlankLineMismatch_Rejects",
+			content: "above\n\n\nbelow\n",
+			edits:   []edit{{search: "above\nbelow\n", replace: "above\nbelow\n"}},
+			errSub:  "search string not found",
+		},
+		// Search with a CRLF-only ending against a content line
+		// that has no ending at all (last-line-no-newline). The
+		// ending rule requires compatibility; "\r\n" is
+		// newline-class and "" is only a wildcard when one side
+		// is empty AND the other is in {"","\n","\r\n"}. Here
+		// both sides differ by byte content too, so the match
+		// fails.
+		{
+			name:    "CRLFSearch_LastLineNoNewline_Rejects",
+			content: "foo\nhello",
+			edits:   []edit{{search: "goodbye\r\n", replace: "goodbye\r\n"}},
+			errSub:  "search string not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "reject-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
+			for _, e := range tt.edits {
+				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
+					Search:     e.search,
+					Replace:    e.replace,
+					ReplaceAll: e.replaceAll,
+				})
+			}
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+			got := &codersdk.Error{}
+			require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+			require.ErrorContains(t, got, tt.errSub)
+
+			// File must not have been modified by any partial
+			// splice or write.
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.content, string(data))
 		})
 	}
 }

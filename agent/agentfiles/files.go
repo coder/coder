@@ -722,6 +722,16 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	search := edit.Search
 	replace := edit.Replace
 
+	// An empty search string has no meaningful interpretation: it
+	// matches at every byte position, which means the caller has not
+	// told us what they want to replace. Reject explicitly so
+	// replace_all=true can't silently inject the replacement between
+	// every byte.
+	if search == "" {
+		return "", xerrors.New("search string must not be empty; include the " +
+			"text you want to match")
+	}
+
 	// Pass 1 – exact substring match.
 	if strings.Contains(content, search) {
 		if edit.ReplaceAll {
