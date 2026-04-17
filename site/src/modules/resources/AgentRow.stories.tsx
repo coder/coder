@@ -98,6 +98,12 @@ const installScriptLogSource: WorkspaceAgentLogSource = {
 	display_name: "Install Script",
 };
 
+const startupScriptLogSource: WorkspaceAgentLogSource = {
+	...M.MockWorkspaceAgentLogSource,
+	id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	display_name: "Startup Script",
+};
+
 const tabbedLogs = [
 	{
 		id: 100,
@@ -230,8 +236,23 @@ export const StartError: Story = {
 };
 
 export const StartErrorWithTimings: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
+
+		const scriptTab = await canvas.findByRole("tab", {
+			name: "Startup Script",
+		});
+		await waitFor(() =>
+			expect(scriptTab).toHaveAttribute("data-state", "active"),
+		);
+	},
 	args: {
-		agent: M.MockWorkspaceAgentStartError,
+		agent: {
+			...M.MockWorkspaceAgentStartError,
+			logs_length: 2,
+			log_sources: [M.MockWorkspaceAgentLogSource, startupScriptLogSource],
+		},
 		agentScriptTimings: [
 			{
 				display_name: "Startup Script",
@@ -242,6 +263,29 @@ export const StartErrorWithTimings: Story = {
 				ended_at: "2021-05-05T00:00:01.000Z",
 				workspace_agent_id: M.MockWorkspaceAgentStartError.id,
 				workspace_agent_name: M.MockWorkspaceAgentStartError.name,
+			},
+		],
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify([
+					{
+						id: 200,
+						level: "info",
+						output: "startup: preparing workspace",
+						source_id: M.MockWorkspaceAgentLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+					{
+						id: 201,
+						level: "error",
+						output: "startup script: command not found",
+						source_id: startupScriptLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+				]),
 			},
 		],
 	},

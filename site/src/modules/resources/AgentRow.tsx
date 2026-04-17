@@ -233,7 +233,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const failedStartupScriptSource = hasAgentIssues
+		? agent.log_sources.find(
+				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
+			)
+		: undefined;
+	const [selectedLogTab, setSelectedLogTab] = useState(
+		failedStartupScriptSource?.id ?? "all",
+	);
 	const sourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
