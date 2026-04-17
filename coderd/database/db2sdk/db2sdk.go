@@ -857,7 +857,6 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-// ChatRoleActions returns the policy.Actions granted by role, or nil if role is not writable.
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
