@@ -90,63 +90,68 @@ export default defineConfig({
 			"Set-Cookie":
 				"csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
 		},
-		proxy: {
-			"//": {
-				changeOrigin: true,
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-				rewrite: (path) => path.replace(/\/+/g, "/"),
-			},
-			"/api": {
-				ws: true,
-				changeOrigin: true,
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-				configure: (proxy) => {
-					if (process.env.CODER_SESSION_TOKEN) {
-						proxy.on("proxyReq", (proxyReq) => {
-							proxyReq.setHeader(
-								"Coder-Session-Token",
-								process.env.CODER_SESSION_TOKEN!,
-							);
-						});
-					}
-					// Vite does not catch socket errors, and stops the webserver.
-					// As /logs endpoint can return HTTP 4xx status, we need to embrace
-					// Vite with a custom error handler to prevent from quitting.
-					proxy.on("proxyReqWs", (proxyReq, _req, socket) => {
-						if (process.env.NODE_ENV === "development") {
-							proxyReq.setHeader(
-								"origin",
-								process.env.CODER_HOST || "http://localhost:3000",
-							);
+		// The proxy targets localhost:3000 (coderd). During tests no
+		// coderd is running, and the proxy's retry sockets keep the
+		// Node process alive after vitest finishes.
+		proxy: process.env.VITEST
+			? undefined
+			: {
+					"//": {
+						changeOrigin: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+						rewrite: (path) => path.replace(/\/+/g, "/"),
+					},
+					"/api": {
+						ws: true,
+						changeOrigin: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+						configure: (proxy) => {
 							if (process.env.CODER_SESSION_TOKEN) {
-								proxyReq.setHeader(
-									"Coder-Session-Token",
-									process.env.CODER_SESSION_TOKEN!,
-								);
+								proxy.on("proxyReq", (proxyReq) => {
+									proxyReq.setHeader(
+										"Coder-Session-Token",
+										process.env.CODER_SESSION_TOKEN!,
+									);
+								});
 							}
-						}
+							// Vite does not catch socket errors, and stops the webserver.
+							// As /logs endpoint can return HTTP 4xx status, we need to embrace
+							// Vite with a custom error handler to prevent from quitting.
+							proxy.on("proxyReqWs", (proxyReq, _req, socket) => {
+								if (process.env.NODE_ENV === "development") {
+									proxyReq.setHeader(
+										"origin",
+										process.env.CODER_HOST || "http://localhost:3000",
+									);
+									if (process.env.CODER_SESSION_TOKEN) {
+										proxyReq.setHeader(
+											"Coder-Session-Token",
+											process.env.CODER_SESSION_TOKEN!,
+										);
+									}
+								}
 
-						socket.on("error", (error) => {
-							console.error(error);
-						});
-					});
+								socket.on("error", (error) => {
+									console.error(error);
+								});
+							});
+						},
+					},
+					"/swagger": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
+					"/healthz": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
+					"/serviceWorker.js": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
 				},
-			},
-			"/swagger": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-			"/healthz": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-			"/serviceWorker.js": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-		},
 		allowedHosts: [".coder", ".dev.coder.com"],
 	},
 	// Pre-bundle deps that Vite tends to discover late (deep MUI
@@ -204,6 +209,9 @@ export default defineConfig({
 			"@mui/system/createTheme",
 			"@mui/system/useTheme",
 			"@mui/x-tree-view",
+			// Discovered at runtime without this entry, triggering
+			// a mid-run dep re-optimization that breaks imports.
+			"@tanstack/react-query-devtools",
 		],
 	},
 	resolve: {
@@ -217,6 +225,9 @@ export default defineConfig({
 	},
 	test: {
 		silent: "passed-only",
+		// Rolldown's native threads do not terminate on close,
+		// so vitest always hits this timeout. Keep it short.
+		teardownTimeout: 1000,
 		projects: [
 			{
 				extends: true,
@@ -243,6 +254,27 @@ export default defineConfig({
 					storybookTest({
 						configDir: path.join(__dirname, ".storybook"),
 					}),
+					{
+						name: "storybook-test-setup",
+						// Return 502 for API routes. The proxy is disabled
+						// during tests (see above), so without this vite
+						// serves its HTML fallback for unmatched routes.
+						configureServer(server) {
+							server.middlewares.use((req, res, next) => {
+								const url = req.url ?? "";
+								if (
+									url.startsWith("/api/") ||
+									url.startsWith("/swagger/") ||
+									url.startsWith("/healthz")
+								) {
+									res.statusCode = 502;
+									res.end();
+									return;
+								}
+								next();
+							});
+						},
+					},
 				],
 				test: {
 					name: "storybook",
@@ -253,6 +285,12 @@ export default defineConfig({
 						instances: [{ browser: "chromium" }],
 					},
 					setupFiles: [".storybook/vitest.setup.ts"],
+					// Stop early on systemic failures.
+					bail: 5,
+					// Cap concurrent browser iframes. The default
+					// (os.availableParallelism, 96 on dev workspaces)
+					// overwhelms vite's transform pipeline on cold cache.
+					maxWorkers: 4,
 				},
 			},
 		],

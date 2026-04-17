@@ -20,6 +20,7 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	BotIcon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
@@ -1277,6 +1278,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						)}
 						{isAdmin && (
 							<>
+								<SettingsNavItem
+									icon={BotIcon}
+									label="Agents"
+									active={sidebarView.section === "agents"}
+									to="/agents/settings/agents"
+									state={location.state}
+									adminOnly
+								/>
 								<SettingsNavItem
 									icon={LayoutTemplateIcon}
 									label="Templates"

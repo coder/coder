@@ -1,6 +1,6 @@
 # Claude Code
 
-Claude Code can be configured using environment variables. All modes require a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
+Claude Code can be configured using environment variables. All modes require a **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
 
 ## Centralized API Key
 
@@ -8,8 +8,8 @@ Claude Code can be configured using environment variables. All modes require a *
 # AI Gateway base URL.
 export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
-# Your Coder session token, used for authentication with AI Gateway.
-export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
+# Your Coder API token, used for authentication with AI Gateway.
+export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
 ## BYOK (Personal API Key)
@@ -21,8 +21,8 @@ export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 # Your personal Anthropic API key, forwarded to Anthropic.
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
 
-# Your Coder session token, used for authentication with AI Gateway.
-export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
+# Your Coder API token, used for authentication with AI Gateway.
+export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-token>"
 
 # Ensure no auth token is set so Claude Code uses the API key instead.
 unset ANTHROPIC_AUTH_TOKEN
@@ -34,8 +34,8 @@ unset ANTHROPIC_AUTH_TOKEN
 # AI Gateway base URL.
 export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 
-# Your Coder session token, used for authentication with AI Gateway.
-export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-session-token>"
+# Your Coder API token, used for authentication with AI Gateway.
+export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-token>"
 
 # Ensure no auth token is set so Claude Code uses subscription login instead.
 unset ANTHROPIC_AUTH_TOKEN

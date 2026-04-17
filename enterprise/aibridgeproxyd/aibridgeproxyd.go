@@ -27,7 +27,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
@@ -175,8 +174,9 @@ type Options struct {
 	// Only requests to these domains will be MITM'd and forwarded to aibridged.
 	// Requests to other domains will be tunneled directly without decryption.
 	DomainAllowlist []string
-	// AIBridgeProviderFromHost maps a hostname to a known aibridge provider name.
-	// If nil, the default provider mapping is used.
+	// AIBridgeProviderFromHost maps a hostname to a known aibridge provider
+	// name. Must be non-nil; the caller derives it from the configured
+	// provider list.
 	AIBridgeProviderFromHost func(host string) string
 	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
 	// (non-allowlisted) requests through. If empty, tunneled requests connect
@@ -251,11 +251,10 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.New("domain allowlist is empty, at least one domain is required")
 	}
 
-	// Use custom provider mapper if provided, otherwise use default.
-	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
-	if aibridgeProviderFromHost == nil {
-		aibridgeProviderFromHost = defaultAIBridgeProvider
+	if opts.AIBridgeProviderFromHost == nil {
+		return nil, xerrors.New("AIBridgeProviderFromHost is required")
 	}
+	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
 
 	// Validate that all allowlisted domains have correct aibridge provider mappings.
 	for _, domain := range opts.DomainAllowlist {
@@ -761,29 +760,6 @@ func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
 		},
 		Body:          io.NopCloser(bytes.NewBuffer(proxyAuthRequiredMsg)),
 		ContentLength: int64(len(proxyAuthRequiredMsg)),
-	}
-}
-
-// defaultAIBridgeProvider maps the request host to the aibridge provider name.
-//   - Known AI providers return their provider name, used to route to the
-//     corresponding aibridge endpoint.
-//   - Unknown hosts return empty string and are passed through directly.
-func defaultAIBridgeProvider(host string) string {
-	switch strings.ToLower(host) {
-	case HostAnthropic:
-		return aibridge.ProviderAnthropic
-	case HostOpenAI:
-		return aibridge.ProviderOpenAI
-	case HostCopilot:
-		return aibridge.ProviderCopilot
-	case agplaibridge.HostCopilotBusiness:
-		return agplaibridge.ProviderCopilotBusiness
-	case agplaibridge.HostCopilotEnterprise:
-		return agplaibridge.ProviderCopilotEnterprise
-	case agplaibridge.HostChatGPT:
-		return agplaibridge.ProviderChatGPT
-	default:
-		return ""
 	}
 }
 

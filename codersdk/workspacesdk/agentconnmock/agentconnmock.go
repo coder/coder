@@ -449,6 +449,21 @@ func (mr *MockAgentConnMockRecorder) RecreateDevcontainer(ctx, devcontainerID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecreateDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).RecreateDevcontainer), ctx, devcontainerID)
 }
 
+// ResolvePath mocks base method.
+func (m *MockAgentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolvePath", ctx, path)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolvePath indicates an expected call of ResolvePath.
+func (mr *MockAgentConnMockRecorder) ResolvePath(ctx, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolvePath", reflect.TypeOf((*MockAgentConn)(nil).ResolvePath), ctx, path)
+}
+
 // SSH mocks base method.
 func (m *MockAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	m.ctrl.T.Helper()

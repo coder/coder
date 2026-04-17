@@ -2,6 +2,7 @@ package vpn
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -74,6 +75,8 @@ type Options struct {
 	TUNDevice        tun.Device
 	WireguardMonitor *netmon.Monitor
 	UpdateHandler    tailnet.UpdatesHandler
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 type derpMapRewriter struct {
@@ -158,6 +161,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &clonedHeaders,
+		DERPTLSConfig:       options.DERPTLSConfig,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,

@@ -13,8 +13,7 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
-import type { TableRowProps } from "@mui/material/TableRow";
-import type { MouseEventHandler } from "react";
+import type { HTMLAttributes, MouseEventHandler } from "react";
 import { cn } from "#/utils/cn";
 import {
 	type ClickableAriaRole,
@@ -22,27 +21,26 @@ import {
 	useClickable,
 } from "./useClickable";
 
+type TableRowClickHandlers = Pick<
+	HTMLAttributes<HTMLTableRowElement>,
+	"onClick" | "onDoubleClick" | "onAuxClick"
+>;
+
 type UseClickableTableRowResult<
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = UseClickableResult<HTMLTableRowElement, TRole> &
-	TableRowProps & {
+	TableRowClickHandlers & {
 		className: string;
 		hover: true;
 		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
 	};
 
-// Awkward type definition (the hover preview in VS Code isn't great, either),
-// but this basically extracts all click props from TableRowProps, but makes
-// onClick required, and adds additional optional props (notably onMiddleClick)
-type UseClickableTableRowConfig<TRole extends ClickableAriaRole> = {
-	[Key in keyof TableRowProps as Key extends `on${string}Click`
-		? Key
-		: never]: UseClickableTableRowResult<TRole>[Key];
-} & {
-	role?: TRole;
-	onClick: MouseEventHandler<HTMLTableRowElement>;
-	onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
-};
+type UseClickableTableRowConfig<TRole extends ClickableAriaRole> =
+	TableRowClickHandlers & {
+		role?: TRole;
+		onClick: MouseEventHandler<HTMLTableRowElement>;
+		onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
+	};
 
 export const useClickableTableRow = <
 	TRole extends ClickableAriaRole = ClickableAriaRole,

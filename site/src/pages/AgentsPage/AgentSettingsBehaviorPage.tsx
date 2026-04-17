@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatDesktopEnabled,
 	chatModelConfigs,
+	chatPlanModeInstructions,
 	chatRetentionDays,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	chatWorkspaceTTL,
 	deleteUserCompactionThreshold,
 	updateChatDesktopEnabled,
+	updateChatPlanModeInstructions,
 	updateChatRetentionDays,
 	updateChatSystemPrompt,
 	updateChatWorkspaceTTL,
@@ -29,6 +31,13 @@ const AgentSettingsBehaviorPage: FC = () => {
 	});
 	const saveSystemPromptMutation = useMutation(
 		updateChatSystemPrompt(queryClient),
+	);
+	const planModeInstructionsQuery = useQuery({
+		...chatPlanModeInstructions(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const savePlanModeInstructionsMutation = useMutation(
+		updateChatPlanModeInstructions(queryClient),
 	);
 
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
@@ -77,6 +86,7 @@ const AgentSettingsBehaviorPage: FC = () => {
 		<AgentSettingsBehaviorPageView
 			canSetSystemPrompt={permissions.editDeploymentConfig}
 			systemPromptData={systemPromptQuery.data}
+			planModeInstructionsData={planModeInstructionsQuery.data}
 			userPromptData={userPromptQuery.data}
 			desktopEnabledData={desktopEnabledQuery.data}
 			workspaceTTLData={workspaceTTLQuery.data}
@@ -93,6 +103,9 @@ const AgentSettingsBehaviorPage: FC = () => {
 			onSaveSystemPrompt={saveSystemPromptMutation.mutate}
 			isSavingSystemPrompt={saveSystemPromptMutation.isPending}
 			isSaveSystemPromptError={saveSystemPromptMutation.isError}
+			onSavePlanModeInstructions={savePlanModeInstructionsMutation.mutate}
+			isSavingPlanModeInstructions={savePlanModeInstructionsMutation.isPending}
+			isSavePlanModeInstructionsError={savePlanModeInstructionsMutation.isError}
 			onSaveUserPrompt={saveUserPromptMutation.mutate}
 			isSavingUserPrompt={saveUserPromptMutation.isPending}
 			isSaveUserPromptError={saveUserPromptMutation.isError}

@@ -402,10 +402,12 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    plan_mode,
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -417,10 +419,12 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -513,6 +517,17 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatPlanModeByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    plan_mode = sqlc.narg('plan_mode')::chat_plan_mode
 WHERE
     id = @id::uuid
 RETURNING
@@ -919,6 +934,28 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: GetChatDiffStatusSummary :one
+-- Returns aggregate PR counts across all agent chats for telemetry.
+-- Deduplicates by PR URL so forked chats referencing the same pull
+-- request are counted once (using the most recently refreshed state).
+-- Total is derived from the three recognized state buckets and
+-- always equals open + merged + closed; other non-NULL states are
+-- intentionally excluded from these aggregates.
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+)
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM deduped;
+
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
 -- Only counts assistant-role messages.
@@ -1134,10 +1171,16 @@ FROM users
 WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserChatSpendInPeriod :one
+-- Returns the total spend for a user in the given period.
+-- When organization_id is NULL, spend across all organizations is
+-- returned (global behavior). Otherwise only spend within the
+-- specified organization is included.
 SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
 FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = @user_id::uuid
+  AND (sqlc.narg('organization_id')::uuid IS NULL
+       OR c.organization_id = sqlc.narg('organization_id')::uuid)
   AND cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
@@ -1189,11 +1232,16 @@ WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserGroupSpendLimit :one
 -- Returns the minimum (most restrictive) group limit for a user.
--- Returns -1 if the user has no group limits applied.
+-- Returns -1 if no group limits match the specified scope.
+-- When organization_id is NULL, groups across all organizations are
+-- considered (global behavior). Otherwise only groups within the
+-- specified organization are considered.
 SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
 FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
+  AND (sqlc.narg('organization_id')::uuid IS NULL
+       OR g.organization_id = sqlc.narg('organization_id')::uuid)
   AND g.chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetChatsByWorkspaceIDs :many
@@ -1205,20 +1253,28 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
--- 1. Individual user override (highest priority)
--- 2. Minimum group limit across all user's groups
+-- 1. Individual user override (highest priority, applies globally across
+--    all organizations since it lives on the users table)
+-- 2. Minimum group limit across the user's groups
 -- 3. Global default from config
 -- Returns -1 if limits are not enabled.
+-- When organization_id is NULL, groups across all organizations are
+-- considered (global behavior). Otherwise only groups within the
+-- specified organization are considered.
+-- limit_source indicates which tier won: 'user', 'group', 'default',
+-- or 'disabled'.
 SELECT CASE
-    -- If limits are disabled, return -1.
     WHEN NOT cfg.enabled THEN -1
-    -- Individual override takes priority.
     WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
-    -- Group limit (minimum across all user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
-    -- Fall back to global default.
     ELSE cfg.default_limit_micros
-END::bigint AS effective_limit_micros
+END::bigint AS effective_limit_micros,
+CASE
+    WHEN NOT cfg.enabled THEN 'disabled'
+    WHEN u.chat_spend_limit_micros IS NOT NULL THEN 'user'
+    WHEN gl.limit_micros IS NOT NULL THEN 'group'
+    ELSE 'default'
+END AS limit_source
 FROM chat_usage_limit_config cfg
 CROSS JOIN users u
 LEFT JOIN LATERAL (
@@ -1226,6 +1282,8 @@ LEFT JOIN LATERAL (
     FROM groups g
     JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = @user_id::uuid
+      AND (sqlc.narg('organization_id')::uuid IS NULL
+           OR g.organization_id = sqlc.narg('organization_id')::uuid)
       AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
 WHERE u.id = @user_id::uuid
@@ -1262,12 +1320,14 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
-FROM chats
-WHERE updated_at > @updated_after;
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created

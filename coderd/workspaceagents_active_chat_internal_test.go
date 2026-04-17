@@ -37,6 +37,7 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				Status:            status,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelConfig.ID,
 				Title:             fmt.Sprintf("%s-archived-%t", status, archived),

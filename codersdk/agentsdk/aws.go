@@ -14,18 +14,24 @@ import (
 type AWSInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Document  string `json:"document" validate:"required"`
+	// AgentName optionally selects a specific agent when multiple
+	// agents share the same instance identity. An empty string is
+	// treated as unspecified.
+	AgentName string `json:"agent_name,omitempty"`
 }
 
 // AWSSessionTokenExchanger exchanges AWS instance metadata for a Coder session token.
 // @typescript-ignore AWSSessionTokenExchanger
 type AWSSessionTokenExchanger struct {
-	client *codersdk.Client
+	client    *codersdk.Client
+	agentName string
 }
 
-func WithAWSInstanceIdentity() SessionTokenSetup {
+func WithAWSInstanceIdentity(opts ...InstanceIdentityOption) SessionTokenSetup {
+	cfg := applyInstanceIdentityOptions(opts)
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &InstanceIdentitySessionTokenProvider{
-			TokenExchanger: &AWSSessionTokenExchanger{client: client},
+			TokenExchanger: &AWSSessionTokenExchanger{client: client, agentName: cfg.AgentName},
 		}
 	}
 }
@@ -84,6 +90,7 @@ func (a *AWSSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateRe
 	res, err = a.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
 		Signature: string(signature),
 		Document:  string(document),
+		AgentName: a.agentName,
 	})
 	if err != nil {
 		return AuthenticateResponse{}, err
