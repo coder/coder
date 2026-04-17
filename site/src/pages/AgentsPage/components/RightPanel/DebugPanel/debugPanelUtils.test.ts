@@ -87,7 +87,7 @@ describe("coerceStepResponse", () => {
 					type: "tool_input",
 					tool_call_id: "call-42",
 					tool_name: "search_docs",
-					arguments: '{"query":"fo',
+					arguments: '{"query":"f',
 				},
 				{
 					type: "tool_call",
