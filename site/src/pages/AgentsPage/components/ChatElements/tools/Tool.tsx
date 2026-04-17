@@ -386,19 +386,20 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	// Prefer the agent's server-side diffs when present (they carry
-	// full file context). When the server returns per-file results
-	// but a specific file's path doesn't match any entry, fall back
-	// to the synthetic client-side diff for that file rather than
-	// rendering nothing. Older agents (or IncludeDiff=false) omit
-	// the results entirely and we synth for every file.
+	// On error, render no diff: the agent rejected the edit, so a
+	// synthetic args-derived diff would misrepresent it as applied.
+	// Otherwise prefer the server-side diff per file, falling back
+	// to the synthetic one when the server omits the file (older
+	// agents, IncludeDiff=false, or a path mismatch).
 	const serverResults = parseServerEditResults(result);
-	const editDiffs = editFiles.map((file) => {
-		const entry = serverResults?.find((d) => d.path === file.path);
-		return entry
-			? parseServerEditDiffText(entry.diff)
-			: buildEditDiff(file.path, file.edits);
-	});
+	const editDiffs = isError
+		? editFiles.map(() => null)
+		: editFiles.map((file) => {
+				const entry = serverResults?.find((d) => d.path === file.path);
+				return entry
+					? parseServerEditDiffText(entry.diff)
+					: buildEditDiff(file.path, file.edits);
+			});
 
 	return (
 		<EditFilesTool

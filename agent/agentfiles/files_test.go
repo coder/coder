@@ -1763,8 +1763,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 func runEditFiles(t *testing.T, api *agentfiles.API, req workspacesdk.FileEditRequest) workspacesdk.FileEditResponse {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	buf := bytes.NewBuffer(nil)
 	enc := json.NewEncoder(buf)
@@ -1868,16 +1867,41 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			edits:    []edit{{search: "bar", replace: "BAR"}},
 			expected: "foo\nBAR",
 		},
-		// CRLF content, tab-indented; space-indented LF
-		// search and replace match on content via pass 3,
-		// agree on leading whitespace (both "  ") so file's
-		// "\t" wins, agree on ending (both "\n") so file's
-		// "\r\n" wins.
+		// Indent-tolerant matching on a CRLF file: search and
+		// replace disagree with the file on indent, so passes 1
+		// and 2 fail; pass 3 (TrimSpace) matches on body. The
+		// splice then decides each position by whether search
+		// and replace agree with each other. These three cases
+		// vary the caller-side whitespace to enumerate the
+		// mechanism:
+		//
+		//   - when the caller agrees with itself on leading
+		//     whitespace, the file's tab wins regardless of
+		//     the space count on the caller side;
+		//   - when the caller disagrees with itself (search
+		//     leads with one thing, replace with another), the
+		//     replacement's leading whitespace wins. That's the
+		//     escape hatch for intentional indent rewrites.
+		//
+		// Endings always agree (both newline-class), so the
+		// file's "\r\n" wins at every emitted line.
 		{
-			name:     "IndentTolerant_CRLF_FileWhitespaceWins",
+			name:     "FuzzyIndent_CRLF_TwoSpaceSearch_FileTabWins",
 			content:  "foo\r\n\tline\r\nbar\r\n",
 			edits:    []edit{{search: "  line\n", replace: "  LINE\n"}},
 			expected: "foo\r\n\tLINE\r\nbar\r\n",
+		},
+		{
+			name:     "FuzzyIndent_CRLF_SevenSpaceSearch_FileTabStillWins",
+			content:  "foo\r\n\tline\r\nbar\r\n",
+			edits:    []edit{{search: "       line\n", replace: "       LINE\n"}},
+			expected: "foo\r\n\tLINE\r\nbar\r\n",
+		},
+		{
+			name:     "FuzzyIndent_CRLF_CallerRewritesIndent_ReplaceLeadingWins",
+			content:  "foo\r\n\tline\r\nbar\r\n",
+			edits:    []edit{{search: "  line\n", replace: "    LINE\n"}},
+			expected: "foo\r\n    LINE\r\nbar\r\n",
 		},
 
 		// Replace-all must run through the same per-position
@@ -1961,10 +1985,10 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			expected: "foo\r\nKEY\r\nbar\r\n",
 		},
 
-		// DEREM-3: multi-line replacement at EOF without trailing
-		// newline. The reference content line at the last index
-		// has cEnd="", but interior replacement lines must keep
-		// their "\n" rather than inherit the empty ending.
+		// Multi-line replacement at EOF without trailing newline.
+		// The reference content line at the last index has
+		// cEnd="", but interior replacement lines must keep their
+		// "\n" rather than inherit the empty ending.
 		{
 			name:     "MultiLineReplaceAtEOFNoNewline_InteriorLinesKeepNewline",
 			content:  "foo\nbar",
@@ -1972,9 +1996,9 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			expected: "foo\nbaz\nqux",
 		},
 
-		// DEREM-10: empty replacement body must not inherit the
-		// file's surrounding whitespace. Search forces the fuzzy
-		// path via trimming; replace is a single blank line.
+		// Empty replacement body must not inherit the file's
+		// surrounding whitespace. Search forces the fuzzy path
+		// via trimming; replace is a single blank line.
 		{
 			name:     "EmptyBodyFuzzyReplace_NoWhitespaceGhost",
 			content:  "prefix\n  code  \nsuffix\n",
@@ -1985,9 +2009,9 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 		// Combined: multi-line replacement at EOF without a
 		// newline, with an interior empty-body line. Exercises
 		// both carve-outs in one splice: the empty-body line
-		// must not inherit file whitespace (DEREM-10) and
-		// interior lines must keep their newline even though
-		// the reference content line has cEnd="" (DEREM-3).
+		// must not inherit file whitespace, and interior lines
+		// must keep their newline even though the reference
+		// content line has cEnd="".
 		{
 			name:     "EmptyBodyInteriorAtEOFNoNewline_BothCarveOuts",
 			content:  "foo\nbar",
@@ -2017,8 +2041,7 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
 			}
 
-			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-			defer cancel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
 			enc.SetEscapeHTML(false)
@@ -2038,6 +2061,160 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 				require.Equal(t, tt.content, string(data))
 				return
 			}
+
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, string(data))
+		})
+	}
+}
+
+// TestFuzzyReplace_EndingNormalization pins the line-ending rule.
+//
+// Rule: every spliced line gets the file's dominant ending, except
+// when the caller signaled intent by making search and replace
+// disagree on internal endings (both non-empty, different). Intent
+// requires pass 1 to byte-match the file's endings; if it does,
+// replace's endings are honored per-line. When only one side has
+// internal endings (single-line vs. multi-line), the file wins.
+//
+// No-EOL at EOF is preserved: the final spliced line keeps its
+// ending, so a match covering the file's last line does not
+// materialize a newline the file never had.
+func TestFuzzyReplace_EndingNormalization(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+		replaceAll      bool
+	}
+	tests := []struct {
+		name     string
+		content  string
+		edits    []edit
+		expected string
+	}{
+		// CRLF file, LF search, LF replace with expansion.
+		// Internal endings agree (both LF), rule fires, every
+		// spliced line becomes CRLF.
+		{
+			name:     "CRLFFile_LFSearchReplace_Expansion",
+			content:  "line1\r\nline2\r\nline3\r\n",
+			edits:    []edit{{search: "line1\nline2\n", replace: "line1\nINSERTED\nline2\n"}},
+			expected: "line1\r\nINSERTED\r\nline2\r\nline3\r\n",
+		},
+		// CRLF file with no trailing newline, LF search/replace
+		// with expansion that covers the file's last line. Interior
+		// spliced lines become CRLF; final spliced line preserves
+		// the file's no-EOL property.
+		{
+			name:     "CRLFFileNoEOL_LFSearchReplace_ExpansionAtEOF",
+			content:  "alpha\r\nbeta\r\ngamma",
+			edits:    []edit{{search: "gamma", replace: "gamma\ndelta\nepsilon"}},
+			expected: "alpha\r\nbeta\r\ngamma\r\ndelta\r\nepsilon",
+		},
+		// CRLF Go file with no final newline; LLM sends LF
+		// search/replace that expands the function body. This is
+		// the motivating real-world case for the rule.
+		{
+			name:     "CRLFFileNoEOL_LFCallerExpandsFunctionBody",
+			content:  "package main\r\n\r\nfunc main() {\r\n\tprintln(\"hi\")\r\n}",
+			edits:    []edit{{search: "\tprintln(\"hi\")\n}", replace: "\tprintln(\"hi\")\n\tprintln(\"bye\")\n\treturn\n}"}},
+			expected: "package main\r\n\r\nfunc main() {\r\n\tprintln(\"hi\")\r\n\tprintln(\"bye\")\r\n\treturn\r\n}",
+		},
+		// LF file, CRLF search/replace (caller sent CRLF, file is
+		// LF). Internal endings agree (both CRLF). Rule fires, the
+		// file's LF wins.
+		{
+			name:     "LFFile_CRLFSearchReplace_FileLFWins",
+			content:  "one\ntwo\nthree\n",
+			edits:    []edit{{search: "one\r\ntwo\r\n", replace: "ONE\r\nTWO\r\n"}},
+			expected: "ONE\nTWO\nthree\n",
+		},
+		// Caller got endings right: CRLF in search, replace, and file.
+		// Pins that normalization doesn't regress this happy path.
+		{
+			name:     "CRLFFile_CRLFSearchReplace_SanityPreserved",
+			content:  "a\r\nb\r\nc\r\n",
+			edits:    []edit{{search: "a\r\nb\r\n", replace: "A\r\nB\r\n"}},
+			expected: "A\r\nB\r\nc\r\n",
+		},
+		// ReplaceAll with expansion on a CRLF file via LF caller.
+		// Every spliced region must be CRLF throughout.
+		{
+			name:    "ReplaceAll_CRLFFile_LFCaller_Expansion",
+			content: "key\r\nother\r\nkey\r\n",
+			edits: []edit{{
+				search:     "key\n",
+				replace:    "KEY\nEXTRA\n",
+				replaceAll: true,
+			}},
+			expected: "KEY\r\nEXTRA\r\nother\r\nKEY\r\nEXTRA\r\n",
+		},
+		// Caller sent CRLF search and LF replace against a CRLF
+		// file. Different ending styles between search and replace
+		// signal caller intent to change endings. Search's CRLF
+		// byte-matches the file's CRLF, so the match succeeds and
+		// replace's LF endings are honored per-line. The untouched
+		// trailing line keeps its CRLF.
+		{
+			name:     "CallerIntent_SearchMatchesFile_ReplaceEndingsHonored",
+			content:  "x\r\ny\r\nz\r\n",
+			edits:    []edit{{search: "x\r\ny\r\n", replace: "X\nY\n"}},
+			expected: "X\nY\nz\r\n",
+		},
+		// Single-line search against a CRLF file, multi-line
+		// replace. Search has no endings, so no caller intent is
+		// signaled and the file's CRLF wins for every spliced line.
+		{
+			name:     "SingleLineSearch_MultiLineReplace_FileEndingWins",
+			content:  "a\r\nx\r\nb\r\n",
+			edits:    []edit{{search: "x", replace: "X\nY"}},
+			expected: "a\r\nX\r\nY\r\nb\r\n",
+		},
+		// Trivial baseline: neither side has endings, nothing to
+		// normalize.
+		{
+			name:     "SingleLineSearch_SingleLineReplace_NoEndingsToNormalize",
+			content:  "a\r\nx\r\nb\r\n",
+			edits:    []edit{{search: "x", replace: "X"}},
+			expected: "a\r\nX\r\nb\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "endnorm-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
+			for _, e := range tt.edits {
+				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
+					Search:     e.search,
+					Replace:    e.replace,
+					ReplaceAll: e.replaceAll,
+				})
+			}
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
 
 			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 			data, err := afero.ReadFile(fs, path)
@@ -2179,8 +2356,7 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 				}},
 			}
 
-			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-			defer cancel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
 			enc.SetEscapeHTML(false)
@@ -2289,6 +2465,16 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			edits:   []edit{{search: "above\nbelow\n", replace: "above\nbelow\n"}},
 			errSub:  "search string not found",
 		},
+		// Search/replace disagreement signals intent to rewrite
+		// endings; search must byte-match the file's. LF search
+		// against CRLF file fails pass 1 and must reject rather
+		// than fall through to pass 2's CRLF/LF interchange.
+		{
+			name:    "CallerIntent_SearchDoesNotMatchFileEnding_Rejects",
+			content: "x\r\ny\r\nz\r\n",
+			edits:   []edit{{search: "x\ny\n", replace: "X\r\nY\r\n"}},
+			errSub:  "search string not found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2312,8 +2498,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
 			}
 
-			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-			defer cancel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
 			enc.SetEscapeHTML(false)
@@ -2334,4 +2519,127 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			require.Equal(t, tt.content, string(data))
 		})
 	}
+}
+
+// TestEditFiles_DuplicatePath_Rejects pins that duplicate paths in
+// one request are rejected with 400 and the file on disk is
+// unchanged. The pre-fix behavior silently dropped the first
+// entry's edits while reporting success (last write wins).
+func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "dup-path")
+	original := "one\ntwo\nthree\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
+			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	require.ErrorContains(t, got, "duplicate file path")
+
+	// File on disk must be untouched: no partial edits.
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, original, string(data))
+}
+
+// TestEditFiles_ReplaceAll_FuzzyIndentGap locks the CURRENT output
+// of a known foot-gun, it doesn't bless it.
+//
+// Gap: replace_all plus a pass-3 (indent-agnostic) match hits every
+// nesting level whose body matches after TrimSpace. A caller aiming
+// at one block silently edits the same pattern at other depths.
+// The per-position splice preserves each match's local indent, so
+// the output is syntactically fine — the foot-gun is that wrong
+// SITES get edited.
+//
+// The right fix is a caller-side opt-out from fuzzy matching, out
+// of scope for this PR. When that lands, update the test to assert
+// the new behavior.
+func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "replaceall-fuzzyindent-gap")
+
+	// File is tab-indented Go, with `if err != nil { return err }`
+	// at two nesting levels (2 tabs and 3 tabs). Caller sends a
+	// 4-space-indented search/replace pair with replace_all=true.
+	// Pass 1 fails (no 4-space prefix in file). Pass 2 fails (trim
+	// right doesn't touch leading whitespace). Pass 3 (TrimSpace)
+	// matches at BOTH depths. Current behavior: replace both.
+	content := "package main\n\nfunc a() {\n" +
+		"\t\tif err != nil {\n" +
+		"\t\t\treturn err\n" +
+		"\t\t}\n" +
+		"\t\t\tif err != nil {\n" +
+		"\t\t\t\treturn err\n" +
+		"\t\t\t}\n" +
+		"}\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(content), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path: path,
+			Edits: []workspacesdk.FileEdit{{
+				Search: "    if err != nil {\n" +
+					"        return err\n" +
+					"    }\n",
+				Replace: "    if err != nil {\n" +
+					"        return fmt.Errorf(\"wrap: %w\", err)\n" +
+					"    }\n",
+				ReplaceAll: true,
+			}},
+		}},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	// Both depths got edited. The per-position splice preserved each
+	// site's local indent, so output is syntactically fine — just
+	// edited at two places, only one of which the caller likely
+	// intended.
+	expected := "package main\n\nfunc a() {\n" +
+		"\t\tif err != nil {\n" +
+		"\t\t\treturn fmt.Errorf(\"wrap: %w\", err)\n" +
+		"\t\t}\n" +
+		"\t\t\tif err != nil {\n" +
+		"\t\t\t\treturn fmt.Errorf(\"wrap: %w\", err)\n" +
+		"\t\t\t}\n" +
+		"}\n"
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, expected, string(data))
 }

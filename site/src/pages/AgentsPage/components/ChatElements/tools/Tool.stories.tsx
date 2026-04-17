@@ -872,6 +872,13 @@ export const EditFilesError: Story = {
 		},
 		result: { error: "File not found" },
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		// On error, no diff body: the synthetic fallback would
+		// misrepresent a rejected edit as applied.
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
 };
 
 /**
@@ -923,13 +930,9 @@ export const EditFilesServerDiffMultiFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-		// Both server-supplied diffs must parse into a diff viewer.
-		// Each rendered (non-null) diff is wrapped in a ScrollArea
-		// with text-2xs; counting them pins the server → diff
-		// mapping. The underlying <FileDiff /> component is a web
-		// component, so its inner text isn't queryable from jsdom.
-		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
-		expect(diffAreas).toHaveLength(2);
+		// Both server diffs must render. FileDiff's internals aren't
+		// queryable from jsdom; count the testid'd wrappers instead.
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
 	},
 };
 
@@ -963,9 +966,8 @@ export const EditFilesServerDiffNoOp: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
 		// Empty server diff parses to null; the renderer then skips
-		// the ScrollArea for this file. Zero diff viewers rendered.
-		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
-		expect(diffAreas).toHaveLength(0);
+		// the diff viewer for this file.
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
 	},
 };
 
@@ -997,11 +999,8 @@ export const EditFilesFallbackToSynthetic: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
-		// Synthetic fallback path must still produce a non-null
-		// diff; the single ScrollArea wrapper proves buildEditDiff
-		// returned a FileDiffMetadata.
-		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
-		expect(diffAreas).toHaveLength(1);
+		// Synthetic fallback: buildEditDiff produced one diff.
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
 	},
 };
 
@@ -1052,12 +1051,9 @@ export const EditFilesServerDiffPartialFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-		// Two diff viewers must render: one from the server-supplied
-		// entry for src/config.ts, and one from the synthetic
-		// fallback for src/server.ts (no server entry). Before the
-		// per-file fallback, the second file rendered nothing.
-		const diffAreas = canvasElement.querySelectorAll(".rounded-md.text-2xs");
-		expect(diffAreas).toHaveLength(2);
+		// Two diffs: server entry for config.ts, synthetic fallback
+		// for server.ts (which had no entry).
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
 	},
 };
 

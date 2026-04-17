@@ -385,6 +385,20 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Duplicate entries both read the same file and race to write;
+	// the first entry's edits are silently lost. Callers must put
+	// multiple edits on one file into a single entry's Edits slice.
+	seenPaths := make(map[string]struct{}, len(req.Files))
+	for _, f := range req.Files {
+		if _, dup := seenPaths[f.Path]; dup {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("duplicate file path %q: combine edits into a single entry's \"edits\" list", f.Path),
+			})
+			return
+		}
+		seenPaths[f.Path] = struct{}{}
+	}
+
 	// Phase 1: compute all edits in memory. If any file fails
 	// (bad path, search miss, permission error), bail before
 	// writing anything.
@@ -618,6 +632,75 @@ func isNewlineEnding(s string) bool {
 	return s == "\n" || s == "\r\n"
 }
 
+// internalLineEnding returns the shared line ending used across
+// lines[:-1], or ("", false) if they disagree or any is empty.
+// The last line's ending is ignored (may be EOF-no-newline).
+func internalLineEnding(lines []string) (string, bool) {
+	if len(lines) < 2 {
+		return "", false
+	}
+	var want string
+	for i, l := range lines {
+		isLast := i == len(lines)-1
+		_, e := splitEnding(l)
+		if isLast && e == "" {
+			continue
+		}
+		if e == "" {
+			return "", false
+		}
+		if want == "" {
+			want = e
+			continue
+		}
+		if e != want {
+			return "", false
+		}
+	}
+	return want, want != ""
+}
+
+// dominantFileEnding returns CRLF if CRLF endings outnumber LF in
+// contentLines, LF otherwise (including ties and ending-less files).
+func dominantFileEnding(contentLines []string) string {
+	var crlf, lf int
+	for _, l := range contentLines {
+		switch {
+		case strings.HasSuffix(l, "\r\n"):
+			crlf++
+		case strings.HasSuffix(l, "\n"):
+			lf++
+		}
+	}
+	if crlf > lf {
+		return "\r\n"
+	}
+	return "\n"
+}
+
+// rewriteInternalEnding returns lines concatenated with every
+// non-last line's ending replaced by ending; the last line keeps
+// its original ending. Used before pass 1 splicing to normalize
+// the replacement to the file's ending style.
+func rewriteInternalEnding(lines []string, ending string) string {
+	var b strings.Builder
+	for i, l := range lines {
+		body, e := splitEnding(l)
+		_, _ = b.WriteString(body)
+		isLast := i == len(lines)-1
+		switch {
+		case isLast:
+			_, _ = b.WriteString(e)
+		case e == "":
+			// Non-last line without ending is only legal at EOF;
+			// leave the caller's shape alone.
+		default:
+			_, _ = b.WriteString(ending)
+		}
+	}
+	return b.String()
+}
+
 // splitLineParts decomposes a line into its leading whitespace
 // (spaces and tabs only), middle body, trailing whitespace
 // (spaces and tabs only), and line ending. Used by the fuzzy
@@ -678,7 +761,11 @@ func endingShapeEqual(a, b string) bool {
 //     without newline) and this is not the last replacement line,
 //     the replacement's newline is preserved. Otherwise a multi-
 //     line replacement at EOF collapses its interior newlines.
-func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace string) string {
+//
+// When forcedEnding is non-empty, interior emitted lines use it
+// instead of the per-position rule; the final line still uses the
+// per-position rule so no-EOL-at-EOF is preserved.
+func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string) string {
 	repLines := strings.SplitAfter(replace, "\n")
 	// SplitAfter on a string ending in "\n" yields a trailing empty
 	// element. Drop it so it doesn't pair with a phantom line.
@@ -691,15 +778,6 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 		// All call sites pass end = start + len(searchLines), so
 		// len(matched) == len(searchLines). refIdx is bounded by
 		// len(searchLines)-1, so matched[refIdx] is always valid.
-		//
-		// Known limitation: when len(repLines) > len(searchLines)
-		// (expansion), extra replacement lines pair with the last
-		// search/content line by index. If that last pair has an
-		// empty ending (EOF-no-newline), the splice flags below
-		// will emit rEnd for each expansion line, which can mix
-		// endings on CRLF files. A correct fix requires diff-
-		// aligning search and replace lines instead of relying on
-		// index correspondence. Tracked as a follow-up.
 		refIdx := min(i, len(searchLines)-1)
 		refContent := matched[refIdx]
 		sLead, _, sTrail, sEnd := splitLineParts(searchLines[refIdx])
@@ -725,6 +803,10 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 			if cEnd == "" && i < len(repLines)-1 {
 				ending = rEnd
 			}
+		}
+		// Ending-normalization override (see godoc).
+		if forcedEnding != "" && i < len(repLines)-1 {
+			ending = forcedEnding
 		}
 
 		_, _ = b.WriteString(lead)
@@ -766,10 +848,46 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 			"text you want to match")
 	}
 
-	// Pass 1 – exact substring match.
+	// Split up front so the ending-normalization rule can inspect
+	// all three before any matching pass.
+	contentLines := strings.SplitAfter(content, "\n")
+	searchLines := strings.SplitAfter(search, "\n")
+	// A trailing newline in the search produces an empty final element
+	// from SplitAfter. Drop it so it doesn't interfere with line
+	// matching.
+	if len(searchLines) > 0 && searchLines[len(searchLines)-1] == "" {
+		searchLines = searchLines[:len(searchLines)-1]
+	}
+	replaceLines := strings.SplitAfter(replace, "\n")
+	if len(replaceLines) > 0 && replaceLines[len(replaceLines)-1] == "" {
+		replaceLines = replaceLines[:len(replaceLines)-1]
+	}
+
+	// Ending normalization. If replace has a consistent internal
+	// ending, force every spliced interior line to the file's
+	// dominant ending. If search also has a consistent internal
+	// ending and it disagrees with replace's, the caller signaled
+	// intent to rewrite endings; restrict the match to pass 1 so
+	// CRLF/LF interchange at pass 2 can't silently bridge a search
+	// that doesn't actually occur in the file.
+	var forcedEnding string
+	searchInternal, searchOK := internalLineEnding(searchLines)
+	replaceInternal, replaceOK := internalLineEnding(replaceLines)
+	if replaceOK {
+		forcedEnding = dominantFileEnding(contentLines)
+	}
+	callerEndingIntent := searchOK && replaceOK && searchInternal != replaceInternal
+
+	// Pass 1 – exact substring match. Normalize replace's interior
+	// endings to the file's style unless the caller's search/replace
+	// disagreement signaled intent to rewrite endings.
+	pass1Replace := replace
+	if forcedEnding != "" && !callerEndingIntent && replaceInternal != forcedEnding {
+		pass1Replace = rewriteInternalEnding(replaceLines, forcedEnding)
+	}
 	if strings.Contains(content, search) {
 		if edit.ReplaceAll {
-			return strings.ReplaceAll(content, search, replace), nil
+			return strings.ReplaceAll(content, search, pass1Replace), nil
 		}
 		count := strings.Count(content, search)
 		if count > 1 {
@@ -779,19 +897,15 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 				"replace_all to true", count)
 		}
 		// Exactly one match.
-		return strings.Replace(content, search, replace, 1), nil
+		return strings.Replace(content, search, pass1Replace, 1), nil
 	}
 
-	// For line-level fuzzy matching we split both content and search
-	// into lines.
-	contentLines := strings.SplitAfter(content, "\n")
-	searchLines := strings.SplitAfter(search, "\n")
-
-	// A trailing newline in the search produces an empty final element
-	// from SplitAfter. Drop it so it doesn't interfere with line
-	// matching.
-	if len(searchLines) > 0 && searchLines[len(searchLines)-1] == "" {
-		searchLines = searchLines[:len(searchLines)-1]
+	if callerEndingIntent {
+		// Intent signaled but pass 1 missed; reject rather than let
+		// pass 2's CRLF/LF interchange bridge a mismatched search.
+		return "", xerrors.New("search string not found in file. Verify the search " +
+			"string matches the file content exactly, including whitespace, " +
+			"indentation, and line endings")
 	}
 
 	trimRight := func(a, b string) bool {
@@ -808,14 +922,14 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	}
 
 	// Pass 2 – trim trailing whitespace on each line.
-	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimRight, edit.ReplaceAll); matched {
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimRight, edit.ReplaceAll, forcedEnding); matched {
 		return result, err
 	}
 
 	// Pass 3 – trim all leading and trailing whitespace
 	// (indentation-tolerant). The replacement is inserted verbatim;
 	// callers must provide correctly indented replacement text.
-	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimAll, edit.ReplaceAll); matched {
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimAll, edit.ReplaceAll, forcedEnding); matched {
 		return result, err
 	}
 
@@ -881,6 +995,7 @@ func fuzzyReplaceLines(
 	replace string,
 	eq func(a, b string) bool,
 	replaceAll bool,
+	forcedEnding string,
 ) (string, bool, error) {
 	start, end, ok := seekLines(contentLines, searchLines, eq)
 	if !ok {
@@ -898,7 +1013,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[:start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding))
 		for _, l := range contentLines[end:] {
 			_, _ = b.WriteString(l)
 		}
@@ -934,7 +1049,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[prev:m.start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding))
 		prev = m.end
 	}
 	for _, l := range contentLines[prev:] {
