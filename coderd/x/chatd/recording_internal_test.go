@@ -88,6 +88,7 @@ func createComputerUseParentChild(
 		LastModelConfigID: model.ID,
 		Title:             parentTitle,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
 	})
 	require.NoError(t, err)
 
@@ -105,6 +106,7 @@ func createComputerUseParentChild(
 		Title:             childTitle,
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
 	})
 	require.NoError(t, err)
 

@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, type PropsWithChildren, useEffect } from "react";
+import { useQueryClient } from "react-query";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import type { Organization } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	MockDefaultOrganization,
@@ -8,6 +11,13 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "chat" }, action: "create" },
+];
 
 const modelConfigID = "model-config-1";
 
@@ -231,6 +241,7 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 					fileName: "photo.png",
 					fileType: "image/png",
 					lastModified: 1000,
+					organizationId: "my-organization-id",
 				},
 			]),
 		);
@@ -319,6 +330,27 @@ export const WithOrganizationPicker: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Verify the org picker rendered (component didn't crash).
+		await waitFor(() => {
+			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		});
+		// Type into the chat input to trigger re-renders. If the
+		// permittedOrgs fallback is referentially unstable, this
+		// causes a render cascade that hits React's update limit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("hello world");
+		// The org picker should still be present after typing.
+		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
 	},
 };
 
@@ -379,5 +411,130 @@ export const ForbiddenNoAgentsRole: Story = {
 		// accidentally trigger the generic error.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+/**
+ * Reproduces a bug where the org dropdown disappears and the form submits
+ * with an empty organization_id. When permittedOrganizations() resolves
+ * asynchronously with fewer orgs than the dashboard provides, the
+ * reconciliation logic can null out selectedOrg.
+ *
+ * This story simulates the async resolution by NOT pre-seeding the
+ * permitted orgs query. Instead, a wrapper component sets the query
+ * data after mount (mimicking the real async fetch). The play function
+ * then submits the form and asserts that onCreateChat receives a
+ * non-empty organizationId.
+ */
+const DelayedPermittedOrgsWrapper: FC<
+	PropsWithChildren<{ delayedOrgs: Organization[] }>
+> = ({ delayedOrgs, children }) => {
+	const queryClient = useQueryClient();
+	useEffect(() => {
+		// Simulate the permittedOrganizations query resolving after
+		// the initial render, which causes the fallback-to-data
+		// transition that triggers the reconciliation bug.
+		const timer = setTimeout(() => {
+			queryClient.setQueryData(permittedOrgsKey, delayedOrgs);
+		}, 50);
+		return () => clearTimeout(timer);
+	}, [queryClient, delayedOrgs]);
+	return <>{children}</>;
+};
+
+export const PermittedOrgsResolvesToEmpty: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		// Deliberately NOT pre-seeding permittedOrgsKey — the
+		// wrapper sets it after mount to simulate async resolution.
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	decorators: [
+		(Story) => (
+			<DelayedPermittedOrgsWrapper delayedOrgs={[]}>
+				<Story />
+			</DelayedPermittedOrgsWrapper>
+		),
+	],
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the async permitted orgs resolution to take effect
+		// and for the component to stabilize. The org picker should
+		// disappear since permittedOrgs is empty.
+		await waitFor(
+			() => {
+				expect(
+					canvas.queryByTestId("compact-org-selector"),
+				).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
+
+		// Type a message and submit the form.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Verify onCreateChat was called with a non-empty organizationId.
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const call = (args.onCreateChat as ReturnType<typeof fn>).mock.calls[0];
+		const options = call[0] as { organizationId: string };
+		expect(options.organizationId).not.toBe("");
+		// It should fall back to the default org from the dashboard.
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+	},
+};
+
+export const PermittedOrgsResolvesToSubset: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	decorators: [
+		(Story) => (
+			<DelayedPermittedOrgsWrapper delayedOrgs={[MockOrganization2]}>
+				<Story />
+			</DelayedPermittedOrgsWrapper>
+		),
+	],
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for async resolution. With only one permitted org,
+		// the picker should disappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.queryByTestId("compact-org-selector"),
+				).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
+
+		// Type a message and submit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Verify onCreateChat was called with the only permitted org.
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const call = (args.onCreateChat as ReturnType<typeof fn>).mock.calls[0];
+		const options = call[0] as { organizationId: string };
+		expect(options.organizationId).toBe(MockOrganization2.id);
 	},
 };

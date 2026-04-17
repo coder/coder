@@ -46,6 +46,21 @@ ORDER BY
     cmc.updated_at DESC,
     cmc.id DESC;
 
+-- name: GetEnabledChatModelConfigByID :one
+SELECT
+    cmc.*
+FROM
+    chat_model_configs cmc
+-- Providers can be disabled independently of their model configs.
+-- Check both to ensure the selected config is actually usable.
+JOIN
+    chat_providers cp ON cp.provider = cmc.provider
+WHERE
+    cmc.id = @id::uuid
+    AND cmc.deleted = FALSE
+    AND cmc.enabled = TRUE
+    AND cp.enabled = TRUE;
+
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
     provider,

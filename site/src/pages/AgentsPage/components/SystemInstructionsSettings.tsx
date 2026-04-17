@@ -5,10 +5,15 @@ import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { AdminBadge } from "./AdminBadge";
+import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "./TemporarySavedState";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 interface MutationCallbacks {
@@ -22,6 +27,7 @@ interface SystemInstructionsSettingsProps {
 		req: TypesGen.UpdateChatSystemPromptRequest,
 		options?: MutationCallbacks,
 	) => void;
+	isSavingSystemPrompt: boolean;
 	isSaveSystemPromptError: boolean;
 	isAnyPromptSaving: boolean;
 }
@@ -31,6 +37,7 @@ export const SystemInstructionsSettings: FC<
 > = ({
 	systemPromptData,
 	onSaveSystemPrompt,
+	isSavingSystemPrompt,
 	isSaveSystemPromptError,
 	isAnyPromptSaving,
 }) => {
@@ -38,6 +45,7 @@ export const SystemInstructionsSettings: FC<
 		useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const hasLoadedSystemPrompt = systemPromptData !== undefined;
 	const defaultSystemPrompt = systemPromptData?.default_system_prompt ?? "";
@@ -52,6 +60,7 @@ export const SystemInstructionsSettings: FC<
 		onSubmit: (values, { resetForm }) => {
 			onSaveSystemPrompt(values, {
 				onSuccess: () => {
+					showSavedState();
 					resetForm();
 				},
 			});
@@ -65,9 +74,9 @@ export const SystemInstructionsSettings: FC<
 
 	return (
 		<>
-			<form className="space-y-2" onSubmit={form.handleSubmit}>
+			<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 				<div className="flex items-center gap-2">
-					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						System Instructions
 					</h3>
 					<AdminBadge />
@@ -102,7 +111,7 @@ export const SystemInstructionsSettings: FC<
 				</p>
 				<TextareaAutosize
 					className={cn(
-						"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+						"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
 						isSystemPromptOverflowing &&
 							"overflow-y-auto [scrollbar-width:thin]",
 					)}
@@ -125,25 +134,38 @@ export const SystemInstructionsSettings: FC<
 						</AlertDescription>
 					</Alert>
 				)}
-				<div className="flex justify-end gap-2">
-					<Button
-						size="sm"
-						variant="outline"
-						type="button"
-						onClick={() => form.setFieldValue("system_prompt", "")}
-						disabled={isSystemPromptDisabled || !form.values.system_prompt}
-					>
-						Clear
-					</Button>
-					<Button
-						size="sm"
-						type="submit"
-						disabled={
-							isSystemPromptDisabled || !(form.dirty && hasLoadedSystemPrompt)
-						}
-					>
-						Save
-					</Button>
+				<div className="mt-2 flex min-h-6 justify-end gap-2">
+					{(form.dirty || isSavedVisible || isSavingSystemPrompt) &&
+						(isSavedVisible ? (
+							<TemporarySavedState />
+						) : (
+							<>
+								<Button
+									size="xs"
+									variant="outline"
+									type="button"
+									onClick={() => form.setFieldValue("system_prompt", "")}
+									disabled={
+										isSystemPromptDisabled || !form.values.system_prompt
+									}
+								>
+									Clear
+								</Button>
+								<Button
+									size="xs"
+									type="submit"
+									disabled={
+										isSystemPromptDisabled ||
+										!(form.dirty && hasLoadedSystemPrompt)
+									}
+								>
+									{isSavingSystemPrompt && (
+										<Spinner loading className="h-4 w-4" />
+									)}
+									Save
+								</Button>
+							</>
+						))}
 				</div>
 				{isSaveSystemPromptError && (
 					<p className="m-0 text-xs text-content-destructive">

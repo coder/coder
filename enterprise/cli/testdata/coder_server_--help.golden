@@ -101,6 +101,10 @@ OPTIONS:
           check is performed once per day.
 
 AI BRIDGE OPTIONS: 
+      --aibridge-allow-byok bool, $CODER_AIBRIDGE_ALLOW_BYOK (default: true)
+          Allow users to provide their own LLM API keys or subscriptions. When
+          disabled, only centralized key authentication is permitted.
+
       --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
           The base URL of the Anthropic API.
 

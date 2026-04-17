@@ -710,6 +710,24 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 	return nil
 }
 
+// BuildInfo registers a gauge which is always set to 1, with labels
+// describing the running server version. This follows the common
+// pattern used by Prometheus itself and many Go services.
+func BuildInfo(registerer prometheus.Registerer, version, revision string) error {
+	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "build_info",
+		Help:      "Describes the current build/version of the Coder server. Value is always 1.",
+	}, []string{"version", "revision"})
+	if err := registerer.Register(gauge); err != nil {
+		return err
+	}
+
+	gauge.WithLabelValues(version, revision).Set(1)
+
+	return nil
+}
+
 // filterAcceptableAgentLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
 // which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
 // and therefore we have to exclude it from the list of acceptable labels.

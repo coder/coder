@@ -1252,6 +1252,18 @@
 									"state": ["early access"]
 								},
 								{
+									"title": "Git Providers",
+									"description": "Git provider configuration for the diff viewer and PR Insights",
+									"path": "./ai-coder/agents/platform-controls/git-providers.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "PR Insights",
+									"description": "Pull request analytics for Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/pr-insights.md",
+									"state": ["early access"]
+								},
+								{
 									"title": "Data Retention",
 									"description": "Automatic cleanup of old conversation data",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
@@ -2015,6 +2027,31 @@
 							"title": "schedule stop",
 							"description": "Edit workspace stop schedule",
 							"path": "reference/cli/schedule_stop.md"
+						},
+						{
+							"title": "secret",
+							"description": "Manage secrets",
+							"path": "reference/cli/secret.md"
+						},
+						{
+							"title": "secret create",
+							"description": "Create a secret",
+							"path": "reference/cli/secret_create.md"
+						},
+						{
+							"title": "secret update",
+							"description": "Update a secret",
+							"path": "reference/cli/secret_update.md"
+						},
+						{
+							"title": "secret list",
+							"description": "List secrets, or show one by name",
+							"path": "reference/cli/secret_list.md"
+						},
+						{
+							"title": "secret delete",
+							"description": "Delete a secret",
+							"path": "reference/cli/secret_delete.md"
 						},
 						{
 							"title": "server",

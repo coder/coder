@@ -209,6 +209,12 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			want:     ptr.Ref(string(fantasyanthropic.EffortMax)),
 		},
 		{
+			name:     "AnthropicXHighEffort",
+			provider: "anthropic",
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyanthropic.EffortXHigh)),
+		},
+		{
 			name:     "OpenRouterEffort",
 			provider: "openrouter",
 			input:    ptr.Ref("medium"),

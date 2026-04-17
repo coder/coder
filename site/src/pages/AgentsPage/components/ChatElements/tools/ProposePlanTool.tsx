@@ -1,7 +1,8 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
+import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
@@ -19,6 +20,7 @@ export const ProposePlanTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
+	onImplementPlan?: () => Promise<void> | void;
 }> = ({
 	content: inlineContent,
 	fileID,
@@ -26,6 +28,7 @@ export const ProposePlanTool: React.FC<{
 	status,
 	isError,
 	errorMessage,
+	onImplementPlan,
 }) => {
 	const hasInlineContent = (inlineContent?.trim().length ?? 0) > 0;
 	const fileQuery = useQuery({
@@ -54,6 +57,19 @@ export const ProposePlanTool: React.FC<{
 	const filename = (path || "PLAN.md").split("/").pop() || "PLAN.md";
 	const effectiveError = isError || Boolean(fetchError);
 	const effectiveErrorMessage = errorMessage || fetchError;
+	const hasDisplayContent = displayContent.trim().length > 0;
+	const implementPlanMutation = useMutation({
+		mutationFn: async () => {
+			if (!onImplementPlan) return;
+			await onImplementPlan();
+		},
+	});
+	const canImplementPlan =
+		status === "completed" &&
+		!effectiveError &&
+		!fetchLoading &&
+		hasDisplayContent &&
+		Boolean(onImplementPlan);
 
 	return (
 		<div className="w-full">
@@ -78,11 +94,39 @@ export const ProposePlanTool: React.FC<{
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
 			</div>
-			{displayContent ? (
+			{hasDisplayContent ? (
 				<>
 					<Response>{displayContent}</Response>
-					<div className="flex">
+					<div className="flex items-center gap-2">
 						<CopyButton text={displayContent} label="Copy plan" />
+						{canImplementPlan && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										type="button"
+										variant="subtle"
+										size="sm"
+										onClick={() => {
+											implementPlanMutation.mutate();
+										}}
+										disabled={
+											!canImplementPlan || implementPlanMutation.isPending
+										}
+										aria-label="Implement plan"
+									>
+										{implementPlanMutation.isPending ? (
+											<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+										) : (
+											<PlayIcon />
+										)}
+										{implementPlanMutation.isPending
+											? "Implementing..."
+											: "Implement"}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Implement plan</TooltipContent>
+							</Tooltip>
+						)}
 					</div>
 				</>
 			) : (

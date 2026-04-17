@@ -12,6 +12,8 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
+For provider configuration (admin), see [GitHub Copilot provider setup](../setup.md#github-copilot).
+
 ## Copilot CLI
 
 For installation instructions, see [GitHub Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/install-copilot-cli).

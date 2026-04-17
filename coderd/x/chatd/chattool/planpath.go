@@ -53,6 +53,26 @@ func PlanPathForChat(home string, chatID uuid.UUID) string {
 	)
 }
 
+func resolvePlanTurnPath(
+	ctx context.Context,
+	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
+) (string, error) {
+	if resolvePlanPath == nil {
+		return "", xerrors.New("chat-specific plan path resolver is not configured")
+	}
+
+	planPath, _, err := resolvePlanPath(ctx)
+	if err != nil {
+		return "", xerrors.Errorf("resolve chat-specific plan path: %w", err)
+	}
+	planPath = strings.TrimSpace(planPath)
+	if planPath == "" {
+		return "", xerrors.New("chat-specific plan path is empty")
+	}
+
+	return planPath, nil
+}
+
 // chatd consumes agent-normalized POSIX paths. Workspace agents are
 // expected to convert separators to forward slashes before these
 // helpers run.
