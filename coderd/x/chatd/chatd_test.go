@@ -644,11 +644,19 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Explore Mode as a delegated sub-agent."))
 	require.False(t, requestHasSystemSubstring(rootRequests[0], "You are in Explore Mode as a delegated sub-agent."))
 
-	allChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{OwnerID: user.UserID})
+	rootChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{OwnerID: user.UserID})
+	require.NoError(t, err)
+	rootIDs := make([]uuid.UUID, 0, len(rootChats))
+	for _, root := range rootChats {
+		rootIDs = append(rootIDs, root.Chat.ID)
+	}
+	childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
+		ParentIds: rootIDs,
+	})
 	require.NoError(t, err)
 	var exploreChildren []database.Chat
-	for _, candidate := range allChats {
-		if candidate.Chat.ParentChatID.Valid && candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
+	for _, candidate := range childRows {
+		if candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
 			exploreChildren = append(exploreChildren, candidate.Chat)
 		}
 	}

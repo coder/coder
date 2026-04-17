@@ -3889,6 +3889,23 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, childResult.Children)
 		require.Empty(t, childResult.Children)
+
+		// After archiving the family, fetching the archived root
+		// should still embed the cascaded archived children. The
+		// handler passes the parent's own Archived value as the
+		// filter (sql.NullBool{Bool: chat.Archived, Valid: true});
+		// a regression that hardcoded Bool: false would silently
+		// drop every child from the archived-root view while the
+		// active-root assertions above still pass.
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		archivedResult, err := client.GetChat(ctx, parentChat.ID)
+		require.NoError(t, err)
+		require.True(t, archivedResult.Archived, "root should be archived")
+		require.Len(t, archivedResult.Children, 1, "archived root should embed its archived child")
+		require.Equal(t, child.ID, archivedResult.Children[0].ID)
+		require.True(t, archivedResult.Children[0].Archived, "embedded child should be archived")
 	})
 }
 
