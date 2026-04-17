@@ -51,12 +51,12 @@ const LoginPage: FC = () => {
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
 	if (isSignedIn) {
-		// The reason we need `window.location.href` for api redirects is that
+		// The reason we need `location.href` for api redirects is that
 		// we need the page to reload and make a request to the backend. If we
 		// use `<Navigate>`, react would handle the redirect itself and never
 		// request the page from the backend.
 		if (isApiRouteRedirect) {
-			window.location.href = sanitizeRedirect(redirectTo);
+			location.href = sanitizeRedirect(redirectTo);
 			// Setting the href should immediately request a new page. Show an
 			// error state if it doesn't.
 			redirectError = new Error("unable to redirect");
