@@ -136,6 +136,17 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 }) => {
 	const [pathValue, setPathValue] = useState(filename);
 	const [error, setError] = useState<string>();
+	const [prevFilename, setPrevFilename] = useState(filename);
+
+	// Sync pathValue with the filename prop when a new file is selected
+	// for renaming. useState alone only captures the initial value on
+	// mount, so reopening the dialog for a different file would show a
+	// stale (or empty) path without this adjustment.
+	if (filename !== prevFilename) {
+		setPrevFilename(filename);
+		setPathValue(filename);
+		setError(undefined);
+	}
 	const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
 		setPathValue(event.target.value);
 	};
