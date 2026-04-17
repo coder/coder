@@ -1512,7 +1512,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// bufferRetainedAt before the subscriber detaches.
 	var committedAssistantMsgs int
 	var messagePartsSeen int
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(context.Context) bool {
 		select {
 		case event := <-events:
 			switch event.Type {
@@ -1527,15 +1527,15 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusWaiting
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Tear the subscriber down inside the worker's grace window.
 	subCancel()
@@ -1546,7 +1546,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// worker observes the teardown. The retry itself re-enters
 	// cleanupStreamIfIdle via its own cancel defer but still
 	// early-returns because grace is still open.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		snap, _, charCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
 		if !ok {
 			return false
@@ -1558,7 +1558,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			}
 		}
 		return false
-	}, testutil.WaitMedium, testutil.IntervalFast,
+	}, testutil.IntervalFast,
 		"retained buffer must still contain message_parts after the "+
 			"relay drains within grace — this confirms the multi-replica "+
 			"trigger path for the retained-buffer leak")
