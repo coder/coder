@@ -3185,10 +3185,10 @@ func (p *Server) sweepIdleStreams() {
 			return true
 		}
 		state.mu.Lock()
+		defer state.mu.Unlock()
 		if p.cleanupStreamIfIdle(chatID, state) {
 			reaped.Add(1)
 		}
-		state.mu.Unlock()
 		return true
 	})
 }
