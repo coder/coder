@@ -737,6 +737,66 @@ func (s *chatStreamState) resetDropCounters() {
 	s.subscriberLastWarnAt = time.Time{}
 }
 
+// streamStateCollector exposes scrape-time gauges derived from
+// p.chatStreams. Scrape cost is O(n) with a brief per-state mutex
+// held for two len() reads; acceptable at typical scrape cadences.
+type streamStateCollector struct {
+	server *Server
+}
+
+var (
+	streamsActiveDesc = prometheus.NewDesc(
+		"coderd_chatd_streams_active",
+		"Current number of chat stream state entries (in-flight plus retained).",
+		nil, nil,
+	)
+	streamBufferSizeMaxDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_buffer_size_max",
+		"Maximum current buffer length across all chat streams.",
+		nil, nil,
+	)
+	streamBufferEventsDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_buffer_events",
+		"Sum of current buffer lengths across all chat streams.",
+		nil, nil,
+	)
+	streamSubscribersDesc = prometheus.NewDesc(
+		"coderd_chatd_stream_subscribers",
+		"Current number of chat stream subscribers across all chat streams.",
+		nil, nil,
+	)
+)
+
+func (*streamStateCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- streamsActiveDesc
+	ch <- streamBufferSizeMaxDesc
+	ch <- streamBufferEventsDesc
+	ch <- streamSubscribersDesc
+}
+
+func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
+	var active, totalEvents, maxBufLen, totalSubs int
+	c.server.chatStreams.Range(func(_, v any) bool {
+		state, ok := v.(*chatStreamState)
+		if !ok {
+			return true
+		}
+		active++
+		state.mu.Lock()
+		bufLen := len(state.buffer)
+		subs := len(state.subscribers)
+		state.mu.Unlock()
+		totalEvents += bufLen
+		totalSubs += subs
+		maxBufLen = max(maxBufLen, bufLen)
+		return true
+	})
+	ch <- prometheus.MustNewConstMetric(streamsActiveDesc, prometheus.GaugeValue, float64(active))
+	ch <- prometheus.MustNewConstMetric(streamBufferSizeMaxDesc, prometheus.GaugeValue, float64(maxBufLen))
+	ch <- prometheus.MustNewConstMetric(streamBufferEventsDesc, prometheus.GaugeValue, float64(totalEvents))
+	ch <- prometheus.MustNewConstMetric(streamSubscribersDesc, prometheus.GaugeValue, float64(totalSubs))
+}
+
 // MaxQueueSize is the maximum number of queued user messages per chat.
 const MaxQueueSize = 20
 
@@ -2796,6 +2856,7 @@ func New(cfg Config) *Server {
 	}
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		cfg.PrometheusRegistry.MustRegister(&streamStateCollector{server: p})
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
@@ -2952,6 +3013,7 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
+			p.metrics.RecordStreamBufferDropped()
 			state.bufferDropCount++
 			now := p.clock.Now()
 			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
@@ -4880,9 +4942,10 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
-	// Snapshot the original chat model so the goroutine doesn't
-	// race with the model = cuModel reassignment below.
+	// Snapshot model and logger before launch; both get
+	// reassigned below and the goroutine captures by reference.
 	titleModel := result.PushSummaryModel
+	titleLogger := logger
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
@@ -4893,7 +4956,7 @@ func (p *Server) runChat(
 			titleModel,
 			providerKeys,
 			generatedTitle,
-			logger,
+			titleLogger,
 		)
 	}()
 
@@ -5475,6 +5538,14 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
+	// Enrich the scoped logger with provider/model for this turn.
+	// Bound once after the cuModel swap; slog.Logger.With appends
+	// rather than deduping.
+	logger = logger.With(
+		slog.F("provider", model.Provider()),
+		slog.F("model", model.Model()),
+	)
+
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
@@ -5725,6 +5796,7 @@ func (p *Server) runChat(
 			logger.Warn(ctx, "retrying LLM stream",
 				slog.F("attempt", attempt),
 				slog.F("delay", delay.String()),
+				slog.F("kind", classified.Kind),
 				slog.Error(retryErr),
 			)
 			payload := chaterror.StreamRetryPayload(attempt, delay, classified)

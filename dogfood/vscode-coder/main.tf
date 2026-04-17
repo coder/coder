@@ -364,6 +364,18 @@ resource "coder_agent" "dev" {
     timeout      = 60
   }
 
+  metadata {
+    display_name = "Word of the Day"
+    key          = "word"
+    order        = 3
+    script       = <<EOT
+      #!/usr/bin/env bash
+      curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
+    EOT
+    interval     = 86400
+    timeout      = 5
+  }
+
   resources_monitoring {
     memory {
       enabled   = true
@@ -550,6 +562,13 @@ locals {
     -- Tool Selection --
     - Built-in tools for everything:
       (file operations, git commands, builds & installs, one-off shell commands)
+
+    -- Testing --
+    Integration tests launch a real VS Code instance and require a
+    virtual framebuffer. Run them headlessly with:
+      xvfb-run -a pnpm test:integration
+    This matches how CI runs them. Unit tests do not need xvfb-run:
+      pnpm test
 
     -- Workflow --
     When starting new work:
