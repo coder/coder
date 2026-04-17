@@ -3,6 +3,7 @@ package chatd
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,6 +13,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -126,12 +128,13 @@ func TestStreamStateCollector(t *testing.T) {
 		// channel. A panic or race here fails the test.
 		go func() {
 			defer wg.Done()
+			ctx := testutil.Context(t, 10*time.Second)
 			for i := 0; i < iterations; i++ {
 				ch := make(chan prometheus.Metric, 4)
 				collector.Collect(ch)
-				// Drain so the channel close isn't required.
+				// Drain all metrics the collector wrote.
 				for range 4 {
-					<-ch
+					testutil.SoftTryReceive(ctx, t, ch)
 				}
 			}
 		}()
