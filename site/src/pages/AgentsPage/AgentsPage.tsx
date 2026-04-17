@@ -451,11 +451,15 @@ const AgentsPage: FC = () => {
 		}
 		try {
 			const updated = await regenerateTitleMutation.mutateAsync(chatId);
-			return updated.title;
-		} finally {
 			if (!alreadyTracking) {
 				removeRegeneratingTitleChatId(chatId);
 			}
+			return updated.title;
+		} catch (error) {
+			if (!alreadyTracking) {
+				removeRegeneratingTitleChatId(chatId);
+			}
+			throw error;
 		}
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {

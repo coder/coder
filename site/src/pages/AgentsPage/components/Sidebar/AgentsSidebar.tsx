@@ -1027,13 +1027,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				renameInputRef.current?.focus();
 				renameInputRef.current?.select();
 			});
+			setIsGeneratingRenameTitle(false);
 		} catch (error) {
 			// Parent also surfaces a toast; the inline message gives
 			// immediate in-context feedback while the dialog is open.
 			setGenerateRenameTitleError(
 				getErrorMessage(error, "Failed to generate a new title."),
 			);
-		} finally {
 			setIsGeneratingRenameTitle(false);
 		}
 	};
@@ -1051,8 +1051,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			await onRenameTitle(chatPendingRename.id, trimmedTitle);
 			setChatPendingRename(null);
 			setRenameTitle("");
-		} finally {
 			setIsRenamingChat(false);
+		} catch (error) {
+			setIsRenamingChat(false);
+			throw error;
 		}
 	};
 

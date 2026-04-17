@@ -437,7 +437,7 @@ export const RenameChatSubmitsNewTitle: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "Renamed title");
-		await userEvent.click(body.getByRole("button", { name: "Rename chat" }));
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
 
 		// The sidebar forwards the edited title to its parent through
 		// the same callback the page wires to react-query.
