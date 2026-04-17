@@ -1426,25 +1426,18 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 }
 
 // TestSubscribeRelayDrainWithinGraceLeavesBufferRetained characterizes
-// the multi-replica trigger for the retained-buffer leak: when an
-// enterprise relay drains after a worker finishes, the worker-side
-// subscriber-detach fires inside bufferRetainGracePeriod (5s) because
-// relayDrainTimeout is only 200ms. cleanupStreamIfIdle's grace-period
-// early-return blocks cleanup; without streamJanitorLoop as a timer-
-// driven backstop, the worker's chatStreamState stays mapped with its
-// full buffer until the process exits.
+// the multi-replica trigger for the retained-buffer leak: an enterprise
+// relay drain (relayDrainTimeout = 200ms) always fires inside the
+// worker's 5s grace window, so the worker-side subscriber-detach hits
+// cleanupStreamIfIdle's early-return and the buffer stays mapped.
+// streamJanitorLoop is the timer-driven backstop.
 //
-// This test asserts only the user-visible symptom — that a fresh
-// worker.Subscribe immediately after the relay drain still sees the
-// retained message_parts. The matching regression (that the janitor
-// reaps the state on a timer) is covered by the OSS unit tests in
-// coderd/x/chatd/chatd_internal_test.go, which can read chatStreams
-// directly.
-//
-// Behavioral observation is used here (not a chatStreams-size
-// assertion) because _test.go identifiers in coderd/x/chatd do not
-// link into enterprise/coderd/x/chatd's test binary, and we decline
-// to add a production-API accessor for memory-hygiene plumbing.
+// The assertion is behavioral (a fresh worker.Subscribe sees the
+// retained message_parts) rather than a chatStreams-size check because
+// _test.go identifiers in coderd/x/chatd do not link into the
+// enterprise test binary, and adding a production accessor for this
+// isn't justified. The matching reap assertion lives in the OSS unit
+// tests in coderd/x/chatd/chatd_internal_test.go.
 func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	t.Parallel()
 
@@ -1474,11 +1467,9 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		require.NoError(t, worker.Close())
 	})
 
-	// Subscriber dials through to the worker's Subscribe. When the
-	// subscriber cancels, the relay drain fires within 200ms and
-	// invokes the worker's subscribeToStream cancel func — inside
-	// the worker's 5s grace window — which triggers
-	// cleanupStreamIfIdle's early return.
+	// Subscriber dials through to the worker. On cancel the relay
+	// drain fires well inside the worker's 5s grace, exercising the
+	// cleanupStreamIfIdle early-return path.
 	subscriber := newTestServer(t, db, ps, subscriberID, func(
 		ctx context.Context,
 		chatID uuid.UUID,
@@ -1503,8 +1494,8 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 
 	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-drain-characterization")
 
-	// Attach the subscriber before processing starts so the relay
-	// opens as soon as status=running arrives.
+	// Attach before processing so the relay opens as soon as
+	// status=running arrives.
 	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 
@@ -1515,10 +1506,10 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Drain events until processing completes. We require at least
-	// one message_part and the committed assistant message so we
-	// know processChat's defer has flipped buffering=false and
-	// populated bufferRetainedAt before the subscriber detaches.
+	// Drain events until processing has clearly completed: we need
+	// the assistant message and at least one message_part so we know
+	// processChat's defer has flipped buffering=false and populated
+	// bufferRetainedAt before the subscriber detaches.
 	var committedAssistantMsgs int
 	var messagePartsSeen int
 	require.Eventually(t, func() bool {
@@ -1546,21 +1537,15 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		return fromDB.Status == database.ChatStatusWaiting
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	// Tear the subscriber down. The relay drain (200ms) fires well
-	// inside the worker's 5s bufferRetainGracePeriod, so the
-	// worker's cleanupStreamIfIdle early-returns and leaves the
-	// buffer retained.
+	// Tear the subscriber down inside the worker's grace window.
 	subCancel()
 
-	// Characterization: a fresh Subscribe on the worker still sees
-	// the retained message_parts in its initial snapshot. This is
-	// the leak: without streamJanitorLoop as a backstop, the
-	// retained state sits forever because nothing else will
-	// trigger cleanupStreamIfIdle after the grace window elapses.
-	// Eventually absorbs the short window until the worker observes
-	// the relay teardown. Note that the retry itself re-runs
-	// cleanupStreamIfIdle (via the returned cancel's defer) but
-	// still early-returns because grace has not expired.
+	// A fresh worker.Subscribe still sees the retained
+	// message_parts: the buffer was not reaped when the relay
+	// drained. Eventually absorbs the short window before the
+	// worker observes the teardown. The retry itself re-enters
+	// cleanupStreamIfIdle via its own cancel defer but still
+	// early-returns because grace is still open.
 	require.Eventually(t, func() bool {
 		snap, _, charCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
 		if !ok {

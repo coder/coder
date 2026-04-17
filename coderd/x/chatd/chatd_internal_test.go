@@ -3047,13 +3047,10 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 		"chat context should not be canceled on transient DB error")
 }
 
-// TestSubscribeCancelDuringGrace_ReapedBySweep exercises the OSS
-// single-replica trigger path for the retained-buffer leak:
-// a subscriber detaches within bufferRetainGracePeriod of chat
-// completion, so cleanupStreamIfIdle's grace-period early-return
-// fires. Before the janitor, nothing reschedules cleanup and the
-// state is pinned until process exit. sweepIdleStreams is the
-// backstop that re-checks on a timer.
+// TestSubscribeCancelDuringGrace_ReapedBySweep verifies that a
+// subscriber detach inside bufferRetainGracePeriod (the OSS trigger
+// for the retained-buffer leak) leaves the state mapped, and the
+// next sweep past the grace window reaps it.
 func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 	t.Parallel()
 
@@ -3068,9 +3065,8 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 	chatID := uuid.New()
 	start := mClock.Now()
 
-	// Mirror a just-finished chat: processing done, buffer retained
-	// for late-connecting relay subscribers, one message_part still
-	// buffered so the leak pins a non-trivial payload.
+	// Just-finished chat: processing done, buffer retained for
+	// late-connecting relay subscribers.
 	state := &chatStreamState{
 		buffering:        false,
 		bufferRetainedAt: start,
@@ -3084,28 +3080,17 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 	}
 	server.chatStreams.Store(chatID, state)
 
-	// Exercise the real subscribeToStream cancel path. This is the
-	// exact code path that leaks in prod: a WS subscriber detaches,
-	// cleanupStreamIfIdle runs, the grace-period check early-returns,
-	// and no future event or subscriber disconnect re-triggers it.
+	// Real subscribeToStream cancel path: the WS subscriber detach
+	// that leaks in prod.
 	_, _, cancelSub := server.subscribeToStream(chatID)
 
-	// Advance within the grace window and detach.
 	mClock.Advance(bufferRetainGracePeriod / 2)
 	cancelSub()
 
-	// Characterization: the entry is still mapped because
-	// cleanupStreamIfIdle declined to act during grace. This
-	// assertion is true both before and after the janitor lands —
-	// cleanupStreamIfIdle's own behavior is unchanged.
 	_, ok := server.chatStreams.Load(chatID)
 	require.True(t, ok,
 		"entry should remain during grace window after subscriber detach")
 
-	// Advance past the grace window and sweep directly. Without the
-	// janitor, sweepIdleStreams does not exist; with it, the sweep
-	// observes grace expired + no subscribers + not buffering and
-	// reaps the entry.
 	mClock.Advance(bufferRetainGracePeriod)
 	server.sweepIdleStreams()
 
@@ -3114,9 +3099,8 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 		"entry should be reaped after grace period expires and sweep runs")
 }
 
-// TestSweepIdleStreams_ReapsStaleRetainedBuffer verifies the
-// happy-path reap: a state with an expired grace period and no
-// subscribers is evicted.
+// TestSweepIdleStreams_ReapsStaleRetainedBuffer: grace expired, no
+// subscribers, not buffering -> reaped.
 func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
 	t.Parallel()
 
@@ -3145,8 +3129,8 @@ func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
 	require.False(t, ok, "stale retained state should be reaped")
 }
 
-// TestSweepIdleStreams_DoesNotReapActiveBuffering guards against
-// reaping a state whose worker is still actively processing.
+// TestSweepIdleStreams_DoesNotReapActiveBuffering: buffering=true
+// blocks reap even long after any grace would have expired.
 func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
 	t.Parallel()
 
@@ -3174,8 +3158,8 @@ func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
 	require.True(t, ok, "actively-buffering state must not be reaped")
 }
 
-// TestSweepIdleStreams_DoesNotReapWithSubscribers guards against
-// reaping a state that still has attached subscribers.
+// TestSweepIdleStreams_DoesNotReapWithSubscribers: attached
+// subscribers block reap even when grace has expired.
 func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
 	t.Parallel()
 
@@ -3206,9 +3190,8 @@ func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
 	require.True(t, ok, "state with subscribers must not be reaped")
 }
 
-// TestSweepIdleStreams_DefersDuringGracePeriod verifies that a sweep
-// inside the grace window is a no-op, then the same state is reaped
-// once the window elapses.
+// TestSweepIdleStreams_DefersDuringGracePeriod: sweep inside grace
+// is a no-op; the next sweep past grace reaps.
 func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 	t.Parallel()
 
@@ -3244,11 +3227,9 @@ func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 	require.False(t, ok, "sweep after grace window must reap")
 }
 
-// TestPublishToStream_DropZeroesBackingSlot verifies that when
-// publishToStream evicts the oldest buffered event at capacity, the
-// dropped slot in the backing array is zeroed. Without that, the
-// dropped *ChatStreamMessagePart stays reachable via the backing
-// array until the buffer reallocates, pinning its payload.
+// TestPublishToStream_DropZeroesBackingSlot verifies that evicting
+// the oldest buffered event at capacity zeroes the dropped slot so
+// its *ChatStreamMessagePart becomes GC-eligible immediately.
 func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 	t.Parallel()
 
@@ -3260,10 +3241,8 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 
 	chatID := uuid.New()
 
-	// Overcap by one so the post-drop append fits in the original
-	// backing array. This matches the production case where Go's
-	// growth policy over-allocates and the drop-then-append
-	// sequence reuses memory in place.
+	// Over-allocate by one so the post-drop append fits in place and
+	// exercises the backing-array reuse this test is checking.
 	buf := make([]codersdk.ChatStreamEvent, maxStreamBufferSize, maxStreamBufferSize+1)
 	for i := range buf {
 		buf[i] = codersdk.ChatStreamEvent{
@@ -3271,9 +3250,8 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 			MessagePart: &codersdk.ChatStreamMessagePart{},
 		}
 	}
-	// Sentinel payload in slot 0 so we can distinguish a cleared
-	// slot from a slot that was merely overwritten by a later
-	// append.
+	// Sentinel in slot 0 distinguishes "slot was zeroed" from "slot
+	// was overwritten by a later append".
 	sentinel := &codersdk.ChatStreamMessagePart{
 		Role: codersdk.ChatMessageRoleAssistant,
 	}
@@ -3281,10 +3259,8 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 		Type:        codersdk.ChatStreamEventTypeMessagePart,
 		MessagePart: sentinel,
 	}
-	// origBacking is a stable alias over the full backing array.
-	// After publishToStream advances state.buffer by one slot, we
-	// reach through origBacking to observe what happened to the
-	// old slot 0.
+	// Alias over the full backing array so we can still observe slot
+	// 0 after publishToStream reslices state.buffer forward.
 	origBacking := buf[:cap(buf)]
 
 	state := &chatStreamState{
@@ -3306,27 +3282,20 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 		"dropped slot must be zero-valued so its *ChatStreamMessagePart "+
 			"is eligible for GC; got %+v", origBacking[0])
 
-	// Sanity-check that the test actually exercised the in-place
-	// append path the fix is designed for: the new event should
-	// have landed in the slot just past the original length, i.e.
-	// no reallocation happened. If Go's growth policy ever makes
-	// append reallocate here, this assertion fails loudly and the
-	// test author knows to revisit the setup.
+	// Sanity-check the in-place append path the fix targets: if Go's
+	// growth policy ever makes this append reallocate, this fails
+	// loudly so the test author revisits the setup.
 	require.Same(t, newPart, origBacking[len(origBacking)-1].MessagePart,
 		"append must have landed in the original backing array; the "+
 			"zero-out invariant only matters when cap > len")
 }
 
-// TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry guards
-// against a race where two callers of cleanupStreamIfIdle (e.g. the
-// janitor holding a Range-captured pointer and a fresh processChat
-// run that just reinstalled the state via getOrCreateStreamState) race
-// and the stale caller deletes the fresh map entry.
-//
-// Without CompareAndDelete in cleanupStreamIfIdle, the stale caller
-// wins the Delete and the fresh chat loses its stream state. With the
-// guard, the Delete is a no-op for the stale caller and the fresh
-// state stays mapped.
+// TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry covers
+// the race where a caller holds a pointer to a no-longer-mapped
+// state (e.g. a janitor Range callback racing a fresh
+// getOrCreateStreamState) and would otherwise evict the fresh entry.
+// With CompareAndDelete in cleanupStreamIfIdle the stale delete is
+// a no-op.
 func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
 	t.Parallel()
 
@@ -3338,17 +3307,17 @@ func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
 
 	chatID := uuid.New()
 
-	// Stale state: looks reapable (not buffering, no subscribers,
-	// grace expired).
+	// Stale pointer: reapable (not buffering, no subscribers, grace
+	// expired) but no longer the map's live entry.
 	stale := &chatStreamState{
 		buffering:        false,
 		bufferRetainedAt: mClock.Now(),
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
 	}
 
-	// Fresh state: what getOrCreateStreamState would install after a
-	// racing processChat run started. Not reapable (actively
-	// buffering). Only this state is in the map.
+	// Fresh entry: the state getOrCreateStreamState would install
+	// after a racing processChat run. Actively buffering, so not
+	// reapable. Only this state is in the map.
 	fresh := &chatStreamState{
 		buffering:   true,
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
@@ -3357,9 +3326,8 @@ func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
 
 	mClock.Advance(bufferRetainGracePeriod + time.Second)
 
-	// Caller holds the stale pointer and its lock; this mirrors the
-	// janitor's Range-callback path after the map entry has been
-	// replaced by another goroutine.
+	// Stale caller mirrors the janitor Range callback after the map
+	// entry has already been replaced.
 	stale.mu.Lock()
 	server.cleanupStreamIfIdle(chatID, stale)
 	stale.mu.Unlock()
