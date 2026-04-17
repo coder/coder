@@ -99,7 +99,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				title: "A startup script has failed",
 				severity: "warning",
 				detail:
-					"The workspace agent is running but a startup script exited with an error. Contact your template admin to fix the startup script.",
+					"The workspace agent is running but a startup script exited with an error.",
 				actions: troubleshootingURL ? (
 					<NotificationActionButton
 						onClick={() => window.open(troubleshootingURL, "_blank")}

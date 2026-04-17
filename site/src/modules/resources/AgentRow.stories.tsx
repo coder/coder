@@ -229,6 +229,24 @@ export const StartError: Story = {
 	},
 };
 
+export const StartErrorWithTimings: Story = {
+	args: {
+		agent: M.MockWorkspaceAgentStartError,
+		agentScriptTimings: [
+			{
+				display_name: "Startup Script",
+				exit_code: 1,
+				stage: "start",
+				status: "exit_failure",
+				started_at: "2021-05-05T00:00:00.000Z",
+				ended_at: "2021-05-05T00:00:01.000Z",
+				workspace_agent_id: M.MockWorkspaceAgentStartError.id,
+				workspace_agent_name: M.MockWorkspaceAgentStartError.name,
+			},
+		],
+	},
+};
+
 export const ShuttingDown: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentShuttingDown,
