@@ -50,7 +50,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			"This tool is idempotent — if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
 			"first if no workspace exists yet. Optionally provide "+
-			"parameter values.",
+			"parameter values (from read_template).",
 		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.StartFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
@@ -184,7 +184,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
 					result := responseErrorResult(resp)
-					if ws.TemplateID != uuid.Nil {
+					if len(resp.Validations) > 0 && ws.TemplateID != uuid.Nil {
 						result["template_id"] = ws.TemplateID.String()
 					}
 					return toolResponse(result), nil

@@ -373,6 +373,7 @@ func TestStartWorkspace(t *testing.T) {
 			startCalled = true
 			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
 			require.Equal(t, ws.ID, wsID)
+			require.Empty(t, req.RichParameterValues, "no parameters should be forwarded for bare start")
 			// Simulate start by inserting a new completed "start" build.
 			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStart,
@@ -436,7 +437,6 @@ func TestStartWorkspace(t *testing.T) {
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-stopped-workspace-auto-update",
-			ClientType:        database.ChatClientTypeUi,
 		})
 		require.NoError(t, err)
 
@@ -567,7 +567,6 @@ func TestStartWorkspace(t *testing.T) {
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-start-workspace-manual-update-required",
-			ClientType:        database.ChatClientTypeUi,
 		})
 		require.NoError(t, err)
 
@@ -608,6 +607,62 @@ func TestStartWorkspace(t *testing.T) {
 			Field:  "region",
 			Detail: "region must be set before the workspace can start",
 		}}, result.Validations)
+	})
+
+	t.Run("ResponderErrorWithoutValidationsOmitsTemplateID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-responder-error-without-validations",
+			ClientType:        database.ChatClientTypeUi,
+		})
+		require.NoError(t, err)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(502, codersdk.Response{
+					Message: "workspace start failed",
+					Detail:  "temporary provisioner outage",
+				})
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, "workspace start failed", result["error"])
+		require.Equal(t, "temporary provisioner outage", result["detail"])
+		_, hasTemplateID := result["template_id"]
+		require.False(t, hasTemplateID)
 	})
 
 	t.Run("InProgressBuild", func(t *testing.T) {
