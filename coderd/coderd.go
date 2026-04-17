@@ -1696,15 +1696,6 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context", api.workspaceAgentAddChatContext)
 					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
-					r.Route("/chat-runner", func(r chi.Router) {
-						r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgentChatRunner))
-						r.Post("/runtime-context", api.workspaceAgentChatRunnerRuntimeContext)
-						r.Post("/persist-step", api.workspaceAgentChatRunnerPersistStep)
-						r.Post("/reload-messages", api.workspaceAgentChatRunnerReloadMessages)
-						r.Post("/list-templates", api.workspaceAgentChatRunnerListTemplates)
-						r.Post("/read-template", api.workspaceAgentChatRunnerReadTemplate)
-						r.Post("/mcp-tool-call", api.workspaceAgentChatRunnerMCPToolCall)
-					})
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
@@ -1991,15 +1982,21 @@ func New(options *Options) *API {
 		})
 	})
 
-	// Publish routes stay outside the rate-limited /api/v2 tree so chat
+	// Chat-runner routes stay outside the rate-limited /api/v2 tree so chat
 	// streaming can continue without hitting 429s.
 	r.Route("/api/v2/workspaceagents/me/experimental/chat-runner", func(r chi.Router) {
 		r.Use(
 			workspaceAgentInfo,
 			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgentChatRunner),
 		)
+		r.Post("/runtime-context", api.workspaceAgentChatRunnerRuntimeContext)
+		r.Post("/persist-step", api.workspaceAgentChatRunnerPersistStep)
 		r.Post("/publish-stream-part", api.workspaceAgentChatRunnerPublishStreamPart)
 		r.Post("/publish-stream-parts", api.workspaceAgentChatRunnerPublishStreamParts)
+		r.Post("/reload-messages", api.workspaceAgentChatRunnerReloadMessages)
+		r.Post("/list-templates", api.workspaceAgentChatRunnerListTemplates)
+		r.Post("/read-template", api.workspaceAgentChatRunnerReadTemplate)
+		r.Post("/mcp-tool-call", api.workspaceAgentChatRunnerMCPToolCall)
 	})
 
 	if options.SwaggerEndpoint {
