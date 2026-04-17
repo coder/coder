@@ -101,7 +101,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			<SelectTrigger
 				aria-label={selectedModel ? getOptionLabel(selectedModel) : placeholder}
 				className={cn(
-					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+					"h-8 w-auto gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
 			>

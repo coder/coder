@@ -117,7 +117,7 @@ export const ExploreModelOverrideSettings: FC<
 							? "Loading models..."
 							: "No enabled models found."
 					}
-					className="h-8 w-full justify-between rounded-md border border-border bg-surface-primary px-2.5 text-sm"
+					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm"
 					contentClassName="min-w-[18rem]"
 				/>
 			</div>
