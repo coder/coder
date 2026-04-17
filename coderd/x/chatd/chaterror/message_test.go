@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
@@ -89,17 +90,10 @@ func TestTerminalMessage(t *testing.T) {
 			// terminalMessage is unexported; round-trip through
 			// WithClassification + Classify to exercise it.
 			wrapped := chaterror.WithClassification(
-				errString(tt.name),
+				xerrors.New(tt.name),
 				classified,
 			)
 			require.Equal(t, tt.want, chaterror.Classify(wrapped).Message)
 		})
 	}
 }
-
-// errString is an error whose Error() is the given string.
-func errString(s string) error { return stringError(s) }
-
-type stringError string
-
-func (e stringError) Error() string { return string(e) }
