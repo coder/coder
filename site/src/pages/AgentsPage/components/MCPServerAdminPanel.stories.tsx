@@ -223,7 +223,7 @@ export const CreateServerOAuth2: Story = {
 		);
 
 		await userEvent.click(
-			body.getByRole("button", { name: /Authentication/i }),
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 		// Select OAuth2 from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
@@ -275,7 +275,7 @@ export const CreateServerAPIKey: Story = {
 		);
 
 		await userEvent.click(
-			body.getByRole("button", { name: /Authentication/i }),
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 		// Select API Key from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
@@ -389,7 +389,7 @@ export const EditServerWithOAuth2Secret: Story = {
 
 		// Authentication section is collapsed by default.
 		await userEvent.click(
-			body.getByRole("button", { name: /Authentication/i }),
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 
 		// The OAuth2 fields should be visible.
@@ -424,7 +424,7 @@ export const EditServerWithCustomHeaders: Story = {
 
 		// Authentication section is collapsed by default.
 		await userEvent.click(
-			body.getByRole("button", { name: /Authentication/i }),
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 
 		// Should show message about existing headers.
@@ -643,7 +643,7 @@ export const CustomHeadersAuthType: Story = {
 		);
 
 		await userEvent.click(
-			body.getByRole("button", { name: /Authentication/i }),
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 		// Select Custom Headers auth type.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
