@@ -118,12 +118,54 @@ links */}}
         <span class="user-name">{{ .Username }}</span> account?
       </p>
       <div class="button-group">
-        <form method="POST" style="display: inline;">
+        <form id="allow-form" method="POST" style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
           <button type="submit" class="primary-button">Allow</button>
         </form>
-        <a href="{{ .CancelURI }}">Cancel</a>
+        <a id="cancel-link" href="{{ .CancelURI }}">Cancel</a>
       </div>
     </div>
+    <script>
+      // Opens a popup synchronously inside the user-gesture handler,
+			// retarget the form (or cancel link) into it so the browser delivers
+			// the authorization code or access_denied error to
+      // the client's redirect URI there, then navigate this tab to the
+      // dashboard. If the popup is blocked, fall back to the default
+      // submission/navigation in the current tab — the OAuth2 callback still
+      // fires in that case.
+      (function () {
+        var dashboardURL = "{{ .DashboardURL }}";
+        var popupName = "coder_oauth2_callback";
+        var popupFeatures = "popup=yes,width=640,height=720";
+
+				var allowForm = document.getElementById("allow-form");
+        var cancelLink = document.getElementById("cancel-link");
+
+        function gotoDashboard() {
+          // Defer so the popup's navigation has kicked off before this tab leaves;
+					// otherwise the browser may cancel the popup's in-flight request.
+          setTimeout(function () {
+            window.location.replace(dashboardURL);
+          }, 0);
+        }
+
+        allowForm.addEventListener("submit", function (e) {
+          var popup = window.open("about:blank", popupName, popupFeatures);
+          if (!popup) return;
+
+					e.preventDefault();
+          allowForm.target = popupName;
+          allowForm.submit();
+          gotoDashboard();
+        });
+
+        cancelLink.addEventListener("click", function (e) {
+          var popup = window.open(cancelLink.href, popupName, popupFeatures);
+          if (!popup) return;
+          e.preventDefault();
+          gotoDashboard();
+        });
+      })();
+    </script>
   </body>
 </html>
