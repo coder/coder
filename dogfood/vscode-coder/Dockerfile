@@ -1,4 +1,4 @@
-FROM node:24-slim
+FROM node:24-slim@sha256:879b21aec4a1ad820c27ccd565e7c7ed955f24b92e6694556154f251e4bdb240
 
 ARG DEBIAN_FRONTEND=noninteractive
 
