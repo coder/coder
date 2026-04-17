@@ -706,7 +706,7 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
 				}),
 				User:    []rbac.Permission{},
@@ -2680,10 +2680,7 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 }
 
 func (q *querier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	// Uses ActionUpdate to match the admin-settings permission model
-	// used by adjacent chat-config endpoints (plan-mode instructions,
-	// system prompt, desktop enabled).
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return "", err
 	}
 	return q.db.GetChatExploreModelOverride(ctx)
