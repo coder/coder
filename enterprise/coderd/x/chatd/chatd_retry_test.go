@@ -29,9 +29,9 @@ import (
 )
 
 // mulPhi multiplies a duration by math.Phi to compute the next
-// step in retry.Retrier's φ-growth sequence. If
-// TestRelayReconnectUsesExponentialBackoff breaks after a retry
-// library bump, the growth factor has changed.
+// step in retry.Retrier's φ-growth backoff sequence. If
+// TestRelayReconnectUsesExponentialBackoff starts failing after a
+// retry library bump, check whether the growth factor has changed.
 func mulPhi(d time.Duration) time.Duration {
 	return time.Duration(float64(d) * math.Phi)
 }
@@ -671,4 +671,9 @@ waitErr:
 	_ = ps
 }
 
-var streamPathRE = regexp.MustCompile(`^/api/experimental/chats/[0-9a-fA-F-]+/stream$`)
+// streamPathRE matches the chat stream endpoint path built by
+// buildRelayURL. Compiled at package scope so the httptest handler
+// below doesn't pay regexp.Compile per request.
+var streamPathRE = regexp.MustCompile(
+	`^/api/experimental/chats/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/stream$`,
+)

@@ -37,10 +37,10 @@ const (
 	relayDrainTimeout = 200 * time.Millisecond
 
 	// Retry knobs for the cross-replica relay handshake. Uses the
-	// github.com/coder/retry defaults (φ-growth, no jitter) but
-	// drives the delay manually because retry.Retrier.Wait blocks on
-	// time.After, which breaks quartz.Clock-driven tests.
-	relayRetryFloor       = 500 * time.Millisecond // matches old fixed delay
+	// github.com/coder/retry defaults (φ-growth, no jitter) but drives
+	// the delay manually because retry.Retrier.Wait uses time.After,
+	// which isn't compatible with quartz.Clock determinism in tests.
+	relayRetryFloor       = 500 * time.Millisecond // first retry matches old fixed delay
 	relayRetryCeil        = 15 * time.Second       // cap stall before tear-down
 	relayRetryMaxAttempts = 6                      // tear down after this many failures
 )
@@ -827,8 +827,8 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	}
 	u.Path = fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
 	q := u.Query()
-	// after_id=MaxInt64 tells the peer to skip the history snapshot;
-	// relays only need live message_part events.
+	// Relays only need live message_part events, not the full
+	// history; pass after_id=MaxInt64 so the peer skips its snapshot.
 	q.Set("after_id", strconv.FormatInt(math.MaxInt64, 10))
 	u.RawQuery = q.Encode()
 	return u.String(), nil
