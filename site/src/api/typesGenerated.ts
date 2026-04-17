@@ -371,6 +371,7 @@ export type APIKeyScope =
 	| "chat:create"
 	| "chat:delete"
 	| "chat:read"
+	| "chat:share"
 	| "chat:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
@@ -580,6 +581,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:create",
 	"chat:delete",
 	"chat:read",
+	"chat:share",
 	"chat:update",
 	"coder:all",
 	"coder:apikeys.manage_self",

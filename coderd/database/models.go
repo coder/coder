@@ -4585,7 +4585,7 @@ type ChatUsageLimitConfig struct {
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Projects each chat alongside its effective ACL. Sub-chats inherit the root chat's user_acl / group_acl via LEFT JOIN + COALESCE. Orphaned sub-chats (root_chat_id IS NULL after a root delete) fall back to the descendant's own ACL. Column names match the base chats table so sqlc row types are shared.
+// Projects each chat alongside its effective ACL; sub-chats COALESCE to the root chat's ACL, orphans fall back to their own.
 type ChatsWithAcl struct {
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
