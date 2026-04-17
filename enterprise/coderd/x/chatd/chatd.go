@@ -3,8 +3,10 @@ package chatd
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -648,10 +650,6 @@ func (s *relayRetryState) reset() {
 	s.attempts = 0
 }
 
-// afterIDMaxInt64 is sent as after_id to tell the peer to skip the
-// history snapshot — relays only need live message_part events.
-const afterIDMaxInt64 = "9223372036854775807"
-
 // dialRelay opens a WebSocket to the replica owning chatID and
 // returns any buffered message_part snapshot plus a live channel of
 // subsequent events. Handshake failures return an error unwrapping
@@ -829,7 +827,9 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	}
 	u.Path = fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
 	q := u.Query()
-	q.Set("after_id", afterIDMaxInt64)
+	// after_id=MaxInt64 tells the peer to skip the history snapshot;
+	// relays only need live message_part events.
+	q.Set("after_id", strconv.FormatInt(math.MaxInt64, 10))
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }

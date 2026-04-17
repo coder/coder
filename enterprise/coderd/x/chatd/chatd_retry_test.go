@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,15 +28,12 @@ import (
 	"github.com/coder/quartz"
 )
 
-// mulPhi mirrors the per-attempt delay growth in retry.Retrier.Wait
-// (github.com/coder/retry/retrier.go). Must stay in sync with the
-// retry library's growth factor — if
-// TestRelayReconnectUsesExponentialBackoff breaks after a bump,
-// update phi.
-const phi = 1.6180339887498949
-
+// mulPhi multiplies a duration by math.Phi to compute the next
+// step in retry.Retrier's φ-growth sequence. If
+// TestRelayReconnectUsesExponentialBackoff breaks after a retry
+// library bump, the growth factor has changed.
 func mulPhi(d time.Duration) time.Duration {
-	return time.Duration(float64(d) * phi)
+	return time.Duration(float64(d) * math.Phi)
 }
 
 // setChatRunningAndPublish marks the chat row as running on workerID
@@ -588,7 +587,7 @@ func TestDialRelayReal401(t *testing.T) {
 	// An httptest server that 401s every request on the stream
 	// endpoint. Any other path gets a 404.
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !isStreamPath(r.URL.Path) {
+		if !streamPathRE.MatchString(r.URL.Path) {
 			http.NotFound(rw, r)
 			return
 		}
@@ -672,17 +671,4 @@ waitErr:
 	_ = ps
 }
 
-// isStreamPath matches the chat stream endpoint path. A tiny local
-// helper keeps the httptest handler readable.
-func isStreamPath(p string) bool {
-	// Path looks like "/api/experimental/chats/<uuid>/stream".
-	const prefix = "/api/experimental/chats/"
-	const suffix = "/stream"
-	if len(p) < len(prefix)+len(suffix) {
-		return false
-	}
-	if p[:len(prefix)] != prefix {
-		return false
-	}
-	return p[len(p)-len(suffix):] == suffix
-}
+var streamPathRE = regexp.MustCompile(`^/api/experimental/chats/[0-9a-fA-F-]+/stream$`)
