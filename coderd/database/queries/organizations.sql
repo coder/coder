@@ -154,7 +154,6 @@ WHERE
 RETURNING *;
 
 -- name: UpdateOrganizationChatSharingSettings :one
--- Updates the shareable_chat_owners column; called from the enterprise handler.
 UPDATE
     organizations
 SET

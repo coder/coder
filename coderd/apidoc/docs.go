@@ -14852,7 +14852,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "shareable_chat_owners": {
-                    "description": "ShareableChatOwners controls whose chats can be shared within\nthe organization.",
                     "enum": [
                         "none",
                         "everyone",
@@ -14865,7 +14864,6 @@ const docTemplate = `{
                     ]
                 },
                 "sharing_globally_disabled": {
-                    "description": "SharingGloballyDisabled is true if sharing has been disabled for\nthis organization because of a deployment-wide setting.",
                     "type": "boolean"
                 }
             }
@@ -21449,7 +21447,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "shareable_chat_owners": {
-                    "description": "ShareableChatOwners controls whose chats can be shared within\nthe organization.",
                     "enum": [
                         "none",
                         "everyone",

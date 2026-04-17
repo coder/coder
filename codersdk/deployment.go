@@ -3072,12 +3072,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: `Disable agent chat sharing. When set, owners cannot share chats read-only with other users or groups, and any ACLs already set are ignored for authorization. Mirrors --disable-workspace-sharing for agent chats.`,
+			Description: `Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.`,
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
-
-			Value: &c.DisableChatSharing,
-			YAML:  "disableChatSharing",
+			Value:       &c.DisableChatSharing,
+			YAML:        "disableChatSharing",
 		},
 		{
 			Name:        "Session Duration",

@@ -219,7 +219,6 @@ WHERE
     id = @id::uuid;
 
 -- name: GetChatACLByID :one
--- Returns the ACL stored on the chat row itself (not the effective ACL from chats_with_acl).
 SELECT
     user_acl  AS users,
     group_acl AS groups
@@ -229,7 +228,6 @@ WHERE
     id = @id::uuid;
 
 -- name: UpdateChatACLByID :exec
--- Writes the ACL on the given chat row; sub-chat rejection happens in the caller.
 UPDATE
     chats
 SET
@@ -248,8 +246,7 @@ WHERE
     id = @id::uuid;
 
 -- name: DeleteChatACLsByOrganization :exec
--- Clears every chat ACL in an organization, optionally preserving chats
--- owned by service accounts for the 'service_accounts' org mode.
+-- Preserves chats owned by service accounts when exclude_service_accounts is true.
 UPDATE
     chats
 SET
@@ -394,8 +391,7 @@ WHERE
         WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
         ELSE true
     END
-    -- Viewer-scoped shared filter: owned_only restricts to the viewer's own
-    -- chats, shared_only excludes them. Both false means no viewer filter.
+    -- Viewer filter: owned_only keeps only the viewer's chats; shared_only excludes them.
     AND CASE
         WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
         ELSE true
@@ -1416,8 +1412,7 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: ChatHasVisibleToolParts :one
--- Returns true if the chat has any non-deleted message containing a tool-call
--- or tool-result part. Backs confirm_share_tool_calls on PATCH /chats/{chat}/acl.
+-- Backs the confirm_share_tool_calls gate on PATCH /chats/{chat}/acl.
 SELECT EXISTS (
     SELECT 1
     FROM chat_messages
@@ -1430,7 +1425,7 @@ SELECT EXISTS (
 );
 
 -- name: ChatHasVisibleAttachments :one
--- Returns true if the chat has any attachment a shared viewer could see.
+-- Backs the confirm_share_attachments gate on PATCH /chats/{chat}/acl.
 SELECT EXISTS (
     SELECT 1
     FROM chat_file_links

@@ -2113,10 +2113,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                        | Type                                                         | Required | Restrictions | Description                                                                                                                |
-|-----------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `shareable_chat_owners`     | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              | Shareable chat owners controls whose chats can be shared within the organization.                                          |
-| `sharing_globally_disabled` | boolean                                                      | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
+| Name                        | Type                                                         | Required | Restrictions | Description |
+|-----------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `shareable_chat_owners`     | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              |             |
+| `sharing_globally_disabled` | boolean                                                      | false    |              |             |
 
 #### Enumerated Values
 
@@ -10491,9 +10491,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                    | Type                                                         | Required | Restrictions | Description                                                                       |
-|-------------------------|--------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
-| `shareable_chat_owners` | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              | Shareable chat owners controls whose chats can be shared within the organization. |
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `shareable_chat_owners` | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              |             |
 
 #### Enumerated Values
 

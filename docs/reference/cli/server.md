@@ -1177,7 +1177,7 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 | Environment | <code>$CODER_DISABLE_CHAT_SHARING</code> |
 | YAML        | <code>disableChatSharing</code>          |
 
-Disable agent chat sharing. When set, owners cannot share chats read-only with other users or groups, and any ACLs already set are ignored for authorization. Mirrors --disable-workspace-sharing for agent chats.
+Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
 ### --session-duration
 

@@ -43,10 +43,8 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Sub-chats inherit their root's ACL for authorization. Overlay
-			// the root's user_acl / group_acl onto the sub-chat row so
-			// downstream RBACObject() sees the effective ACL. On lookup
-			// failure we fall back to the sub-chat's own empty ACL.
+			// Sub-chats inherit the root's ACL. On lookup failure we fall back
+			// to the sub-chat's own empty ACL, which denies non-owners.
 			if chat.RootChatID.Valid {
 				root, rootErr := db.GetChatByID(ctx, chat.RootChatID.UUID)
 				if rootErr == nil {

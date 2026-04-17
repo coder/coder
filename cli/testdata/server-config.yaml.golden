@@ -530,9 +530,8 @@ disableOwnerWorkspaceAccess: false
 # --disable-owner-workspace-access.
 # (default: <unset>, type: bool)
 disableWorkspaceSharing: false
-# Disable agent chat sharing. When set, owners cannot share chats read-only with
-# other users or groups, and any ACLs already set are ignored for authorization.
-# Mirrors --disable-workspace-sharing for agent chats.
+# Disable chat sharing. Chat ACL checking is disabled and only owners can access
+# their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
 # These options change the behavior of how clients interact with the Coder.

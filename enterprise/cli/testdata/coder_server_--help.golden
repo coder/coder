@@ -38,10 +38,8 @@ OPTIONS:
           authenticating the CLI or an IDE plugin.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable agent chat sharing. When set, owners cannot share chats
-          read-only with other users or groups, and any ACLs already set are
-          ignored for authorization. Mirrors --disable-workspace-sharing for
-          agent chats.
+          Disable chat sharing. Chat ACL checking is disabled and only owners
+          can access their chats.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution

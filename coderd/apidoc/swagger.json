@@ -13355,7 +13355,6 @@
 			"type": "object",
 			"properties": {
 				"shareable_chat_owners": {
-					"description": "ShareableChatOwners controls whose chats can be shared within\nthe organization.",
 					"enum": ["none", "everyone", "service_accounts"],
 					"allOf": [
 						{
@@ -13364,7 +13363,6 @@
 					]
 				},
 				"sharing_globally_disabled": {
-					"description": "SharingGloballyDisabled is true if sharing has been disabled for\nthis organization because of a deployment-wide setting.",
 					"type": "boolean"
 				}
 			}
@@ -19692,7 +19690,6 @@
 			"type": "object",
 			"properties": {
 				"shareable_chat_owners": {
-					"description": "ShareableChatOwners controls whose chats can be shared within\nthe organization.",
 					"enum": ["none", "everyone", "service_accounts"],
 					"allOf": [
 						{

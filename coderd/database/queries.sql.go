@@ -5144,7 +5144,7 @@ SELECT EXISTS (
 )
 `
 
-// Returns true if the chat has any attachment a shared viewer could see.
+// Backs the confirm_share_attachments gate on PATCH /chats/{chat}/acl.
 func (q *sqlQuerier) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, chatHasVisibleAttachments, chatID)
 	var exists bool
@@ -5165,8 +5165,7 @@ SELECT EXISTS (
 )
 `
 
-// Returns true if the chat has any non-deleted message containing a tool-call
-// or tool-result part. Backs confirm_share_tool_calls on PATCH /chats/{chat}/acl.
+// Backs the confirm_share_tool_calls gate on PATCH /chats/{chat}/acl.
 func (q *sqlQuerier) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, chatHasVisibleToolParts, chatID)
 	var exists bool
@@ -5256,8 +5255,7 @@ type DeleteChatACLsByOrganizationParams struct {
 	ExcludeServiceAccounts bool      `db:"exclude_service_accounts" json:"exclude_service_accounts"`
 }
 
-// Clears every chat ACL in an organization, optionally preserving chats
-// owned by service accounts for the 'service_accounts' org mode.
+// Preserves chats owned by service accounts when exclude_service_accounts is true.
 func (q *sqlQuerier) DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatACLsByOrganization, arg.OrganizationID, arg.ExcludeServiceAccounts)
 	return err
@@ -5408,7 +5406,6 @@ type GetChatACLByIDRow struct {
 	Groups WorkspaceACL `db:"groups" json:"groups"`
 }
 
-// Returns the ACL stored on the chat row itself (not the effective ACL from chats_with_acl).
 func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatACLByID, id)
 	var i GetChatACLByIDRow
@@ -6568,8 +6565,7 @@ WHERE
         WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = $1
         ELSE true
     END
-    -- Viewer-scoped shared filter: owned_only restricts to the viewer's own
-    -- chats, shared_only excludes them. Both false means no viewer filter.
+    -- Viewer filter: owned_only keeps only the viewer's chats; shared_only excludes them.
     AND CASE
         WHEN $2::boolean THEN chats.owner_id = $3::uuid
         ELSE true
@@ -7783,7 +7779,6 @@ type UpdateChatACLByIDParams struct {
 	ID       uuid.UUID    `db:"id" json:"id"`
 }
 
-// Writes the ACL on the given chat row; sub-chat rejection happens in the caller.
 func (q *sqlQuerier) UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatACLByID, arg.UserACL, arg.GroupACL, arg.ID)
 	return err
@@ -16134,7 +16129,6 @@ type UpdateOrganizationChatSharingSettingsParams struct {
 	ID                  uuid.UUID           `db:"id" json:"id"`
 }
 
-// Updates the shareable_chat_owners column; called from the enterprise handler.
 func (q *sqlQuerier) UpdateOrganizationChatSharingSettings(ctx context.Context, arg UpdateOrganizationChatSharingSettingsParams) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, updateOrganizationChatSharingSettings, arg.ShareableChatOwners, arg.UpdatedAt, arg.ID)
 	var i Organization

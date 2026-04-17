@@ -180,7 +180,6 @@ func (c Chat) RBACObject() rbac.Object {
 		WithOwner(c.OwnerID.String()).
 		InOrg(c.OrganizationID)
 
-	// When sharing is globally disabled, skip ACL evaluation.
 	if rbac.WorkspaceACLDisabled() {
 		return obj
 	}

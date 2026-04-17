@@ -1,18 +1,17 @@
--- Add user/group ACL columns to chats for read-only sharing with users and groups.
+-- Add user/group ACL columns to chats.
 ALTER TABLE chats
     ADD COLUMN user_acl  jsonb NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN group_acl jsonb NOT NULL DEFAULT '{}'::jsonb;
 
--- Reject NULL jsonb objects so downstream views and Rego->SQL treat the column as a map.
+-- Enforce jsonb-object shape so downstream views and Rego->SQL treat the column as a map.
 ALTER TABLE chats
     ADD CONSTRAINT chat_user_acl_not_null_jsonb
         CHECK (user_acl IS NOT NULL AND jsonb_typeof(user_acl) = 'object'),
     ADD CONSTRAINT chat_group_acl_not_null_jsonb
         CHECK (group_acl IS NOT NULL AND jsonb_typeof(group_acl) = 'object');
 
--- chats_with_acl projects each chat alongside its effective ACL:
--- COALESCE to the root chat's ACL for sub-chats, falling back to the
--- chat's own ACL for roots (and for orphaned sub-chats).
+-- Effective ACL per chat: COALESCE to the root chat's ACL for sub-chats, or the
+-- chat's own ACL for roots and orphaned sub-chats.
 CREATE VIEW chats_with_acl AS
 SELECT
     c.id,
@@ -52,10 +51,8 @@ COMMENT ON VIEW chats_with_acl IS
     'Projects each chat alongside its effective ACL. Sub-chats inherit the '
     'root chat''s ACL via COALESCE; orphaned sub-chats fall back to their own ACL.';
 
--- Add the chat:share scope to the api_key_scope enum.
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat:share';
 
--- Three-state org setting for chat sharing: none | everyone | service_accounts.
 CREATE TYPE shareable_chat_owners AS ENUM ('none', 'everyone', 'service_accounts');
 
 ALTER TABLE organizations

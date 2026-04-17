@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// chatACL returns the ACL on a chat, hydrated with user and group display info.
 func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -48,7 +47,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// nolint:gocritic // system context so display info is returned regardless of caller perms
+	// nolint:gocritic // Display info must be returned regardless of the caller's org:read perms.
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -75,7 +74,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
-		// nolint:gocritic // system context so display info is returned regardless of caller perms
+		// nolint:gocritic // Display info must be returned regardless of the caller's group:read perms.
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.InternalServerError(rw, err)
@@ -86,7 +85,7 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
 		var members []database.GroupMember
-		// nolint:gocritic // system context so display info is returned regardless of caller perms
+		// nolint:gocritic // Display info must be returned regardless of the caller's group:read perms.
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
 			GroupID:       it.Group.ID,
 			IncludeSystem: false,
@@ -111,8 +110,6 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// patchChatACL updates the ACL on a chat. Owners cannot change their own role,
-// and only ChatRoleRead or ChatRoleDeleted are accepted.
 func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -141,7 +138,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only enforce share-confirmation prompts when the PATCH actually adds viewers.
+	// Suppress share-confirmation prompts on removal-only PATCHes.
 	if hasShareAdditions(req) {
 		if !api.requireShareConfirmations(ctx, rw, chat, req) {
 			return
@@ -204,7 +201,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// deleteChatACL clears both ACLs on the chat.
 func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -236,14 +232,13 @@ func (api *API) deleteChatACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// writeChatACLSubChatError is the 400 response for ACL endpoints invoked on a sub-chat.
 func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat database.Chat) {
 	var rootID uuid.UUID
 	switch {
 	case chat.RootChatID.Valid:
 		rootID = chat.RootChatID.UUID
 	case chat.ParentChatID.Valid:
-		// Fallback for sub-chats inserted before root_chat_id was denormalized.
+		// root_chat_id is NULL on sub-chats inserted before denormalization; parent is the next-best hop.
 		rootID = chat.ParentChatID.UUID
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -252,7 +247,6 @@ func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat 
 	})
 }
 
-// ChatACLUpdateValidator implements acl.UpdateValidator[codersdk.ChatRole] for the chat share endpoint.
 type ChatACLUpdateValidator codersdk.UpdateChatACL
 
 var (
@@ -280,8 +274,8 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
-// convertToChatRole is the inverse of db2sdk.ChatRoleActions. Unknown permission
-// sets map to ChatRoleDeleted so clients surface "unknown" rather than misreport.
+// convertToChatRole maps stored permissions back to a ChatRole. Unknown sets map
+// to ChatRoleDeleted so callers do not misread a stale or corrupt entry as read.
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead
@@ -289,7 +283,6 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	return codersdk.ChatRoleDeleted
 }
 
-// hasShareAdditions reports whether the PATCH would add or update at least one viewer.
 func hasShareAdditions(req codersdk.UpdateChatACL) bool {
 	for _, role := range req.UserRoles {
 		if role != codersdk.ChatRoleDeleted {
@@ -304,8 +297,6 @@ func hasShareAdditions(req codersdk.UpdateChatACL) bool {
 	return false
 }
 
-// requireShareConfirmations enforces the confirm_share_tool_calls and
-// confirm_share_attachments flags. Returns true if the request may proceed.
 func (api *API) requireShareConfirmations(
 	ctx context.Context,
 	rw http.ResponseWriter,
@@ -363,10 +354,8 @@ func (api *API) requireShareConfirmations(
 	return false
 }
 
-// allowChatSharing enforces the org-level chat-sharing gate. Returns false after
-// writing an HTTP error when sharing is disabled or restricted to service accounts.
 func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, chat database.Chat) bool {
-	// nolint:gocritic // system context so the check ignores caller org:read perms
+	// nolint:gocritic // This gate must ignore the caller's org:read perms.
 	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), chat.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -379,7 +368,7 @@ func (api *API) allowChatSharing(ctx context.Context, rw http.ResponseWriter, ch
 		})
 		return false
 	case database.ShareableChatOwnersServiceAccounts:
-		// nolint:gocritic // system context so the check ignores caller user:read perms
+		// nolint:gocritic // Owner lookup must ignore the caller's user:read perms.
 		owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), chat.OwnerID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)

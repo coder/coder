@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// createSharedChat creates a chat owned by the admin client for use in sharing tests.
 func createSharedChat(
 	ctx context.Context,
 	t *testing.T,
@@ -203,7 +202,6 @@ func TestPatchChatACL_RequiresToolConfirmation(t *testing.T) {
 	require.Equal(t, viewer.ID, acl.Users[0].ID)
 }
 
-// TestDeleteChatACL_ClearsEntries covers the DELETE handler happy path.
 func TestDeleteChatACL_ClearsEntries(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +244,6 @@ func TestListChats_SharedFilter(t *testing.T) {
 	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
 	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
 
-	// Owner creates two chats; share the second one with viewer.
 	ownedOnly := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "owned only")
 	sharedChat := createSharedChat(ctx, t, ownerClient, firstUser.OrganizationID, "owned and shared")
 
@@ -283,7 +280,6 @@ func TestListChats_SharedFilter(t *testing.T) {
 	require.Contains(t, ownerIDs, ownedOnly.ID)
 	require.Contains(t, ownerIDs, sharedChat.ID)
 
-	// Unknown shared filter values return 400.
 	res, err := viewerClient.Request(ctx, http.MethodGet, "/api/experimental/chats?shared=wat", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()

@@ -321,7 +321,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	sharedFilter := codersdk.ChatSharedFilter(r.URL.Query().Get("shared"))
 	switch sharedFilter {
 	case codersdk.ChatSharedFilterNo, codersdk.ChatSharedFilterInclude, codersdk.ChatSharedFilterOnly:
-		// valid
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf(
@@ -351,7 +350,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	case codersdk.ChatSharedFilterOnly:
 		params.SharedOnly = true
 	case codersdk.ChatSharedFilterInclude:
-		// No viewer filter; the RBAC filter returns owned + shared.
 	}
 
 	chatRows, err := api.Database.GetChats(ctx, params)

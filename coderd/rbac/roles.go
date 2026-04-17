@@ -994,7 +994,7 @@ const (
 	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
 )
 
-// ShareableChatOwners mirrors database.ShareableChatOwners without the cyclic import.
+// ShareableChatOwners mirrors database.ShareableChatOwners; redeclared here to avoid a cyclic import.
 type ShareableChatOwners string
 
 const (
@@ -1103,8 +1103,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	}
 
 	if org.ShareableChatOwners != ShareableChatOwnersEveryone {
-		// Non-'everyone' modes deny chat:share on member-scoped chats;
-		// service-account chats retain share via OrgServiceAccountPermissions.
+		// service-account chats can still share through OrgServiceAccountPermissions.
 		memberPerms = append(memberPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceChat.Type,

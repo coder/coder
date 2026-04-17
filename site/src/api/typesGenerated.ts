@@ -1264,9 +1264,6 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
-/**
- * ChatACL is the full read-shape returned by GET /chats/{chat}/acl.
- */
 export interface ChatACL {
 	readonly users: readonly ChatUser[];
 	readonly groups: readonly ChatGroup[];
@@ -1640,9 +1637,6 @@ export interface ChatGitChange {
 }
 
 // From codersdk/chats.go
-/**
- * ChatGroup is an entry in a ChatACL.Groups list.
- */
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
 }
@@ -2126,19 +2120,10 @@ export const ChatSharedFilters: ChatSharedFilter[] = ["include", "", "only"];
 
 // From codersdk/chatsharing.go
 /**
- * ChatSharingSettings represents chat sharing settings affecting an
- * organization.
+ * ChatSharingSettings represents chat sharing settings affecting an organization.
  */
 export interface ChatSharingSettings {
-	/**
-	 * SharingGloballyDisabled is true if sharing has been disabled for
-	 * this organization because of a deployment-wide setting.
-	 */
 	readonly sharing_globally_disabled: boolean;
-	/**
-	 * ShareableChatOwners controls whose chats can be shared within
-	 * the organization.
-	 */
 	readonly shareable_chat_owners: ShareableChatOwners;
 }
 
@@ -2485,9 +2470,6 @@ export interface ChatUsageLimitStatus {
 }
 
 // From codersdk/chats.go
-/**
- * ChatUser is an entry in a ChatACL.Users list.
- */
 export interface ChatUser extends MinimalUser {
 	readonly role: ChatRole;
 }
@@ -7630,15 +7612,9 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
- * UpdateChatACL is the request body for PATCH /chats/{chat}/acl.
- *
- * UserRoles and GroupRoles map ids to the role the owner wants each actor to
- * have. A value of ChatRoleDeleted (the empty string) removes the entry.
- * Roles other than ChatRoleRead are rejected with a 400.
- *
- * ConfirmShareToolCalls and ConfirmShareAttachments acknowledge that shared
- * viewers will see tool calls and/or attachments already in the chat; the
- * server returns 400 naming any missing required flag.
+ * ConfirmShareToolCalls and ConfirmShareAttachments must be set when the chat
+ * already contains tool calls or attachments, respectively. The server returns
+ * 400 naming any missing required flag.
  */
 export interface UpdateChatACL {
 	readonly user_roles?: Record<string, ChatRole>;
@@ -7741,14 +7717,9 @@ export interface UpdateChatRetentionDaysRequest {
 
 // From codersdk/chatsharing.go
 /**
- * UpdateChatSharingSettingsRequest represents chat sharing settings
- * that can be updated for an organization.
+ * UpdateChatSharingSettingsRequest represents chat sharing settings that can be updated for an organization.
  */
 export interface UpdateChatSharingSettingsRequest {
-	/**
-	 * ShareableChatOwners controls whose chats can be shared within
-	 * the organization.
-	 */
 	readonly shareable_chat_owners?: ShareableChatOwners;
 }
 

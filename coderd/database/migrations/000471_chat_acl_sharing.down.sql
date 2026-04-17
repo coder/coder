@@ -1,9 +1,9 @@
--- Reverse 000471_chat_acl_sharing in reverse order.
+-- Reverse 000471_chat_acl_sharing.
 
 ALTER TABLE organizations DROP COLUMN shareable_chat_owners;
 DROP TYPE shareable_chat_owners;
 
--- Postgres cannot drop an enum value; leave 'chat:share' on api_key_scope.
+-- Postgres cannot drop an enum value; 'chat:share' is left on api_key_scope.
 
 DROP VIEW chats_with_acl;
 

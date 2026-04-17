@@ -2712,17 +2712,14 @@ type PRInsightsPullRequest struct {
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
 
-// ChatRole is the role a shared viewer holds on a chat.
 type ChatRole string
 
 const (
 	ChatRoleRead ChatRole = "read"
-	// ChatRoleDeleted is the sentinel used in UpdateChatACL to remove an entry.
+	// ChatRoleDeleted removes an entry when used in UpdateChatACL.
 	ChatRoleDeleted ChatRole = ""
 )
 
-// ChatSharedFilter selects which chats GET /chats returns: the caller's own
-// chats by default, owned + shared with "include", or shared-only with "only".
 type ChatSharedFilter string
 
 const (
@@ -2731,33 +2728,24 @@ const (
 	ChatSharedFilterOnly    ChatSharedFilter = "only"
 )
 
-// ChatUser is an entry in a ChatACL.Users list.
 type ChatUser struct {
 	MinimalUser
 	Role ChatRole `json:"role" enums:"read"`
 }
 
-// ChatGroup is an entry in a ChatACL.Groups list.
 type ChatGroup struct {
 	Group
 	Role ChatRole `json:"role" enums:"read"`
 }
 
-// ChatACL is the full read-shape returned by GET /chats/{chat}/acl.
 type ChatACL struct {
 	Users  []ChatUser  `json:"users"`
 	Groups []ChatGroup `json:"groups"`
 }
 
-// UpdateChatACL is the request body for PATCH /chats/{chat}/acl.
-//
-// UserRoles and GroupRoles map ids to the role the owner wants each actor to
-// have. A value of ChatRoleDeleted (the empty string) removes the entry.
-// Roles other than ChatRoleRead are rejected with a 400.
-//
-// ConfirmShareToolCalls and ConfirmShareAttachments acknowledge that shared
-// viewers will see tool calls and/or attachments already in the chat; the
-// server returns 400 naming any missing required flag.
+// ConfirmShareToolCalls and ConfirmShareAttachments must be set when the chat
+// already contains tool calls or attachments, respectively. The server returns
+// 400 naming any missing required flag.
 type UpdateChatACL struct {
 	UserRoles               map[string]ChatRole `json:"user_roles,omitempty"`
 	GroupRoles              map[string]ChatRole `json:"group_roles,omitempty"`
@@ -2765,7 +2753,6 @@ type UpdateChatACL struct {
 	ConfirmShareAttachments bool                `json:"confirm_share_attachments,omitempty"`
 }
 
-// ChatACL returns the ACL for a chat.
 func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
 	if err != nil {
@@ -2779,7 +2766,6 @@ func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (Cha
 	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
-// UpdateChatACL sets the ACL for a chat.
 func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
 	if err != nil {
@@ -2792,7 +2778,6 @@ func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID
 	return nil
 }
 
-// DeleteChatACL clears both the user and group ACLs on the chat.
 func (c *ExperimentalClient) DeleteChatACL(ctx context.Context, chatID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
 	if err != nil {
