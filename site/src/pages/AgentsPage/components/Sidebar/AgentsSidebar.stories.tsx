@@ -87,7 +87,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
-		onRegenerateTitle: fn(),
+		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
@@ -373,13 +373,13 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Generate new title" }),
-		).toHaveAttribute("data-disabled");
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		).toBeInTheDocument();
 
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
 			expect(
-				body.queryByRole("menuitem", { name: "Generate new title" }),
+				body.queryByRole("menuitem", { name: "Rename chat" }),
 			).not.toBeInTheDocument();
 		});
 
@@ -389,8 +389,115 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Generate new title" }),
-		).not.toHaveAttribute("data-disabled");
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const RenameChatSubmitsNewTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-target",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		// Dialog opens pre-populated with the existing title and auto-selects
+		// it so the user can overwrite immediately.
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await waitFor(() => {
+			expect(input).toHaveValue("Original title");
+			expect(input.selectionStart).toBe(0);
+			expect(input.selectionEnd).toBe("Original title".length);
+		});
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "Renamed title");
+		await userEvent.click(body.getByRole("button", { name: "Rename chat" }));
+
+		// The sidebar forwards the edited title to its parent through
+		// the same callback the page wires to react-query.
+		await waitFor(() => {
+			expect(args.onRenameTitle).toHaveBeenCalledWith(
+				"rename-target",
+				"Renamed title",
+			);
+		});
+
+		// Dialog closes on success so the user returns to the chat list.
+		await waitFor(() => {
+			expect(
+				body.queryByRole("heading", { name: "Rename chat" }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const RenameChatCancelKeepsOriginalTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-cancel",
+				title: "Keep me",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep me",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.clear(input);
+		await userEvent.type(input, "Discarded edit");
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Cancelling the dialog must not invoke the save path, otherwise
+		// the UI would briefly display a title the user rejected.
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+		expect(canvas.getByText("Keep me")).toBeInTheDocument();
 	},
 };
 

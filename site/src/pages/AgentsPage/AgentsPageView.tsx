@@ -24,6 +24,7 @@ export interface AgentsOutletContext {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle?: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -62,6 +63,8 @@ interface AgentsPageViewProps {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle: (chatId: string) => void;
+	onRegenerateTitleWithResult: (chatId: string) => Promise<string>;
+	onRenameTitle: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
@@ -98,6 +101,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
 	onRegenerateTitle,
+	onRegenerateTitleWithResult,
+	onRenameTitle,
 	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
@@ -174,7 +179,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onReorderPinnedAgent={requestReorderPinnedAgent}
-					onRegenerateTitle={onRegenerateTitle}
+					onRenameTitle={onRenameTitle}
+					onRegenerateTitle={onRegenerateTitleWithResult}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}

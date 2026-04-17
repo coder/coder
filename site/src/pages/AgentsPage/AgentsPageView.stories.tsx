@@ -264,6 +264,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
 	onRegenerateTitle: fn(),
+	onRegenerateTitleWithResult: fn(async () => "Generated title"),
+	onRenameTitle: fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,

@@ -3938,6 +3938,88 @@ func TestPatchChat(t *testing.T) {
 			require.Nil(t, updated.AgentID)
 		})
 	})
+
+	t.Run("Title", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Rename", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "original title")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("renamed title"),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "renamed title", updated.Title)
+		})
+
+		t.Run("TrimsWhitespace", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "before trim")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("   padded title   "),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "padded title", updated.Title)
+		})
+
+		t.Run("RejectsEmpty", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("   "),
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, chat.Title, updated.Title)
+		})
+
+		t.Run("RejectsTooLong", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original length")
+
+			tooLong := strings.Repeat("a", 201)
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref(tooLong),
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, chat.Title, updated.Title)
+		})
+
+	})
 }
 
 func TestArchiveChat(t *testing.T) {

@@ -41,6 +41,7 @@ import {
 	PinOffIcon,
 	SettingsIcon,
 	ShieldIcon,
+	SparklesIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
@@ -58,6 +59,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
+import { getErrorMessage } from "#/api/errors";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -69,6 +71,21 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -77,6 +94,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { Input } from "#/components/Input/Input";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -127,7 +145,8 @@ interface AgentsSidebarProps {
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	onRegenerateTitle?: (chatId: string) => Promise<string>;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -385,7 +404,7 @@ interface ChatTreeContextValue {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onRegenerateTitle: (chatId: string) => void;
+	readonly onOpenRenameDialog?: (chat: Chat) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -423,7 +442,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -465,212 +484,233 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	return (
-		<div className="flex min-w-0 flex-col">
-			<div
-				data-testid={`agents-tree-node-${chat.id}`}
-				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-					isChildNode &&
-						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-				)}
-			>
-				<div
-					className={cn(
-						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-						hasChildren && "cursor-pointer",
-					)}
+	const renderMenuItems = ({
+		Item,
+		Separator,
+	}: {
+		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
+		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
+	}) => (
+		<>
+			{!chat.archived && !isChildNode && (
+				<Item
+					onSelect={() =>
+						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+					}
 				>
-					<div
-						className={cn(
-							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
-						)}
-					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
-					</div>
-					{hasChildren && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => toggleExpanded(chatID)}
-							className={cn(
-								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								"[@media(hover:hover)]:group-hover/icon:visible",
-							)}
-							data-testid={`agents-tree-toggle-${chat.id}`}
-							aria-label={isExpanded ? "Collapse" : "Expand"}
-							aria-expanded={isExpanded}
-						>
-							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						</Button>
-					)}
-				</div>
-				<NavLink
-					to={`/agents/${chat.id}`}
-					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-				>
-					{({ isActive }) => (
+					{chat.pin_order > 0 ? (
 						<>
-							<div className="min-w-0 flex-1 overflow-hidden text-left">
-								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-									<span
-										aria-busy={isRegeneratingThisChat}
-										className={cn(
-											"block flex-1 truncate text-[13px] text-content-primary",
-											isActive && "font-medium",
-											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
-											isRegeneratingThisChat && "animate-pulse",
-										)}
-									>
-										{chat.title}
-									</span>
-									{chat.has_unread && !isActiveChat && (
-										<span className="sr-only">(unread)</span>
-									)}
-									{isRegeneratingThisChat && (
-										<span className="sr-only" role="status">
-											Regenerating title…
-										</span>
-									)}
-								</div>
-								<div className="flex min-w-0 items-center gap-1.5">
-									{hasLinkedDiffStatus && hasLineStats && (
-										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-											title={`${filesChangedLabel}, +${additions} -${deletions}`}
-										>
-											<span className="text-git-added-bright">
-												+{additions}
-											</span>
-											<span className="text-git-deleted-bright">
-												&minus;{deletions}
-											</span>
-										</span>
-									)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
-										)}
-										title={subtitle}
-									>
-										{subtitle}
-									</div>
-								</div>
-							</div>
+							<PinOffIcon className="h-3.5 w-3.5" />
+							Unpin agent
 						</>
-					)}
-				</NavLink>
-				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-					{isArchivingThisChat ? (
-						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
 						<>
-							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
-										data-testid={`unread-indicator-${chat.id}`}
-										aria-hidden="true"
-									/>
-								) : (
-									shortRelativeTime(chat.updated_at)
-								)}
-							</span>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
-									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									{!chat.archived && !isChildNode && (
-										<DropdownMenuItem
-											onSelect={() =>
-												chat.pin_order > 0
-													? onUnpinAgent(chat.id)
-													: onPinAgent(chat.id)
-											}
-										>
-											{chat.pin_order > 0 ? (
-												<>
-													<PinOffIcon className="h-3.5 w-3.5" />
-													Unpin agent
-												</>
-											) : (
-												<>
-													<PinIcon className="h-3.5 w-3.5" />
-													Pin agent
-												</>
-											)}
-										</DropdownMenuItem>
-									)}
-									{chat.archived ? (
-										<DropdownMenuItem
-											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
-										>
-											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-											Unarchive agent
-										</DropdownMenuItem>
-									) : (
-										<>
-											<DropdownMenuItem
-												disabled={isRegeneratingThisChat}
-												onSelect={() => onRegenerateTitle(chat.id)}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
-											>
-												<ArchiveIcon className="h-3.5 w-3.5" />
-												Archive agent
-											</DropdownMenuItem>
-											{workspaceId && (
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
-												>
-													<Trash2Icon className="h-3.5 w-3.5" />
-													Archive & delete workspace
-												</DropdownMenuItem>
-											)}
-										</>
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
+							<PinIcon className="h-3.5 w-3.5" />
+							Pin agent
 						</>
 					)}
-				</div>
-			</div>
+				</Item>
+			)}
+			{chat.archived ? (
+				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+					<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+					Unarchive agent
+				</Item>
+			) : (
+				<>
+					{onOpenRenameDialog && (
+						<Item onSelect={() => onOpenRenameDialog(chat)}>
+							<SquarePenIcon className="h-3.5 w-3.5" />
+							Rename chat
+						</Item>
+					)}
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						disabled={isArchiving}
+						onSelect={() => onArchiveAgent(chat.id)}
+					>
+						<ArchiveIcon className="h-3.5 w-3.5" />
+						Archive agent
+					</Item>
+					{workspaceId && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							disabled={isArchiving}
+							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+						>
+							<Trash2Icon className="h-3.5 w-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+				</>
+			)}
+		</>
+	);
+
+	return (
+		<div className="flex min-w-0 flex-col">
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div
+						data-testid={`agents-tree-node-${chat.id}`}
+						className={cn(
+							"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							isChildNode &&
+								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+						)}
+					>
+						<div
+							className={cn(
+								"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+								hasChildren && "cursor-pointer",
+							)}
+						>
+							<div
+								className={cn(
+									"flex h-5 w-5 items-center justify-center rounded-md",
+									hasChildren &&
+										"[@media(hover:hover)]:group-hover/icon:invisible",
+								)}
+							>
+								<StatusIcon
+									data-testid={
+										isDelegatedExecuting
+											? `agents-tree-executing-${chat.id}`
+											: undefined
+									}
+									className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+								/>
+							</div>
+							{hasChildren && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={() => toggleExpanded(chatID)}
+									className={cn(
+										"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+										"[@media(hover:hover)]:group-hover/icon:visible",
+									)}
+									data-testid={`agents-tree-toggle-${chat.id}`}
+									aria-label={isExpanded ? "Collapse" : "Expand"}
+									aria-expanded={isExpanded}
+								>
+									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+								</Button>
+							)}
+						</div>
+						<NavLink
+							to={`/agents/${chat.id}`}
+							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+						>
+							{({ isActive }) => (
+								<>
+									<div className="min-w-0 flex-1 overflow-hidden text-left">
+										<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+											<span
+												aria-busy={isRegeneratingThisChat}
+												className={cn(
+													"block flex-1 truncate text-[13px] text-content-primary",
+													isActive && "font-medium",
+													// Pulse-only in sidebar (no spinner) — space-constrained card layout.
+													isRegeneratingThisChat && "animate-pulse",
+												)}
+											>
+												{chat.title}
+											</span>
+											{chat.has_unread && !isActiveChat && (
+												<span className="sr-only">(unread)</span>
+											)}
+											{isRegeneratingThisChat && (
+												<span className="sr-only" role="status">
+													Regenerating title…
+												</span>
+											)}
+										</div>
+										<div className="flex min-w-0 items-center gap-1.5">
+											{hasLinkedDiffStatus && hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
+												</span>
+											)}
+											<div
+												className={cn(
+													"min-w-0 overflow-hidden text-[13px] leading-4",
+													errorReason
+														? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+														: "truncate text-content-secondary",
+												)}
+												title={subtitle}
+											>
+												{subtitle}
+											</div>
+										</div>
+									</div>
+								</>
+							)}
+						</NavLink>
+						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<>
+									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										{chat.has_unread && !isActiveChat ? (
+											<span
+												className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										) : (
+											shortRelativeTime(chat.updated_at)
+										)}
+									</span>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisIcon className="h-3.5 w-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+										>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</>
+							)}
+						</div>
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+					{renderMenuItems({
+						Item: ContextMenuItem,
+						Separator: ContextMenuSeparator,
+					})}
+				</ContextMenuContent>
+			</ContextMenu>
 
 			{hasChildren && isExpanded && (
 				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
@@ -742,6 +782,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onReorderPinnedAgent,
+		onRenameTitle,
 		onRegenerateTitle,
 		onBeforeNewAgent,
 		isCreating,
@@ -778,6 +819,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
+	const [renameTitle, setRenameTitle] = useState("");
+	const [isRenamingChat, setIsRenamingChat] = useState(false);
+	const [isGeneratingRenameTitle, setIsGeneratingRenameTitle] = useState(false);
+	const [generateRenameTitleError, setGenerateRenameTitleError] = useState<
+		string | null
+	>(null);
+	const renameInputRef = useRef<HTMLInputElement | null>(null);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
@@ -953,6 +1002,60 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
+	const handleOpenRenameDialog = (chat: Chat) => {
+		setChatPendingRename(chat);
+		setRenameTitle(chat.title);
+		setGenerateRenameTitleError(null);
+	};
+	const closeRenameDialog = () => {
+		if (isRenamingChat || isGeneratingRenameTitle) {
+			return;
+		}
+		setChatPendingRename(null);
+		setRenameTitle("");
+		setGenerateRenameTitleError(null);
+	};
+	const handleGenerateRenameTitle = async () => {
+		if (!chatPendingRename || !onRegenerateTitle) {
+			return;
+		}
+		setIsGeneratingRenameTitle(true);
+		setGenerateRenameTitleError(null);
+		try {
+			const newTitle = await onRegenerateTitle(chatPendingRename.id);
+			setRenameTitle(newTitle);
+			requestAnimationFrame(() => {
+				renameInputRef.current?.focus();
+				renameInputRef.current?.select();
+			});
+		} catch (error) {
+			// Parent also surfaces a toast; the inline message gives
+			// immediate in-context feedback while the dialog is open.
+			setGenerateRenameTitleError(
+				getErrorMessage(error, "Failed to generate a new title."),
+			);
+		} finally {
+			setIsGeneratingRenameTitle(false);
+		}
+	};
+	const handleRenameSubmit = async () => {
+		if (!chatPendingRename || !onRenameTitle) {
+			return;
+		}
+		const trimmedTitle = renameTitle.trim();
+		if (!trimmedTitle || trimmedTitle === chatPendingRename.title) {
+			closeRenameDialog();
+			return;
+		}
+		setIsRenamingChat(true);
+		try {
+			await onRenameTitle(chatPendingRename.id, trimmedTitle);
+			setChatPendingRename(null);
+			setRenameTitle("");
+		} finally {
+			setIsRenamingChat(false);
+		}
+	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
 		chatTree,
@@ -973,7 +1076,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog: onRenameTitle ? handleOpenRenameDialog : undefined,
 	};
 
 	const subNavTitle = "Settings";
@@ -1331,6 +1434,109 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</nav>
 				)}
 			</div>
+			<Dialog
+				open={chatPendingRename !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						closeRenameDialog();
+					}
+				}}
+			>
+				<DialogContent
+					onOpenAutoFocus={(event) => {
+						event.preventDefault();
+						requestAnimationFrame(() => {
+							renameInputRef.current?.focus();
+							renameInputRef.current?.select();
+						});
+					}}
+					className="max-w-[440px] p-6 sm:p-6"
+				>
+					<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
+						<DialogTitle className="text-lg">Rename chat</DialogTitle>
+						{onRegenerateTitle && (
+							<Button
+								type="button"
+								variant="subtle"
+								size="sm"
+								className="h-auto min-w-0 gap-1 px-2 py-1.5 text-xs font-normal"
+								onClick={() => {
+									void handleGenerateRenameTitle();
+								}}
+								disabled={isRenamingChat || isGeneratingRenameTitle}
+							>
+								{isGeneratingRenameTitle ? (
+									<Spinner className="h-[18px] w-[18px]" loading />
+								) : (
+									<SparklesIcon className="h-[18px] w-[18px]" />
+								)}
+								Generate
+							</Button>
+						)}
+					</DialogHeader>
+					<form
+						className="flex flex-col gap-6"
+						onSubmit={(event) => {
+							event.preventDefault();
+							void handleRenameSubmit();
+						}}
+					>
+						<div className="space-y-1.5">
+							<Input
+								id="rename-chat-title"
+								ref={renameInputRef}
+								value={renameTitle}
+								onChange={(event) => {
+									setRenameTitle(event.target.value);
+									if (generateRenameTitleError) {
+										setGenerateRenameTitleError(null);
+									}
+								}}
+								disabled={isRenamingChat || isGeneratingRenameTitle}
+								maxLength={200}
+								aria-label="Chat title"
+								aria-invalid={generateRenameTitleError ? true : undefined}
+								aria-describedby={
+									generateRenameTitleError
+										? "rename-chat-generate-error"
+										: undefined
+								}
+							/>
+							{generateRenameTitleError && (
+								<p
+									id="rename-chat-generate-error"
+									role="alert"
+									className="m-0 text-xs text-content-destructive"
+								>
+									{generateRenameTitleError}
+								</p>
+							)}
+						</div>
+						<DialogFooter className="gap-2 sm:space-x-0">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={closeRenameDialog}
+								disabled={isRenamingChat || isGeneratingRenameTitle}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="submit"
+								size="sm"
+								disabled={
+									!renameTitle.trim() ||
+									isRenamingChat ||
+									isGeneratingRenameTitle
+								}
+							>
+								{isRenamingChat && <Spinner className="h-4 w-4" loading />}
+								Save
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };

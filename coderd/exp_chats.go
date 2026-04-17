@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -111,6 +112,33 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 		return true
 	}
 	return false
+}
+
+// publishChatTitleChange broadcasts a title_change event so other
+// clients subscribed to the owner's chat watch stream update their
+// cached chat title without needing an extra refetch.
+func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
+	if ps == nil {
+		return
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindTitleChange,
+		Chat: db2sdk.Chat(chat, nil, nil),
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
 }
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
@@ -1839,8 +1867,9 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, and pinned-chat ordering.
+// patchChat updates a chat resource. Supports updating the title,
+// labels, workspace binding, archiving, pinning, and pinned-chat
+// ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1860,6 +1889,45 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+	}
+
+	if req.Title != nil {
+		// Trim so leading/trailing whitespace doesn't produce a
+		// visually-empty title that still passes the non-empty check.
+		trimmedTitle := strings.TrimSpace(*req.Title)
+		if trimmedTitle == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Title cannot be empty.",
+			})
+			return
+		}
+		// Keep the limit in sync with the client-side maxLength on the
+		// rename input. Counting runes avoids rejecting multi-byte
+		// characters that would fit comfortably in the UI.
+		const maxChatTitleRunes = 200
+		if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+			})
+			return
+		}
+		updatedChat, err := api.Database.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: trimmedTitle,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat title.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+		publishChatTitleChange(api.Logger, api.Pubsub, chat)
 	}
 
 	if req.Labels != nil {

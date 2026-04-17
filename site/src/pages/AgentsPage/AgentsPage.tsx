@@ -26,6 +26,7 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatTitle,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -263,6 +264,12 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const renameTitleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
@@ -434,6 +441,25 @@ const AgentsPage: FC = () => {
 			.finally(() => {
 				removeRegeneratingTitleChatId(chatId);
 			});
+	};
+	const requestRegenerateTitleWithResult = async (
+		chatId: string,
+	): Promise<string> => {
+		const alreadyTracking = regeneratingTitleChatIdsRef.current.has(chatId);
+		if (!alreadyTracking) {
+			addRegeneratingTitleChatId(chatId);
+		}
+		try {
+			const updated = await regenerateTitleMutation.mutateAsync(chatId);
+			return updated.title;
+		} finally {
+			if (!alreadyTracking) {
+				removeRegeneratingTitleChatId(chatId);
+			}
+		}
+	};
+	const requestRenameTitle = async (chatId: string, title: string) => {
+		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -718,6 +744,8 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
+				onRegenerateTitleWithResult={requestRegenerateTitleWithResult}
+				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
