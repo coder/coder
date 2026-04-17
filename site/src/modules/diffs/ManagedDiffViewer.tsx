@@ -868,7 +868,6 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 	}, [containerEl]);
 
 	const showTree =
-		(renderMode.enableTreeSync || isExpanded) &&
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
 		sortedFiles.length > 0;
 

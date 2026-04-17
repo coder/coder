@@ -1,7 +1,7 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, waitFor } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
@@ -56,6 +56,47 @@ export default meta;
 type Story = StoryObj<typeof DiffViewer>;
 
 export const Default: Story = {};
+
+export const WideLargeDiffWithoutExpansionShowsFileTree: Story = {
+	args: {
+		parsedFiles: parsePatchFiles(
+			Array.from({ length: 25 }, (_, index) =>
+				[
+					`diff --git a/src/file${index}.ts b/src/file${index}.ts`,
+					`index ${String(index).padStart(7, "0")}..${String(index + 1).padStart(7, "0")} 100644`,
+					`--- a/src/file${index}.ts`,
+					`+++ b/src/file${index}.ts`,
+					"@@ -1,1 +1,1 @@",
+					`-export const value${index} = ${index};`,
+					`+export const value${index} = ${index + 1};`,
+				].join("\n"),
+			).join("\n"),
+		).flatMap((patch) => patch.files),
+		isExpanded: false,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 1280 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", {
+					name: /^src$/i,
+				}),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("button", {
+					name: /file0\.ts/i,
+				}),
+			).toBeVisible();
+		});
+	},
+};
 
 export const SplitView: Story = {
 	args: {
