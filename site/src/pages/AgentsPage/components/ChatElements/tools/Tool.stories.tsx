@@ -517,6 +517,7 @@ const sampleMCPServers = [
 		availability: "default_on",
 		enabled: true,
 		model_intent: false,
+		allow_in_plan_mode: false,
 		auth_connected: true,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
