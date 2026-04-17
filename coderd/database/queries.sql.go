@@ -5283,7 +5283,9 @@ func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat,
 
 const autoArchiveInactiveChats = `-- name: AutoArchiveInactiveChats :many
 WITH to_archive AS (
-    SELECT c.id
+    SELECT
+        c.id,
+        COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
     FROM chats c
     LEFT JOIN LATERAL (
         SELECT MAX(cm.created_at) AS last_activity_at
@@ -5307,9 +5309,20 @@ archived AS (
       AND c.archived = false
     RETURNING c.id, c.owner_id, c.workspace_id, c.title, c.status, c.worker_id, c.started_at, c.heartbeat_at, c.created_at, c.updated_at, c.parent_chat_id, c.root_chat_id, c.last_model_config_id, c.archived, c.last_error, c.mode, c.mcp_server_ids, c.labels, c.build_id, c.agent_id, c.pin_order, c.last_read_message_id, c.last_injected_context, c.dynamic_tools, c.organization_id, c.plan_mode, c.client_type
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
-FROM archived
-ORDER BY (root_chat_id IS NULL) DESC, owner_id ASC, created_at ASC, id ASC
+SELECT
+    a.id, a.owner_id, a.workspace_id, a.title, a.status, a.worker_id, a.started_at, a.heartbeat_at, a.created_at, a.updated_at, a.parent_chat_id, a.root_chat_id, a.last_model_config_id, a.archived, a.last_error, a.mode, a.mcp_server_ids, a.labels, a.build_id, a.agent_id, a.pin_order, a.last_read_message_id, a.last_injected_context, a.dynamic_tools, a.organization_id, a.plan_mode, a.client_type,
+    -- Cascaded children fall back to the root's last_activity_at so
+    -- every returned row has a non-null value. Digests filter to
+    -- roots only via parent_chat_id IS NULL in Go, so the value on
+    -- children is never surfaced to the user.
+    COALESCE(
+        t.last_activity_at,
+        (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),
+        a.created_at
+    )::timestamptz AS last_activity_at
+FROM archived a
+LEFT JOIN to_archive t ON t.id = a.id
+ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC
 `
 
 type AutoArchiveInactiveChatsParams struct {
@@ -5345,6 +5358,7 @@ type AutoArchiveInactiveChatsRow struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	LastActivityAt      time.Time             `db:"last_activity_at" json:"last_activity_at"`
 }
 
 // Archives root chat families whose newest non-deleted message is
@@ -5399,6 +5413,7 @@ func (q *sqlQuerier) AutoArchiveInactiveChats(ctx context.Context, arg AutoArchi
 			&i.OrganizationID,
 			&i.PlanMode,
 			&i.ClientType,
+			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}

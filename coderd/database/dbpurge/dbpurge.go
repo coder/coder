@@ -2,16 +2,23 @@ package dbpurge
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -39,13 +46,35 @@ const (
 	// rows contain bytea blob data that make large batches heavier.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// chatsAutoArchiveBatchSize bounds the number of root chats
+	// auto-archived per tick. Kept at 1000 so a large initial
+	// backfill rolls out over many ticks rather than blocking one
+	// tick for minutes.
+	chatsAutoArchiveBatchSize = 1000
+	// chatAutoArchiveDigestDedupe is the window within which a
+	// single owner receives at most one chat-auto-archive digest.
+	// A fixed 24 h window matches the "daily digest" UX expected
+	// by users and prevents noisy churn if a cohort of old chats
+	// is backfilled across many ticks.
+	chatAutoArchiveDigestDedupe = 24 * time.Hour
+	// chatAutoArchiveDigestMaxChats caps the number of titles
+	// listed in a single digest. Beyond this, the template shows
+	// a "...and N more" summary line. Prevents pathologically
+	// long emails when a user had thousands of stale chats.
+	chatAutoArchiveDigestMaxChats = 25
 )
 
 // New creates a new periodically purging database instance.
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
+//
+// The auditor and enqueuer are used by the chat auto-archive pass to
+// emit audit log entries for each archived root chat and to send a
+// once-per-24h digest to owners whose chats were archived. Passing
+// audit.NewNop() and notifications.NewNoopEnqueuer() disables those
+// side effects without disabling the archive itself.
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer, auditor audit.Auditor, enqueuer notifications.Enqueuer) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -69,14 +98,34 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	chatAutoArchiveRecords := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat_auto_archive",
+		Name:      "records_archived_total",
+		Help:      "Total number of chats archived by the auto-archive job (counting both roots and cascaded children).",
+	})
+	reg.MustRegister(chatAutoArchiveRecords)
+
+	chatAutoArchiveDigests := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat_auto_archive",
+		Name:      "digests_sent_total",
+		Help:      "Total number of chat-auto-archive digest notifications enqueued by outcome.",
+	}, []string{"outcome"})
+	reg.MustRegister(chatAutoArchiveDigests)
+
 	inst := &instance{
-		cancel:            cancelFunc,
-		closed:            closed,
-		logger:            logger,
-		vals:              vals,
-		clk:               clk,
-		iterationDuration: iterationDuration,
-		recordsPurged:     recordsPurged,
+		cancel:                 cancelFunc,
+		closed:                 closed,
+		logger:                 logger,
+		vals:                   vals,
+		clk:                    clk,
+		auditor:                auditor,
+		enqueuer:               enqueuer,
+		iterationDuration:      iterationDuration,
+		recordsPurged:          recordsPurged,
+		chatAutoArchiveRecords: chatAutoArchiveRecords,
+		chatAutoArchiveDigests: chatAutoArchiveDigests,
 	}
 
 	// Start the ticker with the initial delay.
@@ -125,9 +174,23 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		chatRetentionDays = 0
 	}
 
+	// Same rationale as chat_retention_days: read outside the tx.
+	chatAutoArchiveDays, err := db.GetChatAutoArchiveDays(ctx)
+	if err != nil {
+		i.logger.Warn(ctx, "failed to read chat auto-archive config, skipping auto-archive", slog.Error(err))
+		chatAutoArchiveDays = 0
+	}
+
+	// Rows archived by AutoArchiveInactiveChats. Declared in the
+	// outer scope so post-commit dispatch can emit audits and
+	// digests without re-querying the database and without holding
+	// a transaction open while talking to the notifications
+	// subsystem.
+	var archivedChats []database.AutoArchiveInactiveChatsRow
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
-	return db.InTx(func(tx database.Store) error {
+	err = db.InTx(func(tx database.Store) error {
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -258,6 +321,27 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to delete old chat files: %w", err)
 			}
 		}
+
+		// Chat auto-archive. Runs AFTER the deletion pass so
+		// that archives produced this tick aren't immediately
+		// eligible for deletion (they need at least one
+		// retention window to elapse first).
+		//
+		// Uses AsSystemRestricted rather than AsDBPurge: dbpurge's
+		// restricted subject only grants delete/read on chats,
+		// whereas AutoArchiveInactiveChats issues an UPDATE.
+		if chatAutoArchiveDays > 0 {
+			archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
+			// nolint:gocritic // Auto-archive runs as the system.
+			archivedChats, err = tx.AutoArchiveInactiveChats(dbauthz.AsSystemRestricted(ctx), database.AutoArchiveInactiveChatsParams{
+				ArchiveCutoff: archiveCutoff,
+				LimitCount:    chatsAutoArchiveBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
+			}
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -266,6 +350,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("auto_archived_chats", len(archivedChats)),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -285,20 +370,244 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		return nil
 	}, database.DefaultTXOptions().WithID("db_purge"))
+	if err != nil {
+		return err
+	}
+
+	// Post-commit side effects for chat auto-archive. These run
+	// OUTSIDE the transaction so slow audit inserts or notifier
+	// calls don't hold a DB connection that's part of the
+	// purge tx. Failures here are logged but do NOT roll back
+	// the archive itself; a partially-dispatched batch is
+	// recoverable on the next tick via the dedupe log.
+	if len(archivedChats) > 0 {
+		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
+		i.dispatchChatAutoArchive(ctx, db, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+	}
+
+	return nil
 }
 
 type instance struct {
-	cancel            context.CancelFunc
-	closed            chan struct{}
-	logger            slog.Logger
-	vals              *codersdk.DeploymentValues
-	clk               quartz.Clock
-	iterationDuration *prometheus.HistogramVec
-	recordsPurged     *prometheus.CounterVec
+	cancel                 context.CancelFunc
+	closed                 chan struct{}
+	logger                 slog.Logger
+	vals                   *codersdk.DeploymentValues
+	clk                    quartz.Clock
+	auditor                audit.Auditor
+	enqueuer               notifications.Enqueuer
+	iterationDuration      *prometheus.HistogramVec
+	recordsPurged          *prometheus.CounterVec
+	chatAutoArchiveRecords prometheus.Counter
+	chatAutoArchiveDigests *prometheus.CounterVec
 }
 
 func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// chatFromAutoArchiveRow converts the AutoArchiveInactiveChatsRow
+// shape into a database.Chat so it can flow through the generic
+// audit API as `Auditable[database.Chat]`.
+func chatFromAutoArchiveRow(r database.AutoArchiveInactiveChatsRow) database.Chat {
+	return database.Chat{
+		ID:                  r.ID,
+		OwnerID:             r.OwnerID,
+		OrganizationID:      r.OrganizationID,
+		WorkspaceID:         r.WorkspaceID,
+		BuildID:             r.BuildID,
+		AgentID:             r.AgentID,
+		Title:               r.Title,
+		Status:              r.Status,
+		WorkerID:            r.WorkerID,
+		StartedAt:           r.StartedAt,
+		HeartbeatAt:         r.HeartbeatAt,
+		CreatedAt:           r.CreatedAt,
+		UpdatedAt:           r.UpdatedAt,
+		ParentChatID:        r.ParentChatID,
+		RootChatID:          r.RootChatID,
+		LastModelConfigID:   r.LastModelConfigID,
+		Archived:            r.Archived,
+		LastError:           r.LastError,
+		Mode:                r.Mode,
+		MCPServerIDs:        r.MCPServerIDs,
+		Labels:              labelsFromRaw(r.Labels),
+		PinOrder:            r.PinOrder,
+		LastReadMessageID:   r.LastReadMessageID,
+		LastInjectedContext: r.LastInjectedContext,
+		DynamicTools:        r.DynamicTools,
+		PlanMode:            r.PlanMode,
+		ClientType:          r.ClientType,
+	}
+}
+
+// labelsFromRaw decodes the json.RawMessage labels column surfaced
+// by the AutoArchiveInactiveChats query into the database.StringMap
+// type expected by database.Chat. sqlc can't infer the override on
+// the CTE alias, so we do it manually. An empty/nil or malformed
+// payload yields an empty map so the audit diff stays clean.
+func labelsFromRaw(raw json.RawMessage) database.StringMap {
+	if len(raw) == 0 {
+		return database.StringMap{}
+	}
+	var m database.StringMap
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return database.StringMap{}
+	}
+	return m
+}
+
+// dispatchChatAutoArchive emits one BackgroundAudit entry per
+// archived chat (roots and children) and enqueues a per-owner
+// digest notification, subject to a 24 h dedupe window.
+func (i *instance) dispatchChatAutoArchive(ctx context.Context, db database.Store, now time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
+	for _, row := range archived {
+		after := chatFromAutoArchiveRow(row)
+		before := after
+		before.Archived = false
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+			Audit:            i.auditor,
+			Log:              i.logger,
+			UserID:           row.OwnerID,
+			OrganizationID:   row.OrganizationID,
+			Action:           database.AuditActionWrite,
+			Old:              before,
+			New:              after,
+			Status:           http.StatusOK,
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, i.logger, audit.BackgroundSubsystemChatAutoArchive),
+		})
+	}
+
+	digests := buildDigests(archived, autoArchiveDays, retentionDays)
+	if len(digests) == 0 {
+		return
+	}
+
+	ownerIDs := make([]uuid.UUID, 0, len(digests))
+	for ownerID := range digests {
+		ownerIDs = append(ownerIDs, ownerID)
+	}
+
+	// nolint:gocritic // Runs as system; we trust our own subsystem.
+	logRows, err := db.GetChatAutoArchiveDigestLogsForOwners(dbauthz.AsSystemRestricted(ctx), ownerIDs)
+	if err != nil {
+		// Log and continue — without the dedupe data we skip
+		// enqueue rather than risk spamming owners. A transient
+		// error re-attempts on the next tick.
+		i.logger.Warn(ctx, "failed to load chat auto-archive digest dedupe log; skipping digests",
+			slog.Error(err))
+		i.chatAutoArchiveDigests.WithLabelValues("skipped_dedupe_error").Add(float64(len(digests)))
+		return
+	}
+	lastSent := make(map[uuid.UUID]time.Time, len(logRows))
+	for _, r := range logRows {
+		lastSent[r.OwnerID] = r.LastSentAt
+	}
+
+	dedupeWindowStart := now.Add(-chatAutoArchiveDigestDedupe)
+	for ownerID, digest := range digests {
+		if ts, ok := lastSent[ownerID]; ok && ts.After(dedupeWindowStart) {
+			// Within dedupe window: skip enqueue.
+			i.chatAutoArchiveDigests.WithLabelValues("skipped_deduped").Inc()
+			continue
+		}
+
+		data := buildDigestData(digest, autoArchiveDays, retentionDays, now)
+
+		// nolint:gocritic // Background digest runs as the notifier subject.
+		if _, err := i.enqueuer.EnqueueWithData(
+			dbauthz.AsNotifier(ctx),
+			ownerID,
+			notifications.TemplateChatAutoArchiveDigest,
+			map[string]string{},
+			data,
+			"chat_auto_archive",
+		); err != nil {
+			i.logger.Warn(ctx, "failed to enqueue chat auto-archive digest",
+				slog.F("owner_id", ownerID),
+				slog.Error(err))
+			i.chatAutoArchiveDigests.WithLabelValues("enqueue_failed").Inc()
+			continue
+		}
+
+		// Upsert dedupe log ONLY after a successful enqueue so a
+		// failed enqueue is retried next tick instead of being
+		// silently dropped. The window is still bounded by the
+		// next successful enqueue bumping last_sent_at.
+		// nolint:gocritic // System-level upsert.
+		if err := db.UpsertChatAutoArchiveDigestLog(dbauthz.AsSystemRestricted(ctx), database.UpsertChatAutoArchiveDigestLogParams{
+			OwnerID:    ownerID,
+			LastSentAt: now,
+		}); err != nil {
+			i.logger.Warn(ctx, "failed to upsert chat auto-archive digest dedupe log",
+				slog.F("owner_id", ownerID),
+				slog.Error(err))
+			// Notification already sent; don't double-count as
+			// failed. Next tick will see the duplicate and skip
+			// it via a fresh query of last_sent_at.
+		}
+		i.chatAutoArchiveDigests.WithLabelValues("enqueued").Inc()
+	}
+}
+
+// ownerDigest is the per-owner slice of the archive results used to
+// populate the notification payload.
+type ownerDigest struct {
+	roots []database.AutoArchiveInactiveChatsRow
+}
+
+// buildDigests groups archived rows by owner, dropping cascaded
+// children (parent_chat_id IS NOT NULL). Only root chats are
+// surfaced in the digest because users think in terms of
+// conversations, not thread branches.
+func buildDigests(archived []database.AutoArchiveInactiveChatsRow, _, _ int32) map[uuid.UUID]*ownerDigest {
+	out := make(map[uuid.UUID]*ownerDigest)
+	for _, row := range archived {
+		if row.ParentChatID.Valid {
+			continue
+		}
+		d, ok := out[row.OwnerID]
+		if !ok {
+			d = &ownerDigest{}
+			out[row.OwnerID] = d
+		}
+		d.roots = append(d.roots, row)
+	}
+	return out
+}
+
+// buildDigestData constructs the notification `data` map. The
+// shape mirrors the golden render fixtures and the test case in
+// coderd/notifications/notifications_test.go
+// (TemplateChatAutoArchiveDigest).
+func buildDigestData(d *ownerDigest, autoArchiveDays, retentionDays int32, now time.Time) map[string]any {
+	rows := d.roots
+	// Cap at chatAutoArchiveDigestMaxChats to keep emails
+	// reasonable. The "and N more" suffix surfaces the tail.
+	overflow := 0
+	if len(rows) > chatAutoArchiveDigestMaxChats {
+		overflow = len(rows) - chatAutoArchiveDigestMaxChats
+		rows = rows[:chatAutoArchiveDigestMaxChats]
+	}
+
+	chats := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		ts := r.LastActivityAt
+		chats = append(chats, map[string]any{
+			"title":                   r.Title,
+			"last_activity_humanized": humanize.RelTime(ts, now, "ago", "from now"),
+		})
+	}
+
+	data := map[string]any{
+		"auto_archive_days": fmt.Sprintf("%d", autoArchiveDays),
+		"retention_days":    fmt.Sprintf("%d", retentionDays),
+		"archived_chats":    chats,
+	}
+	if overflow > 0 {
+		data["additional_archived_count"] = fmt.Sprintf("%d", overflow)
+	}
+	return data
 }

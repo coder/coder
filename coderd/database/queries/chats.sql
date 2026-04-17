@@ -1431,7 +1431,9 @@ WHERE chat_id = @chat_id::uuid
 -- children via the cascade. Used by dbpurge with a bounded batch
 -- so a large initial backfill doesn't stall a single tick.
 WITH to_archive AS (
-    SELECT c.id
+    SELECT
+        c.id,
+        COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
     FROM chats c
     LEFT JOIN LATERAL (
         SELECT MAX(cm.created_at) AS last_activity_at
@@ -1455,6 +1457,17 @@ archived AS (
       AND c.archived = false
     RETURNING c.*
 )
-SELECT *
-FROM archived
-ORDER BY (root_chat_id IS NULL) DESC, owner_id ASC, created_at ASC, id ASC;
+SELECT
+    a.*,
+    -- Cascaded children fall back to the root's last_activity_at so
+    -- every returned row has a non-null value. Digests filter to
+    -- roots only via parent_chat_id IS NULL in Go, so the value on
+    -- children is never surfaced to the user.
+    COALESCE(
+        t.last_activity_at,
+        (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),
+        a.created_at
+    )::timestamptz AS last_activity_at
+FROM archived a
+LEFT JOIN to_archive t ON t.id = a.id
+ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
