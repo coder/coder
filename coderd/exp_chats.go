@@ -345,9 +345,17 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch children for all root chats in a single query.
+	// Children are filtered to match the archive state the
+	// caller is viewing so individually-archived children are
+	// hidden from an active-parent sidebar and vice versa. A
+	// future "include archived children" option on the list
+	// endpoint can pass sql.NullBool{} (all) when added.
 	var childRows []database.GetChildChatsByParentIDsRow
 	if len(rootIDs) > 0 {
-		childRows, err = api.Database.GetChildChatsByParentIDs(ctx, rootIDs)
+		childRows, err = api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: rootIDs,
+			Archived:  searchParams.Archived,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to list child chats.",
@@ -1535,7 +1543,16 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// For root chats, embed children so callers get a complete
 	// tree in a single response.
 	if !chat.ParentChatID.Valid {
-		childRows, err := api.Database.GetChildChatsByParentIDs(ctx, []uuid.UUID{chat.ID})
+		// Filter embedded children to match the parent's own
+		// archive state. An archived root always has archived
+		// children (cascade); an active root may have
+		// individually-archived children that should stay
+		// hidden here until a future "include archived
+		// children" option is added.
+		childRows, err := api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{chat.ID},
+			Archived:  sql.NullBool{Bool: chat.Archived, Valid: true},
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to fetch child chats.",
@@ -1543,7 +1560,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 		// Look up diff statuses for children.
 		childChats := make([]database.Chat, len(childRows))
 		for i, row := range childRows {
@@ -1962,28 +1978,27 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Archive is a family-level operation: ArchiveChatByID
-		// cascades to children via root_chat_id, and sidebar views
-		// assume children follow their parent's archive state.
-		// Allowing a child to be archived or unarchived independently
-		// produces a ghost record (invisible in both active and
-		// archived lists).
-		if chat.ParentChatID.Valid {
-			if archived {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Cannot archive a child chat directly. Archive the parent chat to cascade.",
-				})
-				return
-			}
-			// Unarchive is allowed only when the parent is already
-			// active, so legacy lone-archived children (from before
-			// this guard existed) can be recovered without creating
-			// a new ghost record.
+		// The archive invariant is one-way: parent archived
+		// implies child archived. Archive on parent cascades via
+		// root_chat_id (ArchiveChatByID). Archive on a child is
+		// permitted and leaves the parent untouched; the sidebar
+		// hides individually-archived children from an active
+		// parent's embedded list (see GetChildChatsByParentIDs
+		// archived narg). Unarchive on a child must be rejected
+		// while the parent is still archived, otherwise the family
+		// reaches the forbidden (parent archived, child active)
+		// state.
+		if chat.ParentChatID.Valid && !archived {
+			// writeChildUnarchiveGuard is advisory pre-flight UX.
+			// The durable invariant lives in
+			// chatd.UnarchiveChildChatAtomic, which re-reads the
+			// parent under a row lock on the child so a concurrent
+			// archive cascade cannot race us into the forbidden
+			// state.
 			if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
 				return
 			}
 		}
-
 		var err error
 		// Use chatDaemon when available so it can interrupt active
 		// processing before broadcasting archive state. Fall back to
@@ -1995,13 +2010,30 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
 			}
 		} else {
-			if api.chatDaemon != nil {
+			// Child-unarchive runs under an atomic helper that
+			// locks the child row and re-reads the parent so a
+			// concurrent archive cascade on the parent cannot
+			// race the guard above into the forbidden (parent
+			// archived, child active) state. The helper is used
+			// in both the daemon and fallback paths.
+			switch {
+			case chat.ParentChatID.Valid && api.chatDaemon != nil:
 				err = api.chatDaemon.UnarchiveChat(ctx, chat)
-			} else {
+			case chat.ParentChatID.Valid:
+				_, err = chatd.UnarchiveChildChatAtomic(ctx, api.Database, chat)
+			case api.chatDaemon != nil:
+				err = api.chatDaemon.UnarchiveChat(ctx, chat)
+			default:
 				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 			}
 		}
 		if err != nil {
+			if errors.Is(err, chatd.ErrChildUnarchiveParentArchived) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot unarchive a child chat while its parent is archived. Unarchive the parent chat to cascade.",
+				})
+				return
+			}
 			action := "archive"
 			if !archived {
 				action = "unarchive"
@@ -2123,12 +2155,16 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// writeChildUnarchiveGuard enforces the unarchive-a-child
-// invariant: unarchive is only permitted when the parent is
-// already active. Archive on a child is rejected earlier by the
-// caller, and this function must only be called when the caller
-// has already verified chat is a child (ParentChatID.Valid) and
-// the request is an unarchive.
+// writeChildUnarchiveGuard is the pre-flight UX half of the
+// child-unarchive policy. It returns 400 early when the caller's
+// request is obviously racing against an archived parent at
+// request time. The durable invariant is enforced by
+// chatd.UnarchiveChildChatAtomic under a row lock on the child
+// chat; this guard exists only to return a descriptive error at
+// the earliest point instead of at the transaction boundary.
+//
+// Callers must only invoke this when chat.ParentChatID.Valid is
+// true and the request is an unarchive.
 //
 // Returns true when a response has been written (caller must
 // return). Returns false when the request is allowed to proceed.

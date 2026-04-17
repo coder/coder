@@ -4976,7 +4976,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 6. Verify the child chat has Mode = computer_use in
 	//    the DB.
-	childRows, err := db.GetChildChatsByParentIDs(ctx, []uuid.UUID{chat.ID})
+	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+		ParentIds: []uuid.UUID{chat.ID},
+	})
 	require.NoError(t, err)
 	children := make([]database.Chat, 0, len(childRows))
 	for _, row := range childRows {

@@ -644,7 +644,6 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspaceID,
-		OwnerID:     ownerID,
 		Branch:      "feature",
 		Origin:      "https://github.com/owner/repo",
 	})
@@ -670,7 +669,6 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	workspaceID := uuid.New()
-	ownerID := uuid.New()
 
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
@@ -685,7 +683,6 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspaceID,
-		OwnerID:     ownerID,
 		Branch:      "main",
 		Origin:      "https://github.com/x/y",
 	})
@@ -730,7 +727,6 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspaceID,
-		OwnerID:     ownerID,
 		Branch:      "dev",
 		Origin:      "https://github.com/a/b",
 	})
@@ -755,7 +751,6 @@ func TestWorker_MarkStale_GetChatsByWorkspaceIDsFails(t *testing.T) {
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: uuid.New(),
-		OwnerID:     uuid.New(),
 		Branch:      "main",
 		Origin:      "https://github.com/x/y",
 	})
@@ -812,7 +807,6 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 
 			worker.MarkStale(ctx, gitsync.MarkStaleParams{
 				WorkspaceID: uuid.New(),
-				OwnerID:     uuid.New(),
 				Branch:      tc.branch,
 				Origin:      tc.origin,
 			})
@@ -857,7 +851,6 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: uuid.New(),
-		OwnerID:     uuid.New(),
 		Branch:      "my-branch",
 		Origin:      "https://github.com/org/repo",
 		ChatID:      targetChat,
@@ -923,7 +916,6 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	// Zero-value ChatID (uuid.Nil) triggers broadcast.
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspaceID,
-		OwnerID:     ownerID,
 		Branch:      "main",
 		Origin:      "https://github.com/org/repo",
 	})

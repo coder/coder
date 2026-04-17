@@ -830,12 +830,16 @@ func (s *MethodTestSuite) TestChats() {
 			ParentChatID: uuid.NullUUID{UUID: parentB.ID, Valid: true},
 		})
 		parentIDs := []uuid.UUID{parentA.ID, parentB.ID}
+		params := database.GetChildChatsByParentIDsParams{
+			ParentIds: parentIDs,
+			Archived:  sql.NullBool{Bool: false, Valid: true},
+		}
 		rows := []database.GetChildChatsByParentIDsRow{
 			{Chat: childA},
 			{Chat: childB},
 		}
-		dbm.EXPECT().GetChildChatsByParentIDs(gomock.Any(), parentIDs).Return(rows, nil).AnyTimes()
-		check.Args(parentIDs).Asserts(childA, policy.ActionRead, childB, policy.ActionRead).Returns(rows)
+		dbm.EXPECT().GetChildChatsByParentIDs(gomock.Any(), params).Return(rows, nil).AnyTimes()
+		check.Args(params).Asserts(childA, policy.ActionRead, childB, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetAuthorizedChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}

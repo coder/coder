@@ -24,6 +24,7 @@ import {
 	pinChat,
 	promoteChatQueuedMessage,
 	regenerateChatTitle,
+	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
@@ -264,6 +265,29 @@ describe("archiveChat optimistic update", () => {
 
 		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
 		expect(cachedChat?.archived).toBe(true);
+	});
+
+	it("strips an individually-archived child from its parent's embedded children", async () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const sibling = makeChat("child-2", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+
+		const mutation = archiveChat(queryClient);
+		await mutation.onMutate("child-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-2");
 	});
 
 	it("rolls back the chats list on error by invalidating", async () => {
@@ -1779,6 +1803,54 @@ describe("updateChildInParentCache", () => {
 		const after = readInfiniteChats(queryClient)?.[0];
 
 		expect(found).toBe(false);
+		expect(after).toBe(before);
+	});
+});
+
+describe("removeChildFromParentInCache", () => {
+	it("removes the child from its parent's children array", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const sibling = makeChat("child-2", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = removeChildFromParentInCache(queryClient, "child-1");
+		expect(found).toBe(true);
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-2");
+	});
+
+	it("returns false when no parent embeds the given child", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = removeChildFromParentInCache(queryClient, "missing-child");
+		expect(found).toBe(false);
+	});
+
+	it("preserves the parent reference when the child is not found", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const before = readInfiniteChats(queryClient)?.[0];
+		removeChildFromParentInCache(queryClient, "missing-child");
+		const after = readInfiniteChats(queryClient)?.[0];
+
 		expect(after).toBe(before);
 	});
 });

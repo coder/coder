@@ -349,18 +349,24 @@ type sqlcQuerier interface {
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
-	// Fetches all child chats for the given parent IDs. Used by the
-	// list handler and singular getChat to embed children under each
-	// root chat response. Returns every child for the given parents
-	// unconditionally. The archive invariant is enforced at write
-	// time: ArchiveChatByID cascades through root_chat_id, and
-	// patchChat rejects archive or unarchive requests on a child.
-	// An archive filter here would race those writes and could drop
-	// children whose archive flag had not yet caught up with the
-	// parent's, leaving a parent visually orphaned. We accept
-	// momentary parent/child archive-state mismatches during a
-	// cascade in exchange for never dropping a child from the tree.
-	GetChildChatsByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]GetChildChatsByParentIDsRow, error)
+	// Fetches child chats for the given parent IDs. Used by the list
+	// handler and singular getChat to embed children under each root
+	// chat response.
+	//
+	// The archived narg is three-state: NULL returns every child,
+	// true returns archived children only, false returns active
+	// children only. Callers pass the archive state that matches the
+	// parent list they are rendering, so sidebar views never surface
+	// children whose archive state differs from the parent.
+	//
+	// The archive invariant (parent archived implies child archived)
+	// is enforced at write time, not here: ArchiveChatByID cascades
+	// through root_chat_id, patchChat allows individual child
+	// archive, and chatd.UnarchiveChildChatAtomic rejects unarchive
+	// of a child while the parent is archived. A stale read during a
+	// concurrent cascade can momentarily return an archive-state
+	// mismatch; the caller's next refetch converges.
+	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)

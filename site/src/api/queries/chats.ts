@@ -159,6 +159,33 @@ export const updateChildInParentCache = (
 	return found;
 };
 
+/**
+ * Removes a child chat from its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * removed, false otherwise. Used when a child is archived individually
+ * (the sidebar hides children whose archive state differs from the
+ * parent) and when a `deleted` pubsub event arrives for a child chat.
+ */
+export const removeChildFromParentInCache = (
+	queryClient: QueryClient,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			const filtered = c.children.filter((ch) => ch.id !== childId);
+			if (filtered.length === c.children.length) return c;
+			found = true;
+			changed = true;
+			return { ...c, children: filtered };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 	let maxPinOrder = 0;
 	const queries = queryClient.getQueriesData<
@@ -366,11 +393,16 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Strip the chat from the flat root list (root archive
+		// case) and from any parent's embedded children (individual
+		// child archive case). Children whose archive state differs
+		// from their parent are hidden by the sidebar.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
 			),
 		);
+		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,

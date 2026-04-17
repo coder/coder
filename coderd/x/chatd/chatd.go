@@ -1458,9 +1458,22 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 // UnarchiveChat unarchives a chat family and publishes created events for
 // each affected chat so watching clients see every chat that reappeared.
+// For child chats the unarchive runs atomically under a row lock on the
+// child so a concurrent archive cascade on the parent cannot race us into
+// the forbidden (parent archived, child active) state; see
+// UnarchiveChildChatAtomic.
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
+	}
+
+	if chat.ParentChatID.Valid {
+		updated, err := UnarchiveChildChatAtomic(ctx, p.db, chat)
+		if err != nil {
+			return err
+		}
+		p.publishChatPubsubEvents(updated, codersdk.ChatWatchEventKindCreated)
+		return nil
 	}
 
 	return p.applyChatLifecycleTransition(

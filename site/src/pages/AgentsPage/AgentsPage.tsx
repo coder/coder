@@ -24,6 +24,7 @@ import {
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
+	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
@@ -504,19 +505,24 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						// Remove the chat from the flat root list (root
+						// archive cascades match via root_chat_id) and
+						// from any parent's embedded children (individual
+						// child archive). Sidebar hides children whose
+						// archive state differs from the parent.
 						updateInfiniteChatsCache(queryClient, (chats) =>
 							chats.filter(
 								(c) =>
 									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
 							),
 						);
+						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
 							queryKey: chatKey(updatedChat.id),
 							exact: true,
 						});
 						return;
 					}
-
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents — the chat's
 						// diff_status field is already written into the

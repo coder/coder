@@ -6857,29 +6857,44 @@ FROM
     chats
 WHERE
     chats.parent_chat_id = ANY($1 :: uuid[])
+    AND CASE
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
+    END
 ORDER BY
     chats.created_at ASC,
     chats.id ASC
 `
+
+type GetChildChatsByParentIDsParams struct {
+	ParentIds []uuid.UUID  `db:"parent_ids" json:"parent_ids"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+}
 
 type GetChildChatsByParentIDsRow struct {
 	Chat      Chat `db:"chat" json:"chat"`
 	HasUnread bool `db:"has_unread" json:"has_unread"`
 }
 
-// Fetches all child chats for the given parent IDs. Used by the
-// list handler and singular getChat to embed children under each
-// root chat response. Returns every child for the given parents
-// unconditionally. The archive invariant is enforced at write
-// time: ArchiveChatByID cascades through root_chat_id, and
-// patchChat rejects archive or unarchive requests on a child.
-// An archive filter here would race those writes and could drop
-// children whose archive flag had not yet caught up with the
-// parent's, leaving a parent visually orphaned. We accept
-// momentary parent/child archive-state mismatches during a
-// cascade in exchange for never dropping a child from the tree.
-func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]GetChildChatsByParentIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(parentIds))
+// Fetches child chats for the given parent IDs. Used by the list
+// handler and singular getChat to embed children under each root
+// chat response.
+//
+// The archived narg is three-state: NULL returns every child,
+// true returns archived children only, false returns active
+// children only. Callers pass the archive state that matches the
+// parent list they are rendering, so sidebar views never surface
+// children whose archive state differs from the parent.
+//
+// The archive invariant (parent archived implies child archived)
+// is enforced at write time, not here: ArchiveChatByID cascades
+// through root_chat_id, patchChat allows individual child
+// archive, and chatd.UnarchiveChildChatAtomic rejects unarchive
+// of a child while the parent is archived. A stale read during a
+// concurrent cascade can momentarily return an archive-state
+// mismatch; the caller's next refetch converges.
+func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(arg.ParentIds), arg.Archived)
 	if err != nil {
 		return nil, err
 	}

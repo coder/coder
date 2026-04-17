@@ -1456,7 +1456,7 @@ func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfte
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg []uuid.UUID) ([]database.GetChildChatsByParentIDsRow, error) {
+func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChildChatsByParentIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChildChatsByParentIDs").Observe(time.Since(start).Seconds())

@@ -277,7 +277,6 @@ func (w *Worker) tick(ctx context.Context) {
 // MarkStaleParams holds the arguments for Worker.MarkStale.
 type MarkStaleParams struct {
 	WorkspaceID uuid.UUID
-	OwnerID     uuid.UUID
 	Branch      string
 	Origin      string
 	// ChatID, when set, targets a single chat instead of

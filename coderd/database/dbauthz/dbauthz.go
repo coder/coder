@@ -2944,7 +2944,7 @@ func (q *querier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Ti
 	return q.db.GetChatsUpdatedAfter(ctx, updatedAfter)
 }
 
-func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg []uuid.UUID) ([]database.GetChildChatsByParentIDsRow, error) {
+func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
 	// Each child is independently authorized via post-filter.
 	// The handler calls this after GetChats already authorized
 	// the parent chats, but we still verify read access on

@@ -4283,9 +4283,11 @@ func TestArchiveChat(t *testing.T) {
 		require.True(t, dbChild2.Archived, "child2 should be archived")
 
 		// archived:true should return the parent with both cascaded
-		// children embedded. GetChildChatsByParentIDs returns every
-		// child unconditionally, so this verifies the handler does
-		// attach them (rather than dropping them in db2sdk).
+		// children embedded. The handler passes archived=true to
+		// GetChildChatsByParentIDs so embedded children match the
+		// archive state the caller is viewing. Inverting the narg
+		// or dropping the filter would silently drop archived
+		// children from the archived-parent view.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: "archived:true",
 		})
@@ -4309,7 +4311,7 @@ func TestArchiveChat(t *testing.T) {
 		require.True(t, childIDs[child2.ID], "child2 should be embedded under archived parent")
 	})
 
-	t.Run("RejectsChildChatDirectly", func(t *testing.T) {
+	t.Run("AllowsChildChatArchiveIndividually", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4342,16 +4344,51 @@ func TestArchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Archiving a child directly must be rejected so sidebar
-		// views do not produce ghost records (child invisible in
-		// both active and archived lists).
+		// Individual child archive is permitted. The parent is
+		// untouched; the archive invariant is one-way (parent
+		// archived implies child archived), not symmetric.
 		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
-		requireSDKError(t, err, http.StatusBadRequest)
+		require.NoError(t, err)
 
-		// Confirm the child was not archived in the DB.
 		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
 		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should not be archived")
+		require.True(t, dbChild.Archived, "child should be archived")
+
+		dbParent, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), parentChat.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should stay active")
+
+		// The individually-archived child is hidden from the
+		// active-parent sidebar view: the handler filters embedded
+		// children by the request's archive state.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:false",
+		})
+		require.NoError(t, err)
+		var activeParent *codersdk.Chat
+		for i := range activeChats {
+			if activeChats[i].ID == parentChat.ID {
+				activeParent = &activeChats[i]
+				break
+			}
+		}
+		require.NotNil(t, activeParent, "parent should appear in active list")
+		for _, c := range activeParent.Children {
+			require.NotEqual(t, child.ID, c.ID, "archived child must not appear under active parent")
+		}
+
+		// The individually-archived child is also absent from the
+		// archived:true list because GetChats paginates over root
+		// chats only; the child has a parent so it is not a root.
+		// Finding individually-archived children via pagination is
+		// an accepted non-feature.
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: "archived:true",
+		})
+		require.NoError(t, err)
+		for _, c := range archivedChats {
+			require.NotEqual(t, child.ID, c.ID, "archived child should not surface as a root in archived list")
+		}
 	})
 }
 
