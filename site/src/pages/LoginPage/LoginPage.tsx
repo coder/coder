@@ -89,7 +89,7 @@ const LoginPage: FC = () => {
 					// so the server re-renders the HTML with all metadata
 					// tags populated (userAppearance, user, permissions,
 					// etc.) using the new session cookie.
-					window.location.href = sanitizeRedirect(redirectTo);
+					location.href = sanitizeRedirect(redirectTo);
 				}}
 				redirectTo={redirectTo}
 			/>

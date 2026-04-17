@@ -26,6 +26,6 @@ export const retrieveRedirect = (search: string): string => {
  * Ensures the redirect is not an open redirect, aka it's relative
  */
 export const sanitizeRedirect = (redirectTo: string) => {
-	const sanitizedUrl = new URL(redirectTo, window.location.origin);
+	const sanitizedUrl = new URL(redirectTo, location.origin);
 	return sanitizedUrl.pathname + sanitizedUrl.search;
 };
