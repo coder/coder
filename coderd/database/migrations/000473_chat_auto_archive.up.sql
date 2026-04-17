@@ -15,6 +15,11 @@ CREATE INDEX IF NOT EXISTS idx_chats_auto_archive_candidates
 -- by the native notification_messages dedupe hash (template_id,
 -- user_id, payload, day); users who find the digest noisy can
 -- disable this template in their notification preferences.
+--
+-- The "Hi {{.UserName}}," greeting is prepended by the SMTP and
+-- webhook wrappers, so the body_template must not repeat it. No
+-- action buttons are included; archived chats aren't yet visible
+-- in the frontend, and adding that view is out of scope here.
 INSERT INTO notification_templates (
     id,
     name,
@@ -27,12 +32,7 @@ VALUES (
     '764031be-4863-4220-867b-6ce1a1b7a5f5',
     'Chats Auto-Archived',
     E'Chats auto-archived after {{.Data.auto_archive_days}} days of inactivity',
-    E'Hi {{.UserName}},\n\nThe following chat{{if ne (len .Data.archived_chats) 1}}s were{{else}} was{{end}} automatically archived because {{if ne (len .Data.archived_chats) 1}}they have{{else}}it has{{end}} been inactive for more than {{.Data.auto_archive_days}} days:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}\nYou can restore any of them from the Chats page within {{.Data.retention_days}} days, after which they will be permanently deleted.',
+    E'The following chat{{if ne (len .Data.archived_chats) 1}}s were{{else}} was{{end}} automatically archived because {{if ne (len .Data.archived_chats) 1}}they have{{else}}it has{{end}} been inactive for more than {{.Data.auto_archive_days}} days:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}\nYou can restore any of them from the Chats page within {{.Data.retention_days}} days, after which they will be permanently deleted.',
     'Chat Events',
-    '[
-        {
-            "label": "View archived chats",
-            "url": "{{ base_url }}/chats?archived=true"
-        }
-    ]'::jsonb
+    '[]'::jsonb
 );

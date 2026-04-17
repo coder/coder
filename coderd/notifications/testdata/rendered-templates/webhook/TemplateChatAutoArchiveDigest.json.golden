@@ -9,12 +9,7 @@
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
-    "actions": [
-      {
-        "label": "View archived chats",
-        "url": "http://test.com/chats?archived=true"
-      }
-    ],
+    "actions": [],
     "labels": {},
     "data": {
       "archived_chats": [
@@ -34,6 +29,6 @@
   },
   "title": "Chats auto-archived after 90 days of inactivity",
   "title_markdown": "Chats auto-archived after 90 days of inactivity",
-  "body": "Hi Bobby,\n\nThe following chats were automatically archived because they have been inactive for more than 90 days:\n\n\"Onboarding kickoff\" (last active 3 months ago)\n\"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Chats page within 30 days, after which they will be permanently deleted.",
-  "body_markdown": "Hi Bobby,\n\nThe following chats were automatically archived because they have been inactive for more than 90 days:\n\n* \"Onboarding kickoff\" (last active 3 months ago)\n* \"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Chats page within 30 days, after which they will be permanently deleted."
+  "body": "The following chats were automatically archived because they have been inactive for more than 90 days:\n\n\"Onboarding kickoff\" (last active 3 months ago)\n\"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Chats page within 30 days, after which they will be permanently deleted.",
+  "body_markdown": "The following chats were automatically archived because they have been inactive for more than 90 days:\n\n* \"Onboarding kickoff\" (last active 3 months ago)\n* \"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Chats page within 30 days, after which they will be permanently deleted."
 }

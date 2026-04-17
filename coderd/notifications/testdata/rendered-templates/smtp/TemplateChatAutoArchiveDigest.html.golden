@@ -12,8 +12,6 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-Hi Bobby,
-
 The following chats were automatically archived because they have been inac=
 tive for more than 90 days:
 
@@ -23,8 +21,6 @@ tive for more than 90 days:
 You can restore any of them from the Chats page within 30 days, after which=
  they will be permanently deleted.
 
-
-View archived chats: http://test.com/chats?archived=3Dtrue
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -55,10 +51,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>Hi Bobby,</p>
-
-<p>The following chats were automatically archived because they have been i=
-nactive for more than 90 days:</p>
+        <p>The following chats were automatically archived because they hav=
+e been inactive for more than 90 days:</p>
 
 <ul>
 <li>&ldquo;Onboarding kickoff&rdquo; (last active 3 months ago)<br>
@@ -71,12 +65,6 @@ nactive for more than 90 days:</p>
 ich they will be permanently deleted.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
-       =20
-        <a href=3D"http://test.com/chats?archived=3Dtrue" style=3D"display:=
- inline-block; padding: 13px 24px; background-color: #020617; color: #f8faf=
-c; text-decoration: none; border-radius: 8px; margin: 0 4px;">
-          View archived chats
-        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=

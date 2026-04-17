@@ -107,14 +107,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	})
 	reg.MustRegister(chatAutoArchiveRecords)
 
-	chatAutoArchiveDigests := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coderd",
-		Subsystem: "chat_auto_archive",
-		Name:      "digests_sent_total",
-		Help:      "Total number of chat-auto-archive digest notifications enqueued by outcome.",
-	}, []string{"outcome"})
-	reg.MustRegister(chatAutoArchiveDigests)
-
 	inst := &instance{
 		cancel:                 cancelFunc,
 		closed:                 closed,
@@ -126,7 +118,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		iterationDuration:      iterationDuration,
 		recordsPurged:          recordsPurged,
 		chatAutoArchiveRecords: chatAutoArchiveRecords,
-		chatAutoArchiveDigests: chatAutoArchiveDigests,
 	}
 
 	// Start the ticker with the initial delay.
@@ -410,7 +401,6 @@ type instance struct {
 	iterationDuration      *prometheus.HistogramVec
 	recordsPurged          *prometheus.CounterVec
 	chatAutoArchiveRecords prometheus.Counter
-	chatAutoArchiveDigests *prometheus.CounterVec
 }
 
 func (i *instance) Close() error {
@@ -510,10 +500,8 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, a
 			i.logger.Warn(ctx, "failed to enqueue chat auto-archive digest",
 				slog.F("owner_id", ownerID),
 				slog.Error(err))
-			i.chatAutoArchiveDigests.WithLabelValues("enqueue_failed").Inc()
 			continue
 		}
-		i.chatAutoArchiveDigests.WithLabelValues("enqueued").Inc()
 	}
 }
 
