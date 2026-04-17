@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
-	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/tailnet"
@@ -122,10 +121,10 @@ func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	m.active[address] = closeFunc
 	go func() {
 		defer close(closed)
-		client.RunWatchConnectionLoop(ctx, m.server.PublicKey(), tailnet.Logger(m.logger.Named("loop")), func(np key.NodePublic) {
-			m.server.AddPacketForwarder(np, client)
-		}, func(np key.NodePublic) {
-			m.server.RemovePacketForwarder(np, client)
+		client.RunWatchConnectionLoop(ctx, m.server.PublicKey(), tailnet.Logger(m.logger.Named("loop")), func(pm derp.PeerPresentMessage) {
+			m.server.AddPacketForwarder(pm.Key, client)
+		}, func(pg derp.PeerGoneMessage) {
+			m.server.RemovePacketForwarder(pg.Peer, client)
 		})
 	}()
 	return true, nil

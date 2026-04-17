@@ -106,7 +106,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
-	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
+	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap, nil)
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
 	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
