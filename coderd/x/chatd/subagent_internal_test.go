@@ -601,6 +601,63 @@ func TestSpawnExploreAgent_FallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
+func TestSpawnExploreAgent_FallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-missing-user-key-current-"+uuid.NewString(), true,
+	)
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:                   "openai-compat",
+		DisplayName:                "OpenAI Compat",
+		APIKey:                     "",
+		BaseUrl:                    "",
+		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:                    true,
+		CentralApiKeyEnabled:       false,
+		AllowUserApiKey:            true,
+		AllowCentralApiKeyFallback: false,
+	})
+	require.NoError(t, err)
+	overrideModel, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai-compat",
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Explore Override Missing User Key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-missing-user-key",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect provider credential handling"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	t.Parallel()
 

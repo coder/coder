@@ -99,6 +99,7 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 
 func (p *Server) resolveExploreSubagentModelConfigID(
 	ctx context.Context,
+	ownerID uuid.UUID,
 	fallback uuid.UUID,
 ) (uuid.UUID, error) {
 	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
@@ -133,6 +134,25 @@ func (p *Server) resolveExploreSubagentModelConfigID(
 			return fallback, nil
 		}
 		return uuid.Nil, xerrors.Errorf("get enabled chat model config by id: %w", err)
+	}
+	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
+		modelConfig.Model,
+		modelConfig.Provider,
+	)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("resolve Explore model provider: %w", err)
+	}
+	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("resolve provider API keys: %w", err)
+	}
+	if providerKeys.APIKey(providerName) == "" {
+		p.logger.Warn(ctx,
+			"explore model override credentials are unavailable, falling back to current turn model",
+			slog.F("model_config_id", configuredModelConfigID),
+			slog.F("provider", providerName),
+		)
+		return fallback, nil
 	}
 	return modelConfig.ID, nil
 }
@@ -224,6 +244,7 @@ func (p *Server) subagentTools(
 				}
 				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
 					ctx,
+					parent.OwnerID,
 					currentModelConfigID,
 				)
 				if err != nil {
