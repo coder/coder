@@ -131,10 +131,9 @@ func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err e
 	}
 }
 
-// RecordStreamRetry increments the stream_retries_total counter for
-// the given provider/model/classified error. The caller must have
-// obtained classified via chaterror.Classify (or .WithProvider),
-// which guarantees a non-empty Kind. It is a no-op when m is nil.
+// RecordStreamRetry increments stream_retries_total. The caller
+// must obtain classified via chaterror.Classify (non-empty Kind).
+// No-op when m is nil.
 func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror.ClassifiedError) {
 	if m == nil {
 		return
@@ -142,10 +141,8 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
 }
 
-// RecordStreamBufferDropped increments stream_buffer_dropped_total by one
-// per dropped buffer event. Must be called every time publishToStream
-// drops the oldest buffered event due to the per-chat buffer cap.
-// It is a no-op when m is nil.
+// RecordStreamBufferDropped increments stream_buffer_dropped_total
+// once per dropped event. No-op when m is nil.
 func (m *Metrics) RecordStreamBufferDropped() {
 	if m == nil {
 		return

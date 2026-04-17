@@ -738,13 +738,8 @@ func (s *chatStreamState) resetDropCounters() {
 }
 
 // streamStateCollector exposes scrape-time gauges derived from
-// p.chatStreams. Each scrape does a single Range over the map
-// and emits streams_active, stream_buffer_size_max,
-// stream_buffer_events, and stream_subscribers.
-//
-// Scrape cost is O(n) in the number of live streams, with a brief
-// per-state mutex held for two len() reads. Acceptable at the
-// typical 15s scrape cadence.
+// p.chatStreams. Scrape cost is O(n) with a brief per-state mutex
+// held for two len() reads; acceptable at typical scrape cadences.
 type streamStateCollector struct {
 	server *Server
 }
@@ -4880,9 +4875,8 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
-	// Snapshot the original chat model and logger so the
-	// goroutine doesn't race with the model = cuModel reassignment
-	// or the logger = logger.With(...) enrichment below.
+	// Snapshot model and logger before launch; both get
+	// reassigned below and the goroutine captures by reference.
 	titleModel := result.PushSummaryModel
 	titleLogger := logger
 	p.inflight.Add(1)
@@ -5476,11 +5470,9 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
-	// Enrich the scoped logger with provider/model so every
-	// downstream log line from this turn carries them (including
-	// the OnRetry warning and compaction errors). Bind once after
-	// the cuModel swap; slog.Logger.With appends rather than
-	// deduping, so binding twice would produce duplicate fields.
+	// Enrich the scoped logger with provider/model for this turn.
+	// Bound once after the cuModel swap; slog.Logger.With appends
+	// rather than deduping.
 	logger = logger.With(
 		slog.F("provider", model.Provider()),
 		slog.F("model", model.Model()),

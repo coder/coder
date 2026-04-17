@@ -17,9 +17,8 @@ import (
 	"github.com/coder/quartz"
 )
 
-// TestStreamStateCollector verifies that the collector correctly
-// scrapes the live p.chatStreams map into the four gauge values,
-// and that it handles pathological map contents gracefully.
+// TestStreamStateCollector exercises the four gauges emitted by
+// streamStateCollector against representative map states.
 func TestStreamStateCollector(t *testing.T) {
 	t.Parallel()
 
@@ -91,11 +90,8 @@ func TestStreamStateCollector(t *testing.T) {
 		})
 	})
 
-	// LockContentionSmoke runs the collector concurrently with
-	// mutations to state.buffer/state.subscribers under state.mu
-	// and asserts no panic and no race detector hit. Meaningful
-	// only under `go test -race`. Without -race this still acts
-	// as a liveness check.
+	// Runs Collect concurrently with state.mu mutations; catches
+	// missing lock acquisition under `go test -race`.
 	t.Run("LockContentionSmoke", func(t *testing.T) {
 		t.Parallel()
 
@@ -173,13 +169,9 @@ func newSubscribers(t *testing.T, n int) map[uuid.UUID]chan codersdk.ChatStreamE
 	return subs
 }
 
-// TestStreamStateCollector_BufferDroppedIncrementsOnCapacity verifies
-// that publishToStream increments the stream_buffer_dropped_total
-// counter every time the per-chat buffer cap forces an oldest-event
-// drop. Pre-fills the buffer to maxStreamBufferSize, then drives
-// publishToStream twice and expects the counter to observe both
-// drops independently of the existing log-rate-limited
-// bufferDropCount field.
+// TestStreamStateCollector_BufferDroppedIncrementsOnCapacity pre-fills
+// a buffer to capacity and asserts stream_buffer_dropped_total
+// increments on each subsequent publishToStream drop.
 func TestStreamStateCollector_BufferDroppedIncrementsOnCapacity(t *testing.T) {
 	t.Parallel()
 
