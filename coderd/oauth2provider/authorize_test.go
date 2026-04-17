@@ -22,7 +22,7 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
 		AppName:      "Test OAuth App",
 		CancelURI:    htmltemplate.URL("https://coder.com/cancel"),
-		DashboardURL: htmltemplate.URL("https://coder.com/"),
+		DashboardURL: "https://coder.com/",
 		CSRFToken:    csrfFieldValue,
 		Username:     "test-user",
 	})

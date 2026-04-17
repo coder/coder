@@ -176,7 +176,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			// #nosec G203 -- The scheme is validated by
 			// codersdk.ValidateRedirectURIScheme above.
 			CancelURI:    htmltemplate.URL(cancelURI),
-			DashboardURL: htmltemplate.URL(accessURL.String()),
+			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
 		})

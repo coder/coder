@@ -802,7 +802,7 @@ type RenderOAuthAllowData struct {
 	AppIcon      string
 	AppName      string
 	CancelURI    htmltemplate.URL
-	DashboardURL htmltemplate.URL
+	DashboardURL string
 	CSRFToken    string
 	Username     string
 }
