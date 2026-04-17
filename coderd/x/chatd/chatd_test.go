@@ -152,7 +152,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	replicaB := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replicaA.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -1479,7 +1479,7 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -1516,7 +1516,7 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
@@ -1703,7 +1703,7 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -1813,7 +1813,7 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -1861,7 +1861,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -1930,7 +1930,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	planModeInstructions := "Ask about deployment sequencing before finalizing the plan."
 	err := db.UpsertChatPlanModeInstructions(dbauthz.AsSystemRestricted(ctx), planModeInstructions)
 	require.NoError(t, err)
@@ -1986,7 +1986,7 @@ func TestSendMessageQueuesWhenWaitingWithQueuedBacklog(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -2085,7 +2085,7 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -2152,7 +2152,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -2262,7 +2262,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		server := newTestServer(t, db, ps, uuid.New())
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
@@ -2314,7 +2314,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		server := newTestServer(t, db, ps, uuid.New())
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID:     org.ID,
@@ -2351,7 +2351,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
 		Enabled:            true,
@@ -2360,41 +2360,26 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	existingChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	existingChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "existing-limit-chat",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("assistant"),
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              existingChat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          existingChat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
 	})
-	require.NoError(t, err)
 
 	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnerID:   user.ID,
@@ -2436,7 +2421,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
 		Enabled:            true,
@@ -2482,26 +2467,14 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
 	})
-	require.NoError(t, err)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
@@ -3112,7 +3085,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -3148,45 +3121,26 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.True(t, laterQueuedResult.Queued)
 	require.NotNil(t, laterQueuedResult.QueuedMessage)
 
-	spendChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	spendChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{},
-		ParentChatID:      uuid.NullUUID{},
-		RootChatID:        uuid.NullUUID{},
 		LastModelConfigID: model.ID,
 		Title:             "other-spend",
-		Mode:              database.NullChatMode{},
 	})
-	require.NoError(t, err)
 
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("spent elsewhere"),
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              spendChat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          spendChat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
 	})
-	require.NoError(t, err)
 
 	close(allowSecondRequestFinish)
 	testutil.TryReceive(ctx, t, thirdRequestStarted)
@@ -3231,7 +3185,7 @@ func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
 		Enabled:            true,
@@ -3262,26 +3216,14 @@ func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{100},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
 	})
-	require.NoError(t, err)
 
 	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
@@ -3313,7 +3255,7 @@ func TestEditMessageRejectsMissingMessage(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -3340,7 +3282,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -3356,27 +3298,13 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assistantMessages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(assistantContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
+	assistantMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleAssistant,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        assistantContent,
 	})
-	require.NoError(t, err)
-	assistantMessage := assistantMessages[0]
 
 	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
@@ -3666,7 +3594,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Use a very short stale threshold so the periodic recovery
 	// kicks in quickly during the test.
@@ -3675,17 +3603,14 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	// Create a chat and simulate a dead worker by setting the chat
 	// to running with a heartbeat in the past.
 	deadWorkerID := uuid.New()
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "stale-recovery-periodic",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: deadWorkerID, Valid: true},
@@ -3723,15 +3648,12 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	// Now simulate a second stale chat appearing AFTER startup.
 	// This tests the periodic recovery, not just the startup one.
 	deadWorkerID2 := uuid.New()
-	chat2, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat2 := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "stale-recovery-periodic-2",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat2.ID,
@@ -3759,7 +3681,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Use a very short stale threshold so the periodic recovery
 	// kicks in quickly during the test.
@@ -3768,17 +3690,14 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	// Create a chat and set it to requires_action to simulate a
 	// client that disappeared while the chat was waiting for
 	// dynamic tool results.
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "stale-requires-action",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
 		Status: database.ChatStatusRequiresAction,
 	})
@@ -3825,23 +3744,20 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Simulate a chat left running by a dead replica with a stale
 	// heartbeat (well beyond the stale threshold).
 	deadReplicaID := uuid.New()
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "orphaned-chat",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
 	// Set the heartbeat far in the past so it's definitely stale.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: deadReplicaID, Valid: true},
@@ -3871,19 +3787,16 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Create a chat in waiting status — this should NOT be touched
 	// by stale recovery.
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "waiting-chat",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
 	// Start a replica with a short stale threshold.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -3918,21 +3831,18 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	_ = newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		Title:             "error-persisted",
 		LastModelConfigID: model.ID,
 	})
-	require.NoError(t, err)
 
 	// Simulate a chat that failed with an error.
 	errorMessage := "stream response: status 500: internal server error"
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	chat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusError,
 		WorkerID:    uuid.NullUUID{},
@@ -3976,7 +3886,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -4048,7 +3958,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	// /chat/completions endpoint, where the mock server supports
 	// streaming tool calls. The default "openai" provider routes to
 	// /responses which only handles text deltas in the mock.
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	ctrl := gomock.NewController(t)
@@ -4220,7 +4130,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Dynamic tools do not need a workspace connection, but the
 	// chatd server always builds workspace tools. Use an active
@@ -4394,7 +4304,7 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	server := newActiveTestServer(t, db, ps)
 
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
@@ -4507,7 +4417,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	server := newActiveTestServer(t, db, ps)
 
 	// Create a chat with a dynamic tool.
@@ -4646,7 +4556,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	server := newActiveTestServer(t, db, ps)
 
 	// Create a chat with a dynamic tool.
@@ -4790,7 +4700,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	replica := newTestServer(t, db, nil, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -4838,7 +4748,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Create a chat — this inserts one initial "user" message.
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -4857,53 +4767,26 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	msg2Results, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(secondContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
+	msg2 := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleAssistant,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        secondContent,
 	})
-	require.NoError(t, err)
-	msg2 := msg2Results[0]
 
 	thirdContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("third"),
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Content:             []string{string(thirdContent.RawMessage)},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        thirdContent,
 	})
-	require.NoError(t, err)
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
 	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
@@ -5310,7 +5193,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	inactive := newTestServer(t, db, ps, uuid.New())
@@ -5451,7 +5334,7 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("ok")
@@ -5625,7 +5508,7 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("ok")
@@ -5806,20 +5689,17 @@ func newActiveTestServer(
 }
 
 func seedChatDependencies(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 ) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
-	openAIURL := chattest.OpenAI(t)
-	return seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	return seedChatDependenciesWithProvider(t, db, "openai", "")
 }
 
 // seedChatDependenciesWithProvider creates a user, organization,
 // chat provider, and model config for the given provider type and
 // base URL.
 func seedChatDependenciesWithProvider(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	provider string,
@@ -5833,34 +5713,19 @@ func seedChatDependenciesWithProvider(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             provider,
-		DisplayName:          provider,
-		APIKey:               "test-key",
-		BaseUrl:              baseURL,
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    provider,
+		DisplayName: provider,
+		BaseUrl:     baseURL,
 	})
-	require.NoError(t, err)
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             provider,
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:  provider,
+		IsDefault: true,
 	})
-	require.NoError(t, err)
 	return user, org, model
 }
 
 func seedChatDependenciesWithProviderPolicy(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	provider string,
@@ -5878,32 +5743,20 @@ func seedChatDependenciesWithProviderPolicy(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:                   provider,
 		DisplayName:                provider,
 		APIKey:                     apiKey,
 		BaseUrl:                    baseURL,
-		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:                    true,
 		CentralApiKeyEnabled:       centralAPIKeyEnabled,
 		AllowUserApiKey:            allowUserAPIKey,
 		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
 	})
-	require.NoError(t, err)
 
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             provider,
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:  provider,
+		IsDefault: true,
 	})
-	require.NoError(t, err)
 
 	return user, org, providerConfig, model
 }
@@ -6141,7 +5994,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6253,7 +6106,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6338,7 +6191,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		require.NoError(t, serverA.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := serverA.CreateChat(ctx, chatd.CreateOptions{
@@ -6443,7 +6296,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	_, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6504,7 +6357,7 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	_, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6666,21 +6519,17 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	})
 
 	// Seed the DB: user, openai-compat provider, model config.
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Add an Anthropic provider pointing to our mock server.
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		APIKey:               "test-anthropic-key",
-		BaseUrl:              anthropicSrv.URL,
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
+		APIKey:      "test-anthropic-key",
+		BaseUrl:     anthropicSrv.URL,
 	})
-	require.NoError(t, err)
 
-	err = db.UpsertChatDesktopEnabled(ctx, true)
+	err := db.UpsertChatDesktopEnabled(ctx, true)
 	require.NoError(t, err)
 
 	// Build workspace + agent records so getWorkspaceConn can
@@ -6870,7 +6719,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6984,7 +6833,6 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 	})
 
 	user, org, provider, model := seedChatDependenciesWithProviderPolicy(
-		ctx,
 		t,
 		db,
 		"openai-compat",
@@ -7050,7 +6898,6 @@ func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 	})
 
 	user, org, _, model := seedChatDependenciesWithProviderPolicy(
-		ctx,
 		t,
 		db,
 		"openai-compat",
@@ -7114,7 +6961,7 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Pass the panic wrapper to the server, but use the real
 	// database for seeding so those operations don't panic.
@@ -7250,7 +7097,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Seed the MCP server config in the database. This must
 	// happen after seedChatDependencies so user.ID exists for
@@ -7764,7 +7611,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Seed the MCP server config with OAuth2 auth pointing to our
 	// mock token endpoint.
@@ -7900,7 +7747,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:    "Broken MCP",
@@ -8020,7 +7867,7 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		}
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Create two templates the user can see.
 	tplAllowed = dbgen.Template(t, db, database.Template{
@@ -8165,7 +8012,7 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	// CreateChat sets status=pending and calls signalWake().
@@ -8228,7 +8075,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	// CreateChat triggers wake -> processes first turn.

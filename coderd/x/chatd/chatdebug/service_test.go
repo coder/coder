@@ -1091,31 +1091,15 @@ func seedChat(
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
 	providerName := "openai"
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             providerName,
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    providerName,
+		DisplayName: "OpenAI",
 	})
-	require.NoError(t, err)
 
-	model, err := db.InsertChatModelConfig(ctx,
-		database.InsertChatModelConfigParams{
-			Provider:             providerName,
-			Model:                "model-" + uuid.NewString(),
-			DisplayName:          "Test Model",
-			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-			UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-			Enabled:              true,
-			IsDefault:            true,
-			ContextLimit:         128000,
-			CompressionThreshold: 70,
-			Options:              json.RawMessage(`{}`),
-		},
-	)
-	require.NoError(t, err)
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:     "model-" + uuid.NewString(),
+		IsDefault: true,
+	})
 
 	chat := insertChat(ctx, t, db, org.ID, owner.ID, model.ID)
 	return org, owner, chat, model
@@ -1131,15 +1115,12 @@ func insertChat(
 ) database.Chat {
 	t.Helper()
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelID,
 		Title:             "chat-" + uuid.NewString(),
 	})
-	require.NoError(t, err)
 	return chat
 }
 
@@ -1160,29 +1141,16 @@ func insertMessage(
 	})
 	require.NoError(t, err)
 
-	messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chatID,
-		CreatedBy:           []uuid.UUID{createdBy},
-		ModelConfigID:       []uuid.UUID{modelID},
-		Role:                []database.ChatMessageRole{role},
-		Content:             []string{string(parts.RawMessage)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
-		ProviderResponseID:  []string{""},
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             chatID,
+		CreatedBy:          uuid.NullUUID{UUID: createdBy, Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:               role,
+		Content:            parts,
+		ContentVersion:     chatprompt.CurrentContentVersion,
+		ProviderResponseID: sql.NullString{},
 	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	return messages[0]
+	return msg
 }
 
 func createRun(t *testing.T, fixture testFixture) database.ChatDebugRun {

@@ -42,15 +42,12 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID: org.ID,
 		})
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-no-workspace",
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:     db,
@@ -87,16 +84,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-already-running",
 		})
-		require.NoError(t, err)
 
 		agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return nil, func() {}, nil
@@ -170,16 +164,13 @@ func TestStartWorkspace(t *testing.T) {
 		}
 		require.NotEqual(t, uuid.Nil, preferredAgentID)
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-preferred-agent",
 		})
-		require.NoError(t, err)
 
 		var connectedAgentID uuid.UUID
 		agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -232,16 +223,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-no-agent",
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:      db,
@@ -297,16 +285,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-selection-error",
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:      db,
@@ -356,16 +341,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-stopped-workspace",
 		})
-		require.NoError(t, err)
 
 		var startCalled bool
 		var startBuildID uuid.UUID
@@ -429,16 +411,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-stopped-workspace-auto-update",
 		})
-		require.NoError(t, err)
 
 		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
@@ -559,16 +538,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-start-workspace-manual-update-required",
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:      db,
@@ -686,16 +662,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Starting().Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-in-progress-build",
 		})
-		require.NoError(t, err)
 
 		// Wrap the DB so we know exactly when the tool reads
 		// the job status. The interceptor signals AFTER the
@@ -783,16 +756,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Starting().Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-failed-build",
 		})
-		require.NoError(t, err)
 
 		jobRead := make(chan struct{}, 1)
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
@@ -866,16 +836,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-start-triggered-build-failure",
 		})
-		require.NoError(t, err)
 
 		// StartFn creates a real in-progress build via dbfake.
 		var startBuildJobID uuid.UUID
@@ -965,16 +932,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-deleted-workspace",
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:     db,
@@ -994,39 +958,17 @@ func TestStartWorkspace(t *testing.T) {
 
 // seedModelConfig inserts a provider and model config for testing.
 func seedModelConfig(
-	ctx context.Context,
+	_ context.Context,
 	t *testing.T,
 	db database.Store,
-	userID uuid.UUID,
+	_ uuid.UUID,
 ) database.ChatModelConfig {
 	t.Helper()
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		BaseUrl:              "",
-		ApiKeyKeyID:          sql.NullString{},
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{})
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		IsDefault: true,
 	})
-	require.NoError(t, err)
-
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-	return model
 }
 
 // jobInterceptStore wraps a database.Store and signals a

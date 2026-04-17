@@ -3,7 +3,6 @@ package gitsync_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -946,37 +945,22 @@ func TestWorker(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "test-model",
-		DisplayName:          "Test Model",
-		Enabled:              true,
-		ContextLimit:         100000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 100000,
 	})
-	require.NoError(t, err)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "integration-test",
 	})
-	require.NoError(t, err)
 
 	// 4. Seed a stale diff status row so the worker picks it up.
-	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+	_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
 		ChatID:          chat.ID,
 		GitBranch:       "feature",
 		GitRemoteOrigin: "https://github.com/o/r",

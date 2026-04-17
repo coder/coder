@@ -1196,14 +1196,10 @@ func TestUserChatProviderKeys(t *testing.T) {
 	) (database.ChatProvider, database.UserChatProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
-		provider, err := crypt.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:        "openai",
-			DisplayName:     "OpenAI",
+		provider := dbgen.ChatProvider(t, crypt, database.ChatProvider{
 			APIKey:          "",
-			Enabled:         true,
 			AllowUserApiKey: true,
 		})
-		require.NoError(t, err)
 
 		key, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
 			UserID:         user.ID,

@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -182,26 +183,14 @@ func createParentChatWithInheritedContext(
 	content, err := json.Marshal(inheritedParts)
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              parent.ID,
-		CreatedBy:           []uuid.UUID{user.ID},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{string(content)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: content, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
-	require.NoError(t, err)
 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
@@ -379,26 +368,22 @@ func createParentChatWithRotatedInheritedContext(
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              parent.ID,
-		CreatedBy:           []uuid.UUID{user.ID, user.ID},
-		ModelConfigID:       []uuid.UUID{model.ID, model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleUser},
-		Content:             []string{string(oldContent), string(newContent)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0, 0},
-		OutputTokens:        []int64{0, 0},
-		TotalTokens:         []int64{0, 0},
-		ReasoningTokens:     []int64{0, 0},
-		CacheCreationTokens: []int64{0, 0},
-		CacheReadTokens:     []int64{0, 0},
-		ContextLimit:        []int64{0, 0},
-		Compressed:          []bool{false, false},
-		TotalCostMicros:     []int64{0, 0},
-		RuntimeMs:           []int64{0, 0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: oldContent, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: newContent, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
