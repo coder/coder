@@ -2102,6 +2102,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
 
+## codersdk.ChatSharingSettings
+
+```json
+{
+  "shareable_chat_owners": "none",
+  "sharing_globally_disabled": true
+}
+```
+
+### Properties
+
+| Name                        | Type                                                         | Required | Restrictions | Description                                                                                                                |
+|-----------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `shareable_chat_owners`     | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              | Shareable chat owners controls whose chats can be shared within the organization.                                          |
+| `sharing_globally_disabled` | boolean                                                      | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
+
+#### Enumerated Values
+
+| Property                | Value(s)                               |
+|-------------------------|----------------------------------------|
+| `shareable_chat_owners` | `everyone`, `none`, `service_accounts` |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -3380,6 +3402,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -3970,6 +3993,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
@@ -4351,6 +4375,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
+| `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                    |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
@@ -8942,6 +8967,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
 | `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
+## codersdk.ShareableChatOwners
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                               |
+|----------------------------------------|
+| `everyone`, `none`, `service_accounts` |
+
 ## codersdk.ShareableWorkspaceOwners
 
 ```json
@@ -10441,6 +10480,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name             | Type    | Required | Restrictions | Description |
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatSharingSettingsRequest
+
+```json
+{
+  "shareable_chat_owners": "none"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description                                                                       |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------|
+| `shareable_chat_owners` | [codersdk.ShareableChatOwners](#codersdkshareablechatowners) | false    |              | Shareable chat owners controls whose chats can be shared within the organization. |
+
+#### Enumerated Values
+
+| Property                | Value(s)                               |
+|-------------------------|----------------------------------------|
+| `shareable_chat_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.UpdateCheckResponse
 
