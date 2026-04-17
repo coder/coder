@@ -1315,15 +1315,6 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
-	// Sample the debug-cleanup cutoff before the edit transaction
-	// commits. A replacement turn can only be acquired after the chat
-	// transitions to pending, so any debug row written by the
-	// replacement is guaranteed to have started_at >= commit_time >
-	// editCutoff. Capturing after commit would let a fast replacement
-	// start before the cutoff is sampled, in which case the retry
-	// cleanup would delete the replacement's debug run.
-	editCutoff := p.clock.Now()
-
 	var (
 		result    EditMessageResult
 		editedMsg database.ChatMessage
@@ -1422,9 +1413,14 @@ func (p *Server) EditMessage(
 
 	// Editing can race with an interrupted worker still flushing its
 	// final debug writes. Run a short bounded retry loop so we converge
-	// quickly without relying on the much longer stale-finalization sweep.
-	// The editCutoff sampled before the transaction bounds cleanup to
-	// pre-edit rows.
+	// quickly without relying on the much longer stale-finalization
+	// sweep. Source editCutoff from the DB-stamped updated_at returned
+	// by UpdateChatStatus so the filter uses the same clock that
+	// FinalizeStale and other DB timestamps use; subtract
+	// debugCleanupClockSkew so replica clock drift cannot let the retry
+	// delete a replacement turn's debug rows (see the constant for the
+	// full rationale).
+	editCutoff := result.Chat.UpdatedAt.Add(-debugCleanupClockSkew)
 	p.scheduleDebugCleanup(
 		ctx,
 		"failed to delete chat debug rows after edit",
@@ -1450,15 +1446,6 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
-
-	// Sample the debug-cleanup cutoff before the archive transaction
-	// commits. An unarchive that races ahead of a pending cleanup
-	// retry can only start new debug runs after commit, so any
-	// replacement-turn run is guaranteed to have started_at >
-	// commit_time > archiveCutoff. Capturing after commit would let a
-	// fast unarchive start before the cutoff is sampled, in which
-	// case the retry cleanup would delete the replacement's run.
-	archiveCutoff := p.clock.Now()
 
 	var (
 		archivedChats    []database.Chat
@@ -1507,19 +1494,27 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 	// Archiving can race with an interrupted worker still flushing its
 	// final debug writes. Retry a few times so orphaned rows are
-	// removed quickly instead of waiting for the stale sweeper. The
-	// archiveCutoff sampled before the transaction bounds cleanup to
-	// pre-archive rows.
-	for _, archivedChat := range archivedChats {
-		p.scheduleDebugCleanup(
-			ctx,
-			"failed to delete chat debug rows after archive",
-			[]slog.Field{slog.F("chat_id", archivedChat.ID)},
-			func(cleanupCtx context.Context, debugSvc *chatdebug.Service) error {
-				_, err := debugSvc.DeleteByChatID(cleanupCtx, archivedChat.ID, archiveCutoff)
-				return err
-			},
-		)
+	// removed quickly instead of waiting for the stale sweeper. Source
+	// archiveCutoff from the DB-stamped updated_at returned by
+	// ArchiveChatByID so the filter uses the same clock that stamps
+	// replacement-turn debug rows; subtract debugCleanupClockSkew so
+	// replica clock drift cannot let the retry delete a replacement's
+	// debug rows if an unarchive races ahead (see the constant for the
+	// full rationale). All archived chats share the transaction-start
+	// NOW() so any entry's UpdatedAt is equivalent.
+	if len(archivedChats) > 0 {
+		archiveCutoff := archivedChats[0].UpdatedAt.Add(-debugCleanupClockSkew)
+		for _, archivedChat := range archivedChats {
+			p.scheduleDebugCleanup(
+				ctx,
+				"failed to delete chat debug rows after archive",
+				[]slog.Field{slog.F("chat_id", archivedChat.ID)},
+				func(cleanupCtx context.Context, debugSvc *chatdebug.Service) error {
+					_, err := debugSvc.DeleteByChatID(cleanupCtx, archivedChat.ID, archiveCutoff)
+					return err
+				},
+			)
+		}
 	}
 
 	p.publishChatPubsubEvents(archivedChats, codersdk.ChatWatchEventKindDeleted)

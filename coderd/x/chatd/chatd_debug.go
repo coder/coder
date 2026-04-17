@@ -18,6 +18,19 @@ const (
 	debugCleanupRetryDelay = 500 * time.Millisecond
 	debugCleanupAttempts   = 3
 	debugCleanupTimeout    = 5 * time.Second
+	// debugCleanupClockSkew gives cleanup cutoffs tolerance for cross-
+	// replica clock drift. The cutoff is sampled from the DB
+	// (updated_at returned by the status transition), and
+	// chat_debug_runs.started_at is stamped by whatever replica
+	// processes the replacement turn. If that replica's clock lags
+	// the DB, its started_at can land behind a commit-time cutoff
+	// even though the insert physically happened after commit.
+	// Subtracting this buffer ensures the fast retry path cannot
+	// delete replacement rows when clocks drift by up to this
+	// amount; rows within the buffer survive the fast cleanup but
+	// are still finalized (and eligible for stale-sweep cleanup) by
+	// the existing FinalizeStale background loop.
+	debugCleanupClockSkew = 30 * time.Second
 )
 
 func (p *Server) debugService() *chatdebug.Service {
