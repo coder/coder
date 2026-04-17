@@ -3316,3 +3316,57 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 		"append must have landed in the original backing array; the "+
 			"zero-out invariant only matters when cap > len")
 }
+
+// TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry guards
+// against a race where two callers of cleanupStreamIfIdle (e.g. the
+// janitor holding a Range-captured pointer and a fresh processChat
+// run that just reinstalled the state via getOrCreateStreamState) race
+// and the stale caller deletes the fresh map entry.
+//
+// Without CompareAndDelete in cleanupStreamIfIdle, the stale caller
+// wins the Delete and the fresh chat loses its stream state. With the
+// guard, the Delete is a no-op for the stale caller and the fresh
+// state stays mapped.
+func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+
+	// Stale state: looks reapable (not buffering, no subscribers,
+	// grace expired).
+	stale := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+
+	// Fresh state: what getOrCreateStreamState would install after a
+	// racing processChat run started. Not reapable (actively
+	// buffering). Only this state is in the map.
+	fresh := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, fresh)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+
+	// Caller holds the stale pointer and its lock; this mirrors the
+	// janitor's Range-callback path after the map entry has been
+	// replaced by another goroutine.
+	stale.mu.Lock()
+	server.cleanupStreamIfIdle(chatID, stale)
+	stale.mu.Unlock()
+
+	got, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok,
+		"fresh entry must remain mapped when cleanup is called with a stale pointer")
+	require.Same(t, fresh, got,
+		"cleanup must not replace the fresh entry with the stale one")
+}

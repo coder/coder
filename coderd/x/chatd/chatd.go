@@ -3117,7 +3117,13 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 // returns without rescheduling — streamJanitorLoop is the backstop
 // that re-checks on a timer so entries do not linger after the grace
 // window ends.
-// The caller must hold state.mu.
+//
+// The caller must hold state.mu. Callers may pass a state pointer that
+// was obtained outside this lock (e.g. from sync.Map.Load or Range);
+// the map entry for chatID could have been replaced in the meantime
+// by a racing getOrCreateStreamState. We use CompareAndDelete so that
+// the map delete only takes effect if the current map entry is still
+// the same *chatStreamState the caller examined under its lock.
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if state.buffering || len(state.subscribers) > 0 {
 		return
@@ -3129,7 +3135,13 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
 		return
 	}
-	p.chatStreams.Delete(chatID)
+	// CompareAndDelete is a no-op when another goroutine has already
+	// replaced or deleted this entry. Without this guard, a janitor
+	// sweep holding a stale pointer could delete a freshly-installed
+	// state belonging to a new processChat run for the same chat.
+	if !p.chatStreams.CompareAndDelete(chatID, state) {
+		return
+	}
 	p.workspaceMCPToolsCache.Delete(chatID)
 }
 
