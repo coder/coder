@@ -2975,6 +2975,14 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 				state.bufferDropCount = 0
 				state.bufferLastWarnAt = now
 			}
+			// Clear the old slot before reslicing so its
+			// *ChatStreamMessagePart becomes GC-eligible. cap is often
+			// greater than len here (Go's growth policy over-allocates),
+			// so the subsequent append stays in place without
+			// reallocating — the dropped pointer would otherwise be
+			// pinned in the backing array until the buffer grew past
+			// its original capacity.
+			state.buffer[0] = codersdk.ChatStreamEvent{}
 			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)

@@ -3243,3 +3243,76 @@ func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 	_, ok = server.chatStreams.Load(chatID)
 	require.False(t, ok, "sweep after grace window must reap")
 }
+
+// TestPublishToStream_DropZeroesBackingSlot verifies that when
+// publishToStream evicts the oldest buffered event at capacity, the
+// dropped slot in the backing array is zeroed. Without that, the
+// dropped *ChatStreamMessagePart stays reachable via the backing
+// array until the buffer reallocates, pinning its payload.
+func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+
+	// Overcap by one so the post-drop append fits in the original
+	// backing array. This matches the production case where Go's
+	// growth policy over-allocates and the drop-then-append
+	// sequence reuses memory in place.
+	buf := make([]codersdk.ChatStreamEvent, maxStreamBufferSize, maxStreamBufferSize+1)
+	for i := range buf {
+		buf[i] = codersdk.ChatStreamEvent{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}
+	}
+	// Sentinel payload in slot 0 so we can distinguish a cleared
+	// slot from a slot that was merely overwritten by a later
+	// append.
+	sentinel := &codersdk.ChatStreamMessagePart{
+		Role: codersdk.ChatMessageRoleAssistant,
+	}
+	buf[0] = codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: sentinel,
+	}
+	// origBacking is a stable alias over the full backing array.
+	// After publishToStream advances state.buffer by one slot, we
+	// reach through origBacking to observe what happened to the
+	// old slot 0.
+	origBacking := buf[:cap(buf)]
+
+	state := &chatStreamState{
+		buffering:   true,
+		buffer:      buf,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	newPart := &codersdk.ChatStreamMessagePart{
+		Role: codersdk.ChatMessageRoleAssistant,
+	}
+	server.publishToStream(chatID, codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: newPart,
+	})
+
+	require.Equal(t, codersdk.ChatStreamEvent{}, origBacking[0],
+		"dropped slot must be zero-valued so its *ChatStreamMessagePart "+
+			"is eligible for GC; got %+v", origBacking[0])
+
+	// Sanity-check that the test actually exercised the in-place
+	// append path the fix is designed for: the new event should
+	// have landed in the slot just past the original length, i.e.
+	// no reallocation happened. If Go's growth policy ever makes
+	// append reallocate here, this assertion fails loudly and the
+	// test author knows to revisit the setup.
+	require.Same(t, newPart, origBacking[len(origBacking)-1].MessagePart,
+		"append must have landed in the original backing array; the "+
+			"zero-out invariant only matters when cap > len")
+}
