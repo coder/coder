@@ -1266,6 +1266,68 @@ const docTemplate = `{
                 ]
             }
         },
+        "/experimental/chats/config/auto-archive-days": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat auto-archive days",
+                "operationId": "get-chat-auto-archive-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutoArchiveDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat auto-archive days",
+                "operationId": "update-chat-auto-archive-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutoArchiveDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/experimental/chats/config/retention-days": {
             "get": {
                 "produces": [
@@ -14749,6 +14811,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutoArchiveDaysResponse": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -21318,6 +21388,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.UpdateChatAutoArchiveDaysRequest": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
                 }
             }
         },

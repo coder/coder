@@ -9243,6 +9243,68 @@ func TestChatRetentionDays(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+func TestChatAutoArchiveDays(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Default value is 90 (days) when nothing has been configured.
+	resp, err := adminClient.GetChatAutoArchiveDays(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, int32(90), resp.AutoArchiveDays, "default should be 90")
+
+	// Admin can set auto-archive days to 45.
+	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
+		AutoArchiveDays: 45,
+	})
+	require.NoError(t, err, "admin set 45")
+
+	resp, err = adminClient.GetChatAutoArchiveDays(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int32(45), resp.AutoArchiveDays, "should return 45")
+
+	// Non-admin member can read the value.
+	resp, err = memberClient.GetChatAutoArchiveDays(ctx)
+	require.NoError(t, err, "member get")
+	require.Equal(t, int32(45), resp.AutoArchiveDays, "member should see same value")
+
+	// Non-admin member cannot write.
+	err = memberClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: 7})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	// Admin can disable auto-archive by setting 0.
+	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
+		AutoArchiveDays: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatAutoArchiveDays(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int32(0), resp.AutoArchiveDays, "should be 0 after disable")
+
+	// An aggressive value of 1 is accepted (no pre-warn to break).
+	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
+		AutoArchiveDays: 1,
+	})
+	require.NoError(t, err, "admin set 1")
+
+	// Validation: negative value is rejected.
+	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
+		AutoArchiveDays: -1,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: exceeding the 3650-day maximum is rejected.
+	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
+		AutoArchiveDays: 3651, // autoArchiveDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
