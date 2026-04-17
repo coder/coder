@@ -393,6 +393,53 @@ func TestService_CreateStep_RejectsFinalizedRun(t *testing.T) {
 	require.ErrorContains(t, err, "already finalized")
 }
 
+func TestService_CreateStep_MissingRunReportsNotFound(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+
+	// Use a random run ID that was never inserted. The insert CTE
+	// returns zero rows, which must be classified as "not found"
+	// instead of being conflated with the already-finalized case.
+	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+		RunID:      uuid.New(),
+		ChatID:     fixture.chat.ID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationStream,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "not found",
+		"missing parent runs must surface as not-found, not already-finalized")
+	require.NotContains(t, err.Error(), "already finalized")
+}
+
+func TestService_CreateStep_ChatIDMismatchReportsNotFound(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	run := createRun(t, fixture)
+
+	// Create a second chat under the same owner/model and try to
+	// attach a step to the existing run using the wrong chat_id.
+	// The insert's locked_run WHERE fails on chat_id, producing
+	// sql.ErrNoRows; classifyMissingRun must report not-found.
+	otherChat := insertChat(fixture.ctx, t, fixture.db, fixture.org.ID,
+		fixture.owner.ID, fixture.model.ID)
+
+	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+		RunID:      run.ID,
+		ChatID:     otherChat.ID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationStream,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "not found",
+		"chat_id mismatch must surface as not-found, not already-finalized")
+	require.NotContains(t, err.Error(), "already finalized")
+}
+
 func TestService_UpdateStep(t *testing.T) {
 	t.Parallel()
 

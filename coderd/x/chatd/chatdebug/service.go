@@ -346,12 +346,19 @@ func (s *Service) UpdateRun(
 // that FinalizeStale already marked as interrupted.
 var errRunFinalized = xerrors.New("parent run is already finalized")
 
+// errRunNotFound is returned by CreateStep when the parent run cannot
+// be located (missing run_id or chat_id mismatch). This surfaces
+// caller-side data bugs instead of conflating them with the legitimate
+// "already finalized" terminal case.
+var errRunNotFound = xerrors.New("parent run not found")
+
 // CreateStep inserts a new debug step and emits a step update event.
-// It returns errRunFinalized if the parent run has already finished.
-// The finalization guard is enforced atomically by the INSERT's CTE,
-// which issues an UPDATE on the parent run (taking a row lock). This
-// prevents concurrent FinalizeStale from setting finished_at between
-// the check and the INSERT.
+// It returns errRunFinalized if the parent run has already finished,
+// or errRunNotFound if the run_id/chat_id pair does not match an
+// existing run. The finalization guard is enforced atomically by the
+// INSERT's CTE, which issues an UPDATE on the parent run (taking a
+// row lock). This prevents concurrent FinalizeStale from setting
+// finished_at between the check and the INSERT.
 func (s *Service) CreateStep(
 	ctx context.Context,
 	params CreateStepParams,
@@ -393,10 +400,13 @@ func (s *Service) CreateStep(
 			s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
 			return step, nil
 		}
-		// The INSERT...SELECT WHERE finished_at IS NULL returns no
-		// rows when the run is already finalized.
+		// The INSERT's locked_run CTE filters on id, chat_id, and
+		// finished_at IS NULL, so sql.ErrNoRows can mean "run not
+		// found", "chat_id mismatch", or "already finalized." Look
+		// the run up to disambiguate instead of conflating
+		// caller-side data bugs with the legitimate terminal case.
 		if errors.Is(err, sql.ErrNoRows) {
-			return database.ChatDebugStep{}, errRunFinalized
+			return database.ChatDebugStep{}, s.classifyMissingRun(ctx, params)
 		}
 		if !database.IsUniqueViolation(err, database.UniqueIndexChatDebugStepsRunStep) {
 			return database.ChatDebugStep{}, err
@@ -418,6 +428,40 @@ func (s *Service) CreateStep(
 	return database.ChatDebugStep{}, xerrors.Errorf(
 		"failed to create debug step after %d attempts (run_id=%s)",
 		maxCreateStepRetries, params.RunID,
+	)
+}
+
+// classifyMissingRun disambiguates the sql.ErrNoRows returned by
+// InsertChatDebugStep's locked_run CTE. The CTE filters on id,
+// chat_id, and finished_at IS NULL, so empty RETURNING rows can mean
+// the run is absent, belongs to a different chat, or has already been
+// finalized. GetChatDebugRunByID is keyed only by id, which is
+// sufficient to tell these cases apart.
+func (s *Service) classifyMissingRun(
+	ctx context.Context,
+	params CreateStepParams,
+) error {
+	run, err := s.db.GetChatDebugRunByID(chatdContext(ctx), params.RunID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return errRunNotFound
+	}
+	if err != nil {
+		return xerrors.Errorf("look up parent run after failed step insert: %w", err)
+	}
+	if run.ChatID != params.ChatID {
+		return errRunNotFound
+	}
+	if run.FinishedAt.Valid {
+		return errRunFinalized
+	}
+	// The run matches the caller's (run_id, chat_id) and is still
+	// open, yet the INSERT returned no rows. This is unexpected
+	// under write-once-finalize semantics and likely indicates a
+	// concurrent delete or unrelated defect; surface it instead of
+	// silently masking it as a terminal case.
+	return xerrors.Errorf(
+		"InsertChatDebugStep returned no rows but run is still active (run_id=%s)",
+		params.RunID,
 	)
 }
 
