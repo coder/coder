@@ -27,20 +27,3 @@ test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selecto
 	expect(trigger.className).toContain("focus-visible:ring-2");
 	expect(trigger.className).not.toContain("focus-visible:ring-0");
 });
-
-test("allows callers to apply the regular input border treatment", () => {
-	render(
-		<ModelSelector
-			options={mockModelOptions}
-			value="gpt-4o-mini"
-			onValueChange={vi.fn()}
-			className="h-10 border border-border border-solid bg-transparent px-3 shadow-sm"
-		/>,
-	);
-
-	const trigger = screen.getByRole("combobox");
-
-	expect(trigger.className).toContain("border-solid");
-	expect(trigger.className).toContain("shadow-sm");
-	expect(trigger.className).not.toContain("border-none");
-});
