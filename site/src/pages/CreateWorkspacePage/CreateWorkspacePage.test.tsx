@@ -182,8 +182,14 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage();
 
 			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+			});
+
+			await act(async () => {
 				mockPublisher.publishError(new Event("Connection failed"));
+			});
+
+			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", { name: /connection failed/i }),
@@ -207,8 +213,14 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage();
 
 			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+			});
+
+			await act(async () => {
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
+			});
+
+			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", {
