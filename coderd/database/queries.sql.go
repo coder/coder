@@ -5144,7 +5144,6 @@ SELECT EXISTS (
 )
 `
 
-// Backs the confirm_share_attachments gate on PATCH /chats/{chat}/acl.
 func (q *sqlQuerier) ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, chatHasVisibleAttachments, chatID)
 	var exists bool
@@ -5165,7 +5164,6 @@ SELECT EXISTS (
 )
 `
 
-// Backs the confirm_share_tool_calls gate on PATCH /chats/{chat}/acl.
 func (q *sqlQuerier) ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, chatHasVisibleToolParts, chatID)
 	var exists bool
@@ -5255,7 +5253,6 @@ type DeleteChatACLsByOrganizationParams struct {
 	ExcludeServiceAccounts bool      `db:"exclude_service_accounts" json:"exclude_service_accounts"`
 }
 
-// Preserves chats owned by service accounts when exclude_service_accounts is true.
 func (q *sqlQuerier) DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatACLsByOrganization, arg.OrganizationID, arg.ExcludeServiceAccounts)
 	return err
@@ -6565,7 +6562,6 @@ WHERE
         WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = $1
         ELSE true
     END
-    -- Viewer filter: owned_only keeps only the viewer's chats; shared_only excludes them.
     AND CASE
         WHEN $2::boolean THEN chats.owner_id = $3::uuid
         ELSE true

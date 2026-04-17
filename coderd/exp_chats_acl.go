@@ -274,8 +274,8 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
-// convertToChatRole maps stored permissions back to a ChatRole. Unknown sets map
-// to ChatRoleDeleted so callers do not misread a stale or corrupt entry as read.
+// Unknown permissions map to ChatRoleDeleted so stale or corrupt entries
+// are not misread as read access.
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead

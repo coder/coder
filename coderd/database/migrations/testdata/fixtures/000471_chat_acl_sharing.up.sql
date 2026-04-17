@@ -1,17 +1,7 @@
 -- Fixture for migration 000471_chat_acl_sharing.
--- Exercises:
---   * A chat with empty ACLs (default case).
---   * A chat with a user-only ACL.
---   * A chat with a group-only ACL.
---   * A chat with both user and group ACLs.
---   * A root chat + one sub-chat so the chats_with_acl view has data
---     to exercise the COALESCE fallback.
---   * Organizations in each of the three shareable_chat_owners modes.
 
--- New organizations in 'none' and 'service_accounts' modes. The
--- default organization row (bb640d07-ca8a-4869-b6bc-ae61ebb2fda1,
--- seeded by 000022) keeps the 'everyone' default set by this
--- migration's DEFAULT clause.
+-- Default organization row (seeded by 000022) keeps the 'everyone' default;
+-- these two cover the other modes.
 INSERT INTO organizations (
     id,
     name,
@@ -131,9 +121,8 @@ FROM users
 ORDER BY created_at, id
 LIMIT 1;
 
--- Root chat with an ACL, plus a sub-chat whose root_chat_id points
--- at the root. The view's COALESCE fallback is exercised by the
--- sub-chat row.
+-- Sub-chat whose root_chat_id points at the preceding root chat; exercises
+-- the chats_with_acl COALESCE fallback.
 INSERT INTO chats (
     id,
     owner_id,

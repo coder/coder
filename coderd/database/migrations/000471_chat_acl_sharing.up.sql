@@ -1,4 +1,3 @@
--- Add user/group ACL columns to chats.
 ALTER TABLE chats
     ADD COLUMN user_acl  jsonb NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN group_acl jsonb NOT NULL DEFAULT '{}'::jsonb;
@@ -10,8 +9,8 @@ ALTER TABLE chats
     ADD CONSTRAINT chat_group_acl_not_null_jsonb
         CHECK (group_acl IS NOT NULL AND jsonb_typeof(group_acl) = 'object');
 
--- Effective ACL per chat: COALESCE to the root chat's ACL for sub-chats, or the
--- chat's own ACL for roots and orphaned sub-chats.
+-- Sub-chats inherit the root chat's ACL via COALESCE; roots and orphaned
+-- sub-chats fall back to their own ACL.
 CREATE VIEW chats_with_acl AS
 SELECT
     c.id,
@@ -48,8 +47,8 @@ FROM
     LEFT JOIN chats root ON root.id = c.root_chat_id;
 
 COMMENT ON VIEW chats_with_acl IS
-    'Projects each chat alongside its effective ACL. Sub-chats inherit the '
-    'root chat''s ACL via COALESCE; orphaned sub-chats fall back to their own ACL.';
+    'Projects each chat alongside its effective ACL; sub-chats COALESCE to '
+    'the root chat''s ACL, orphans fall back to their own.';
 
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat:share';
 

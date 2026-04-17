@@ -1,5 +1,3 @@
--- Reverse 000471_chat_acl_sharing.
-
 ALTER TABLE organizations DROP COLUMN shareable_chat_owners;
 DROP TYPE shareable_chat_owners;
 

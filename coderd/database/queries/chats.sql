@@ -246,7 +246,6 @@ WHERE
     id = @id::uuid;
 
 -- name: DeleteChatACLsByOrganization :exec
--- Preserves chats owned by service accounts when exclude_service_accounts is true.
 UPDATE
     chats
 SET
@@ -391,7 +390,6 @@ WHERE
         WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
         ELSE true
     END
-    -- Viewer filter: owned_only keeps only the viewer's chats; shared_only excludes them.
     AND CASE
         WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
         ELSE true
@@ -1412,7 +1410,6 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: ChatHasVisibleToolParts :one
--- Backs the confirm_share_tool_calls gate on PATCH /chats/{chat}/acl.
 SELECT EXISTS (
     SELECT 1
     FROM chat_messages
@@ -1425,7 +1422,6 @@ SELECT EXISTS (
 );
 
 -- name: ChatHasVisibleAttachments :one
--- Backs the confirm_share_attachments gate on PATCH /chats/{chat}/acl.
 SELECT EXISTS (
     SELECT 1
     FROM chat_file_links

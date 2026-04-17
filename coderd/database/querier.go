@@ -71,9 +71,7 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
-	// Backs the confirm_share_attachments gate on PATCH /chats/{chat}/acl.
 	ChatHasVisibleAttachments(ctx context.Context, chatID uuid.UUID) (bool, error)
-	// Backs the confirm_share_tool_calls gate on PATCH /chats/{chat}/acl.
 	ChatHasVisibleToolParts(ctx context.Context, chatID uuid.UUID) (bool, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
@@ -107,7 +105,6 @@ type sqlcQuerier interface {
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteChatACLByID(ctx context.Context, id uuid.UUID) error
-	// Preserves chats owned by service accounts when exclude_service_accounts is true.
 	DeleteChatACLsByOrganization(ctx context.Context, arg DeleteChatACLsByOrganizationParams) error
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
 	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
