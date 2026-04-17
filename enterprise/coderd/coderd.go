@@ -433,6 +433,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					r.Get("/", api.workspaceSharingSettings)
 					r.Patch("/", api.patchWorkspaceSharingSettings)
 				})
+				r.Route("/chat-sharing", func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAgents))
+					r.Get("/", api.chatSharingSettings)
+					r.Patch("/", api.patchChatSharingSettings)
+				})
 			})
 		})
 

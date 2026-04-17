@@ -4703,6 +4703,86 @@ const docTemplate = `{
                 ]
             }
         },
+        "/organizations/{organization}/settings/chat-sharing": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get chat sharing settings for organization",
+                "operationId": "get-chat-sharing-settings-for-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatSharingSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update chat sharing settings for organization",
+                "operationId": "update-chat-sharing-settings-for-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat sharing settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatSharingSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatSharingSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/organizations/{organization}/settings/idpsync/available-fields": {
             "get": {
                 "produces": [
@@ -14770,6 +14850,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatSharingSettings": {
+            "type": "object",
+            "properties": {
+                "shareable_chat_owners": {
+                    "enum": [
+                        "none",
+                        "everyone",
+                        "service_accounts"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ShareableChatOwners"
+                        }
+                    ]
+                },
+                "sharing_globally_disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -20003,6 +20103,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ShareableChatOwners": {
+            "type": "string",
+            "enum": [
+                "none",
+                "everyone",
+                "service_accounts"
+            ],
+            "x-enum-varnames": [
+                "ShareableChatOwnersNone",
+                "ShareableChatOwnersEveryone",
+                "ShareableChatOwnersServiceAccounts"
+            ]
+        },
         "codersdk.ShareableWorkspaceOwners": {
             "type": "string",
             "enum": [
@@ -21329,6 +21442,23 @@ const docTemplate = `{
             "properties": {
                 "retention_days": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatSharingSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "shareable_chat_owners": {
+                    "enum": [
+                        "none",
+                        "everyone",
+                        "service_accounts"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ShareableChatOwners"
+                        }
+                    ]
                 }
             }
         },
