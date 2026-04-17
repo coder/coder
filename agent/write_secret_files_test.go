@@ -1,4 +1,4 @@
-package agent_test
+package agent //nolint:testpackage // Exercises internal agent secrets handling.
 
 import (
 	"testing"
@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -21,7 +20,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "/etc/myapp/config.json", Value: []byte(`{"key":"val"}`)},
 		})
 
@@ -44,7 +43,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "~/.ssh/id_rsa", Value: []byte("private-key")},
 		})
 
@@ -67,7 +66,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
 			{FilePath: "~/.config/token", Value: []byte("token")},
 		})
 
@@ -82,7 +81,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{EnvName: "MY_TOKEN", Value: []byte("token")},
 		})
 
@@ -98,7 +97,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "/etc/secret-a", Value: []byte("aaa")},
 			{FilePath: "~/.secret-b", Value: []byte("bbb")},
 			{EnvName: "SKIP_ME", Value: []byte("env-only")},
@@ -121,7 +120,7 @@ func TestWriteSecretFiles(t *testing.T) {
 
 		require.NoError(t, afero.WriteFile(fs, "/secret", []byte("old"), 0o644))
 
-		agent.WriteSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
 			{FilePath: "/secret", Value: []byte("new")},
 		})
 
@@ -145,7 +144,7 @@ func TestWriteSecretFiles(t *testing.T) {
 
 		// "~/collide" and "/home/coder/collide" resolve to the same
 		// absolute path. The later secret should win.
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "~/collide", Value: []byte("first")},
 			{FilePath: "/home/coder/collide", Value: []byte("second")},
 		})
@@ -161,7 +160,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, nil)
 
-		agent.WriteSecretFiles(ctx, logger, fs, "/home/coder", nil)
+		writeSecretFiles(ctx, logger, fs, "/home/coder", nil)
 
 		empty, err := afero.IsEmpty(fs, "/")
 		require.NoError(t, err)
@@ -175,7 +174,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		binaryData := []byte{0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD}
-		agent.WriteSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
+		writeSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
 			{FilePath: "/cert.der", Value: binaryData},
 		})
 

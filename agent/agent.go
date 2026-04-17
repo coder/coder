@@ -277,7 +277,11 @@ type agent struct {
 
 	environmentVariables map[string]string
 
-	manifest                           atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	manifest atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	// secrets are held separately from the manifest so that code paths that
+	// only need manifest data cannot accidentally access or leak secret
+	// values. Callers that need secrets must explicitly load this.
+	secrets                            atomic.Pointer[[]agentsdk.WorkspaceSecret]
 	reportMetadataInterval             time.Duration
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
@@ -1228,27 +1232,28 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				manifestOK.complete(err)
 			}
 		}()
-		mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
+		mpRaw, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
 		}
 		a.logger.Info(ctx, "fetched manifest")
+
+		// Strip secrets from the proto manifest immediately to avoid accidental leakage.
+		secrets := agentsdk.SecretsFromProto(mpRaw.Secrets)
+		mpRaw.Secrets = nil
+		mp, ok := googleproto.Clone(mpRaw).(*proto.Manifest)
+		if !ok {
+			return xerrors.Errorf("clone manifest: type mismatch")
+		}
+
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
-				// Log the manifest without secrets to avoid leaking
-				// sensitive values into logs.
-				mpSafe, ok := googleproto.Clone(mp).(*proto.Manifest)
-				if ok && mpSafe != nil {
-					mpSafe.Secrets = nil
-				}
-				a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mpSafe), slog.Error(err))
-				return xerrors.Errorf("convert manifest: %w", err)
-			}
-
+			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
+			return xerrors.Errorf("convert manifest: %w", err)
+		}
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
 		}
-
 		if manifest.ParentID != uuid.Nil {
 			// This is a sub agent, disable all the features that should not
 			// be used by sub agents.
@@ -1288,31 +1293,25 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			return xerrors.Errorf("update workspace agent startup: %w", err)
 		}
 
+		a.secrets.Store(&secrets)
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
 
-			// Write secret files after signaling manifest
-			// readiness so that network initialization
-			// (which depends on manifestOK) starts as soon
-			// as possible. This creates a theoretical race
-			// where an SSH session that connects and reads
-			// a secret file before writes finish would see
-			// stale or missing content, but in practice SSH
-			// requires network init + coordination before
-			// any connection arrives, which should take far
-			// longer than file writes. Startup scripts
-			// still wait because they run sequentially
-			// below. Env var injection is unaffected because
-			// it happens lazily per-command in
-			// updateCommandEnv.
-
-			homeDir, err := os.UserHomeDir()
-
+		// Write secret files after signaling manifest readiness so that network
+		// initialization (which depends on manifestOK) starts as soon as
+		// possible. This creates a theoretical race where an SSH session that
+		// connects and reads a secret file before writes finish would see stale
+		// or missing content, but in practice SSH requires network init +
+		// coordination before any connection arrives, which should take far
+		// longer than file writes. Startup scripts still wait because they run
+		// sequentially below. Env var injection is unaffected because it
+		// happens lazily per-command in updateCommandEnv.
+		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			a.logger.Warn(ctx, "failed to resolve home directory for secret files", slog.Error(err))
 		}
-		WriteSecretFiles(ctx, a.logger, a.filesystem, homeDir, manifest.Secrets)
+		writeSecretFiles(ctx, a.logger, a.filesystem, homeDir, secrets)
 
 		// The startup script should only execute on the first run!
 		if oldManifest == nil {
@@ -1520,6 +1519,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 // - Predefined workspace environment variables
 // - Environment variables currently set (overriding predefined)
 // - Environment variables passed via the agent manifest (overriding predefined and current)
+// - User secret variables passed via the agent manifest (overriding predefined, current, and manifest env vars)
 // - Agent-level environment variables (overriding all)
 func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
 	manifest := a.manifest.Load()
@@ -1587,9 +1587,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// Values are assigned raw without os.ExpandEnv because
 	// secret values may contain dollar signs (e.g. passwords)
 	// that must not be interpreted as variable references.
-	for _, secret := range manifest.Secrets {
-		if secret.EnvName != "" {
-			envs[secret.EnvName] = string(secret.Value)
+	if secretsPtr := a.secrets.Load(); secretsPtr != nil {
+		for _, secret := range *secretsPtr {
+			if secret.EnvName != "" {
+				envs[secret.EnvName] = string(secret.Value)
+			}
 		}
 	}
 	// Agent-level environment variables should take over all. This is
@@ -1612,9 +1614,9 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	return updated, nil
 }
 
-// WriteSecretFiles writes user secrets with file_path set to disk.
+// writeSecretFiles writes user secrets with file_path set to disk.
 // Errors are logged but do not block workspace startup.
-func WriteSecretFiles(ctx context.Context, logger slog.Logger, fs afero.Fs, homeDir string, secrets []agentsdk.WorkspaceSecret) {
+func writeSecretFiles(ctx context.Context, logger slog.Logger, fs afero.Fs, homeDir string, secrets []agentsdk.WorkspaceSecret) {
 	// Track resolved paths to detect collisions after ~/ expansion.
 	// Two secrets with different file_path values can resolve to
 	// the same absolute path (e.g. ~/x and /home/coder/x). The API
@@ -1642,13 +1644,11 @@ func WriteSecretFiles(ctx context.Context, logger slog.Logger, fs afero.Fs, home
 		filePath = filepath.Clean(filePath)
 
 		if original, ok := seen[filePath]; ok {
-			// Known shortcoming: the winning secret is determined
-			// by the order of secrets in the manifest, which is
-			// currently alphabetical by secret name from
-			// ListUserSecretsWithValues. This ordering is not
-			// user-controllable and has no semantic meaning; users
-			// should avoid path collisions rather than rely on
-			// which secret wins.
+			// Known shortcoming: the winning secret is determined by the order
+			// of secrets in the manifest, which is currently alphabetical by
+			// secret name from ListUserSecretsWithValues. This ordering is not
+			// user-controllable and has no semantic meaning; users should avoid
+			// path collisions rather than rely on which secret wins.
 			logger.Warn(ctx, "multiple secrets resolve to the same file path; later secret in manifest order will win (not user-controllable)",
 				slog.F("resolved_path", filePath),
 				slog.F("first_file_path", original),
@@ -2097,13 +2097,8 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Strip secrets so they are not exposed via the debug
-	// endpoint.
-	safe := *sdkManifest
-	safe.Secrets = nil
-
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(safe); err != nil {
+	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
 	}
 }

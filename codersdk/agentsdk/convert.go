@@ -14,6 +14,11 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+// ManifestFromProto converts the proto manifest to the SDK Manifest.
+// Secrets are intentionally NOT included on the returned Manifest:
+// keeping them off of the SDK type makes it impossible for any code
+// path that only holds a *Manifest to leak secret values via
+// logging, JSON encoding, fmt verbs, or debug endpoints.
 func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	parentID := uuid.Nil
 	if pid := manifest.GetParentId(); pid != nil {
@@ -62,10 +67,12 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
-		Secrets:                  SecretsFromProto(manifest.Secrets),
 	}, nil
 }
 
+// ProtoFromManifest converts the SDK Manifest to the proto manifest.
+// It does not populate the proto's Secrets field because the SDK
+// Manifest intentionally does not carry secrets (see ManifestFromProto).
 func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	apps, err := ProtoFromApps(manifest.Apps)
 	if err != nil {
@@ -91,7 +98,6 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
-		Secrets:                  ProtoFromSecrets(manifest.Secrets),
 	}, nil
 }
 

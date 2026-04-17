@@ -490,17 +490,17 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 		EnvironmentVariables: map[string]string{
 			"SHOULD_BE_OVERRIDDEN": "manifest-value",
 		},
-		Secrets: []agentsdk.WorkspaceSecret{
-			{EnvName: "MY_SECRET_ENV", Value: []byte("env-secret-value")},
-			{FilePath: "/tmp/secret-file", Value: []byte("file-secret-content")},
-			{EnvName: "BOTH_ENV", FilePath: "/tmp/both-file", Value: []byte("both-value")},
-			{EnvName: "SHOULD_BE_OVERRIDDEN", Value: []byte("secret-wins")},
-		},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_SECRET_ENV", Value: []byte("env-secret-value")},
+		{FilePath: "/tmp/secret-file", Value: []byte("file-secret-content")},
+		{EnvName: "BOTH_ENV", FilePath: "/tmp/both-file", Value: []byte("both-value")},
+		{EnvName: "SHOULD_BE_OVERRIDDEN", Value: []byte("secret-wins")},
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, manifest, 0)
+	conn, _, _, fs, _ := setupAgentWithSecrets(t, manifest, secrets, 0)
 
 	// Verify file injection via the agent's filesystem.
 	content, err := afero.ReadFile(fs, "/tmp/secret-file")
@@ -600,16 +600,16 @@ func TestAgent_StartupScript_SecretInjection(t *testing.T) {
 			Timeout:    30 * time.Second,
 			RunOnStart: true,
 		}},
-		Secrets: []agentsdk.WorkspaceSecret{
-			{EnvName: "MY_STARTUP_SECRET", Value: []byte("startup-env-value")},
-			{FilePath: secretFilePath, Value: []byte("startup-file-content")},
-		},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_STARTUP_SECRET", Value: []byte("startup-env-value")},
+		{FilePath: secretFilePath, Value: []byte("startup-file-content")},
 	}
 
-	// Use the real OS filesystem so that both WriteSecretFiles and
+	// Use the real OS filesystem so that both writeSecretFiles and
 	// the startup script operate on the same filesystem.
 	//nolint:dogsled
-	_, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
+	_, client, _, _, _ := setupAgentWithSecrets(t, manifest, secrets, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.Filesystem = afero.NewOsFs()
 	})
 
@@ -3454,8 +3454,10 @@ func TestAgent_DebugServer(t *testing.T) {
 	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
-	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
+	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
+	}, []agentsdk.WorkspaceSecret{
+		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
 		o.LogDir = logDir
 	})
@@ -3575,9 +3577,11 @@ func TestAgent_DebugServer(t *testing.T) {
 		// The response must not contain the secret value.
 		require.NotContains(t, string(body), "super-secret-value-12345")
 
+		// Confirm we can decode as a Manifest. The SDK type
+		// intentionally has no Secrets field, so there is nothing
+		// to leak through JSON encoding.
 		var v agentsdk.Manifest
 		require.NoError(t, json.Unmarshal(body, &v))
-		require.Empty(t, v.Secrets, "secrets must be stripped from debug manifest")
 	})
 
 	t.Run("Logs", func(t *testing.T) {
@@ -3732,6 +3736,20 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
+	return setupAgentWithSecrets(t, metadata, nil, ptyTimeout, opts...)
+}
+
+// setupAgentWithSecrets is like setupAgent but also injects user
+// secrets into the agent's proto manifest. Separate from setupAgent
+// because agentsdk.Manifest intentionally does not carry secrets; see
+// the Manifest doc comment in codersdk/agentsdk.
+func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []agentsdk.WorkspaceSecret, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
+	*agenttest.Client,
+	<-chan *proto.Stats,
+	afero.Fs,
+	agent.Agent,
+) {
 	logger := slogtest.Make(t, &slogtest.Options{
 		// Agent can drop errors when shutting down, and some, like the
 		// fasthttplistener connection closed error, are unexported.
@@ -3761,7 +3779,7 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClientWithSecrets(t, logger.Named("agenttest"), metadata.AgentID, metadata, secrets, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{
