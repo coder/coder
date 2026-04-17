@@ -386,17 +386,36 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Duplicate entries both read the same file and race to write;
-	// the first entry's edits are silently lost. Callers must put
-	// multiple edits on one file into a single entry's Edits slice.
-	seenPaths := make(map[string]struct{}, len(req.Files))
+	// the first entry's edits are silently lost. Resolve symlinks
+	// before comparing so two paths that alias the same real file
+	// (e.g. one via a symlink, one direct) don't slip past as
+	// distinct keys. prepareFileEdit resolves the path again for
+	// its own use; the double lstat cost is cheap compared to the
+	// data-loss risk of silent aliasing.
+	type seenEntry struct {
+		caller string
+	}
+	seenPaths := make(map[string]seenEntry, len(req.Files))
 	for _, f := range req.Files {
-		if _, dup := seenPaths[f.Path]; dup {
+		// If resolvePath errors (malformed path, symlink
+		// cycle), fall back to the raw path as the dedup
+		// key. prepareFileEdit will surface the same error
+		// with a proper status code in phase 1.
+		key := f.Path
+		if resolved, err := api.resolvePath(f.Path); err == nil {
+			key = resolved
+		}
+		if prev, dup := seenPaths[key]; dup {
+			msg := fmt.Sprintf("duplicate file path %q: combine edits into a single entry's \"edits\" list", f.Path)
+			if prev.caller != f.Path {
+				msg = fmt.Sprintf("duplicate file path %q aliases %q (same real file): combine edits into a single entry's \"edits\" list", f.Path, prev.caller)
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("duplicate file path %q: combine edits into a single entry's \"edits\" list", f.Path),
+				Message: msg,
 			})
 			return
 		}
-		seenPaths[f.Path] = struct{}{}
+		seenPaths[key] = seenEntry{caller: f.Path}
 	}
 
 	// Phase 1: compute all edits in memory. If any file fails
@@ -454,9 +473,23 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	if req.IncludeDiff {
 		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
+			// udiff.Unified calls log.Fatalf on its internal
+			// consistency error, which would kill the agent
+			// process. Route through Lines + ToUnified so a
+			// future library bug falls through to an empty diff
+			// plus a log line instead of taking down all of the
+			// agent's sessions.
+			edits := udiff.Lines(p.oldContent, p.content)
+			diff, err := udiff.ToUnified(p.origPath, p.origPath, p.oldContent, edits, udiff.DefaultContextLines)
+			if err != nil {
+				api.logger.Warn(ctx, "unified diff computation failed",
+					slog.F("path", p.origPath),
+					slog.Error(err))
+				diff = ""
+			}
 			resp.Files = append(resp.Files, workspacesdk.FileEditResult{
 				Path: p.origPath,
-				Diff: udiff.Unified(p.origPath, p.origPath, p.oldContent, p.content),
+				Diff: diff,
 			})
 		}
 	}
@@ -633,8 +666,9 @@ func isNewlineEnding(s string) bool {
 }
 
 // internalLineEnding returns the shared line ending used across
-// lines[:-1], or ("", false) if they disagree or any is empty.
-// The last line's ending is ignored (may be EOF-no-newline).
+// lines. An unterminated last line (EOF-no-newline) is excluded.
+// Returns ("", false) if any non-last line has no ending, or if
+// endings disagree.
 func internalLineEnding(lines []string) (string, bool) {
 	if len(lines) < 2 {
 		return "", false
@@ -660,8 +694,6 @@ func internalLineEnding(lines []string) (string, bool) {
 	return want, want != ""
 }
 
-// dominantFileEnding returns CRLF if CRLF endings outnumber LF in
-// contentLines, LF otherwise (including ties and ending-less files).
 // dominantFileEnding returns CRLF if CRLF endings outnumber LF in
 // contentLines, LF otherwise (including ties and ending-less files).
 func dominantFileEnding(contentLines []string) string {
@@ -821,15 +853,17 @@ func endingShapeEqual(a, b string) bool {
 // be empty, force a terminator so unmatched content doesn't
 // concatenate onto the splice.
 //
+// len(matched) == len(searchLines) is the invariant; callers
+// slice contentLines before invoking.
+//
 //nolint:revive // atNoNewlineEOF is a computed match property, not caller control coupling.
-func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string, atNoNewlineEOF bool) string {
+func buildReplacementLines(matched, searchLines []string, replace, forcedEnding string, atNoNewlineEOF bool) string {
 	repLines := strings.SplitAfter(replace, "\n")
 	// SplitAfter on a string ending in "\n" yields a trailing empty
 	// element. Drop it so it doesn't pair with a phantom line.
 	if len(repLines) > 0 && repLines[len(repLines)-1] == "" {
 		repLines = repLines[:len(repLines)-1]
 	}
-	matched := contentLines[start:end]
 	prefix, suffix := alignSearchReplace(searchLines, repLines)
 	var b strings.Builder
 	for i, rLine := range repLines {
@@ -946,9 +980,13 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 // is returned asking the caller to include more context or set
 // replace_all.
 //
-// When a fuzzy match is found (passes 2 or 3), the replacement is still
-// applied at the byte offsets of the original content so that surrounding
-// text (including indentation of untouched lines) is preserved.
+// When a fuzzy match is found (passes 2 or 3), buildReplacementLines
+// emits the spliced output by per-position substitution at
+// leading-whitespace, body, trailing-whitespace, and ending: where
+// search and replace agree at a position, the file's bytes win. This
+// preserves surrounding text (including indentation of untouched
+// lines) while letting the caller drive deliberate rewrites of
+// leading whitespace or endings.
 func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	search := edit.Search
 	replace := edit.Replace
@@ -993,7 +1031,7 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	}
 	callerEndingIntent := searchOK && replaceOK && searchInternal != replaceInternal
 
-	// Pass 1 – exact substring match. Normalize replace's interior
+	// Pass 1 - exact substring match. Normalize replace's interior
 	// endings to the file's style unless the caller's search/replace
 	// disagreement signaled intent to rewrite endings.
 	pass1Replace := replace
@@ -1128,7 +1166,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[:start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, end)))
+		_, _ = b.WriteString(buildReplacementLines(contentLines[start:end], searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, end)))
 		for _, l := range contentLines[end:] {
 			_, _ = b.WriteString(l)
 		}
@@ -1164,7 +1202,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[prev:m.start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, m.end)))
+		_, _ = b.WriteString(buildReplacementLines(contentLines[m.start:m.end], searchLines, replace, forcedEnding, atNoNewlineEOF(contentLines, m.end)))
 		prev = m.end
 	}
 	for _, l := range contentLines[prev:] {

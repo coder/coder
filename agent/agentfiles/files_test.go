@@ -1687,9 +1687,21 @@ func TestEditFiles_FileResults(t *testing.T) {
 			},
 		})
 		require.Len(t, resp.Files, 3)
-		require.Equal(t, pathA, resp.Files[0].Path)
-		require.Equal(t, pathB, resp.Files[1].Path)
-		require.Equal(t, pathC, resp.Files[2].Path)
+		expected := []struct {
+			path    string
+			oldLine string
+			newLine string
+		}{
+			{pathA, "-A", "+a"},
+			{pathB, "-B", "+b"},
+			{pathC, "-C", "+c"},
+		}
+		for i, want := range expected {
+			require.Equal(t, want.path, resp.Files[i].Path)
+			require.NotEmpty(t, resp.Files[i].Diff, "file %d (%s) has empty diff", i, want.path)
+			require.Contains(t, resp.Files[i].Diff, want.oldLine)
+			require.Contains(t, resp.Files[i].Diff, want.newLine)
+		}
 	})
 
 	t.Run("DiffRequestedMultiEditSameFile", func(t *testing.T) {
@@ -1813,9 +1825,7 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 		name     string
 		content  string
 		edits    []edit
-		expected string // empty => expect an error response
-		errCode  int
-		errSub   string
+		expected string
 	}{
 		// CRLF file, LF search: the ending rule lets "line\n"
 		// match "line\r\n"; the replacement is empty so the
@@ -2049,18 +2059,6 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
 			api.Routes().ServeHTTP(w, r)
-
-			if tt.errCode != 0 {
-				require.Equal(t, tt.errCode, w.Code, "body: %s", w.Body.String())
-				got := &codersdk.Error{}
-				require.NoError(t, json.NewDecoder(w.Body).Decode(got))
-				require.ErrorContains(t, got, tt.errSub)
-				// Error path: file must not have been modified.
-				data, err := afero.ReadFile(fs, path)
-				require.NoError(t, err)
-				require.Equal(t, tt.content, string(data))
-				return
-			}
 
 			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 			data, err := afero.ReadFile(fs, path)
@@ -2661,6 +2659,58 @@ func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
 
 	// File on disk must be untouched: no partial edits.
 	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, original, string(data))
+}
+
+// TestEditFiles_DuplicatePath_SymlinkAliasRejects pins that two
+// request entries pointing to the same real file (one direct, one
+// via a symlink) are rejected. Without resolve-before-dedup, the
+// raw-path check lets both entries through, and the second write
+// silently overwrites the first.
+func TestEditFiles_DuplicatePath_SymlinkAliasRejects(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	realPath := filepath.Join(dir, "real.txt")
+	original := "one\ntwo\nthree\n"
+	require.NoError(t, afero.WriteFile(osFs, realPath, []byte(original), 0o644))
+
+	linkPath := filepath.Join(dir, "link.txt")
+	require.NoError(t, os.Symlink(realPath, linkPath))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: realPath, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
+			{Path: linkPath, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	require.ErrorContains(t, got, "aliases")
+
+	// File on disk must be untouched: the alias collision is caught
+	// before phase 1 so no write runs.
+	data, err := afero.ReadFile(osFs, realPath)
 	require.NoError(t, err)
 	require.Equal(t, original, string(data))
 }
