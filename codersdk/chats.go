@@ -554,6 +554,21 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
+// ChatExploreModelOverrideResponse is the response body for the Explore
+// subagent model override configuration endpoint.
+type ChatExploreModelOverrideResponse struct {
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// HasMalformedOverride reports whether the saved override is malformed and
+	// is currently being treated as unset.
+	HasMalformedOverride bool `json:"has_malformed_override"`
+}
+
+// UpdateChatExploreModelOverrideRequest is the request body for updating the
+// Explore subagent model override configuration endpoint.
+type UpdateChatExploreModelOverrideRequest struct {
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+}
+
 // UserChatCustomPrompt is the request and response body for the
 // user chat custom prompt configuration endpoint.
 type UserChatCustomPrompt struct {
@@ -1948,6 +1963,35 @@ func (c *ExperimentalClient) GetChatPlanModeInstructions(ctx context.Context) (C
 // UpdateChatPlanModeInstructions updates the deployment-wide plan mode instructions.
 func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context, req UpdateChatPlanModeInstructionsRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/plan-mode-instructions", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatExploreModelOverride returns the deployment-wide Explore subagent
+// model override.
+func (c *ExperimentalClient) GetChatExploreModelOverride(ctx context.Context) (ChatExploreModelOverrideResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/explore-model-override", nil)
+	if err != nil {
+		return ChatExploreModelOverrideResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatExploreModelOverrideResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatExploreModelOverrideResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatExploreModelOverride updates the deployment-wide Explore subagent
+// model override.
+func (c *ExperimentalClient) UpdateChatExploreModelOverride(ctx context.Context, req UpdateChatExploreModelOverrideRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/explore-model-override", req)
 	if err != nil {
 		return err
 	}

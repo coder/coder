@@ -4388,12 +4388,22 @@ type runChatResult struct {
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 }
 
+func allToolNames(allTools []fantasy.AgentTool) []string {
+	toolNames := make([]string, 0, len(allTools))
+	for _, tool := range allTools {
+		toolNames = append(toolNames, tool.Info().Name)
+	}
+	return toolNames
+}
+
+func isExploreSubagentMode(mode database.NullChatMode) bool {
+	return mode.Valid && mode.ChatMode == database.ChatModeExplore
+}
+
 func allowedPlanToolNames(
 	allTools []fantasy.AgentTool,
-	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) []string {
-	isPlanModeTurn := mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan
 	isRootChat := !parentChatID.Valid
 	builtinPlanPolicy := map[string]bool{
 		"read_file":                true,
@@ -4409,6 +4419,7 @@ func allowedPlanToolNames(
 		"start_workspace":          isRootChat,
 		"propose_plan":             isRootChat,
 		"spawn_agent":              isRootChat,
+		"spawn_explore_agent":      isRootChat,
 		"wait_agent":               isRootChat,
 		"message_agent":            false,
 		"close_agent":              false,
@@ -4416,13 +4427,6 @@ func allowedPlanToolNames(
 		"read_skill":               true,
 		"read_skill_file":          true,
 		"ask_user_question":        isRootChat,
-	}
-	if !isPlanModeTurn {
-		toolNames := make([]string, 0, len(allTools))
-		for _, tool := range allTools {
-			toolNames = append(toolNames, tool.Info().Name)
-		}
-		return toolNames
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -4435,8 +4439,65 @@ func allowedPlanToolNames(
 	return toolNames
 }
 
-func stopAfterPlanTools(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) map[string]struct{} {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
+	builtinExplorePolicy := map[string]bool{
+		"read_file":                true,
+		"write_file":               false,
+		"edit_files":               false,
+		"execute":                  true,
+		"process_output":           true,
+		"process_list":             false,
+		"process_signal":           false,
+		"list_templates":           false,
+		"read_template":            false,
+		"create_workspace":         false,
+		"start_workspace":          false,
+		"propose_plan":             false,
+		"spawn_agent":              false,
+		"spawn_explore_agent":      false,
+		"wait_agent":               false,
+		"message_agent":            false,
+		"close_agent":              false,
+		"spawn_computer_use_agent": false,
+		"read_skill":               true,
+		"read_skill_file":          true,
+		"ask_user_question":        false,
+	}
+
+	toolNames := make([]string, 0, len(allTools))
+	for _, tool := range allTools {
+		name := tool.Info().Name
+		if builtinExplorePolicy[name] {
+			toolNames = append(toolNames, name)
+		}
+	}
+	return toolNames
+}
+
+// allowedBehaviorToolNames applies behavior-specific precedence for
+// tool filtering: Explore mode wins over plan mode, and plan mode wins
+// over the default behavior that allows all tools.
+func allowedBehaviorToolNames(
+	allTools []fantasy.AgentTool,
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
+	parentChatID uuid.NullUUID,
+) []string {
+	if isExploreSubagentMode(chatMode) {
+		return allowedExploreToolNames(allTools)
+	}
+	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
+		return allowedPlanToolNames(allTools, parentChatID)
+	}
+	return allToolNames(allTools)
+}
+
+func stopAfterBehaviorTools(
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
+	parentChatID uuid.NullUUID,
+) map[string]struct{} {
+	if isExploreSubagentMode(chatMode) || !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
 	}
 	stopTools := map[string]struct{}{
@@ -4448,8 +4509,9 @@ func stopAfterPlanTools(mode database.NullChatPlanMode, parentChatID uuid.NullUU
 	return stopTools
 }
 
-type systemPromptPlanContext struct {
-	mode                 database.NullChatPlanMode
+type systemPromptBehaviorContext struct {
+	planMode             database.NullChatPlanMode
+	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
 }
@@ -4463,7 +4525,7 @@ func buildSystemPrompt(
 	instruction string,
 	skills []chattool.SkillMeta,
 	userPrompt string,
-	planContext systemPromptPlanContext,
+	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
 	if subagentInstruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
@@ -4477,12 +4539,16 @@ func buildSystemPrompt(
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
 	}
-	isPlanModeTurn := planContext.mode.Valid && planContext.mode.ChatPlanMode == database.ChatPlanModePlan
+	if isExploreSubagentMode(behaviorContext.chatMode) {
+		prompt = chatprompt.InsertSystem(prompt, ExploreSubagentOverlayPrompt)
+		return prompt
+	}
+	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
-		if planContext.isRootChat {
+		if behaviorContext.isRootChat {
 			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
-			if planContext.planModeInstructions != "" {
-				prompt = chatprompt.InsertSystem(prompt, planContext.planModeInstructions)
+			if behaviorContext.planModeInstructions != "" {
+				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
 			}
 		} else {
 			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
@@ -4609,7 +4675,7 @@ func (p *Server) appendRootChatTools(
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	})...)
+	}, opts.modelConfigID)...)
 }
 
 func (p *Server) storePlanSnapshotFile(
@@ -4670,10 +4736,11 @@ func appendDynamicTools(
 	logger slog.Logger,
 	tools []fantasy.AgentTool,
 	raw pqtype.NullRawMessage,
-	mode database.NullChatPlanMode,
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
 	parentChatID uuid.NullUUID,
 ) ([]fantasy.AgentTool, map[string]bool, error) {
-	if mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan {
+	if isExploreSubagentMode(chatMode) || (planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan) {
 		return tools, nil, nil
 	}
 
@@ -4693,7 +4760,7 @@ func appendDynamicTools(
 	}
 
 	activeToolNames := make(map[string]struct{}, len(tools))
-	for _, name := range allowedPlanToolNames(tools, mode, parentChatID) {
+	for _, name := range allowedBehaviorToolNames(tools, planMode, chatMode, parentChatID) {
 		activeToolNames[name] = struct{}{}
 	}
 	for _, t := range tools {
@@ -4800,11 +4867,11 @@ func (p *Server) runChat(
 		return result, err
 	}
 
-	// Capture the current turn's mode from the chat plan mode so prompt
-	// and tool behavior can be resolved consistently for the rest of the
-	// turn.
+	// Capture the current turn's mode so prompt and tool behavior can
+	// be resolved consistently for the rest of the turn.
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
+	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
@@ -5086,8 +5153,9 @@ func (p *Server) runChat(
 		instruction,
 		skills,
 		resolvedUserPrompt,
-		systemPromptPlanContext{
-			mode:                 currentPlanMode,
+		systemPromptBehaviorContext{
+			planMode:             currentPlanMode,
+			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
 		},
@@ -5479,7 +5547,7 @@ func (p *Server) runChat(
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
-	if !isPlanModeTurn {
+	if !isPlanModeTurn && !isExploreSubagent {
 		tools = append(tools, mcpTools...)
 		tools = append(tools, workspaceMCPTools...)
 	}
@@ -5494,6 +5562,7 @@ func (p *Server) runChat(
 		tools,
 		chat.DynamicTools,
 		currentPlanMode,
+		chat.Mode,
 		chat.ParentChatID,
 	)
 	if err != nil {
@@ -5503,11 +5572,11 @@ func (p *Server) runChat(
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool
-	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
+	if !isPlanModeTurn && !isExploreSubagent && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 	}
 
-	if !isPlanModeTurn && isComputerUse {
+	if !isPlanModeTurn && !isExploreSubagent && isComputerUse {
 		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
 		providerTools = append(providerTools, chatloop.ProviderTool{
 			Definition: chattool.ComputerUseProviderTool(
@@ -5548,8 +5617,8 @@ func (p *Server) runChat(
 		Model:            model,
 		Messages:         prompt,
 		Tools:            tools,
-		ActiveTools:      allowedPlanToolNames(tools, currentPlanMode, chat.ParentChatID),
-		StopAfterTools:   stopAfterPlanTools(currentPlanMode, chat.ParentChatID),
+		ActiveTools:      allowedBehaviorToolNames(tools, currentPlanMode, chat.Mode, chat.ParentChatID),
+		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
 		BuiltinToolNames: builtinToolNames,
@@ -5609,8 +5678,9 @@ func (p *Server) runChat(
 				reloadedInstruction,
 				reloadedSkills,
 				reloadUserPrompt,
-				systemPromptPlanContext{
-					mode:                 currentPlanMode,
+				systemPromptBehaviorContext{
+					planMode:             currentPlanMode,
+					chatMode:             chat.Mode,
 					planModeInstructions: planModeInstructions,
 					isRootChat:           isRootChat,
 				},

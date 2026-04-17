@@ -463,7 +463,9 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(chatId && subagentTitles?.get(chatId)) ||
 		(name === "spawn_computer_use_agent"
 			? "Computer use sub-agent"
-			: "Sub-agent");
+			: name === "spawn_explore_agent"
+				? "Explore agent"
+				: "Sub-agent");
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
@@ -887,6 +889,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
 	spawn_agent: SubagentRenderer,
+	spawn_explore_agent: SubagentRenderer,
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,

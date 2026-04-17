@@ -1183,6 +1183,8 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
+				r.Get("/explore-model-override", api.getChatExploreModelOverride)
+				r.Put("/explore-model-override", api.putChatExploreModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)

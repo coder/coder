@@ -289,7 +289,8 @@ CREATE TYPE chat_message_visibility AS ENUM (
 );
 
 CREATE TYPE chat_mode AS ENUM (
-    'computer_use'
+    'computer_use',
+    'explore'
 );
 
 CREATE TYPE chat_plan_mode AS ENUM (

@@ -391,6 +391,85 @@ func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPla
 	}
 }
 
+func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
+	switch mode {
+	case "", codersdk.ChatPlanModePlan:
+		return true
+	default:
+		return false
+	}
+}
+
+func parseChatExploreModelOverride(raw string) (*uuid.UUID, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		//nolint:nilnil // Empty site-config value means the override is unset.
+		return nil, nil
+	}
+	modelConfigID, err := uuid.Parse(trimmed)
+	if err != nil {
+		return nil, xerrors.Errorf("parse explore model override: %w", err)
+	}
+	return &modelConfigID, nil
+}
+
+func formatChatExploreModelOverride(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
+func validateChatExploreModelOverrideID(
+	ctx context.Context,
+	db database.Store,
+	id *uuid.UUID,
+) (int, *codersdk.Response) {
+	if id == nil {
+		return 0, nil
+	}
+	if *id == uuid.Nil {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id.",
+		}
+	}
+	//nolint:gocritic // Validation lookup uses system context to check model
+	// availability independently of the caller's read permissions.
+	_, err := db.GetEnabledChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), *id)
+	if err == nil {
+		return 0, nil
+	}
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id.",
+		}
+	}
+	return http.StatusInternalServerError, &codersdk.Response{
+		Message: "Internal error validating model config override.",
+		Detail:  err.Error(),
+	}
+}
+
+func (api *API) getChatExploreModelOverrideConfig(
+	ctx context.Context,
+) (*uuid.UUID, bool, error) {
+	raw, err := api.Database.GetChatExploreModelOverride(ctx)
+	if err != nil {
+		return nil, false, xerrors.Errorf("get explore model override: %w", err)
+	}
+	id, err := parseChatExploreModelOverride(raw)
+	if err != nil {
+		// Degrade malformed values to unset so the admin settings page
+		// remains accessible and the bad value can be cleared.
+		api.Logger.Warn(ctx, "malformed explore model override in site config, treating as unset",
+			slog.F("raw_value", raw),
+			slog.Error(err),
+		)
+		return nil, true, nil
+	}
+	return id, false, nil
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -469,10 +548,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch req.PlanMode {
-	case codersdk.ChatPlanModePlan, "":
-		// Valid.
-	default:
+	if !validateChatPlanMode(req.PlanMode) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid plan_mode value.",
 		})
@@ -1776,10 +1852,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
-		switch *req.PlanMode {
-		case codersdk.ChatPlanModePlan, "":
-			// Valid.
-		default:
+		if !validateChatPlanMode(*req.PlanMode) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid plan_mode value.",
 			})
@@ -2047,10 +2120,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.PlanMode != nil {
-		switch *req.PlanMode {
-		case codersdk.ChatPlanModePlan, "":
-			// Valid.
-		default:
+		if !validateChatPlanMode(*req.PlanMode) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid plan_mode value.",
 			})
@@ -3387,6 +3457,61 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	if err := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating plan mode instructions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	modelConfigID, hasMalformedOverride, err := api.getChatExploreModelOverrideConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching Explore model override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatExploreModelOverrideResponse{
+		ModelConfigID:        modelConfigID,
+		HasMalformedOverride: hasMalformedOverride,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatExploreModelOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	status, resp := validateChatExploreModelOverrideID(ctx, api.Database, req.ModelConfigID)
+	if resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
+	}
+
+	if err := api.Database.UpsertChatExploreModelOverride(ctx, formatChatExploreModelOverride(req.ModelConfigID)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating Explore model override.",
 			Detail:  err.Error(),
 		})
 		return

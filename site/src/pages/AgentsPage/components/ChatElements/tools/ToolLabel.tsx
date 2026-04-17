@@ -156,6 +156,16 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
+		case "spawn_explore_agent": {
+			const spawnTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{spawnTitle ? `Spawning ${spawnTitle}` : "Spawning Explore agent…"}
+				</span>
+			);
+		}
 		case "spawn_agent": {
 			const spawnTitle =
 				(parsedResult ? asString(parsedResult.title) : "") ||

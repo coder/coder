@@ -9,10 +9,12 @@ import (
 	"mime/multipart"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -33,6 +35,7 @@ func (p *Server) stopAndStoreRecording(
 	recordingID string,
 	ownerID uuid.UUID,
 	workspaceID uuid.NullUUID,
+	chatID uuid.UUID,
 ) recordingResult {
 	var result recordingResult
 
@@ -163,39 +166,78 @@ func (p *Server) stopAndStoreRecording(
 		}
 	}
 
-	// Second pass: store the collected data in the database.
-	if videoData != nil {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
-		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
-			OwnerID:        ownerID,
-			OrganizationID: ws.OrganizationID,
-			Name:           fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			Mimetype:       "video/mp4",
-			Data:           videoData,
-		})
-		if err != nil {
-			p.logger.Warn(ctx, "failed to store recording in database",
-				slog.Error(err))
-		} else {
-			result.recordingFileID = row.ID.String()
+	// Second pass: store the collected data in the database and
+	// link it to the parent chat atomically. Insert + link must
+	// happen in the same transaction so that we never end up with
+	// chat_files rows that lack chat_file_links entries (which the
+	// purge job would treat as orphans and which users cannot view).
+	// Errors inside the transaction cause both inserts to be rolled
+	// back, so recording remains best-effort end-to-end.
+	txResult := struct {
+		recordingFileID string
+		thumbnailFileID string
+	}{}
+	//nolint:gocritic // AsChatd is required to insert and link chat files from the recording pipeline.
+	txErr := p.db.InTx(func(tx database.Store) error {
+		var fileIDs []uuid.UUID
+		if videoData != nil {
+			row, err := tx.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
+				OwnerID:        ownerID,
+				OrganizationID: ws.OrganizationID,
+				Name:           fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+				Mimetype:       "video/mp4",
+				Data:           videoData,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert recording: %w", err)
+			}
+			txResult.recordingFileID = row.ID.String()
+			fileIDs = append(fileIDs, row.ID)
 		}
-	}
-	if thumbnailData != nil && result.recordingFileID != "" {
-		//nolint:gocritic // AsChatd is required to insert chat files from the recording pipeline.
-		row, err := p.db.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
-			OwnerID:        ownerID,
-			OrganizationID: ws.OrganizationID,
-			Name:           fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			Mimetype:       "image/jpeg",
-			Data:           thumbnailData,
-		})
-		if err != nil {
-			p.logger.Warn(ctx, "failed to store thumbnail in database",
-				slog.Error(err))
-		} else {
-			result.thumbnailFileID = row.ID.String()
+		if thumbnailData != nil && txResult.recordingFileID != "" {
+			row, err := tx.InsertChatFile(dbauthz.AsChatd(ctx), database.InsertChatFileParams{
+				OwnerID:        ownerID,
+				OrganizationID: ws.OrganizationID,
+				Name:           fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+				Mimetype:       "image/jpeg",
+				Data:           thumbnailData,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert thumbnail: %w", err)
+			}
+			txResult.thumbnailFileID = row.ID.String()
+			fileIDs = append(fileIDs, row.ID)
 		}
-	}
+		if len(fileIDs) == 0 {
+			return nil
+		}
 
+		rejected, err := tx.LinkChatFiles(dbauthz.AsChatd(ctx), database.LinkChatFilesParams{
+			ChatID:       chatID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      fileIDs,
+		})
+		if err != nil {
+			return xerrors.Errorf("link recording files: %w", err)
+		}
+		if rejected > 0 {
+			// The cap would be exceeded. Rolling back ensures the
+			// files are not persisted as orphans. MaxChatFileIDs is
+			// 20 today; hitting the cap with a 1-2 file batch means
+			// the chat is already saturated, and silently dropping
+			// the recording is preferable to leaving an unreachable
+			// blob.
+			return xerrors.Errorf("chat file link cap exceeded: %d file(s) rejected", rejected)
+		}
+		return nil
+	}, nil)
+	if txErr != nil {
+		p.logger.Warn(ctx, "failed to store and link recording",
+			slog.F("chat_id", chatID),
+			slog.Error(txErr))
+		return result
+	}
+	result.recordingFileID = txResult.recordingFileID
+	result.thumbnailFileID = txResult.thumbnailFileID
 	return result
 }
