@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -15,6 +14,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
@@ -141,18 +141,18 @@ const AgentMetadataSkeleton: FC = () => {
 	return (
 		<Stack alignItems="baseline" direction="row" spacing={6}>
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
 
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
 
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
 		</Stack>
 	);

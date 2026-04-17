@@ -792,6 +792,7 @@ func New(options *Options) *API {
 			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
+			PrometheusRegistry:             options.PrometheusRegistry,
 		})
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -1180,6 +1181,10 @@ func New(options *Options) *API {
 			r.Route("/config", func(r chi.Router) {
 				r.Get("/system-prompt", api.getChatSystemPrompt)
 				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
+				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
+				r.Get("/explore-model-override", api.getChatExploreModelOverride)
+				r.Put("/explore-model-override", api.putChatExploreModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
@@ -1624,7 +1629,6 @@ func New(options *Options) *API {
 							})
 						})
 						r.Route("/webpush", func(r chi.Router) {
-							r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWebPush))
 							r.Post("/subscription", api.postUserWebpushSubscription)
 							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)

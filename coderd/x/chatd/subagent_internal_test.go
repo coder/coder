@@ -111,16 +111,22 @@ func newInternalTestServerWithClock(
 }
 
 // seedInternalChatDeps inserts an OpenAI provider and model config
-// into the database and returns the created user and model. This
-// deliberately does NOT create an Anthropic provider.
+// into the database and returns the created user, organization,
+// and model. This deliberately does NOT create an Anthropic
+// provider.
 func seedInternalChatDeps(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-) (database.User, database.ChatModelConfig) {
+) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
@@ -147,7 +153,34 @@ func seedInternalChatDeps(
 	})
 	require.NoError(t, err)
 
-	return user, model
+	return user, org, model
+}
+
+func insertInternalChatModelConfig(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	model string,
+	enabled bool,
+) database.ChatModelConfig {
+	t.Helper()
+
+	modelConfig, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                model,
+		DisplayName:          model,
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              enabled,
+		IsDefault:            false,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	return modelConfig
 }
 
 func seedWorkspaceBinding(
@@ -212,11 +245,12 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspace.ID,
 			Valid: true,
@@ -243,9 +277,385 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
+	require.Equal(t, parentChat.OrganizationID, childChat.OrganizationID)
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
+}
+
+func createInternalParentChat(
+	ctx context.Context,
+	t *testing.T,
+	server *Server,
+	db database.Store,
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	modelConfigID uuid.UUID,
+	title string,
+) database.Chat {
+	t.Helper()
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     orgID,
+		OwnerID:            userID,
+		Title:              title,
+		ModelConfigID:      modelConfigID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	return parentChat
+}
+
+func runSubagentTool(
+	ctx context.Context,
+	t *testing.T,
+	server *Server,
+	parentChat database.Chat,
+	currentModelConfigID uuid.UUID,
+	toolName string,
+	args spawnAgentArgs,
+) fantasy.ToolResponse {
+	t.Helper()
+
+	tools := server.subagentTools(
+		ctx,
+		func() database.Chat { return parentChat },
+		currentModelConfigID,
+	)
+	tool := findToolByName(tools, toolName)
+	require.NotNil(t, tool, "%s tool must be present", toolName)
+
+	input, err := json.Marshal(args)
+	require.NoError(t, err)
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    uuid.NewString(),
+		Name:  toolName,
+		Input: string(input),
+	})
+	require.NoError(t, err)
+
+	return resp
+}
+
+func runSpawnAgentTool(
+	ctx context.Context,
+	t *testing.T,
+	server *Server,
+	parentChat database.Chat,
+	args spawnAgentArgs,
+) fantasy.ToolResponse {
+	t.Helper()
+	return runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		"spawn_agent",
+		args,
+	)
+}
+
+func requireSpawnAgentChildChatID(t *testing.T, resp fantasy.ToolResponse) uuid.UUID {
+	t.Helper()
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	var result struct {
+		ChatID string `json:"chat_id"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.NotEmpty(t, result.ChatID, "response must contain chat_id")
+
+	childID, err := uuid.Parse(result.ChatID)
+	require.NoError(t, err)
+	return childID
+}
+
+func TestCreateChildSubagentChatCopiesPlanMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "plan-parent",
+		ModelConfigID:  model.ID,
+		PlanMode:       planMode,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan this change"),
+		},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.Equal(t, planMode, parentChat.PlanMode)
+
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, planMode, childChat.PlanMode)
+}
+
+func TestSpawnAgent_InheritsParentModelWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-inherited-model",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Prompt: "delegate work",
+	})
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+}
+
+func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	overrideModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "override-no-parent-model-"+uuid.NewString(), true,
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-no-model",
+	)
+
+	// The chats table enforces a foreign key for last_model_config_id, so
+	// use a synthetic parent value here to exercise the override path.
+	parentChat.LastModelConfigID = uuid.Nil
+	child, err := server.createChildSubagentChatWithOptions(
+		ctx,
+		parentChat,
+		"delegate work",
+		"",
+		childSubagentChatOptions{modelConfigIDOverride: &overrideModel.ID},
+	)
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_UsesConfiguredModelOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	overrideModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-explore-override",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "investigate the codebase"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
+	require.False(t, childChat.PlanMode.Valid)
+}
+
+func TestSpawnExploreAgent_FallsBackToCurrentTurnModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-current-turn-"+uuid.NewString(), true,
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-fallback",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "trace the request flow"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackOnInvalidUUID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-invalid-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-invalid-override",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect the handler flow"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackWhenOverrideIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-fallback-current-"+uuid.NewString(), true,
+	)
+	disabledModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-disabled-"+uuid.NewString(), false,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, disabledModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-disabled",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect the service boundaries"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-missing-user-key-current-"+uuid.NewString(), true,
+	)
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:                   "openai-compat",
+		DisplayName:                "OpenAI Compat",
+		APIKey:                     "",
+		BaseUrl:                    "",
+		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:                    true,
+		CentralApiKeyEnabled:       false,
+		AllowUserApiKey:            true,
+		AllowCentralApiKeyFallback: false,
+	})
+	require.NoError(t, err)
+	overrideModel, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai-compat",
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Explore Override Missing User Key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-missing-user-key",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect provider credential handling"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
@@ -257,10 +667,11 @@ func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Create a root parent chat.
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-no-anthropic",
 		ModelConfigID:      model.ID,
@@ -272,7 +683,7 @@ func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when Anthropic is not configured")
 }
@@ -288,10 +699,11 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 	})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Create a root parent chat.
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "root-parent",
 		ModelConfigID:      model.ID,
@@ -301,7 +713,8 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 
 	// Create a child chat under the parent.
 	child, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -323,7 +736,7 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 		"child chat must have a parent")
 
 	// Get tools as if the child chat is the current chat.
-	tools := server.subagentTools(ctx, func() database.Chat { return childChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool, "spawn_computer_use_agent tool must be present")
 
@@ -347,8 +760,9 @@ func TestSpawnComputerUseAgent_DesktopDisabled(t *testing.T) {
 	})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-desktop-disabled",
 		ModelConfigID:      model.ID,
@@ -358,7 +772,7 @@ func TestSpawnComputerUseAgent_DesktopDisabled(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when desktop is disabled")
 }
@@ -374,7 +788,7 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	// The parent uses an OpenAI model.
@@ -382,7 +796,8 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 		"seed helper must create an OpenAI model")
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspace.ID,
 			Valid: true,
@@ -404,7 +819,7 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool)
 
@@ -455,7 +870,7 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Insert two MCP server configs so we can verify both are
 	// inherited by the child chat.
@@ -493,6 +908,7 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 
 	// Create a parent chat with MCP servers.
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-with-mcp",
 		ModelConfigID:      model.ID,
@@ -533,7 +949,7 @@ func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
 	})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Insert an MCP server config.
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
@@ -555,6 +971,7 @@ func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
 
 	// Create a parent chat with MCP servers.
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-cu-mcp",
 		ModelConfigID:      model.ID,
@@ -567,7 +984,7 @@ func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Call spawn_computer_use_agent via the tool.
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool)
 
@@ -602,10 +1019,11 @@ func TestCreateChildSubagentChat_NoMCPServersStaysEmpty(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Create a parent chat without any MCP servers.
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-no-mcp",
 		ModelConfigID:      model.ID,
@@ -638,10 +1056,11 @@ func TestIsSubagentDescendant(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	// Build a chain: root -> child -> grandchild.
 	root, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "root",
 		ModelConfigID:      model.ID,
@@ -650,7 +1069,8 @@ func TestIsSubagentDescendant(t *testing.T) {
 	require.NoError(t, err)
 
 	child, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  root.ID,
 			Valid: true,
@@ -666,7 +1086,8 @@ func TestIsSubagentDescendant(t *testing.T) {
 	require.NoError(t, err)
 
 	grandchild, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  child.ID,
 			Valid: true,
@@ -683,6 +1104,7 @@ func TestIsSubagentDescendant(t *testing.T) {
 
 	// Build a separate, unrelated chain.
 	unrelated, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "unrelated-root",
 		ModelConfigID:      model.ID,
@@ -691,7 +1113,8 @@ func TestIsSubagentDescendant(t *testing.T) {
 	require.NoError(t, err)
 
 	unrelatedChild, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  unrelated.ID,
 			Valid: true,
@@ -774,11 +1197,13 @@ func createParentChildChats(
 	t *testing.T,
 	server *Server,
 	user database.User,
+	org database.Organization,
 	model database.ChatModelConfig,
 ) (parent database.Chat, child database.Chat) {
 	t.Helper()
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent-" + t.Name(),
 		ModelConfigID:      model.ID,
@@ -787,7 +1212,8 @@ func createParentChildChats(
 	require.NoError(t, err)
 
 	child, err = server.CreateChat(ctx, CreateOptions{
-		OwnerID: user.ID,
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -876,15 +1302,16 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	ctx := chatdTestContext(t)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	t.Run("NotDescendant", func(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, _ := createParentChildChats(ctx, t, server, user, model)
+		parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 		unrelated, err := server.CreateChat(ctx, CreateOptions{
+			OrganizationID:     org.ID,
 			OwnerID:            user.ID,
 			Title:              "unrelated",
 			ModelConfigID:      model.ID,
@@ -902,7 +1329,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "task complete")
@@ -920,7 +1347,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "something broke")
 		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "partial work done")
@@ -936,7 +1363,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "crash")
 
@@ -956,9 +1383,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		server := newInternalTestServerWithClock(t, db, nil, chatprovider.ProviderAPIKeys{}, mClock)
 		ctx := chatdTestContext(t)
-		user, model := seedInternalChatDeps(ctx, t, db)
+		user, org, model := seedInternalChatDeps(ctx, t, db)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// Set the trap BEFORE starting the goroutine so we
 		// deterministically catch the ticker creation.
@@ -1002,9 +1429,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
 		ctx := chatdTestContext(t)
-		user, model := seedInternalChatDeps(ctx, t, db)
+		user, org, model := seedInternalChatDeps(ctx, t, db)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
@@ -1089,7 +1516,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then set the terminal state we need.
@@ -1113,9 +1540,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
 		ctx := chatdTestContext(t)
-		user, model := seedInternalChatDeps(ctx, t, db)
+		user, org, model := seedInternalChatDeps(ctx, t, db)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// Trap the timeout timer to know when the function
 		// has entered its poll loop.
@@ -1149,7 +1576,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// signalWake from CreateChat triggers background
 		// processing. drainInflight waits for in-flight goroutines
@@ -1181,7 +1608,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
 
-		parent, child := createParentChildChats(ctx, t, server, user, model)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// Pre-complete the child so it returns immediately.
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")

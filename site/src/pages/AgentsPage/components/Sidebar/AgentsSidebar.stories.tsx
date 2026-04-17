@@ -40,6 +40,7 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
@@ -51,6 +52,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
 	...overrides,
 });

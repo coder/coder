@@ -26,6 +26,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "hello world"}
     ]
@@ -37,6 +38,7 @@ The response is the newly created `Chat` object:
 ```json
 {
   "id": "a1b2c3d4-...",
+  "organization_id": "...",
   "owner_id": "...",
   "workspace_id": null,
   "build_id": null,
@@ -54,7 +56,8 @@ The response is the newly created `Chat` object:
   "pin_order": 0,
   "mcp_server_ids": [],
   "labels": {},
-  "has_unread": false
+  "has_unread": false,
+  "client_type": "api"
 }
 ```
 
@@ -82,10 +85,12 @@ A typical integration follows three steps:
 | Field             | Type                | Required | Description                                     |
 |-------------------|---------------------|----------|-------------------------------------------------|
 | `content`         | `ChatInputPart[]`   | yes      | The user's prompt as one or more content parts. |
+| `organization_id` | `uuid`              | yes      | The organization this chat belongs to.          |
 | `workspace_id`    | `uuid`              | no       | Pin the chat to a specific workspace.           |
 | `model_config_id` | `uuid`              | no       | Override the default model configuration.       |
 | `mcp_server_ids`  | `uuid[]`            | no       | Attach MCP servers to this chat.                |
 | `labels`          | `map[string]string` | no       | Key-value labels for the chat (max 50).         |
+| `client_type`     | `string`            | no       | `"ui"` or `"api"`. Defaults to `"api"`.         |
 
 Each `ChatInputPart` has a `type` field. The simplest form is a text part:
 

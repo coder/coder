@@ -11,6 +11,21 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// ActivityBumpReason represents the reason for an activity bump.
+type ActivityBumpReason string
+
+const (
+	// ActivityBumpReasonWorkspaceStats indicates the bump was triggered
+	// by SSH or terminal activity reported via workspace stats.
+	ActivityBumpReasonWorkspaceStats ActivityBumpReason = "workspace_stats"
+	// ActivityBumpReasonChatHeartbeat indicates the bump was triggered
+	// by an AI chat heartbeat.
+	ActivityBumpReasonChatHeartbeat ActivityBumpReason = "chat_heartbeat"
+	// ActivityBumpReasonAppActivity indicates the bump was triggered
+	// by app or port-forward activity.
+	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
+)
+
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
 // If the bump crosses over an autostart time, the workspace will be
@@ -36,7 +51,7 @@ import (
 // A way to avoid this is to configure the max deadline to something that will not
 // span more than 1 day. This will force the workspace to restart and reset the deadline
 // each morning when it autostarts.
-func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time) {
+func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID, nextAutostart time.Time, reason ActivityBumpReason) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
@@ -50,6 +65,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 			// Bump will fail if the context is canceled, but this is ok.
 			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),
+				slog.F("reason", reason),
 			)
 		}
 		return
@@ -57,5 +73,6 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 
 	log.Debug(ctx, "bumped deadline from activity",
 		slog.F("workspace_id", workspaceID),
+		slog.F("reason", reason),
 	)
 }

@@ -36,6 +36,7 @@ interface NavbarViewProps {
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
 	canViewAIBridge: boolean;
+	canCreateChat: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -57,6 +58,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
+	canCreateChat,
 	proxyContextValue,
 }) => {
 	const isDev = buildInfo ? isDevBuild(buildInfo) : false;
@@ -78,19 +80,19 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				)}
 			</NavLink>
 
-			<NavItems className="ml-4" user={user} />
+			<NavItems className="ml-4" user={user} canCreateChat={canCreateChat} />
 
 			{isPreRelease && buildInfo?.version && (
 				<a
 					href={buildInfo.external_url}
 					target="_blank"
 					rel="noreferrer"
-					className="absolute top-1 left-1/2 -translate-x-1/2 no-underline z-10"
+					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
 				>
 					<Badge
 						variant={isRc ? "info" : "warning"}
 						size="sm"
-						className="font-mono"
+						className="font-mono rounded-t-none border-t-0"
 					>
 						{buildInfo.version}
 					</Badge>
@@ -165,9 +167,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
+	canCreateChat: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user }) => {
+const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
@@ -192,7 +195,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
-			<AgentsNavItem />
+			<AgentsNavItem canCreateChat={canCreateChat} />
 		</nav>
 	);
 };
@@ -257,11 +260,12 @@ function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
 
-const AgentsNavItem: FC = () => {
+const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
 	const { experiments, buildInfo } = useDashboard();
-	const canSeeAgents = experiments.includes("agents") || isDevBuild(buildInfo);
+	const experimentEnabled =
+		experiments.includes("agents") || isDevBuild(buildInfo);
 
-	if (!canSeeAgents) {
+	if (!experimentEnabled || !canCreateChat) {
 		return null;
 	}
 

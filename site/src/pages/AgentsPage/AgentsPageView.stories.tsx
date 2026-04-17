@@ -28,6 +28,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
@@ -128,6 +129,7 @@ const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
@@ -139,6 +141,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
 	...overrides,
 });
@@ -159,6 +162,9 @@ const BehaviorRouteElement = () => {
 				include_default_system_prompt: true,
 				default_system_prompt: "You are Coder, an AI coding assistant...",
 			}}
+			planModeInstructionsData={{
+				plan_mode_instructions: "",
+			}}
 			userPromptData={{ custom_prompt: "" }}
 			desktopEnabledData={{ enable_desktop: false }}
 			workspaceTTLData={{ workspace_ttl_ms: 0 }}
@@ -173,6 +179,9 @@ const BehaviorRouteElement = () => {
 			onSaveSystemPrompt={fn()}
 			isSavingSystemPrompt={false}
 			isSaveSystemPromptError={false}
+			onSavePlanModeInstructions={fn()}
+			isSavingPlanModeInstructions={false}
+			isSavePlanModeInstructionsError={false}
 			onSaveUserPrompt={fn()}
 			isSavingUserPrompt={false}
 			isSaveUserPromptError={false}
@@ -194,6 +203,18 @@ const BehaviorRouteElement = () => {
 	);
 };
 
+const AgentsRouteElement = () => (
+	<AgentSettingsAgentsPageView
+		exploreModelOverrideData={{ has_malformed_override: false }}
+		modelConfigsData={[]}
+		modelConfigsError={undefined}
+		isLoadingModelConfigs={false}
+		onSaveExploreModelOverride={fn()}
+		isSavingExploreModelOverride={false}
+		isSaveExploreModelOverrideError={false}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
@@ -204,6 +225,7 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <Navigate to="behavior" replace /> },
 				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ path: "agents", element: <AgentsRouteElement /> },
 				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
 					path: "usage",

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -35,9 +36,16 @@ func TestStartWorkspace(t *testing.T) {
 
 		user := dbgen.User(t, db, database.User{})
 		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-no-workspace",
@@ -80,7 +88,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -161,7 +171,9 @@ func TestStartWorkspace(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, preferredAgentID)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -221,7 +233,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -284,7 +298,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -341,7 +357,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -390,6 +408,120 @@ func TestStartWorkspace(t *testing.T) {
 		require.Nil(t, result["no_build"], "no_build should not be set when a build was triggered")
 	})
 
+	t.Run("StoppedWorkspaceReportsAutoUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-stopped-workspace-auto-update",
+		})
+		require.NoError(t, err)
+
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
+			require.Equal(t, ws.ID, wsID)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{
+				ID:                buildResp.Build.ID,
+				TemplateVersionID: uuid.New(),
+			}, nil
+		}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["updated_to_active_version"])
+		require.Equal(t, "template requires active versions", result["update_reason"])
+		require.Contains(t, result["message"], "updated to the active template version")
+	})
+
+	t.Run("ManualUpdateRequired", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-manual-update-required",
+		})
+		require.NoError(t, err)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(400, codersdk.Response{Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI."})
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "template requires the active version")
+		require.Contains(t, resp.Content, "must be chosen manually")
+		require.NotContains(t, resp.Content, "start workspace:")
+	})
+
 	t.Run("InProgressBuild", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -412,7 +544,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -507,7 +641,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -588,7 +724,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -685,7 +823,9 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -22,9 +23,9 @@ func TestRun_Compaction(t *testing.T) {
 		var persistedCompaction CompactionResult
 		const summaryText = "summary text for compaction"
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
@@ -39,7 +40,7 @@ func TestRun_Compaction(t *testing.T) {
 					},
 				}), nil
 			},
-			generateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
 				require.NotEmpty(t, call.Prompt)
 				lastPrompt := call.Prompt[len(call.Prompt)-1]
 				require.Equal(t, fantasy.MessageRoleUser, lastPrompt.Role)
@@ -107,9 +108,9 @@ func TestRun_Compaction(t *testing.T) {
 		// and the tool-result part publishes after Persist.
 		var callOrder []string
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
@@ -124,7 +125,7 @@ func TestRun_Compaction(t *testing.T) {
 					},
 				}), nil
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				callOrder = append(callOrder, "generate")
 				return &fantasy.Response{
 					Content: []fantasy.Content{
@@ -189,9 +190,9 @@ func TestRun_Compaction(t *testing.T) {
 
 		publishCalled := false
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{
 						Type:         fantasy.StreamPartTypeFinish,
@@ -240,9 +241,9 @@ func TestRun_Compaction(t *testing.T) {
 
 		const summaryText = "compacted summary"
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				mu.Lock()
 				step := streamCallCount
 				streamCallCount++
@@ -287,7 +288,7 @@ func TestRun_Compaction(t *testing.T) {
 					}), nil
 				}
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},
@@ -346,9 +347,9 @@ func TestRun_Compaction(t *testing.T) {
 
 		const summaryText = "compacted summary for skip test"
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				mu.Lock()
 				step := streamCallCount
 				streamCallCount++
@@ -393,7 +394,7 @@ func TestRun_Compaction(t *testing.T) {
 					}), nil
 				}
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},
@@ -442,9 +443,9 @@ func TestRun_Compaction(t *testing.T) {
 	t.Run("ErrorsAreReported", func(t *testing.T) {
 		t.Parallel()
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{
 						Type:         fantasy.StreamPartTypeFinish,
@@ -455,7 +456,7 @@ func TestRun_Compaction(t *testing.T) {
 					},
 				}), nil
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return nil, xerrors.New("generate failed")
 			},
 		}
@@ -511,9 +512,9 @@ func TestRun_Compaction(t *testing.T) {
 			textMessage(fantasy.MessageRoleUser, "compacted user"),
 		}
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				mu.Lock()
 				step := streamCallCount
 				streamCallCount++
@@ -556,7 +557,7 @@ func TestRun_Compaction(t *testing.T) {
 					}), nil
 				}
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},
@@ -617,9 +618,9 @@ func TestRun_Compaction(t *testing.T) {
 
 		const summaryText = "post-run compacted summary"
 
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 				mu.Lock()
 				step := streamCallCount
 				streamCallCount++
@@ -659,7 +660,7 @@ func TestRun_Compaction(t *testing.T) {
 					}), nil
 				}
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},
@@ -723,9 +724,9 @@ func TestRun_Compaction(t *testing.T) {
 		// The LLM calls a dynamic tool. Usage is above the
 		// compaction threshold so compaction should fire even
 		// though the chatloop exits via ErrDynamicToolCall.
-		model := &loopTestModel{
-			provider: "fake",
-			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "my_dynamic_tool"},
 					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"query": "test"}`},
@@ -746,7 +747,7 @@ func TestRun_Compaction(t *testing.T) {
 					},
 				}), nil
 			},
-			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},

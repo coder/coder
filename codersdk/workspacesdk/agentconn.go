@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	neturl "net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -81,6 +82,7 @@ type AgentConn interface {
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
+	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
@@ -855,7 +857,9 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/list-directory?path=%s", path), req)
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/list-directory", neturl.Values{
+		"path": []string{path},
+	}), req)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -871,16 +875,50 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	return m, nil
 }
 
+// ResolvePathResponse is the response from the agent's path-resolution endpoint.
+type ResolvePathResponse struct {
+	ResolvedPath string `json:"resolved_path"`
+}
+
+// ResolvePath resolves the existing portion of an absolute path through any
+// symlinks and preserves missing trailing components.
+func (c *agentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/resolve-path", neturl.Values{
+		"path": []string{path},
+	}), nil)
+	if err != nil {
+		return "", xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", codersdk.ReadBodyAsError(res)
+	}
+
+	var m ResolvePathResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return "", xerrors.Errorf("decode response body: %w", err)
+	}
+	return m.ResolvedPath, nil
+}
+
 // ReadFileLines reads a file with line-based offset and limit, returning
 // line-numbered content with safety limits.
 func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf(
-		"/api/v0/read-file-lines?path=%s&offset=%d&limit=%d&max_file_size=%d&max_line_bytes=%d&max_response_lines=%d&max_response_bytes=%d",
-		path, offset, limit, limits.MaxFileSize, limits.MaxLineBytes, limits.MaxResponseLines, limits.MaxResponseBytes,
-	), nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file-lines", neturl.Values{
+		"path":               []string{path},
+		"offset":             []string{strconv.FormatInt(offset, 10)},
+		"limit":              []string{strconv.FormatInt(limit, 10)},
+		"max_file_size":      []string{strconv.FormatInt(limits.MaxFileSize, 10)},
+		"max_line_bytes":     []string{strconv.Itoa(limits.MaxLineBytes)},
+		"max_response_lines": []string{strconv.Itoa(limits.MaxResponseLines)},
+		"max_response_bytes": []string{strconv.Itoa(limits.MaxResponseBytes)},
+	}), nil)
 	if err != nil {
 		return ReadFileLinesResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -903,7 +941,11 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 	defer span.End()
 
 	//nolint:bodyclose // we want to return the body so the caller can stream.
-	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/read-file?path=%s&offset=%d&limit=%d", path, offset, limit), nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", neturl.Values{
+		"path":   []string{path},
+		"offset": []string{strconv.FormatInt(offset, 10)},
+		"limit":  []string{strconv.FormatInt(limit, 10)},
+	}), nil)
 	if err != nil {
 		return nil, "", xerrors.Errorf("do request: %w", err)
 	}
@@ -925,7 +967,9 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/write-file?path=%s", path), reader)
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
+		"path": []string{path},
+	}), reader)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)
 	}
@@ -1193,6 +1237,14 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error 
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+func agentAPIPath(path string, query neturl.Values) string {
+	if len(query) == 0 {
+		return path
+	}
+
+	return path + "?" + query.Encode()
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

@@ -51,6 +51,7 @@ import {
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { formatProviderLabel } from "../utils/modelOptions";
@@ -66,6 +67,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import { WorkspacePill } from "./WorkspacePill";
 
 export {
 	ImageThumbnail,
@@ -100,6 +102,8 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -147,10 +151,16 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export interface AttachedWorkspaceInfo {
+	id: string;
 	name: string;
 	route: string;
 	statusIcon: React.ReactNode;
@@ -186,7 +196,7 @@ const ToolBadge: FC<{
 						)}
 					>
 						{badge.statusIcon}
-						{badge.name}
+						<span className="truncate">{badge.name}</span>
 					</Link>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
@@ -198,7 +208,7 @@ const ToolBadge: FC<{
 		return (
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
-				{badge.name}
+				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
 					<button
 						type="button"
@@ -255,6 +265,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
+	planModeEnabled = false,
+	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -284,8 +296,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
+	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -379,6 +397,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		(ws) => ws.id === selectedWorkspaceId,
 	);
 
+	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
+		? Boolean(onWorkspaceChange) &&
+			selectedWorkspace.id !== attachedWorkspace?.id
+		: false;
+
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
@@ -393,10 +416,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (attachedWorkspace) {
+	// When workspace data is available, WorkspacePill handles
+	// the display (including app dropdown). Otherwise fall back
+	// to the simple attached-workspace ToolBadge.
+	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
-	if (selectedWorkspace && onWorkspaceChange) {
+	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
 	for (const s of activeMcpServers) {
@@ -410,6 +436,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
+
+	const handlePlanModeToggle = () => {
+		onPlanModeToggle?.(!planModeEnabled);
+		setPlusMenuOpen(false);
+	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -612,7 +643,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full max-w-3xl pb-0 sm:pb-4",
+				"mx-auto w-full pb-0 sm:pb-4",
+				chatWidthClass(chatFullWidth),
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
@@ -776,6 +808,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										Attach image
 									</button>
 								)}
+								{onPlanModeToggle && (
+									<button
+										type="button"
+										role="menuitemcheckbox"
+										aria-checked={planModeEnabled}
+										onClick={handlePlanModeToggle}
+										disabled={isDisabled}
+										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<PencilIcon className="size-3.5 shrink-0" />
+										<span>Plan first</span>
+										{planModeEnabled && (
+											<Check className="ml-auto size-icon-sm shrink-0" />
+										)}
+									</button>
+								)}
 								{workspaceOptions && onWorkspaceChange && (
 									<Popover
 										open={workspacePickerOpen}
@@ -909,12 +957,27 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownAlign="center"
 							/>
 						)}
+						{planModeEnabled && (
+							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								<PencilIcon className="size-3" />
+								Planning
+							</span>
+						)}
 						{/* Badge row — all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
+						{workspace && workspaceAgent && chatId && (
+							<WorkspacePill
+								workspace={workspace}
+								agent={workspaceAgent}
+								chatId={chatId}
+								sshCommand={sshCommand}
+								folder={folder}
+							/>
+						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"

@@ -1258,6 +1258,11 @@ func TestGetAuthorizedChats(t *testing.T) {
 		RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
 	})
 
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
+
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -1286,7 +1291,9 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 3 chats owned by owner.
 	for i := range 3 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1297,7 +1304,9 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create 2 chats owned by member.
 	for i := range 2 {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1340,8 +1349,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, secondRows, 0)
 
-		// Org admin should NOT see other users' chats — chats are
-		// not org-scoped resources.
+		// Org admin should NOT see other users' chats when they are
+		// in a different org than the chat owner.
 		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		require.NoError(t, err)
 		require.NotEmpty(t, orgs)
@@ -1358,6 +1367,21 @@ func TestGetAuthorizedChats(t *testing.T) {
 		orgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOrgAdmin)
 		require.NoError(t, err)
 		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
+
+		// Org admin in SAME org should see all chats in that org.
+		sameOrgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         sameOrgAdmin.ID,
+			OrganizationID: org.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		sameOrgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, sameOrgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSameOrgAdmin, err := authorizer.Prepare(ctx, sameOrgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		sameOrgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSameOrgAdmin)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
 
 		// OwnerID filter: member queries their own chats.
 		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
@@ -1417,9 +1441,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 		paginationUser := dbgen.User(t, db, database.User{
 			RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
 		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -7160,38 +7187,55 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	})
 }
 
-func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
+func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+	})
+
+	resources := make([]database.WorkspaceResource, 0, count)
+	for i := 0; i < count; i++ {
+		resources = append(resources, dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		}))
+	}
+
+	return resources
+}
+
+func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB, agentID uuid.UUID) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = TRUE WHERE id = $1", agentID)
+	require.NoError(t, err)
+}
+
+func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
-	// Context: https://github.com/coder/coder/pull/22196
-	t.Run("DoesNotReturnSubAgents", func(t *testing.T) {
+	t.Run("ReturnsAllMatchingRootAgents", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: A parent workspace agent with an AuthInstanceID and a
-		// sub-agent that shares the same AuthInstanceID.
 		db, _ := dbtestutil.NewDB(t)
-		org := dbgen.Organization(t, db, database.Organization{})
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			OrganizationID: org.ID,
-		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
 		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
-		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
 			},
 		})
-		// Create a sub-agent with the same AuthInstanceID (simulating
-		// the old behavior before the fix).
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
-			ResourceID: resource.ID,
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
@@ -7200,13 +7244,89 @@ func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// When: We look up the agent by instance ID.
-		agent, err := db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
 		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newerAgent.ID, olderAgent.ID}, []uuid.UUID{agents[0].ID, agents[1].ID})
+	})
 
-		// Then: The result must be the parent agent, not the sub-agent.
-		assert.Equal(t, parentAgent.ID, agent.ID, "instance ID lookup should return the parent agent, not a sub-agent")
-		assert.False(t, agent.ParentID.Valid, "returned agent should not have a parent (should be the parent itself)")
+	t.Run("ExcludesDeletedAndSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		rootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt.Add(-time.Hour),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: rootAgent.ID, Valid: true},
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedRootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedRootAgent.ID)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, rootAgent.ID, agents[0].ID)
+		assert.False(t, agents[0].ParentID.Valid)
+	})
+
+	t.Run("OrdersNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, newerAgent.ID, agents[0].ID)
+		assert.Equal(t, olderAgent.ID, agents[1].ID)
 	})
 }
 
@@ -9753,8 +9873,9 @@ func TestInsertChatMessages(t *testing.T) {
 		store, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 
-		dbgen.Organization(t, store, database.Organization{})
+		org := dbgen.Organization(t, store, database.Organization{})
 		user := dbgen.User(t, store, database.User{})
+		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -9778,7 +9899,9 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9921,6 +10044,8 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// Helper: create a chat model config (required FK for chats).
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
@@ -9949,7 +10074,9 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -10287,13 +10414,15 @@ func TestGetPRInsights(t *testing.T) {
 	}
 
 	// setupChatInfra creates a fresh database with a user, chat provider,
-	// and model config. Returns the store, user ID, and model config ID.
-	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID) {
+	// and model config. Returns the store, user ID, model config ID,
+	// and org ID.
+	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID, uuid.UUID) {
 		t.Helper()
 		store, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
-		dbgen.Organization(t, store, database.Organization{})
+		org := dbgen.Organization(t, store, database.Organization{})
 		user := dbgen.User(t, store, database.User{})
+		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
 			Provider:             "anthropic",
@@ -10318,15 +10447,24 @@ func TestGetPRInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return store, user.ID, mc.ID
+		return store, user.ID, mc.ID, org.ID
 	}
 
-	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
+	type chatParams struct {
+		Store         database.Store
+		UserID        uuid.UUID
+		ModelConfigID uuid.UUID
+		OrgID         uuid.UUID
+	}
+
+	createChat := func(t *testing.T, p chatParams, title string) database.Chat {
 		t.Helper()
-		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
+			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
-			OwnerID:           userID,
-			LastModelConfigID: mcID,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           p.UserID,
+			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
 		})
 		require.NoError(t, err)
@@ -10384,12 +10522,13 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("MultipleChatsSamePR_CostSummed", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
-		chatA := createChat(t, store, userID, mcID, "chat-A")
+		chatA := createChat(t, p, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000) // $5
 
-		chatB := createChat(t, store, userID, mcID, "chat-B")
+		chatB := createChat(t, p, "chat-B")
 		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000) // $3
 
 		prURL := "https://github.com/org/repo/pull/123"
@@ -10420,13 +10559,14 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("DifferentPRs_NoDuplication", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
-		chatA := createChat(t, store, userID, mcID, "chat-A")
+		chatA := createChat(t, p, "chat-A")
 		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, chatA.ID, "https://github.com/org/repo/pull/1", "merged", "feat: A", 50, 10, 2)
 
-		chatB := createChat(t, store, userID, mcID, "chat-B")
+		chatB := createChat(t, p, "chat-B")
 		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, chatB.ID, "https://github.com/org/repo/pull/2", "open", "feat: B", 80, 30, 4)
 
@@ -10455,12 +10595,14 @@ func TestGetPRInsights(t *testing.T) {
 
 	// createChildChat creates a chat with ParentChatID and RootChatID
 	// set, simulating a subagent/child chat in a tree.
-	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
+	createChildChat := func(t *testing.T, p chatParams, parentID, rootID uuid.UUID, title string) database.Chat {
 		t.Helper()
-		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
+			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
-			OwnerID:           userID,
-			LastModelConfigID: mcID,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           p.UserID,
+			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true},
@@ -10471,11 +10613,12 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("DuplicatePRUrl_CountedOnce", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		prURL := "https://github.com/org/repo/pull/99"
-		for i := 0; i < 3; i++ {
-			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+		for i := range 3 {
+			chat := createChat(t, p, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID, prURL, "merged", "fix: same PR", 40, 10, 3)
 		}
@@ -10500,19 +10643,20 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ChildChatCostsIncluded", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent chat with a $5 cost.
-		parent := createChat(t, store, userID, mcID, "parent-chat")
+		parent := createChat(t, p, "parent-chat")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 5_000_000)
 
 		// Two child chats (subagents) with $2 each. Only the parent
 		// has a chat_diff_statuses entry, but the children's costs
 		// should be included via the tree join.
-		child1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		child1 := createChildChat(t, p, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, child1.ID, userID, mcID, 2_000_000)
 
-		child2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		child2 := createChildChat(t, p, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, child2.ID, userID, mcID, 2_000_000)
 
 		prURL := "https://github.com/org/repo/pull/42"
@@ -10542,19 +10686,20 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("SiblingPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent chat with $10 orchestration cost.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, p, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 
 		// Child C1 ($5) creates PR1.
-		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		c1 := createChildChat(t, p, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/10", "merged", "feat: PR1", 50, 10, 2)
 
 		// Child C2 ($3) creates PR2.
-		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		c2 := createChildChat(t, p, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, c2.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, c2.ID, "https://github.com/org/repo/pull/11", "open", "feat: PR2", 30, 5, 1)
 
@@ -10585,23 +10730,24 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ParentAndChildDifferentPRs_NoCrossContamination", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent P ($10) creates PR1.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, p, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 		linkPR(t, store, parent.ID, "https://github.com/org/repo/pull/20", "merged", "feat: parent PR", 80, 20, 4)
 
 		// Child C1 ($5) has its own PR2. Because C1 has its own
 		// chat_diff_statuses entry, its cost should NOT be included
 		// under PR1 — it belongs to PR2 only.
-		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		c1 := createChildChat(t, p, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/21", "open", "feat: child PR", 30, 5, 1)
 
 		// Child C2 ($2) has NO cds entry — pure subagent.
 		// Its cost should be included under PR1 (the parent's PR).
-		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		c2 := createChildChat(t, p, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, c2.ID, userID, mcID, 2_000_000)
 
 		// PR1 cost = parent ($10) + C2 ($2) = $12 (C1 excluded)
@@ -10630,16 +10776,17 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("EmptyURLNotCollapsed", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Two chats with empty-string URLs should be treated as
 		// separate PRs (NULLIF converts '' to NULL, falling back
 		// to c.id::text).
-		chatX := createChat(t, store, userID, mcID, "chat-X")
+		chatX := createChat(t, p, "chat-X")
 		insertCostMessage(t, store, chatX.ID, userID, mcID, 4_000_000)
 		linkPR(t, store, chatX.ID, "", "open", "draft: X", 10, 2, 1)
 
-		chatY := createChat(t, store, userID, mcID, "chat-Y")
+		chatY := createChat(t, p, "chat-Y")
 		insertCostMessage(t, store, chatY.ID, userID, mcID, 6_000_000)
 		linkPR(t, store, chatY.ID, "", "merged", "draft: Y", 20, 5, 2)
 
@@ -10663,14 +10810,15 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ParentAndChildSameURL_DedupedWithCombinedCost", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Parent P ($10) links to a PR.
-		parent := createChat(t, store, userID, mcID, "parent")
+		parent := createChat(t, p, "parent")
 		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
 
 		// Child C ($5) also links to the same PR URL.
-		child := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child")
+		child := createChildChat(t, p, parent.ID, parent.ID, "child")
 		insertCostMessage(t, store, child.ID, userID, mcID, 5_000_000)
 
 		prURL := "https://github.com/org/repo/pull/50"
@@ -10700,11 +10848,12 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("ZeroCostChat_StillCounted", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// A chat linked to a PR but with NO chat_messages at all.
 		// The PR should still appear with zero cost.
-		chat := createChat(t, store, userID, mcID, "zero-cost-chat")
+		chat := createChat(t, p, "zero-cost-chat")
 		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/60", "open", "feat: no messages", 25, 5, 2)
 
 		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
@@ -10728,7 +10877,7 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("BlankDisplayNameFallsBackToModel", func(t *testing.T) {
 		t.Parallel()
-		store, userID, _ := setupChatInfra(t)
+		store, userID, _, orgID := setupChatInfra(t)
 
 		const modelName = "claude-4.1"
 		emptyDisplayModel, err := store.InsertChatModelConfig(context.Background(), database.InsertChatModelConfigParams{
@@ -10745,7 +10894,8 @@ func TestGetPRInsights(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat := createChat(t, store, userID, emptyDisplayModel.ID, "chat-empty-display-name")
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: emptyDisplayModel.ID, OrgID: orgID}
+		chat := createChat(t, p, "chat-empty-display-name")
 		insertCostMessage(t, store, chat.ID, userID, emptyDisplayModel.ID, 1_000_000)
 		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/72", "merged", "fix: blank display name", 10, 2, 1)
 
@@ -10770,15 +10920,16 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Merged PR with $5 cost.
-		chatMerged := createChat(t, store, userID, mcID, "chat-merged")
+		chatMerged := createChat(t, p, "chat-merged")
 		insertCostMessage(t, store, chatMerged.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, chatMerged.ID, "https://github.com/org/repo/pull/70", "merged", "fix: merged", 40, 10, 2)
 
 		// Open PR with $3 cost.
-		chatOpen := createChat(t, store, userID, mcID, "chat-open")
+		chatOpen := createChat(t, p, "chat-open")
 		insertCostMessage(t, store, chatOpen.ID, userID, mcID, 3_000_000)
 		linkPR(t, store, chatOpen.ID, "https://github.com/org/repo/pull/71", "open", "feat: open", 20, 5, 1)
 
@@ -10796,13 +10947,14 @@ func TestGetPRInsights(t *testing.T) {
 
 	t.Run("AllPRsReturnedWithSafetyCap", func(t *testing.T) {
 		t.Parallel()
-		store, userID, mcID := setupChatInfra(t)
+		store, userID, mcID, orgID := setupChatInfra(t)
+		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
 		// Create 25 distinct PRs — more than the old LIMIT 20 — and
 		// verify all are returned.
 		const prCount = 25
 		for i := range prCount {
-			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			chat := createChat(t, p, fmt.Sprintf("chat-%d", i))
 			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
 			linkPR(t, store, chat.ID,
 				fmt.Sprintf("https://github.com/org/repo/pull/%d", 100+i),
@@ -10825,11 +10977,13 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.SkipNow()
 	}
 
-	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID) {
+	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID, uuid.UUID) {
 		t.Helper()
 
 		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
 		// Use background context for fixture setup so the
 		// timed test context doesn't tick during DB init.
@@ -10858,14 +11012,16 @@ func TestChatPinOrderQueries(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		return ctx, db, owner.ID, modelCfg.ID
+		return ctx, db, owner.ID, modelCfg.ID, org.ID
 	}
 
-	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID uuid.UUID, title string) database.Chat {
+	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID, orgID uuid.UUID, title string) database.Chat {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -10887,13 +11043,13 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("PinChatByIDAppendsWithinOwner", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		otherOwner := dbgen.User(t, db, database.User{})
-		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, "other-owner")
+		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, orgID, "other-owner")
 
 		require.NoError(t, db.PinChatByID(ctx, other.ID))
 		require.NoError(t, db.PinChatByID(ctx, first.ID))
@@ -10911,10 +11067,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("UpdateChatPinOrderShiftsNeighborsAndClamps", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -10944,10 +11100,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("UnpinChatByIDCompactsPinnedChats", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -10964,10 +11120,10 @@ func TestChatPinOrderQueries(t *testing.T) {
 	t.Run("ArchiveClearsPinAndExcludesFromRanking", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, db, ownerID, modelCfgID := setup(t)
-		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
-		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
-		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+		ctx, db, ownerID, modelCfgID, orgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, orgID, "third")
 
 		for _, chat := range []database.Chat{first, second, third} {
 			require.NoError(t, db.PinChatByID(ctx, chat.ID))
@@ -11014,6 +11170,8 @@ func TestChatLabels(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
@@ -11047,7 +11205,9 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -11070,7 +11230,9 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -11086,7 +11248,9 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -11127,7 +11291,9 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -11164,10 +11330,11 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
-				LastModelConfigID: modelCfg.ID,
-				Title:             tc.title,
+				LastModelConfigID: modelCfg.ID, Title: tc.title,
 				Labels: pqtype.NullRawMessage{
 					RawMessage: labelsJSON,
 					Valid:      true,
@@ -11218,14 +11385,1054 @@ func TestChatLabels(t *testing.T) {
 	})
 }
 
+func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-rollback-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 50
+
+	affectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff + 10, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 5, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      affectedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	affectedByStepHistoryTipRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               affectedByStepHistoryTipRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "interrupted",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 7, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// affectedByStepAssistantMsgRun: run-level fields are at/below
+	// the cutoff, but its step has assistant_message_id above the
+	// cutoff.  This exercises the step.assistant_message_id > cutoff
+	// branch of the UNION independently of history_tip_message_id.
+	affectedByStepAssistantMsgRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff - 2, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 2, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              affectedByStepAssistantMsgRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff + 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unaffectedStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              unaffectedRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "in_progress",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:    chat.ID,
+		MessageID: cutoff,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deletedRows)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedSteps)
+
+	_, err = store.GetChatDebugRunByID(ctx, affectedByStepHistoryTipRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedByStepHistoryTipSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedByStepHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedByStepHistoryTipSteps)
+
+	// Verify the run caught by step-level assistant_message_id is
+	// also deleted.  This would survive if the
+	// step.assistant_message_id > @message_id clause were removed.
+	_, err = store.GetChatDebugRunByID(ctx, affectedByStepAssistantMsgRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	affectedByStepAssistantMsgSteps, err := store.GetChatDebugStepsByRunID(ctx, affectedByStepAssistantMsgRun.ID)
+	require.NoError(t, err)
+	require.Empty(t, affectedByStepAssistantMsgSteps)
+
+	remainingRuns, err := store.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: 100,
+	})
+	require.NoError(t, err)
+	require.Len(t, remainingRuns, 1)
+	require.Equal(t, unaffectedRun.ID, remainingRuns[0].ID)
+
+	remainingRun, err := store.GetChatDebugRunByID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, unaffectedRun.ID, remainingRun.ID)
+
+	remainingSteps, err := store.GetChatDebugStepsByRunID(ctx, unaffectedRun.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingSteps, 1)
+	require.Equal(t, unaffectedStep.ID, remainingSteps[0].ID)
+}
+
+func TestFinalizeStaleChatDebugRows(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-finalize-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-finalize-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	// staleTime is well before the threshold so rows stamped with it
+	// are considered stale.  The threshold sits between staleTime and
+	// NOW(), letting us create rows that are stale-by-age and rows
+	// that are fresh-by-age in the same test.
+	staleTime := time.Now().Add(-2 * time.Hour)
+	staleThreshold := time.Now().Add(-1 * time.Hour)
+
+	// --- staleRun: in_progress run with no finished_at --- should be
+	// finalized.
+	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// staleStep: in_progress step attached to staleRun.
+	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      staleRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// --- orphanStep: in_progress step whose run is already completed ---
+	// Its own updated_at is old, so it should be finalized directly.
+	// The step must be inserted while the run is still open because
+	// InsertChatDebugStep requires finished_at IS NULL on the parent
+	// run (atomic guard against appending steps to finalized runs).
+	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 2, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 2, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+	})
+	require.NoError(t, err)
+
+	// Insert the step while the run is still open (finished_at IS NULL).
+	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      completedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Now mark the run as completed with a finished_at timestamp,
+	// leaving the step orphaned in in_progress state.
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     completedRun.ID,
+		ChatID: completedRun.ChatID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		Now: time.Now(),
+	})
+	require.NoError(t, err)
+
+	// --- cascadeRun: stale in_progress run with a FRESH step ---
+	// The run's updated_at is old so the run itself is finalized by
+	// age.  The step's updated_at is recent (default NOW()), so it is
+	// NOT caught by the age predicate.  It must be finalized solely
+	// via the cascade CTE clause: run_id IN (SELECT id FROM
+	// finalized_runs).  Removing that clause would leave this step
+	// stuck in 'in_progress'.
+	cascadeRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 10, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// cascadeStep: recent updated_at (default NOW()), so only the
+	// cascade path can finalize it.
+	cascadeStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      cascadeRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	// The InsertChatDebugStep CTE atomically bumps the parent run's
+	// updated_at to NOW(). Reset it back to staleTime so the run is
+	// still caught by the age predicate in FinalizeStaleChatDebugRows.
+	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
+		ID:     cascadeRun.ID,
+		ChatID: chat.ID,
+		Now:    staleTime,
+	})
+	require.NoError(t, err)
+
+	// --- alreadyDone: completed run/step --- should NOT be touched.
+	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 3, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 3, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+	})
+	require.NoError(t, err)
+
+	// Insert step while run is still open.
+	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      doneRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     doneRun.ID,
+		ChatID: doneRun.ChatID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		Now: time.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     doneStep.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		Now: time.Now(),
+	})
+	require.NoError(t, err)
+
+	// --- errorRun: error run/step --- should NOT be touched either,
+	// exercising the 'error' branch of the NOT IN clause.
+	errorRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 4, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 4, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "error",
+	})
+	require.NoError(t, err)
+
+	// Insert step while run is still open.
+	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      errorRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "error",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
+	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     errorRun.ID,
+		ChatID: errorRun.ChatID,
+		Status: sql.NullString{String: "error", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		Now: time.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     errorStep.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "error", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+		Now: time.Now(),
+	})
+	require.NoError(t, err)
+
+	// --- freshRun: recent in_progress run with current timestamp ---
+	// should NOT be finalized because its updated_at is after the
+	// threshold, exercising the age predicate (not just terminal
+	// status) as the survival reason.
+	freshRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 20, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 20, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		// UpdatedAt defaults to NOW(), which is after staleThreshold.
+	})
+	require.NoError(t, err)
+
+	freshStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      freshRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		// UpdatedAt defaults to NOW().
+	})
+	require.NoError(t, err)
+
+	// --- Execute the finalization sweep. ---
+	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
+	require.NoError(t, err)
+
+	// staleRun + cascadeRun were finalized; completedRun and doneRun
+	// were already terminal, and freshRun survives because its
+	// updated_at is after the threshold — so only 2 runs are expected.
+	assert.EqualValues(t, 2, result.RunsFinalized,
+		"stale + cascade in_progress runs should be finalized")
+	// staleStep (age), orphanStep (age), cascadeStep (cascade only)
+	// should all be finalized.
+	assert.EqualValues(t, 3, result.StepsFinalized,
+		"stale step + orphan step + cascade step should all be finalized")
+
+	// Verify the stale run was set to interrupted.
+	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "interrupted", updatedStaleRun.Status)
+	assert.True(t, updatedStaleRun.FinishedAt.Valid,
+		"finalized run should have a finished_at timestamp")
+
+	// Verify the stale step was set to interrupted.
+	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
+	require.NoError(t, err)
+	require.Len(t, staleSteps, 1)
+	assert.Equal(t, staleStep.ID, staleSteps[0].ID)
+	assert.Equal(t, "interrupted", staleSteps[0].Status)
+	assert.True(t, staleSteps[0].FinishedAt.Valid,
+		"finalized step should have a finished_at timestamp")
+
+	// Verify the orphan step was also finalized.
+	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
+	require.NoError(t, err)
+	require.Len(t, orphanSteps, 1)
+	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
+	assert.Equal(t, "interrupted", orphanSteps[0].Status)
+
+	// Verify the cascade run was finalized.
+	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
+	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
+		"cascade run should have a finished_at timestamp")
+
+	// Verify the cascade step was finalized despite its recent
+	// updated_at, proving the cascade CTE clause is required.
+	cascadeSteps, err := store.GetChatDebugStepsByRunID(ctx, cascadeRun.ID)
+	require.NoError(t, err)
+	require.Len(t, cascadeSteps, 1)
+	assert.Equal(t, cascadeStep.ID, cascadeSteps[0].ID)
+	assert.Equal(t, "interrupted", cascadeSteps[0].Status,
+		"fresh step should be finalized via cascade, not age")
+	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
+		"cascade step should have a finished_at timestamp")
+
+	// Verify the completed run/step are untouched.
+	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "completed", unchangedRun.Status)
+
+	doneSteps, err := store.GetChatDebugStepsByRunID(ctx, doneRun.ID)
+	require.NoError(t, err)
+	require.Len(t, doneSteps, 1)
+	assert.Equal(t, "completed", doneSteps[0].Status)
+
+	// Verify the error run/step are untouched.
+	unchangedErrorRun, err := store.GetChatDebugRunByID(ctx, errorRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "error", unchangedErrorRun.Status)
+
+	errorSteps, err := store.GetChatDebugStepsByRunID(ctx, errorRun.ID)
+	require.NoError(t, err)
+	require.Len(t, errorSteps, 1)
+	assert.Equal(t, "error", errorSteps[0].Status)
+
+	// Verify the fresh in_progress run survived due to recency,
+	// not terminal status — its updated_at is after the threshold.
+	unchangedFreshRun, err := store.GetChatDebugRunByID(ctx, freshRun.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "in_progress", unchangedFreshRun.Status,
+		"fresh in_progress run must survive due to recency")
+	assert.False(t, unchangedFreshRun.FinishedAt.Valid,
+		"fresh run should not have a finished_at timestamp")
+
+	freshSteps, err := store.GetChatDebugStepsByRunID(ctx, freshRun.ID)
+	require.NoError(t, err)
+	require.Len(t, freshSteps, 1)
+	assert.Equal(t, freshStep.ID, freshSteps[0].ID)
+	assert.Equal(t, "in_progress", freshSteps[0].Status,
+		"fresh in_progress step must survive due to recency")
+	assert.False(t, freshSteps[0].FinishedAt.Valid,
+		"fresh step should not have a finished_at timestamp")
+
+	// A second sweep should be a no-op.
+	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, result2.RunsFinalized,
+		"second sweep should find nothing to finalize")
+	assert.EqualValues(t, 0, result2.StepsFinalized,
+		"second sweep should find nothing to finalize")
+}
+
+func TestChatDebugSQLGuards(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-guards-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chatA, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-guard-A-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	chatB, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-guard-B-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	runA, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chatA.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+	})
+	require.NoError(t, err)
+
+	stepA, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      runA.ID,
+		ChatID:     chatA.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+	})
+	require.NoError(t, err)
+
+	// InsertChatDebugStep: valid run_id but chat_id belongs to a
+	// different chat.  The INSERT...SELECT guard should produce zero
+	// rows, surfacing as sql.ErrNoRows.
+	t.Run("InsertChatDebugStep_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+			RunID:      runA.ID,
+			ChatID:     chatB.ID, // wrong chat
+			StepNumber: 2,
+			Operation:  "stream",
+			Status:     "in_progress",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"InsertChatDebugStep should fail when chat_id does not match the run's chat_id")
+	})
+
+	// UpdateChatDebugRun: valid run ID but wrong chat_id.
+	t.Run("UpdateChatDebugRun_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+			ID:     runA.ID,
+			ChatID: chatB.ID, // wrong chat
+			Status: sql.NullString{String: "completed", Valid: true},
+			FinishedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+			Now: time.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"UpdateChatDebugRun should fail when chat_id does not match")
+	})
+
+	// UpdateChatDebugStep: valid step ID but wrong chat_id.
+	t.Run("UpdateChatDebugStep_MismatchedChatID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+			ID:     stepA.ID,
+			ChatID: chatB.ID, // wrong chat
+			Status: sql.NullString{String: "completed", Valid: true},
+			FinishedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+			Now: time.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"UpdateChatDebugStep should fail when chat_id does not match")
+	})
+}
+
+// TestChatDebugRunCOALESCEPreservation verifies that the COALESCE
+// pattern in UpdateChatDebugRun preserves every field that was not
+// explicitly supplied in the update.  If COALESCE were removed from
+// any column, the corresponding field would silently null out.
+func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-coalesce-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-coalesce-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
+
+	// Insert a fully-populated run so every nullable field has a value.
+	original, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: 42, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: 41, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		Summary:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"key":"val"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Update only Status and FinishedAt. Every other nullable param
+	// is left as its Go zero value (Valid: false → SQL NULL), which
+	// the COALESCE pattern should interpret as "keep existing."
+	now := time.Now()
+	updated, err := store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+		ID:     original.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+		Now: now,
+	})
+	require.NoError(t, err)
+
+	// Status and FinishedAt should be updated.
+	require.Equal(t, "completed", updated.Status)
+	require.True(t, updated.FinishedAt.Valid)
+
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
+
+	// Every field not in the update call must be preserved exactly.
+	require.Equal(t, original.RootChatID, updated.RootChatID,
+		"RootChatID should survive a partial update")
+	require.Equal(t, original.ParentChatID, updated.ParentChatID,
+		"ParentChatID should survive a partial update")
+	require.Equal(t, original.ModelConfigID, updated.ModelConfigID,
+		"ModelConfigID should survive a partial update")
+	require.Equal(t, original.TriggerMessageID, updated.TriggerMessageID,
+		"TriggerMessageID should survive a partial update")
+	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
+		"HistoryTipMessageID should survive a partial update")
+	require.Equal(t, original.Provider, updated.Provider,
+		"Provider should survive a partial update")
+	require.Equal(t, original.Model, updated.Model,
+		"Model should survive a partial update")
+	require.JSONEq(t, string(original.Summary), string(updated.Summary),
+		"Summary should survive a partial update")
+	require.Equal(t, original.Kind, updated.Kind,
+		"Kind should survive a partial update")
+	require.Equal(t, original.StartedAt.UTC(), updated.StartedAt.UTC(),
+		"StartedAt should survive a partial update")
+}
+
+// TestChatDebugStepCOALESCEPreservation verifies that the COALESCE
+// pattern in UpdateChatDebugStep preserves every field that was not
+// explicitly supplied in the update. If COALESCE were removed from
+// any column, the corresponding field would silently null out.
+func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-step-coalesce-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-step-coalesce-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	run, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID: chat.ID,
+		Kind:   "chat_turn",
+		Status: "in_progress",
+	})
+	require.NoError(t, err)
+
+	// Insert a fully-populated step so every nullable field has a value.
+	original, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               run.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "llm_call",
+		Status:              "in_progress",
+		HistoryTipMessageID: sql.NullInt64{Int64: 10, Valid: true},
+		AssistantMessageID:  sql.NullInt64{Int64: 11, Valid: true},
+		NormalizedRequest:   pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"prompt":"hello"}`), Valid: true},
+		NormalizedResponse:  pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"text":"world"}`), Valid: true},
+		Usage:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"tokens":42}`), Valid: true},
+		Attempts:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"n":1}]`), Valid: true},
+		Error:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"code":"transient"}`), Valid: true},
+		Metadata:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"trace_id":"abc"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Update only Status and FinishedAt. Every other nullable param
+	// is left as its Go zero value (Valid: false -> SQL NULL), which
+	// the COALESCE pattern should interpret as "keep existing."
+	now := time.Now()
+	updated, err := store.UpdateChatDebugStep(ctx, database.UpdateChatDebugStepParams{
+		ID:     original.ID,
+		ChatID: chat.ID,
+		Status: sql.NullString{String: "completed", Valid: true},
+		FinishedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+		Now: now,
+	})
+	require.NoError(t, err)
+
+	// Status and FinishedAt should be updated.
+	require.Equal(t, "completed", updated.Status)
+	require.True(t, updated.FinishedAt.Valid)
+
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
+
+	// Every field not in the update call must be preserved exactly.
+	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
+		"HistoryTipMessageID should survive a partial update")
+	require.Equal(t, original.AssistantMessageID, updated.AssistantMessageID,
+		"AssistantMessageID should survive a partial update")
+	require.JSONEq(t, string(original.NormalizedRequest), string(updated.NormalizedRequest),
+		"NormalizedRequest should survive a partial update")
+	require.JSONEq(t, string(original.NormalizedResponse.RawMessage), string(updated.NormalizedResponse.RawMessage),
+		"NormalizedResponse should survive a partial update")
+	require.JSONEq(t, string(original.Usage.RawMessage), string(updated.Usage.RawMessage),
+		"Usage should survive a partial update")
+	require.JSONEq(t, string(original.Attempts), string(updated.Attempts),
+		"Attempts should survive a partial update")
+	require.JSONEq(t, string(original.Error.RawMessage), string(updated.Error.RawMessage),
+		"Error should survive a partial update")
+	require.JSONEq(t, string(original.Metadata), string(updated.Metadata),
+		"Metadata should survive a partial update")
+	require.Equal(t, original.Operation, updated.Operation,
+		"Operation should survive a partial update")
+	require.Equal(t, original.StepNumber, updated.StepNumber,
+		"StepNumber should survive a partial update")
+	require.Equal(t, original.StartedAt.UTC(), updated.StartedAt.UTC(),
+		"StartedAt should survive a partial update")
+}
+
+// TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive verifies
+// that runs whose message ID columns are all NULL are never matched
+// by DeleteChatDebugDataAfterMessageID.  SQL's three-valued logic
+// means NULL > N evaluates to NULL (not TRUE), so these rows must
+// survive.  Without this test a future change could break the
+// invariant with no test failure.
+func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-null-msg-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-null-msg-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	// Insert a run with all message ID columns left as NULL (Valid: false).
+	nullMsgRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: providerName, Valid: true},
+		Model:         sql.NullString{String: modelName, Valid: true},
+		// TriggerMessageID and HistoryTipMessageID intentionally
+		// omitted (zero-value → SQL NULL).
+	})
+	require.NoError(t, err)
+
+	// Attach a step with NULL message IDs too.
+	nullMsgStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      nullMsgRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		// HistoryTipMessageID and AssistantMessageID intentionally
+		// omitted (zero-value → SQL NULL).
+	})
+	require.NoError(t, err)
+
+	// Delete with an arbitrary cutoff. The run and its step should
+	// survive because NULL > cutoff evaluates to NULL, not TRUE.
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:    chat.ID,
+		MessageID: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, deletedRows, "rows with NULL message IDs must not be deleted")
+
+	// Verify run still exists.
+	remaining, err := store.GetChatDebugRunByID(ctx, nullMsgRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, nullMsgRun.ID, remaining.ID)
+
+	// Verify step still exists.
+	remainingSteps, err := store.GetChatDebugStepsByRunID(ctx, nullMsgRun.ID)
+	require.NoError(t, err)
+	require.Len(t, remainingSteps, 1)
+	require.Equal(t, nullMsgStep.ID, remainingSteps[0].ID)
+}
+
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 
 	store, _ := dbtestutil.NewDB(t)
 	ctx := context.Background()
 
-	dbgen.Organization(t, store, database.Organization{})
+	org := dbgen.Organization(t, store, database.Organization{})
 	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
@@ -11251,7 +12458,9 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

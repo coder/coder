@@ -82,6 +82,11 @@ export const ToolIcon: React.FC<{
 			return <FilePenIcon className={base} />;
 		case "create_workspace":
 			return <PlusCircleIcon className={base} />;
+		case "spawn_agent":
+		case "spawn_explore_agent":
+		case "wait_agent":
+		case "message_agent":
+		case "close_agent":
 		case "chat_summarized":
 			return <BotIcon className={base} />;
 		case "propose_plan":

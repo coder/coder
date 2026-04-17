@@ -171,10 +171,11 @@ func TestDevConfigValidate(t *testing.T) {
 
 	base := func() *devConfig {
 		return &devConfig{
-			apiPort:   3000,
-			webPort:   8080,
-			proxyPort: 3010,
-			password:  defaultPassword,
+			apiPort:        3000,
+			webPort:        8080,
+			proxyPort:      3010,
+			prometheusPort: 2114,
+			password:       defaultPassword,
 		}
 	}
 
@@ -281,6 +282,73 @@ func TestDevConfigValidate(t *testing.T) {
 		cfg := base()
 		cfg.webPort = 9000
 		cfg.proxyPort = 9000
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusPortConflictWithAPI", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 3000
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port 3000 conflicts with")
+	})
+
+	t.Run("PrometheusPortConflictWithWeb", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 8080
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port 8080 conflicts with")
+	})
+
+	t.Run("PrometheusPortConflictWithProxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 3010
+		cfg.useProxy = true
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port 3010 conflicts with")
+	})
+
+	t.Run("PrometheusPortZeroDisabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 0
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusPortValid", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 9090
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusPortTooHigh", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 70000
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
+	})
+
+	t.Run("PrometheusPortNegative", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = -1
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
+	})
+
+	t.Run("PrometheusProxyProxyConflictIgnoredWithoutProxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusPort = 3010
 		assert.NoError(t, cfg.validate())
 	})
 }

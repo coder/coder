@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -262,6 +263,11 @@ func (b Builder) BuildMetrics(m *Metrics) Builder {
 	return b
 }
 
+// ErrParameterValidation is a sentinel indicating that a workspace
+// build failed because a template-version parameter could not be
+// validated (missing required value, immutable change, etc.).
+var ErrParameterValidation = xerrors.New("parameter validation failed")
+
 type BuildError struct {
 	// Status is a suitable HTTP status code
 	Status  int
@@ -490,7 +496,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 
 		if b.templateVersionPresetID == uuid.Nil {
-			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, store, templateVersionID, names, values)
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "find matching preset", err}
 			}
@@ -528,7 +534,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
-		task, err := b.getWorkspaceTask()
+		task, err := b.getWorkspaceTask(store)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
@@ -677,11 +683,11 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 
 // getWorkspaceTask returns the task associated with the workspace, if any.
 // If no task exists, it returns (nil, nil).
-func (b *Builder) getWorkspaceTask() (*database.Task, error) {
+func (b *Builder) getWorkspaceTask(store database.Store) (*database.Task, error) {
 	if b.hasTask != nil {
 		return b.task, nil
 	}
-	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	t, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			b.hasTask = ptr.Ref(false)
@@ -929,7 +935,7 @@ func (b *Builder) getClassicParameters() (names, values []string, err error) {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), errors.Join(ErrParameterValidation, err)}
 		}
 
 		names = append(names, templateVersionParameter.Name)
@@ -1382,7 +1388,7 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	task, err := b.getWorkspaceTask()
+	task, err := b.getWorkspaceTask(b.store)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
 	}

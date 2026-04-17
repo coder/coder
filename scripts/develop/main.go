@@ -39,9 +39,12 @@ import (
 )
 
 const (
-	defaultAPIPort         = "3000"
-	defaultWebPort         = "8080"
-	defaultProxyPort       = "3010"
+	defaultAPIPort   = "3000"
+	defaultWebPort   = "8080"
+	defaultProxyPort = "3010"
+	// defaultPrometheusPort avoids 2112 (agent prometheus) and
+	// 2113 (agent debug) already bound inside Coder workspaces.
+	defaultPrometheusPort  = "2114"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
 	defaultStarterTemplate = "docker"
@@ -76,6 +79,13 @@ func main() {
 				Default:     defaultProxyPort,
 				Description: "Workspace proxy port.",
 				Value:       serpent.Int64Of(&cfg.proxyPort),
+			},
+			{
+				Flag:        "prometheus-port",
+				Env:         "CODER_DEV_PROMETHEUS_PORT",
+				Default:     defaultPrometheusPort,
+				Description: "Prometheus metrics port. Set to 0 to disable.",
+				Value:       serpent.Int64Of(&cfg.prometheusPort),
 			},
 			{
 				Flag:        "agpl",
@@ -163,6 +173,7 @@ type devConfig struct {
 	apiPort         int64
 	webPort         int64
 	proxyPort       int64
+	prometheusPort  int64
 	agpl            bool
 	accessURL       string
 	password        string
@@ -206,6 +217,9 @@ func (c *devConfig) validate() error {
 			return xerrors.Errorf("%s must be between 1 and 65535", p.name)
 		}
 	}
+	if c.prometheusPort < 0 || c.prometheusPort > 65535 {
+		return xerrors.Errorf("--prometheus-port must be 0 (disabled) or between 1 and 65535")
+	}
 	if c.apiPort == c.webPort {
 		return xerrors.Errorf("--port %d conflicts with frontend dev server", c.webPort)
 	}
@@ -214,6 +228,17 @@ func (c *devConfig) validate() error {
 	}
 	if c.useProxy && c.webPort == c.proxyPort {
 		return xerrors.Errorf("--web-port %d conflicts with --proxy-port", c.webPort)
+	}
+	if c.prometheusPort != 0 {
+		if c.prometheusPort == c.apiPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with API server", c.prometheusPort)
+		}
+		if c.prometheusPort == c.webPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with frontend dev server", c.prometheusPort)
+		}
+		if c.useProxy && c.prometheusPort == c.proxyPort {
+			return xerrors.Errorf("--prometheus-port %d conflicts with workspace proxy", c.prometheusPort)
+		}
 	}
 	return nil
 }
@@ -481,6 +506,9 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if cfg.useProxy && isPortBusy(ctx, cfg.proxyPort) {
 		return xerrors.Errorf("port %d is already in use (proxy)", cfg.proxyPort)
 	}
+	if cfg.prometheusPort != 0 && isPortBusy(ctx, cfg.prometheusPort) {
+		return xerrors.Errorf("port %d is already in use (prometheus)", cfg.prometheusPort)
+	}
 	return nil
 }
 
@@ -512,6 +540,14 @@ func startServer(cfg *devConfig, group *procGroup) error {
 		"--access-url", cfg.accessURL,
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+	}
+	if cfg.prometheusPort != 0 {
+		serverArgs = append(serverArgs,
+			"--prometheus-enable",
+			"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", cfg.prometheusPort),
+			"--prometheus-collect-agent-stats",
+			"--prometheus-collect-db-metrics",
+		)
 	}
 	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
 
@@ -885,28 +921,60 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 	}
 	var b strings.Builder
 	w := 64
-	line := func(content string) {
-		_, _ = fmt.Fprintf(&b, "║ %-*s ║\n", w, content)
+	line := func(content ...string) {
+		for _, c := range content {
+			_, _ = fmt.Fprintf(&b, "║ %-*s ║\n", w, c)
+		}
+	}
+	indent := func(s string) string {
+		return "           " + s
 	}
 	divider := "╔" + strings.Repeat("═", w+2) + "╗"
 	bottom := "╚" + strings.Repeat("═", w+2) + "╝"
 
 	_, _ = fmt.Fprintln(&b)
 	_, _ = fmt.Fprintln(&b, divider)
-	line("")
-	line("           Coder is now running in development mode.")
-	line("")
+	line(
+		"",
+		indent("Coder is now running in development mode."),
+		"",
+		"API:",
+	)
+
 	for _, h := range ifaces {
-		line(fmt.Sprintf("API:    http://%s:%d", h, cfg.apiPort))
-		line(fmt.Sprintf("Web UI: http://%s:%d", h, cfg.webPort))
-		if cfg.useProxy {
-			line(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort))
+		line(indent(fmt.Sprintf("http://%s:%d", h, cfg.apiPort)))
+	}
+	line(
+		"",
+		"Web UI:",
+	)
+	for _, h := range ifaces {
+		line(indent(fmt.Sprintf("http://%s:%d", h, cfg.webPort)))
+	}
+	if cfg.useProxy {
+		line(
+			"",
+			"Proxy:",
+		)
+		for _, h := range ifaces {
+			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.proxyPort)))
 		}
 	}
-	line("")
-	line("Use ./scripts/coder-dev.sh to talk to this instance!")
-	line(fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
-	line("")
+	if cfg.prometheusPort != 0 {
+		line(
+			"",
+			"Metrics:",
+		)
+		for _, h := range ifaces {
+			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.prometheusPort)))
+		}
+	}
+	line(
+		"",
+		"Use ./scripts/coder-dev.sh to talk to this instance!",
+		fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot),
+		"",
+	)
 	_, _ = fmt.Fprintln(&b, bottom)
 	logger.Info(ctx, b.String())
 }

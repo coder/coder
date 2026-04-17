@@ -33,6 +33,252 @@ import (
 	"github.com/coder/quartz"
 )
 
+type testAgentTool struct {
+	info            fantasy.ToolInfo
+	providerOptions fantasy.ProviderOptions
+}
+
+func newTestAgentTool(name string) fantasy.AgentTool {
+	return &testAgentTool{info: fantasy.ToolInfo{Name: name}}
+}
+
+func (t *testAgentTool) Info() fantasy.ToolInfo {
+	return t.info
+}
+
+func (t *testAgentTool) Run(context.Context, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	_ = t
+	return fantasy.ToolResponse{}, nil
+}
+
+func (t *testAgentTool) ProviderOptions() fantasy.ProviderOptions {
+	return t.providerOptions
+}
+
+func (t *testAgentTool) SetProviderOptions(opts fantasy.ProviderOptions) {
+	t.providerOptions = opts
+}
+
+func TestAllowedPlanToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	t.Run("RootPlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"process_list",
+			"process_signal",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"message_agent",
+			"close_agent",
+			"spawn_computer_use_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), uuid.NullUUID{})
+
+		require.Equal(t, []string{
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		}, got)
+	})
+
+	t.Run("ChildPlanModeAllowsExplorationOnly", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), uuid.NullUUID{UUID: uuid.New(), Valid: true})
+
+		require.Equal(t, []string{
+			"read_file",
+			"execute",
+			"process_output",
+			"read_skill",
+			"read_skill_file",
+		}, got)
+	})
+}
+
+func TestAllowedExploreToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	got := allowedExploreToolNames(makeTools(
+		"read_file",
+		"write_file",
+		"edit_files",
+		"execute",
+		"process_output",
+		"process_list",
+		"process_signal",
+		"spawn_agent",
+		"spawn_explore_agent",
+		"wait_agent",
+		"read_skill",
+		"read_skill_file",
+		"ask_user_question",
+	))
+
+	require.Equal(t, []string{
+		"read_file",
+		"execute",
+		"process_output",
+		"read_skill",
+		"read_skill_file",
+	}, got)
+}
+
+func TestAllowedBehaviorToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	allTools := makeTools("read_file", "custom_tool", "spawn_explore_agent")
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "custom_tool", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("PlanModeUsesPlanAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			planMode,
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			exploreMode,
+			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		))
+	})
+}
+
+func TestStopAfterBehaviorTools(t *testing.T) {
+	t.Parallel()
+
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	t.Run("DefaultModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterBehaviorTools(
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan":      {},
+			"ask_user_question": {},
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{}))
+	})
+
+	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan": {},
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+	})
+
+	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterBehaviorTools(planMode, exploreMode, uuid.NullUUID{}))
+	})
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -2610,6 +2856,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		chatHeartbeatInterval: time.Minute,
 		configCache:           newChatConfigCache(ctx, db, clock),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+		metrics:               chatloop.NopMetrics(),
 	}
 
 	// Publish a stale "pending" notification on the control channel

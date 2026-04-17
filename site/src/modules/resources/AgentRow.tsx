@@ -1,5 +1,4 @@
 import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
 import {
 	CopyIcon,
 	EllipsisIcon,
@@ -37,6 +36,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tabs,
 	TabsContent,
@@ -260,6 +260,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
 	];
+	const hasAnyLogs = agentLogs.length > 0;
+	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -267,7 +269,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		getTabMeasureProps,
 	} = useKebabMenu({
 		tabs: logTabs,
-		enabled: true,
+		enabled: logTabsMeasureEnabled,
 		isActive: showLogs,
 	});
 	const overflowLogTabValuesSet = new Set(
@@ -287,7 +289,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const allLogsText = agentLogs.map((log) => log.output).join("\n");
 	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
 	const hasSelectedLogs = selectedLogs.length > 0;
-	const hasAnyLogs = agentLogs.length > 0;
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 	const downloadableLogSets = logTabs
 		.filter((tab) => tab.value !== "all")
@@ -426,18 +427,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 				{agent.status === "connecting" && !isExternalAgent && (
 					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
-						<Skeleton
-							width={80}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
-						<Skeleton
-							width={110}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
+						<Skeleton width={80} height={32} className="rounded" />
+						<Skeleton width={110} height={32} className="rounded" />
 					</section>
 				)}
 
@@ -508,7 +499,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<div className="flex items-stretch">
 										<div
 											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1"
+											className="min-w-0 flex-1 overflow-hidden"
 										>
 											<TabsList variant="insideBox" overflowKebabMenu>
 												{visibleLogTabs.map((tab) => (

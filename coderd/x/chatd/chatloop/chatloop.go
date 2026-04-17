@@ -43,6 +43,10 @@ const (
 var (
 	ErrInterrupted     = xerrors.New("chat interrupted")
 	ErrDynamicToolCall = xerrors.New("dynamic tool call")
+	// ErrStopAfterTool is returned when a tool listed in
+	// StopAfterTools produces a successful result, indicating
+	// the run should terminate cleanly after persistence.
+	ErrStopAfterTool = xerrors.New("stop after tool")
 
 	errStartupTimeout = xerrors.New(
 		"chat response did not start before the startup timeout",
@@ -114,6 +118,11 @@ type RunOptions struct {
 	// the chatloop persists partial results and exits with
 	// ErrDynamicToolCall instead of executing the tool.
 	DynamicToolNames map[string]bool
+	// StopAfterTools lists tool names that, when they produce a
+	// successful result, cause the run to stop after persisting
+	// the current step. This is used for plan turns where
+	// propose_plan should terminate the run on success.
+	StopAfterTools map[string]struct{}
 
 	// ModelConfig holds per-call LLM parameters (temperature,
 	// max tokens, etc.) read from the chat model configuration.
@@ -139,6 +148,12 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
+	// PrepareMessages is called before each LLM step with the
+	// current message history. If it returns non-nil, the returned
+	// slice replaces messages for this and all subsequent steps.
+	// Used to inject system context that becomes available mid-loop
+	// (e.g. AGENTS.md after create_workspace).
+	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -150,6 +165,15 @@ type RunOptions struct {
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
+
+	// Metrics records Prometheus metrics for the chatd subsystem.
+	// When nil, no metrics are recorded.
+	Metrics *Metrics
+
+	// BuiltinToolNames lists tool names that are built into chatd.
+	// Tool results from tools not in this set are recorded under
+	// the "mcp" label to bound cardinality.
+	BuiltinToolNames map[string]bool
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -297,6 +321,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
+	if opts.Metrics == nil {
+		opts.Metrics = NopMetrics()
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -343,17 +370,27 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
+			provider := opts.Model.Provider()
+			modelName := opts.Model.Model()
+			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
 			// reassignments in addAnthropicPromptCaching only
 			// affect the prepared slice.
+			if opts.PrepareMessages != nil {
+				if updated := opts.PrepareMessages(messages); updated != nil {
+					messages = updated
+				}
+			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
+			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
 			call := fantasy.Call{
 				Prompt:           prepared,
@@ -371,12 +408,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
-					opts.Model.Provider(),
+					provider,
+					modelName,
 					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
+					opts.Metrics,
 				)
 				if streamErr != nil {
 					return streamErr
@@ -398,8 +437,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
+				// Record before OnRetry so a panicking callback can't
+				// drop the sample. The metric's provider label comes
+				// from the outer local; WithProvider only affects the
+				// classified payload handed to OnRetry.
+				classified = classified.WithProvider(provider)
+				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if opts.OnRetry != nil {
-					classified = classified.WithProvider(opts.Model.Provider())
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
@@ -444,7 +488,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, builtinCalls, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -538,6 +582,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
+			// Check if any executed tool triggers an early stop.
+			if shouldStopAfterTools(opts.StopAfterTools, toolResults) {
+				tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
+				return ErrStopAfterTool
+			}
+
 			// When chain mode is active (PreviousResponseID set), exit
 			// it after persisting the first chained step. Continuation
 			// steps include tool-result messages, which fantasy rejects
@@ -582,9 +632,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
+				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
+
 				if did {
 					alreadyCompacted = true
 					compactedOnFinalStep = true
@@ -622,6 +674,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				lastProviderMetadata,
 				messages,
 			)
+			opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)
@@ -716,10 +769,11 @@ func classifyStartupTimeout(
 
 func guardedStream(
 	parent context.Context,
-	provider string,
+	provider, model string,
 	clock quartz.Clock,
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
+	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	guard := newStartupGuard(clock, timeout, cancelAttempt)
@@ -731,6 +785,7 @@ func guardedStream(
 		})
 	}
 
+	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStartupTimeout(attemptCtx, provider, err)
@@ -738,11 +793,17 @@ func guardedStream(
 		return guardedAttempt{}, err
 	}
 
+	recordTTFT := sync.OnceFunc(func() {
+		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
+			clock.Since(streamStart).Seconds(),
+		)
+	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Disarm()
+				recordTTFT()
 				if !yield(part) {
 					return
 				}
@@ -983,8 +1044,12 @@ func processStepStream(
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
+	activeTools []string,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
+	metrics *Metrics,
+	provider, model string,
+	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1009,11 +1074,14 @@ func executeTools(
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
 	}
+	providerRunnerNames := make(map[string]struct{}, len(providerTools))
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
 	for _, pt := range providerTools {
 		if pt.Runner != nil {
-			toolMap[pt.Runner.Info().Name] = pt.Runner
+			name := pt.Runner.Info().Name
+			toolMap[name] = pt.Runner
+			providerRunnerNames[name] = struct{}{}
 		}
 	}
 
@@ -1039,7 +1107,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, model, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1060,11 +1128,32 @@ func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
+	metrics *Metrics,
+	provider, model string,
+	builtinToolNames map[string]bool,
+	activeTools []string,
+	providerRunnerNames map[string]struct{},
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
 		ToolName:         tc.ToolName,
 		ProviderExecuted: false,
+	}
+	defer func() {
+		toolLabel := tc.ToolName
+		if !builtinToolNames[tc.ToolName] {
+			toolLabel = "mcp"
+		}
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, toolLabel).Observe(
+			float64(ToolResultSize(result)),
+		)
+	}()
+
+	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+		result.Result = fantasy.ToolResultOutputContentError{
+			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
+		}
+		return result
 	}
 
 	tool, exists := toolMap[tc.ToolName]
@@ -1256,7 +1345,7 @@ func tryCompactOnExit(
 	if err != nil {
 		return
 	}
-	_, compactErr := tryCompact(
+	did, compactErr := tryCompact(
 		ctx,
 		opts.Model,
 		opts.Compaction,
@@ -1265,9 +1354,14 @@ func tryCompactOnExit(
 		metadata,
 		reloaded,
 	)
+	opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}
+}
+
+func isToolActive(name string, activeTools []string) bool {
+	return len(activeTools) == 0 || slices.Contains(activeTools, name)
 }
 
 // buildToolDefinitions converts AgentTool definitions into the
@@ -1279,7 +1373,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
 	for _, tool := range tools {
 		info := tool.Info()
-		if len(activeTools) > 0 && !slices.Contains(activeTools, info.Name) {
+		if !isToolActive(info.Name, activeTools) {
 			continue
 		}
 
@@ -1304,6 +1398,24 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		prepared = append(prepared, pt.Definition)
 	}
 	return prepared
+}
+
+// shouldStopAfterTools returns true if any tool result in the
+// slice matches a name in stopTools and produced a successful
+// (non-error) result.
+func shouldStopAfterTools(stopTools map[string]struct{}, results []fantasy.ToolResultContent) bool {
+	if len(stopTools) == 0 {
+		return false
+	}
+	for _, tr := range results {
+		if _, ok := stopTools[tr.ToolName]; !ok {
+			continue
+		}
+		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); !isErr {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

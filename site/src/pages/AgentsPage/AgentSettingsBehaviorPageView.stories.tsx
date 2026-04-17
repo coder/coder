@@ -15,6 +15,9 @@ const baseProps = {
 		include_default_system_prompt: true,
 		default_system_prompt: mockDefaultSystemPrompt,
 	} as TypesGen.ChatSystemPromptResponse,
+	planModeInstructionsData: {
+		plan_mode_instructions: "",
+	} as TypesGen.ChatPlanModeInstructionsResponse,
 	userPromptData: { custom_prompt: "" } as TypesGen.UserChatCustomPrompt,
 	desktopEnabledData: {
 		enable_desktop: false,
@@ -24,6 +27,11 @@ const baseProps = {
 	} as TypesGen.ChatWorkspaceTTLResponse,
 	isWorkspaceTTLLoading: false,
 	isWorkspaceTTLLoadError: false,
+	retentionDaysData: {
+		retention_days: 30,
+	} as TypesGen.ChatRetentionDaysResponse,
+	isRetentionDaysLoading: false,
+	isRetentionDaysLoadError: false,
 	modelConfigsData: [] as TypesGen.ChatModelConfig[],
 	modelConfigsError: undefined as unknown,
 	isLoadingModelConfigs: false,
@@ -32,12 +40,16 @@ const baseProps = {
 	thresholdsError: undefined as unknown,
 	isSavingSystemPrompt: false,
 	isSaveSystemPromptError: false,
+	isSavingPlanModeInstructions: false,
+	isSavePlanModeInstructionsError: false,
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
 	isSavingWorkspaceTTL: false,
 	isSaveWorkspaceTTLError: false,
+	isSavingRetentionDays: false,
+	isSaveRetentionDaysError: false,
 };
 
 const meta = {
@@ -46,9 +58,11 @@ const meta = {
 	args: {
 		...baseProps,
 		onSaveSystemPrompt: fn(),
+		onSavePlanModeInstructions: fn(),
 		onSaveUserPrompt: fn(),
 		onSaveDesktopEnabled: fn(),
 		onSaveWorkspaceTTL: fn(),
+		onSaveRetentionDays: fn(),
 		onSaveThreshold: fn(),
 		onResetThreshold: fn(),
 	},
@@ -224,10 +238,12 @@ export const DefaultAutostopSave: Story = {
 			expect(saveButton).toBeEnabled();
 		});
 
-		// Clearing to 0 should disable Save because toggle is still ON.
+		// Clearing back to the original value hides Save (pristine form).
 		await userEvent.clear(durationInput);
 		await waitFor(() => {
-			expect(saveButton).toBeDisabled();
+			expect(
+				within(ttlForm).queryByRole("button", { name: "Save" }),
+			).toBeNull();
 		});
 	},
 };
@@ -297,10 +313,7 @@ export const DefaultAutostopSaveDisabled: Story = {
 		expect(durationInput).toHaveValue("2");
 
 		const ttlForm = durationInput.closest("form")!;
-		const saveButton = within(ttlForm).getByRole("button", {
-			name: "Save",
-		});
-		expect(saveButton).toBeDisabled();
+		expect(within(ttlForm).queryByRole("button", { name: "Save" })).toBeNull();
 	},
 };
 

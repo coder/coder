@@ -306,3 +306,29 @@ func TestAggregateTokenUsage(t *testing.T) {
 		require.Empty(t, result.Metadata)
 	})
 }
+
+func TestSanitizeCredentialHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"valid_short", "s...t", "s...t"},
+		{"valid_long", "sk-a...efgh", "sk-a...efgh"},
+		{"valid_only_dots", "...", "..."},
+		{"empty", "", ""},
+		{"short_unmasked_secret", "abc12", "..."},
+		{"missing_dots", "sk-abcdefgh", "..."},
+		{"too_long", "sk-a...efghijklmn", "..."},
+		{"raw_secret", "sk-proj-abc123xyz789", "..."},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, sanitizeCredentialHint(tc.input))
+		})
+	}
+}
