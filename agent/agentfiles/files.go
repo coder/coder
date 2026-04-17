@@ -662,6 +662,8 @@ func internalLineEnding(lines []string) (string, bool) {
 
 // dominantFileEnding returns CRLF if CRLF endings outnumber LF in
 // contentLines, LF otherwise (including ties and ending-less files).
+// dominantFileEnding returns CRLF if CRLF endings outnumber LF in
+// contentLines, LF otherwise (including ties and ending-less files).
 func dominantFileEnding(contentLines []string) string {
 	var crlf, lf int
 	for _, l := range contentLines {
@@ -678,7 +680,18 @@ func dominantFileEnding(contentLines []string) string {
 	return "\n"
 }
 
-// rewriteInternalEnding returns lines concatenated with every
+// tailIsEmpty reports whether lines contains only empty strings
+// (the SplitAfter artifact from a trailing newline). Used to
+// distinguish "match at EOF" from "match before unmatched content".
+func tailIsEmpty(lines []string) bool {
+	for _, l := range lines {
+		if l != "" {
+			return false
+		}
+	}
+	return true
+}
+
 // non-last line's ending replaced by ending; the last line keeps
 // its original ending. Used before pass 1 splicing to normalize
 // the replacement to the file's ending style.
@@ -765,7 +778,16 @@ func endingShapeEqual(a, b string) bool {
 // When forcedEnding is non-empty, interior emitted lines use it
 // instead of the per-position rule; the final line still uses the
 // per-position rule so no-EOL-at-EOF is preserved.
-func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string) string {
+//
+// When allowEmptyFinalEnding is false, the final emitted line must
+// terminate: unmatched content follows the splice, and an empty
+// ending would merge the next line onto the last spliced line.
+// When true (match covers the file's tail), the per-position rule
+// When true (match covers the file's tail), the per-position rule
+// applies and an empty ending is allowed (no-EOL-at-EOF preserved).
+//
+//nolint:revive // allowEmptyFinalEnding is a computed match property, not caller control coupling.
+func buildReplacementLines(contentLines []string, start, end int, searchLines []string, replace, forcedEnding string, allowEmptyFinalEnding bool) string {
 	repLines := strings.SplitAfter(replace, "\n")
 	// SplitAfter on a string ending in "\n" yields a trailing empty
 	// element. Drop it so it doesn't pair with a phantom line.
@@ -807,6 +829,15 @@ func buildReplacementLines(contentLines []string, start, end int, searchLines []
 		// Ending-normalization override (see godoc).
 		if forcedEnding != "" && i < len(repLines)-1 {
 			ending = forcedEnding
+		}
+		// Final-line boundary: empty ending is only legal when no
+		// unmatched content follows; otherwise force a terminator.
+		if i == len(repLines)-1 && !allowEmptyFinalEnding && ending == "" {
+			if forcedEnding != "" {
+				ending = forcedEnding
+			} else {
+				ending = "\n"
+			}
 		}
 
 		_, _ = b.WriteString(lead)
@@ -1013,7 +1044,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[:start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, start, end, searchLines, replace, forcedEnding, tailIsEmpty(contentLines[end:])))
 		for _, l := range contentLines[end:] {
 			_, _ = b.WriteString(l)
 		}
@@ -1049,7 +1080,7 @@ func fuzzyReplaceLines(
 		for _, l := range contentLines[prev:m.start] {
 			_, _ = b.WriteString(l)
 		}
-		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding))
+		_, _ = b.WriteString(buildReplacementLines(contentLines, m.start, m.end, searchLines, replace, forcedEnding, tailIsEmpty(contentLines[m.end:])))
 		prev = m.end
 	}
 	for _, l := range contentLines[prev:] {

@@ -2224,6 +2224,111 @@ func TestFuzzyReplace_EndingNormalization(t *testing.T) {
 	}
 }
 
+// TestFuzzyReplace_FuzzyCollapse_PreservesNextLine pins that a
+// shorter replacement under the fuzzy path does not merge the next
+// unmatched content line onto the last spliced line. When the
+// adversarial harness reported this (2026-04-17), the splice was
+// emitting the final replacement line without its line ending, so
+// the next content line concatenated onto it with the file's tab.
+func TestFuzzyReplace_FuzzyCollapse_PreservesNextLine(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+	}
+	tests := []struct {
+		name     string
+		content  string
+		edits    []edit
+		expected string
+	}{
+		// Minimal: tab-indented file, space-indented caller
+		// forces pass 3, replace has fewer lines than search.
+		{
+			name:    "Minimal",
+			content: "\tone\n\ttwo\n\tthree\n\tafter\n",
+			edits: []edit{{
+				search:  "    one\n    two\n    three\n",
+				replace: "    ONE\n    TWO\n",
+			}},
+			expected: "\tONE\n\tTWO\n\tafter\n",
+		},
+		// The adversarial harness's reproduction from
+		// coderd/httpapi/httpapi.go, inline: the original had
+		// `return valid == nil` on its own line after the
+		// matched region. The bug merged it onto the last
+		// replacement line with a tab separator.
+		{
+			name: "HarnessHttpapi",
+			content: "\tnameValidator := func(fl validator.FieldLevel) bool {\n" +
+				"\t\tf := fl.Field().Interface()\n" +
+				"\t\tstr, ok := f.(string)\n" +
+				"\t\tif !ok {\n" +
+				"\t\t\treturn false\n" +
+				"\t\t}\n" +
+				"\t\tvalid := codersdk.NameValid(str)\n" +
+				"\t\treturn valid == nil\n" +
+				"\t}\n",
+			edits: []edit{{
+				search: "        f := fl.Field().Interface()\n" +
+					"        str, ok := f.(string)\n" +
+					"        if !ok {\n" +
+					"            return false\n" +
+					"        }\n" +
+					"        valid := codersdk.NameValid(str)",
+				replace: "        f := fl.Field().Interface()\n" +
+					"        str, _ := f.(string)\n" +
+					"        valid := codersdk.NameValid(str)",
+			}},
+			expected: "\tnameValidator := func(fl validator.FieldLevel) bool {\n" +
+				"\t\tf := fl.Field().Interface()\n" +
+				"\t\tstr, _ := f.(string)\n" +
+				"\t\tvalid := codersdk.NameValid(str)\n" +
+				"\t\treturn valid == nil\n" +
+				"\t}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "fuzzycollapse-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			sdkEdits := make([]workspacesdk.FileEdit, 0, len(tt.edits))
+			for _, e := range tt.edits {
+				sdkEdits = append(sdkEdits, workspacesdk.FileEdit{
+					Search:  e.search,
+					Replace: e.replace,
+				})
+			}
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{Path: path, Edits: sdkEdits}},
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, string(data))
+		})
+	}
+}
+
 // TestEditFiles_WhitespaceAndLineEndings covers whitespace and
 // line-ending behaviors end-to-end through the HTTP handler,
 // complementing the matcher-focused TestFuzzyReplace_EndingAndWhitespace.
@@ -2639,6 +2744,89 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 		"\t\t\t\treturn fmt.Errorf(\"wrap: %w\", err)\n" +
 		"\t\t\t}\n" +
 		"}\n"
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, expected, string(data))
+}
+
+// TestEditFiles_FuzzyExpansion_LiteralWhitespaceGap locks the
+// CURRENT output of a second known foot-gun, not a bless.
+//
+// Gap: when the replacement has MORE lines than the search, the
+// extra lines pair with search lines by index. If the search line
+// at that index uses different whitespace than the replace line
+// at that index (inevitable when the extra line is inserted
+// mid-block), the per-position rule sees disagreement and falls
+// back to the replacement's literal whitespace — emitting it as
+// spaces in a tab-indented file.
+//
+// The right fix is diff-aligning search vs replace lines instead
+// of pairing by index. Out of scope for this PR.
+func TestEditFiles_FuzzyExpansion_LiteralWhitespaceGap(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "fuzzy-expansion-gap")
+
+	content := "\tnameValidator := func(fl validator.FieldLevel) bool {\n" +
+		"\t\tf := fl.Field().Interface()\n" +
+		"\t\tstr, ok := f.(string)\n" +
+		"\t\tif !ok {\n" +
+		"\t\t\treturn false\n" +
+		"\t\t}\n" +
+		"\t\tvalid := codersdk.NameValid(str)\n" +
+		"\t\treturn valid == nil\n" +
+		"\t}\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(content), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path: path,
+			Edits: []workspacesdk.FileEdit{{
+				Search: "        f := fl.Field().Interface()\n" +
+					"        str, ok := f.(string)\n" +
+					"        if !ok {\n" +
+					"            return false\n" +
+					"        }\n" +
+					"        valid := codersdk.NameValid(str)",
+				Replace: "        f := fl.Field().Interface()\n" +
+					"        str, ok := f.(string)\n" +
+					"        if !ok {\n" +
+					"            log.Println(\"type assertion failed\")\n" +
+					"            return false\n" +
+					"        }\n" +
+					"        valid := codersdk.NameValid(str)",
+			}},
+		}},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	// Current (buggy) output: log.Println line gets tabs (paired
+	// 1:1 with the old `return false` line), but the subsequent
+	// return false and } lines get literal spaces because their
+	// index-paired search lines differ.
+	expected := "\tnameValidator := func(fl validator.FieldLevel) bool {\n" +
+		"\t\tf := fl.Field().Interface()\n" +
+		"\t\tstr, ok := f.(string)\n" +
+		"\t\tif !ok {\n" +
+		"\t\t\tlog.Println(\"type assertion failed\")\n" +
+		"            return false\n" +
+		"\t\t}\n" +
+		"\t\tvalid := codersdk.NameValid(str)\n" +
+		"\t\treturn valid == nil\n" +
+		"\t}\n"
 	data, err := afero.ReadFile(fs, path)
 	require.NoError(t, err)
 	require.Equal(t, expected, string(data))
