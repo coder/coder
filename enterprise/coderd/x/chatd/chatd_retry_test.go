@@ -156,10 +156,13 @@ func TestRelayReconnectUsesExponentialBackoff(t *testing.T) {
 	}
 
 	// We expect 1 initial attempt + 5 reconnects fired by the
-	// trapped timer = 6 dials before any subsequent ones that may
-	// race in. Allow >=5 to absorb scheduling fuzz but confirm
-	// backoff runs.
-	require.GreaterOrEqual(t, int(failCount.Load()), 5)
+	// trapped timer = 6 dials before the cap-check runs. Use
+	// Eventually so we don't race the final dial goroutine that
+	// the last Advance kicked off.
+	require.Eventually(t, func() bool {
+		return failCount.Load() >= 6
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"expected 6 dials, got %d", failCount.Load())
 
 	// The events channel must remain open — we're still under the
 	// cap.
@@ -347,13 +350,13 @@ func TestRelayStopsAfterIntermittentCap(t *testing.T) {
 	require.Contains(t, errEvent.Error.Message, "6")
 
 	// Ensure the cap fires at attempt N+1 — the retry state allows
-	// relayRetryMaxAttempts successful next() calls before flipping
+	// relayMaxRetries successful next() calls before flipping
 	// giveUp. With one initial dial + 6 reconnect-timer fires the
 	// 7th .next() trips the cap and tears down, so we see 7 dials
 	// total and nothing further.
 	totalDials := callCount.Load()
 	require.Equal(t, int32(7), totalDials,
-		"expected exactly relayRetryMaxAttempts+1 dials before cap; got %d", totalDials)
+		"expected exactly relayMaxRetries+1 dials before cap; got %d", totalDials)
 }
 
 // TestRelayStopsImmediatelyOnUnauthorized tests the unrecoverable

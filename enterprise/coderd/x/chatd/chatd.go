@@ -40,9 +40,11 @@ const (
 	// github.com/coder/retry defaults (φ-growth, no jitter) but drives
 	// the delay manually because retry.Retrier.Wait uses time.After,
 	// which isn't compatible with quartz.Clock determinism in tests.
-	relayRetryFloor       = 500 * time.Millisecond // first retry matches old fixed delay
-	relayRetryCeil        = 15 * time.Second       // cap stall before tear-down
-	relayRetryMaxAttempts = 6                      // tear down after this many failures
+	relayRetryFloor = 500 * time.Millisecond // first retry matches old fixed delay
+	relayRetryCeil  = 15 * time.Second       // cap stall before tear-down
+	// After this many reconnect retries the relay leg is torn down.
+	// Total dial attempts = 1 initial dial + relayMaxRetries.
+	relayMaxRetries = 6
 )
 
 // RelayDialError wraps a failed relay handshake. HTTPStatus is 0
@@ -447,11 +449,11 @@ func NewMultiReplicaSubscribeFn(
 							logger.Warn(ctx, "relay dial retry cap reached; tearing down relay leg",
 								slog.F("chat_id", chatID),
 								slog.F("worker_id", result.workerID),
-								slog.F("attempts", relayRetryMaxAttempts),
+								slog.F("max_retries", relayMaxRetries),
 							)
 							sendRelayTerminalError(fmt.Sprintf(
-								"relay connection failed after %d attempts",
-								relayRetryMaxAttempts,
+								"relay connection failed after %d retries",
+								relayMaxRetries,
 							))
 							return
 						}
@@ -524,9 +526,13 @@ func NewMultiReplicaSubscribeFn(
 						// spinning forever.
 						delay, giveUp := retryState.next()
 						if giveUp {
+							logger.Warn(ctx, "relay reconnect retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("max_retries", relayMaxRetries),
+							)
 							sendRelayTerminalError(fmt.Sprintf(
-								"relay reconnect failed after %d attempts",
-								relayRetryMaxAttempts,
+								"relay connection failed after %d retries",
+								relayMaxRetries,
 							))
 							return
 						}
@@ -581,9 +587,13 @@ func NewMultiReplicaSubscribeFn(
 						// repeatedly drops eventually tears down.
 						delay, giveUp := retryState.next()
 						if giveUp {
+							logger.Warn(ctx, "relay drop retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("max_retries", relayMaxRetries),
+							)
 							sendRelayTerminalError(fmt.Sprintf(
-								"relay connection failed after %d attempts",
-								relayRetryMaxAttempts,
+								"relay connection failed after %d retries",
+								relayMaxRetries,
 							))
 							return
 						}
@@ -629,11 +639,11 @@ func newRelayRetryState() *relayRetryState {
 }
 
 // next returns the delay before the next dial and sets giveUp once
-// attempts exceed relayRetryMaxAttempts. Mirrors retry.Retrier.Wait
+// attempts exceed relayMaxRetries. Mirrors retry.Retrier.Wait
 // (github.com/coder/retry/retrier.go) without blocking.
 func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
 	s.attempts++
-	if s.attempts > relayRetryMaxAttempts {
+	if s.attempts > relayMaxRetries {
 		return 0, true
 	}
 	r := s.retrier
