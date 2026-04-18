@@ -11,10 +11,10 @@ export const ContextMenu = ContextMenuPrimitive.Root;
 
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/** @public */
 export const ContextMenuGroup = ContextMenuPrimitive.Group;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/** @public */
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
 export const ContextMenuContent: React.FC<
