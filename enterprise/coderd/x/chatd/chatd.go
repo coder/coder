@@ -61,7 +61,7 @@ func (e *RelayDialError) Error() string { return e.Err.Error() }
 func (e *RelayDialError) Unwrap() error { return e.Err }
 
 // IsUnrecoverable reports whether retrying with the same captured
-// session token is futile. Only 401/403 qualify — the token is dead
+// session token is futile. Only 401/403 qualify - the token is dead
 // or the peer won't authorize it. 5xx, 429, network, and context
 // errors fall through to backoff.
 func (e *RelayDialError) IsUnrecoverable() bool {
@@ -328,7 +328,7 @@ func NewMultiReplicaSubscribeFn(
 				// Wrap the relay channel so snapshot parts
 				// are delivered through the same channel as
 				// live parts. This goroutine only forwards
-				// events — it does not own the relay
+				// events - it does not own the relay
 				// lifecycle. When dialCtx is canceled it
 				// simply returns, closing wrappedParts via
 				// its defer. The cancel() is called by
@@ -429,7 +429,7 @@ func NewMultiReplicaSubscribeFn(
 						continue
 					}
 					// A nil parts channel signals the dial
-					// failed — classify the error to decide
+					// failed - classify the error to decide
 					// whether to schedule a backoff retry, emit a
 					// terminal error and tear the relay leg down
 					// (unrecoverable / cap reached), or simply
@@ -437,7 +437,7 @@ func NewMultiReplicaSubscribeFn(
 					if result.parts == nil {
 						if drainAndClose {
 							// Dial failed and we were only
-							// waiting to drain — nothing to do.
+							// waiting to drain - nothing to do.
 							drainAndClose = false
 							continue
 						}
@@ -506,7 +506,7 @@ func NewMultiReplicaSubscribeFn(
 							// openRelayAsync handle the new one.
 							closeRelay()
 						} else {
-							// Chat is still idle — drain the
+							// Chat is still idle - drain the
 							// buffered snapshot before closing.
 							if drainTimer != nil {
 								drainTimer.Stop()
@@ -583,9 +583,6 @@ func NewMultiReplicaSubscribeFn(
 					drainTimerCh = nil
 					drainTimer = nil
 					closeRelay()
-					drainTimerCh = nil
-					drainTimer = nil
-					closeRelay()
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						if relayCancel != nil {
@@ -649,8 +646,11 @@ func newRelayRetryState() *relayRetryState {
 }
 
 // next returns the delay before the next dial and sets giveUp once
-// attempts exceed relayMaxRetries. Mirrors retry.Retrier.Wait
-// (github.com/coder/retry/retrier.go) without blocking.
+// attempts exceed relayMaxRetries. Adapts the math from
+// retry.Retrier.Wait (github.com/coder/retry/retrier.go) without
+// blocking: the library's Wait returns 0 on the first call and sets
+// Delay to Floor only after the sleep, so we clamp to Floor up
+// front.
 func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
 	s.attempts++
 	if s.attempts > relayMaxRetries {
@@ -808,7 +808,7 @@ drainInitial:
 		defer close(events)
 		defer closeSource()
 
-		// No need to re-send snapshot events — they're
+		// No need to re-send snapshot events - they're
 		// returned to the caller directly.
 		for {
 			select {
@@ -867,7 +867,7 @@ func extractSessionToken(header http.Header) string {
 	if header == nil {
 		return ""
 	}
-	// Cookie (browser WebSocket upgrade — most common relay case).
+	// Cookie (browser WebSocket upgrade - most common relay case).
 	if raw := header.Get(cookieHeader); raw != "" {
 		r := &http.Request{Header: http.Header{cookieHeader: {raw}}}
 		if c, err := r.Cookie(codersdk.SessionTokenCookie); err == nil && c.Value != "" {

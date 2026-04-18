@@ -74,22 +74,22 @@ func TestRelayDialErrorIsUnrecoverable(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
+		name   string
 		status int
 		want   bool
 	}{
-		{http.StatusUnauthorized, true},
-		{http.StatusForbidden, true},
-		{http.StatusInternalServerError, false},
-		{http.StatusBadGateway, false},
-		{http.StatusServiceUnavailable, false},
-		{http.StatusTooManyRequests, false},
-		{0, false},
-		{http.StatusBadRequest, false},
-		{http.StatusNotFound, false},
+		{"unauthorized", http.StatusUnauthorized, true},
+		{"forbidden", http.StatusForbidden, true},
+		{"internal_server", http.StatusInternalServerError, false},
+		{"bad_gateway", http.StatusBadGateway, false},
+		{"service_unavailable", http.StatusServiceUnavailable, false},
+		{"too_many_requests", http.StatusTooManyRequests, false},
+		{"pre_response", 0, false},
+		{"bad_request", http.StatusBadRequest, false},
+		{"not_found", http.StatusNotFound, false},
 	}
 	for _, tc := range cases {
-		tc := tc
-		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			e := &entchatd.RelayDialError{HTTPStatus: tc.status, Err: io.EOF}
 			require.Equal(t, tc.want, e.IsUnrecoverable(),
@@ -165,7 +165,7 @@ func TestRelayReconnectUsesExponentialBackoff(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast,
 		"expected 6 dials, got %d", failCount.Load())
 
-	// The events channel must remain open — we're still under the
+	// The events channel must remain open - we're still under the
 	// cap.
 	select {
 	case ev, open := <-events:
@@ -325,7 +325,7 @@ func TestRelayStopsAfterIntermittentCap(t *testing.T) {
 
 	// Wait for the terminal error event to arrive. mergedEvents
 	// closes inside the enterprise merge goroutine, but OSS only
-	// nil-outs relayEvents on close — the outer events channel
+	// nil-outs relayEvents on close - the outer events channel
 	// stays open for pubsub/local, so we wait for the error event
 	// itself rather than channel closure.
 	var errEvent *codersdk.ChatStreamEvent
@@ -350,7 +350,7 @@ func TestRelayStopsAfterIntermittentCap(t *testing.T) {
 	require.Contains(t, errEvent.Error.Message, "relay connection failed")
 	require.Contains(t, errEvent.Error.Message, "6")
 
-	// Ensure the cap fires at attempt N+1 — the retry state allows
+	// Ensure the cap fires at attempt N+1 - the retry state allows
 	// relayMaxRetries successful next() calls before flipping
 	// giveUp. With one initial dial + 6 reconnect-timer fires the
 	// 7th .next() trips the cap and tears down, so we see 7 dials
@@ -484,7 +484,6 @@ func TestRelayStopsImmediatelyOnUnauthorized(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -597,7 +596,7 @@ func TestRelayBackoffResetsOnStatusChange(t *testing.T) {
 
 	// Drive 3 intermittent failures so attempts=3 and the delay
 	// has grown past the floor. After each loop iteration the 4th
-	// reconnect timer is queued — consume it too so our later
+	// reconnect timer is queued - consume it too so our later
 	// assertion sees the reset's timer, not a stale one.
 	for i := 0; i < 3; i++ {
 		call := trapReconnect.MustWait(ctx)
@@ -605,7 +604,7 @@ func TestRelayBackoffResetsOnStatusChange(t *testing.T) {
 		mclk.Advance(call.Duration).MustWait(ctx)
 	}
 	// Grab the next trapped timer (the grown one scheduled after
-	// the 3rd dial fails) but don't advance it — we want to see it
+	// the 3rd dial fails) but don't advance it - we want to see it
 	// replaced by a fresh floor-delay timer after the reset.
 	grown := trapReconnect.MustWait(ctx)
 	require.Greater(t, grown.Duration, 500*time.Millisecond,
@@ -703,7 +702,7 @@ func TestRelayBackoffRespectsContextCancel(t *testing.T) {
 // propagates through as *RelayDialError with HTTPStatus == 401.
 //
 // This is the one test that uses the real coder/websocket library
-// on the failure path — a safety net against library upgrades
+// on the failure path - a safety net against library upgrades
 // silently breaking status capture.
 func TestDialRelayReal401(t *testing.T) {
 	t.Parallel()
@@ -721,20 +720,16 @@ func TestDialRelayReal401(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	db, ps := dbtestutil.NewDB(t)
+	db, _ := dbtestutil.NewDB(t)
 	workerID := uuid.New()
 	subscriberID := uuid.New()
 
 	// Wire real config (no DialerFn override) so dialRelay runs
-	// end-to-end against the httptest server. The initial
-	// synchronous dial targets this server and returns an error
-	// with HTTPStatus = 401 — but the sync path only logs it.
-	//
-	// To observe the error in the async path (where tear-down
-	// logic lives), we trigger a status notification after
-	// subscribe. Subscribe itself does an initial sync dial; we
-	// observe the merge loop tearing down the relay leg via the
-	// events channel.
+	// end-to-end against the httptest server. Seeding a waiting
+	// chat (below) keeps Subscribe's initial synchronous dial a
+	// no-op; we then push a running status notification to the
+	// merge loop so it invokes dialRelay via the async path, where
+	// the 401 tear-down logic lives.
 	cfg := entchatd.MultiReplicaSubscribeConfig{
 		ResolveReplicaAddress: func(_ context.Context, _ uuid.UUID) (string, bool) {
 			return srv.URL, true
@@ -746,7 +741,7 @@ func TestDialRelayReal401(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	user, org, model := seedChatDependencies(ctx, t, db)
-	// Seed a waiting chat — no sync dial — then push a running
+	// Seed a waiting chat - no sync dial - then push a running
 	// status notification to trigger the async dial via the real
 	// dialRelay path.
 	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-real-401")
@@ -791,8 +786,6 @@ waitErr:
 	require.NotNil(t, errEvent.Error)
 	require.Contains(t, errEvent.Error.Message, "relay authentication failed")
 	require.Contains(t, errEvent.Error.Message, "401")
-
-	_ = ps
 }
 
 // streamPathRE matches the chat stream endpoint path built by
