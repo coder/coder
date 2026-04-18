@@ -952,3 +952,7 @@ type UpsertConnectionLogParams struct {
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}

@@ -33,12 +33,20 @@ var ErrDroppedMessages = xerrors.New("dropped messages")
 // LatencyMeasureTimeout defines how often to trigger a new background latency measurement.
 const LatencyMeasureTimeout = time.Second * 10
 
+type Subscriber interface {
+	Subscribe(event string, listener Listener) (cancel func(), err error)
+	SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error)
+}
+
+type Publisher interface {
+	Publish(event string, message []byte) error
+}
+
 // Pubsub is a generic interface for broadcasting and receiving messages.
 // Implementors should assume high-availability with the backing implementation.
 type Pubsub interface {
-	Subscribe(event string, listener Listener) (cancel func(), err error)
-	SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error)
-	Publish(event string, message []byte) error
+	Subscriber
+	Publisher
 	Close() error
 }
 
