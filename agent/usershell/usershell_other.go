@@ -10,9 +10,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Get returns the /etc/passwd entry for the username provided.
+// Get returns the login shell of the username provided. This is taken
+// from /etc/passwd, falling back to $SHELL if the /etc/passwd entry
+// is a nologin shell or there is no entry for the given username.
 // Deprecated: use SystemEnvInfo.UserShell instead.
 func Get(username string) (string, error) {
+	envShell := os.Getenv("SHELL")
 	contents, err := os.ReadFile("/etc/passwd")
 	if err != nil {
 		return "", xerrors.Errorf("read /etc/passwd: %w", err)
@@ -26,10 +29,24 @@ func Get(username string) (string, error) {
 		if len(parts) < 7 {
 			return "", xerrors.Errorf("malformed user entry: %q", line)
 		}
-		return parts[6], nil
+
+		shell := parts[6]
+		if strings.HasSuffix(shell, "nologin") {
+			if envShell == "" {
+				return "", xerrors.Errorf("user %q has invalid shell: %q", username, shell)
+			}
+			if strings.HasSuffix(envShell, "nologin") || envShell == "/bin/false" {
+				return "", xerrors.Errorf("user %q has invalid shell in /etc/passwd: %q as well as $SHELL: %q", username, shell, envShell)
+			}
+			return envShell, nil
+		}
+		return shell, nil
 	}
-	if s := os.Getenv("SHELL"); s != "" {
-		return s, nil
+	if envShell == "" {
+		return "", xerrors.Errorf("shell for user %q not found in /etc/passwd or $SHELL", username)
 	}
-	return "", xerrors.Errorf("shell for user %q not found in /etc/passwd or $SHELL", username)
+	if strings.HasSuffix(envShell, "nologin") {
+		return "", xerrors.Errorf("shell for user %q not found in /etc/passwd and invalid shell %q was defined in $SHELL", username, envShell)
+	}
+	return envShell, nil
 }
