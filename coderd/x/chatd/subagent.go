@@ -373,7 +373,7 @@ func (p *Server) subagentTools(
 					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 					defer stopCancel()
 					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-						recordingID, parent.OwnerID, parent.WorkspaceID)
+						recordingID, parent.OwnerID, parent.WorkspaceID, parent.ID)
 				}
 				resp := map[string]any{
 					"chat_id": targetChatID.String(),

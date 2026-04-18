@@ -15,6 +15,11 @@ import {
   id = "e75f1212-834c-4183-8bed-d6817cac60a5"
 }
 
+import {
+  to = coderd_template.vscode_coder
+  id = "2d5caceb-c6a3-4c46-a81d-005d92b83ffd"
+}
+
 data "coderd_organization" "default" {
   is_default = true
 }
@@ -93,10 +98,9 @@ resource "coderd_template" "dogfood" {
   time_til_dormant_ms            = 8640000000
 }
 
-
 resource "coderd_template" "vscode_coder" {
   name            = "vscode-coder"
-  display_name    = "Write VS Code Extension on Coder"
+  display_name    = "Write Coder VS Code Extension on Coder"
   description     = "Develop the coder/vscode-coder VS Code extension on Coder."
   icon            = "/icon/code.svg"
   organization_id = data.coderd_organization.default.id

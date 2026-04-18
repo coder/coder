@@ -231,22 +231,40 @@ coderd_build_info{version="",revision=""} 0
 coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
-coderd_chatd_compaction_total{provider="",result=""} 0
+coderd_chatd_compaction_total{provider="",model="",result=""} 0
 # HELP coderd_chatd_message_count Number of messages in the prompt per LLM request.
 # TYPE coderd_chatd_message_count histogram
-coderd_chatd_message_count{provider=""} 0
+coderd_chatd_message_count{provider="",model=""} 0
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt per LLM request.
 # TYPE coderd_chatd_prompt_size_bytes histogram
-coderd_chatd_prompt_size_bytes{provider=""} 0
+coderd_chatd_prompt_size_bytes{provider="",model=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
-coderd_chatd_steps_total{provider=""} 0
+coderd_chatd_steps_total{provider="",model=""} 0
+# HELP coderd_chatd_stream_buffer_dropped_total Number of chat stream buffer events dropped due to the per-chat buffer cap.
+# TYPE coderd_chatd_stream_buffer_dropped_total counter
+coderd_chatd_stream_buffer_dropped_total 0
+# HELP coderd_chatd_stream_buffer_events Sum of current buffer lengths across all chat streams.
+# TYPE coderd_chatd_stream_buffer_events gauge
+coderd_chatd_stream_buffer_events 0
+# HELP coderd_chatd_stream_buffer_size_max Maximum current buffer length across all chat streams.
+# TYPE coderd_chatd_stream_buffer_size_max gauge
+coderd_chatd_stream_buffer_size_max 0
+# HELP coderd_chatd_stream_retries_total Total LLM stream retries.
+# TYPE coderd_chatd_stream_retries_total counter
+coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
+# HELP coderd_chatd_stream_subscribers Current number of chat stream subscribers across all chat streams.
+# TYPE coderd_chatd_stream_subscribers gauge
+coderd_chatd_stream_subscribers 0
+# HELP coderd_chatd_streams_active Current number of chat stream state entries (in-flight plus retained).
+# TYPE coderd_chatd_streams_active gauge
+coderd_chatd_streams_active 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool execution result.
 # TYPE coderd_chatd_tool_result_size_bytes histogram
-coderd_chatd_tool_result_size_bytes{provider="",tool_name=""} 0
+coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to first streamed chunk.
 # TYPE coderd_chatd_ttft_seconds histogram
-coderd_chatd_ttft_seconds{provider=""} 0
+coderd_chatd_ttft_seconds{provider="",model=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0
