@@ -273,6 +273,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetChatAdvisorConfig(ctx context.Context) (string, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -1183,6 +1184,7 @@ type sqlcQuerier interface {
 	// cumulative values for unique counts (accurate period totals). Request counts
 	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
+	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.

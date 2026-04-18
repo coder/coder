@@ -2573,6 +2573,17 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+	// The advisor configuration is a deployment-wide setting read by any
+	// authenticated chat user and by chatd when deciding whether to attach
+	// advisor behavior. We only require that an explicit actor is present
+	// in the context so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatAdvisorConfig(ctx)
+}
+
 func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	// Chat auto-archive is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context. The HTTP GET handler
@@ -7403,6 +7414,13 @@ func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.Ups
 		return false, err
 	}
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
+}
+
+func (q *querier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAdvisorConfig(ctx, value)
 }
 
 func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {

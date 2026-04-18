@@ -203,6 +203,14 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
+-- name: GetChatAdvisorConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config;
+
+-- name: UpsertChatAdvisorConfig :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config';
+
 -- GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 -- allows users to opt into chat debug logging when the deployment does
 -- not already force debug logging on globally.
