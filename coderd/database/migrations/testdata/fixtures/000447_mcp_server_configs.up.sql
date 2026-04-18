@@ -7,7 +7,6 @@ INSERT INTO mcp_server_configs (
     auth_type,
     availability,
     enabled,
-    allow_in_plan_mode,
     created_by,
     updated_by,
     created_at,
@@ -21,7 +20,6 @@ INSERT INTO mcp_server_configs (
     'none',
     'default_on',
     TRUE,
-    FALSE,
     '30095c71-380b-457a-8995-97b8ee6e5307', -- admin@coder.com
     '30095c71-380b-457a-8995-97b8ee6e5307', -- admin@coder.com
     '2024-01-01 00:00:00+00',
