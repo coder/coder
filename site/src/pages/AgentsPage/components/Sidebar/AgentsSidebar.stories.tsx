@@ -336,7 +336,7 @@ export const ActiveChatAncestryExpanded: Story = {
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
 
-export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
+export const RenameChatAvailableDuringRegeneration: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -351,6 +351,8 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		],
 		regeneratingTitleChatIds: ["regenerating-chat"],
+		onProposeTitle: fn(async () => "Proposed replacement"),
+		onRenameTitle: fn(async () => {}),
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -362,11 +364,16 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
+		// Regenerating chats still render their busy state in the
+		// sidebar so users can see why a title may be about to change.
 		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
 			"aria-busy",
 			"true",
 		);
 
+		// Rename is offered on both chats regardless of regeneration
+		// state. Generate inside the dialog has its own disabled-while-
+		// pending guard so the two actions don't compound.
 		await userEvent.click(
 			canvas.getByRole("button", {
 				name: "Open actions for Regenerating agent",
@@ -436,7 +443,10 @@ export const RenameChatSubmitsNewTitle: Story = {
 		});
 
 		await userEvent.clear(input);
-		await userEvent.type(input, "Renamed title");
+		await userEvent.type(input, "Renamed title", { delay: null });
+		await waitFor(() => {
+			expect(input).toHaveValue("Renamed title");
+		});
 		await userEvent.click(body.getByRole("button", { name: "Save" }));
 
 		// The sidebar forwards the edited title to its parent through
@@ -447,7 +457,6 @@ export const RenameChatSubmitsNewTitle: Story = {
 				"Renamed title",
 			);
 		});
-
 		// Dialog closes on success so the user returns to the chat list.
 		await waitFor(() => {
 			expect(
@@ -457,7 +466,7 @@ export const RenameChatSubmitsNewTitle: Story = {
 	},
 };
 
-export const RenameChatCancelKeepsOriginalTitle: Story = {
+export const CancellingRenameDialogKeepsTitle: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -498,6 +507,156 @@ export const RenameChatCancelKeepsOriginalTitle: Story = {
 		// the UI would briefly display a title the user rejected.
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 		expect(canvas.getByText("Keep me")).toBeInTheDocument();
+	},
+};
+
+export const RenameChatGenerateFillsInput: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate",
+				title: "Old title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => "AI suggested title"),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Old title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		// Generate asks the server for a suggestion but does not
+		// persist it. The suggestion replaces the input value so the
+		// user can review before saving.
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+		await waitFor(() => {
+			expect(input).toHaveValue("AI suggested title");
+		});
+		expect(args.onProposeTitle).toHaveBeenCalledWith("rename-generate");
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+	},
+};
+
+export const RenameChatGenerateErrorSurfacesAlert: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-error",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw new Error("Proposal provider is temporarily unavailable.");
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		// The error path renders an inline alert wired to the input via
+		// aria-describedby and flips aria-invalid on the input so
+		// assistive tech announces the problem.
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"Proposal provider is temporarily unavailable.",
+		);
+		await waitFor(() => {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		});
+		// Input value is unchanged so the user's typed text survives
+		// the failed generation.
+		expect(input).toHaveValue("Original title");
+	},
+};
+
+export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-cancel",
+				title: "Keep this one",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => "Server suggestion"),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep this one",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+		await waitFor(() => {
+			expect(input).toHaveValue("Server suggestion");
+		});
+
+		// Cancel after Generate must not save. The propose endpoint
+		// does not persist, so the original title is untouched in both
+		// the sidebar cache and on the server.
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+		expect(canvas.getByText("Keep this one")).toBeInTheDocument();
 	},
 };
 

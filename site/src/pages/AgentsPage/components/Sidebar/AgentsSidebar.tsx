@@ -54,6 +54,7 @@ import {
 	useContext,
 	useEffect,
 	useEffectEvent,
+	useId,
 	useRef,
 	useState,
 } from "react";
@@ -145,7 +146,7 @@ interface AgentsSidebarProps {
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	onRegenerateTitle?: (chatId: string) => Promise<string>;
+	onProposeTitle?: (chatId: string) => Promise<string>;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -782,7 +783,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onUnpinAgent,
 		onReorderPinnedAgent,
 		onRenameTitle,
-		onRegenerateTitle,
+		onProposeTitle,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -826,6 +827,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		string | null
 	>(null);
 	const renameInputRef = useRef<HTMLInputElement | null>(null);
+	// useId() keeps the rename input and error IDs unique across
+	// instances. The sidebar may mount on multiple routes, and the
+	// error ID is also referenced by aria-describedby — using hard-
+	// coded strings there risks collisions that break screen readers.
+	const renameInputId = useId();
+	const renameErrorId = `${renameInputId}-error`;
 
 	const chatTree = buildChatTree(chats);
 	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
@@ -1007,7 +1014,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setGenerateRenameTitleError(null);
 	};
 	const closeRenameDialog = () => {
-		if (isRenamingChat || isGeneratingRenameTitle) {
+		// Only block close on an in-flight Save. An in-flight Generate is
+		// safe to abandon — the proposal does not persist on the server,
+		// so cancelling simply discards the suggestion we haven't shown
+		// yet.
+		if (isRenamingChat) {
 			return;
 		}
 		setChatPendingRename(null);
@@ -1015,13 +1026,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setGenerateRenameTitleError(null);
 	};
 	const handleGenerateRenameTitle = async () => {
-		if (!chatPendingRename || !onRegenerateTitle) {
+		if (!chatPendingRename || !onProposeTitle) {
 			return;
 		}
 		setIsGeneratingRenameTitle(true);
 		setGenerateRenameTitleError(null);
 		try {
-			const newTitle = await onRegenerateTitle(chatPendingRename.id);
+			const newTitle = await onProposeTitle(chatPendingRename.id);
 			setRenameTitle(newTitle);
 			requestAnimationFrame(() => {
 				renameInputRef.current?.focus();
@@ -1042,10 +1053,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			return;
 		}
 		const trimmedTitle = renameTitle.trim();
-		if (!trimmedTitle || trimmedTitle === chatPendingRename.title) {
+		if (!trimmedTitle) {
 			closeRenameDialog();
 			return;
 		}
+		// Intentionally no `trimmedTitle === chatPendingRename.title`
+		// short-circuit here. The server handles same-title PATCHes as a
+		// cheap no-op (no updated_at bump, no pubsub fan-out), and adding
+		// the check on the client re-introduces a stale-snapshot bug: if
+		// the user generated a suggestion and then retyped the original
+		// title, `chatPendingRename.title` still holds the pre-generate
+		// value and the dialog would close without saving the user's
+		// explicit edit.
 		setIsRenamingChat(true);
 		try {
 			await onRenameTitle(chatPendingRename.id, trimmedTitle);
@@ -1454,10 +1473,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						});
 					}}
 					className="max-w-[440px] p-6 sm:p-6"
+					// Radix requires either a DialogDescription child or
+					// aria-describedby={undefined} to suppress its a11y
+					// warning. The rename dialog has no additional copy so
+					// we opt out explicitly, matching the in-repo
+					// convention (ImageLightbox, TextPreviewDialog,
+					// VideoLightbox).
+					aria-describedby={undefined}
 				>
+					{" "}
 					<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
 						<DialogTitle className="text-lg">Rename chat</DialogTitle>
-						{onRegenerateTitle && (
+						{onProposeTitle && (
 							<Button
 								type="button"
 								variant="subtle"
@@ -1486,7 +1513,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					>
 						<div className="space-y-1.5">
 							<Input
-								id="rename-chat-title"
+								id={renameInputId}
 								ref={renameInputRef}
 								value={renameTitle}
 								onChange={(event) => {
@@ -1500,14 +1527,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								aria-label="Chat title"
 								aria-invalid={generateRenameTitleError ? true : undefined}
 								aria-describedby={
-									generateRenameTitleError
-										? "rename-chat-generate-error"
-										: undefined
+									generateRenameTitleError ? renameErrorId : undefined
 								}
 							/>
 							{generateRenameTitleError && (
 								<p
-									id="rename-chat-generate-error"
+									id={renameErrorId}
 									role="alert"
 									className="m-0 text-xs text-content-destructive"
 								>

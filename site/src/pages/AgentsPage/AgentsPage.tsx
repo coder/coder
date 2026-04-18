@@ -436,7 +436,16 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	const startRegenerateTitle = (chatId: string): Promise<string> => {
+	// requestRegenerateTitle triggers a persisted title regeneration for a
+	// chat. It returns the eventual new title so callers that care (such as
+	// the chat top-bar "Regenerate title" action) can await it. Fire-and-
+	// forget callers may simply `void` the return value; the shared
+	// mutation onError already reports failures via toast.
+	//
+	// Concurrent calls for the same chat ID share a single in-flight
+	// request so a later Generate click cannot overwrite the result of an
+	// earlier click.
+	const requestRegenerateTitle = (chatId: string): Promise<string> => {
 		const existing = regeneratingTitlePromisesRef.current.get(chatId);
 		if (existing) {
 			return existing;
@@ -459,15 +468,14 @@ const AgentsPage: FC = () => {
 		regeneratingTitlePromisesRef.current.set(chatId, promise);
 		return promise;
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		void startRegenerateTitle(chatId).catch(() => {
-			// The shared mutation onError already reports the failure.
-		});
-	};
-	const requestRegenerateTitleWithResult = (
-		chatId: string,
-	): Promise<string> => {
-		return startRegenerateTitle(chatId);
+	// requestProposeTitle asks the server to generate a title suggestion
+	// without persisting it. The rename dialog's Generate button uses this
+	// so that Cancel truly means "nothing changed server-side". Failures
+	// surface via the inline alert inside the dialog; the caller handles
+	// the promise rejection.
+	const requestProposeTitle = async (chatId: string): Promise<string> => {
+		const result = await API.experimental.proposeChatTitle(chatId);
+		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
 		await renameTitleMutation.mutateAsync({ chatId, title });
@@ -755,7 +763,7 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
-				onRegenerateTitleWithResult={requestRegenerateTitleWithResult}
+				onProposeTitle={requestProposeTitle}
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}

@@ -62,8 +62,8 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
-	onRegenerateTitleWithResult: (chatId: string) => Promise<string>;
+	onRegenerateTitle: (chatId: string) => Promise<string>;
+	onProposeTitle: (chatId: string) => Promise<string>;
 	onRenameTitle: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
@@ -101,7 +101,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
 	onRegenerateTitle,
-	onRegenerateTitleWithResult,
+	onProposeTitle,
 	onRenameTitle,
 	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
@@ -144,7 +144,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		onRegenerateTitle,
+		onRegenerateTitle: (chatId: string) => {
+			void onRegenerateTitle(chatId);
+		},
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -180,7 +182,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onUnpinAgent={requestUnpinAgent}
 					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={onRenameTitle}
-					onRegenerateTitle={onRegenerateTitleWithResult}
+					onProposeTitle={onProposeTitle}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}

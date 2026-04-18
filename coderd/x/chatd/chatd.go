@@ -2110,6 +2110,189 @@ func (p *Server) RegenerateChatTitle(
 	return updatedChat, nil
 }
 
+// RenameChatTitle persists a user-supplied chat title, preserving the
+// chat's updated_at so an out-of-band rename does not reorder the
+// sidebar. It acquires the same manual-title lock as RegenerateChatTitle
+// so that a rename cannot race the async quick-title generator. The
+// caller is responsible for trimming and validating the new title.
+// Returns the stored chat unchanged when newTitle equals the current
+// title so callers can treat same-title updates as a no-op.
+func (p *Server) RenameChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+	newTitle string,
+) (database.Chat, error) {
+	// Reuse chatd's scoped auth context for cleanup of the lock marker
+	// while keeping chat ownership authorization at the HTTP layer.
+	//nolint:gocritic // Lock release needs chatd-scoped writes.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return database.Chat{}, err
+	}
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+
+	// Re-read under the lock to avoid overwriting a fresher title that
+	// landed between request receipt and lock acquisition (e.g. the
+	// async quick-title generator).
+	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get chat for rename: %w", err)
+	}
+	if newTitle == currentChat.Title {
+		return currentChat, nil
+	}
+
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: newTitle,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
+	}
+	return updatedChat, nil
+}
+
+// PublishTitleChange broadcasts a title_change event for the given
+// chat. Used by HTTP handlers that update a chat title outside of
+// chatd (e.g. the PATCH rename endpoint) so that the pubsub contract
+// stays owned by chatd.
+func (p *Server) PublishTitleChange(chat database.Chat) {
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+}
+
+// ProposeChatTitle generates a title suggestion from the chat's
+// visible messages without persisting it. Token usage is still
+// recorded so proposals count toward the user's spend. Returns an
+// empty string when there is no chat history to base a proposal on.
+// Callers must trim/validate the suggestion before any subsequent
+// persistence call.
+func (p *Server) ProposeChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+) (string, error) {
+	// Reuse chatd's scoped auth context for deployment-config lookups
+	// while keeping chat ownership authorization at the HTTP layer.
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID)
+	if err != nil {
+		return "", xerrors.Errorf("resolve chat providers: %w", err)
+	}
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return "", err
+	}
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+
+	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat, keys)
+	if err != nil {
+		var generationErr *manualTitleGenerationError
+		if errors.As(err, &generationErr) {
+			// Record the failed-generation usage so spend accounting
+			// stays accurate even when the model returns no object.
+			//nolint:gocritic // Failure accounting needs chatd-scoped writes.
+			recordCtx, recordCancel := context.WithTimeout(
+				dbauthz.AsChatd(context.WithoutCancel(ctx)),
+				5*time.Second,
+			)
+			defer recordCancel()
+			if _, recordErr := recordManualTitleUsage(
+				recordCtx,
+				p.db,
+				chat,
+				generationErr.modelConfig,
+				generationErr.usage,
+				"",
+			); recordErr != nil {
+				return "", errors.Join(
+					generationErr,
+					xerrors.Errorf("record manual title usage: %w", recordErr),
+				)
+			}
+			return "", generationErr
+		}
+		return "", err
+	}
+	return title, nil
+}
+
+// proposeChatTitleWithStore runs the title generator against the given
+// store and records token usage without persisting the title or
+// publishing an event. Returns an empty string when there are no
+// messages yet.
+func (p *Server) proposeChatTitleWithStore(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (string, error) {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
+		return "", limitErr
+	}
+
+	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chat.ID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
+	if err != nil {
+		return "", xerrors.Errorf("get head chat messages: %w", err)
+	}
+	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chat.ID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
+	if err != nil {
+		return "", xerrors.Errorf("get tail chat messages: %w", err)
+	}
+	messages := mergeManualTitleMessages(headMessages, tailMessages)
+	if len(messages) == 0 {
+		return "", nil
+	}
+
+	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
+	if err != nil {
+		return "", err
+	}
+
+	title, usage, err := generateManualTitle(ctx, messages, model)
+	if err != nil {
+		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
+		if usage == (fantasy.Usage{}) {
+			return "", wrappedErr
+		}
+		return "", &manualTitleGenerationError{
+			cause:       wrappedErr,
+			modelConfig: modelConfig,
+			usage:       usage,
+		}
+	}
+
+	// Record usage without persisting the title. Passing an empty
+	// newTitle short-circuits the title write in recordManualTitleUsage
+	// while still inserting the soft-deleted assistant message used for
+	// spend accounting.
+	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer recordCancel()
+	if _, recordErr := recordManualTitleUsage(
+		recordCtx,
+		store,
+		chat,
+		modelConfig,
+		usage,
+		"",
+	); recordErr != nil {
+		return "", xerrors.Errorf("record manual title usage: %w", recordErr)
+	}
+	return title, nil
+}
+
 func (p *Server) regenerateChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
