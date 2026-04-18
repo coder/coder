@@ -388,9 +388,6 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	const editFiles = parseEditFilesArgs(args);
 	// On error, render no diff: the agent rejected the edit, so a
 	// synthetic args-derived diff would misrepresent it as applied.
-	// Otherwise prefer the server-side diff per file, falling back
-	// to the synthetic one when the server omits the file (older
-	// agents, IncludeDiff=false, or a path mismatch).
 	const serverResults = parseServerEditResults(result);
 	const editDiffs = isError
 		? editFiles.map(() => null)

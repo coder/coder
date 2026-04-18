@@ -397,10 +397,8 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 	seenPaths := make(map[string]seenEntry, len(req.Files))
 	for _, f := range req.Files {
-		// If resolvePath errors (malformed path, symlink
-		// cycle), fall back to the raw path as the dedup
-		// key. prepareFileEdit will surface the same error
-		// with a proper status code in phase 1.
+		// On resolve error, use the raw path; phase 1 surfaces
+		// the error with its proper status code.
 		key := f.Path
 		if resolved, err := api.resolvePath(f.Path); err == nil {
 			key = resolved
@@ -473,12 +471,10 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	if req.IncludeDiff {
 		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
-			// udiff.Unified calls log.Fatalf on its internal
-			// consistency error, which would kill the agent
-			// process. Route through Lines + ToUnified so a
-			// future library bug falls through to an empty diff
-			// plus a log line instead of taking down all of the
-			// agent's sessions.
+			// udiff.Unified calls log.Fatalf on its internal error,
+			// which would kill the agent process. Route through
+			// Lines + ToUnified so a library bug yields an empty
+			// diff plus a log line instead.
 			edits := udiff.Lines(p.oldContent, p.content)
 			diff, err := udiff.ToUnified(p.origPath, p.origPath, p.oldContent, edits, udiff.DefaultContextLines)
 			if err != nil {
@@ -733,9 +729,7 @@ func atNoNewlineEOF(contentLines []string, end int) bool {
 }
 
 // leadOnly returns the leading whitespace of line (spaces and
-// tabs only), excluding the ending. Used when an inserted splice
-// line has to pick which side of the insertion boundary it
-// belongs to.
+// tabs only), excluding the ending.
 func leadOnly(line string) string {
 	//nolint:dogsled // splitLineParts is the shared decomposer; other parts are genuinely unused here.
 	lead, _, _, _ := splitLineParts(line)
@@ -778,8 +772,6 @@ func alignSearchReplace(searchLines, repLines []string) (prefix, suffix int) {
 //
 // Tabs take priority: any tab-indented line forces unit="\t" and any
 // space-only indent on another line marks the sample as mixed.
-// Callers use this to translate the caller's rep_level into the
-// file's indent style for inserted splice lines.
 func detectIndentUnit(lines []string) (string, bool) {
 	sawTab := false
 	sawSpace := false
@@ -804,8 +796,7 @@ func detectIndentUnit(lines []string) (string, bool) {
 				spaceGCD = indentGCD(spaceGCD, len(lead))
 			}
 		default:
-			// Mixed tab+space in a single lead; bail. Caller falls
-			// back to emitting rLead verbatim.
+			// Mixed tab+space in a single lead; bail.
 			return "", false
 		}
 	}
@@ -837,16 +828,6 @@ func indentGCD(a, b int) int {
 // from), cLead is the matched content's lead at that same
 // reference slot. Returns ("", false) when any of the leads are
 // not clean multiples of their respective units.
-//
-// The computation: each lead's length in its unit is its level.
-// The inserted line's depth in file_unit is
-//
-//	file_base + (rep_level - search_base)
-//
-// where file_base is the matched reference line's level and
-// search_base is the search reference line's level. This keeps
-// the nesting delta the caller expressed in their own indent
-// style while emitting in the file's style.
 func translateIndentLevel(rLead, sLead, cLead, searchUnit, fileUnit string) (string, bool) {
 	repLevel, ok := indentLevel(rLead, searchUnit)
 	if !ok {
@@ -986,21 +967,13 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 	}
 	prefix, suffix := alignSearchReplace(searchLines, repLines)
 
-	// Detect indent units once per splice for level-aware insertion.
-	// Combine search and replace so a zero-width search (single line,
-	// no indent info) still gets a unit from the replacement's
-	// inserted depths. matched drives the file unit. When either
-	// detection fails or a line's lead isn't a clean multiple of its
-	// unit, the inserted branch falls back to emitting cLead verbatim
-	// (current behavior).
+	// Combine search and replace so a zero-width search still
+	// informs the unit from the replacement's inserted depths.
+	// Fallback for detection failure lives in the inserted branch.
 	searchUnit, searchUnitOK := detectIndentUnit(append(append([]string(nil), searchLines...), repLines...))
 	fileUnit, fileUnitOK := detectIndentUnit(matched)
 	var b strings.Builder
 	for i, rLine := range repLines {
-		// Pair each repLines[i] with a searchLines index using
-		// the prefix/suffix alignment. Middle lines fall into
-		// substitution (paired by middle offset) or pure
-		// insertion (no search pair).
 		var refIdx int
 		inserted := false
 		searchMiddleLen := len(searchLines) - prefix - suffix
@@ -1051,20 +1024,8 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 		case rMid == "":
 			// Body-less: emit the replacement's whitespace verbatim.
 		case inserted:
-			// Middle line has no search pair. If we detected both
-			// indent units cleanly, translate the caller's indent
-			// level into the file's unit: the replacement's own
-			// rLead tells us the depth relative to the search's
-			// base; emit that same relative depth in file_unit.
-			//
-			// Example: file uses \t, caller sends 4sp search with
-			// inserted 8sp line; rep_level=2 over search_base=1,
-			// delta=1, file_base=1 -> emit "\t\t".
-			//
-			// Fall back to the old "inherit cLead" path when
-			// detection fails or leads aren't clean multiples of
-			// their units. This preserves behavior on malformed
-			// rep leads, zero-indent regions, and tab/space mixes.
+			// Translate the caller's indent level to the file's
+			// unit; fall back to cLead when detection fails.
 			lead = cLead
 			if searchUnitOK && fileUnitOK {
 				if translated, ok := translateIndentLevel(rLead, sLead, cLead, searchUnit, fileUnit); ok {

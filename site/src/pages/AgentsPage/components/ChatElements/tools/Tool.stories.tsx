@@ -881,12 +881,6 @@ export const EditFilesError: Story = {
 	},
 };
 
-/**
- * Server-side diff path: the agent returns a `files` array with
- * `{path, diff}` entries per file. The renderer must parse each
- * entry and match to its corresponding args file by the explicit
- * `path` field, without any label munging.
- */
 export const EditFilesServerDiffMultiFile: Story = {
 	args: {
 		name: "edit_files",
@@ -936,10 +930,6 @@ export const EditFilesServerDiffMultiFile: Story = {
 	},
 };
 
-/**
- * Server reported an empty diff for a no-op edit (search and replace
- * identical). The renderer still lists the file but renders no diff.
- */
 export const EditFilesServerDiffNoOp: Story = {
 	args: {
 		name: "edit_files",
@@ -965,17 +955,10 @@ export const EditFilesServerDiffNoOp: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
-		// Empty server diff parses to null; the renderer then skips
-		// the diff viewer for this file.
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
 	},
 };
 
-/**
- * Older agents (pre-IncludeDiff flag) return no `files` field. The
- * renderer must fall back to the synthetic client-side diff built
- * from the search/replace args.
- */
 export const EditFilesFallbackToSynthetic: Story = {
 	args: {
 		name: "edit_files",
@@ -993,23 +976,15 @@ export const EditFilesFallbackToSynthetic: Story = {
 				},
 			],
 		},
-		// Agent returns the legacy success response without diffs.
 		result: { ok: true },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
-		// Synthetic fallback: buildEditDiff produced one diff.
 		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
 	},
 };
 
-/**
- * Mixed server + synthetic path: the agent returns a `files` array
- * with a result for one file and omits the other. The renderer must
- * render the server diff for the matched file and fall back to the
- * synthetic diff for the unmatched file rather than dropping it.
- */
 export const EditFilesServerDiffPartialFallback: Story = {
 	args: {
 		name: "edit_files",
@@ -1038,8 +1013,6 @@ export const EditFilesServerDiffPartialFallback: Story = {
 		},
 		result: {
 			ok: true,
-			// Only the first file has a server-side entry; the second
-			// must fall back to the synthetic client-side diff.
 			files: [
 				{
 					path: "src/config.ts",
@@ -1051,8 +1024,6 @@ export const EditFilesServerDiffPartialFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
-		// Two diffs: server entry for config.ts, synthetic fallback
-		// for server.ts (which had no entry).
 		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
 	},
 };

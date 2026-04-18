@@ -620,10 +620,8 @@ export const parseServerEditResults = (
 };
 
 /**
- * Parses a single server-supplied unified diff string into a
- * FileDiffMetadata the diff viewer can render. Returns null when the
- * diff string is empty (no-op edits) or when the parser produces no
- * file entries.
+ * Parses a server-supplied unified diff. Returns null for empty
+ * strings (no-op edits) or when the parser produces no file entries.
  */
 export const parseServerEditDiffText = (
 	diff: string,

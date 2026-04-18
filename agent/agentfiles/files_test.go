@@ -2787,26 +2787,15 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 	require.Equal(t, expected, string(data))
 }
 
-// TestEditFiles_FuzzyIndent_InsertionLevelAware covers the class of
-// indent-propagation bugs that fire when the caller's search/replace
+// TestEditFiles_FuzzyIndent_InsertionLevelAware covers indent-
+// propagation bugs that fire when the caller's search/replace
 // whitespace differs from the file's (tab vs space, 2sp vs 4sp).
 //
-// Each case falls into one of two groups:
-//
 //   - Red_* cases assert the correct output that the indent-unit
-//     translation produces for inserted splice lines. The fix
-//     detects search_unit and file_unit per region and translates
-//     each inserted line's rep_level through the anchor.
-//
+//     translation produces for inserted splice lines.
 //   - Lock_* cases pin output for middle-substitution scenarios
-//     that the insertion-only fix does not cover. Unwrap (#6) is
-//     fully buggy; middle-rewrite (#7, #8) are partially correct
-//     (inserted lines translated, paired middle lines still leak
-//     caller whitespace). Tracked in CODAGT-214.
-//
-// The sibling TestEditFiles_ReplaceAll_FuzzyIndentGap follows the
-// same lock pattern for a different class: replace_all with pass 3
-// matching at multiple nesting depths.
+//     that the insertion-only fix does not cover; tracked in
+//     CODAGT-214.
 func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 	t.Parallel()
 
@@ -2823,11 +2812,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		edits    []edit
 		expected string
 	}{
-		// Red #1: wrap-in-block, tab file, 4sp LLM search.
-		// Inserted lines ("if verbose {", nested call, closing "}")
-		// must translate their 4sp/8sp rep levels to the file's tab
-		// unit. Pure insertion: prefix=1, suffix=0, two inserted
-		// middle lines past the single middle-substitution.
+		// Wrap an existing line in a new block. Tab file, 4sp caller.
 		{
 			name: "Red_WrapInBlock_TabFile_4spLLM",
 			content: "func main() {\n" +
@@ -2850,11 +2835,8 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Red #2: wrap-in-block, 2sp file (JS/TS/YAML style),
-		// 4sp LLM search. The most common real-world trigger:
-		// Claude/GPT default 4sp emitted into a 2sp-indented file.
-		// search_unit=4sp, file_unit=2sp; inserted 8sp rep_level=2
-		// must translate to 2sp*2=4sp file output.
+		// Wrap in a new block, 2sp file, 4sp caller. The common
+		// real-world trigger: Claude/GPT default 4sp into a 2sp file.
 		{
 			name: "Red_WrapInBlock_2spFile_4spLLM",
 			content: "function main() {\n" +
@@ -2877,9 +2859,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Red #3: single-line to multi-line expansion. Single
-		// search line, 4 replace lines. prefix=0, suffix=0, one
-		// middle-substitution plus three insertions.
+		// Expand a single line into an error-handling block.
 		{
 			name: "Red_SingleToMulti_ErrorHandling",
 			content: "func main() {\n" +
@@ -2902,11 +2882,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Red #4: insert a new validation block after an existing
-		// if-block. prefix=3, suffix=3, four insertions in the
-		// middle; one default-branch insertion (12sp, matches
-		// neither prefixRLead nor suffixRLead) must translate to
-		// 2 tabs rather than inheriting matched[4]'s 1-tab cLead.
+		// Insert a new validation block after an existing if-block.
 		{
 			name: "Red_InsertNewBlock_AfterExisting",
 			content: "func loadConfig() (*Config, error) {\n" +
@@ -2951,10 +2927,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Red #5: replace_all + pass 3 + expansion at two match
-		// sites. Each site has prefix=1, suffix=1, three inserted
-		// middle lines. The inserted "return" at 12sp must
-		// translate to 3 tabs (not 2) at both sites.
+		// replace_all + pass 3 + expansion at two sites.
 		{
 			name: "Red_ReplaceAll_Pass3_Expansion",
 			content: "func handlers() {\n" +
@@ -2995,13 +2968,8 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Lock #6: unwrap (decrease nesting). 4 search lines, 2
-		// replace lines, no inserted lines. Both output lines are
-		// middle-substitutions. The second middle-sub pairs with
-		// searchLines[1] (8sp) against replace's 4sp: disagreement
-		// fires, rLead wins, literal 4 spaces leak into a tab file.
-		// Scoped fix only touches inserted-line pairing; this stays
-		// red until middle-substitution follow-up.
+		// Unwrap (decrease nesting). All output lines are
+		// middle-substitutions; CODAGT-214 covers the fix.
 		{
 			name: "Lock_Unwrap_MiddleSubDisagreement",
 			content: "func main() {\n" +
@@ -3018,21 +2986,16 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				replace: "    doSomething()\n" +
 					"    doMore()",
 			}},
-			// Current output: first line tab-correct (sLead==rLead
-			// agreement, cLead="\t" wins); second line leaks 4
-			// literal spaces (sLead="        ", rLead="    ",
-			// disagreement -> rLead wins).
+			// Line 2 leaks 4 literal spaces (middle-sub disagreement
+			// rule: rLead wins when sLead != rLead).
 			expected: "func main() {\n" +
 				"\tdoSomething()\n" +
 				"    doMore()\n" +
 				"}\n",
 		},
 
-		// Lock #7: middle-rewrite with different nesting, tab
-		// file. Mixed fate: some middle-sub lines carry the bug,
-		// some insertions get fixed by the scoped change. The
-		// composite output stays wrong until middle-sub is also
-		// made level-aware.
+		// Middle-rewrite with different nesting, tab file. Mixed
+		// fate: inserted lines fixed, middle-subs still leak.
 		{
 			name: "Lock_MiddleRewrite_DifferentNesting_Tab",
 			content: "func transform(items []Item) []Result {\n" +
@@ -3062,11 +3025,8 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 					"    }\n" +
 					"    return results",
 			}},
-			// Post-scoped-fix output. Inserted lines at i=5 and i=6
-			// translate correctly to 2 tabs (were 1 tab pre-fix).
-			// Middle-sub bugs at i=3 and i=4 still leak literal
-			// 8sp/12sp into the tab-indented file. Middle-substitution
-			// follow-up will flip this to fully tab-correct output.
+			// Middle-sub lines (i=3, i=4) leak literal 8sp/12sp;
+			// the inserted } and append lines are tab-correct.
 			expected: "func transform(items []Item) []Result {\n" +
 				"\tvar results []Result\n" +
 				"\tfor _, item := range items {\n" +
@@ -3080,9 +3040,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 				"}\n",
 		},
 
-		// Lock #8: middle-rewrite with different nesting, 2sp
-		// file (JS/TS). Same class as lock #7 with a 2sp file.
-		// Still a middle-sub problem; still locked.
+		// Same class as lock #7, 2sp file (JS/TS).
 		{
 			name: "Lock_MiddleRewrite_DifferentNesting_2sp",
 			content: "function transform(items) {\n" +
@@ -3112,10 +3070,8 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 					"    }\n" +
 					"    return results;",
 			}},
-			// Post-scoped-fix output. Inserted lines at i=5 and i=6
-			// translate to 4sp (2-level in file_unit=2sp) instead of
-			// inheriting the 2sp cLead. Middle-sub bugs at i=3 and
-			// i=4 still leak literal 8sp/12sp. Same class as lock #7.
+			// Middle-sub lines (i=3, i=4) leak 8sp/12sp; the inserted
+			// } and push lines translate to 4sp correctly.
 			expected: "function transform(items) {\n" +
 				"  const results = [];\n" +
 				"  for (const item of items) {\n" +
