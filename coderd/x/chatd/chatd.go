@@ -19,6 +19,10 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -36,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -223,6 +228,223 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 		m[id] = true
 	}
 	return m
+}
+
+func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) codersdk.AdvisorConfig {
+	raw, err := p.db.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
+		return codersdk.AdvisorConfig{}
+	}
+
+	var cfg codersdk.AdvisorConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		logger.Warn(ctx, "failed to parse advisor config", slog.Error(err))
+		return codersdk.AdvisorConfig{}
+	}
+	return cfg
+}
+
+func applyAdvisorReasoningEffort(
+	providerOptions fantasy.ProviderOptions,
+	reasoningEffort string,
+) {
+	if providerOptions == nil {
+		return
+	}
+	reasoningEffort = strings.TrimSpace(reasoningEffort)
+	if reasoningEffort == "" {
+		return
+	}
+
+	if normalized := chatprovider.ReasoningEffortFromChat(
+		fantasyopenai.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		effort := fantasyopenai.ReasoningEffort(*normalized)
+		if raw, ok := providerOptions[fantasyopenai.Name]; ok {
+			switch opts := raw.(type) {
+			case *fantasyopenai.ProviderOptions:
+				opts.ReasoningEffort = &effort
+			case *fantasyopenai.ResponsesProviderOptions:
+				opts.ReasoningEffort = &effort
+			}
+		}
+		if raw, ok := providerOptions[fantasyopenaicompat.Name]; ok {
+			if opts, ok := raw.(*fantasyopenaicompat.ProviderOptions); ok {
+				opts.ReasoningEffort = &effort
+			}
+		}
+	}
+
+	if normalized := chatprovider.ReasoningEffortFromChat(
+		anthropic.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[anthropic.Name]; ok {
+			if opts, ok := raw.(*anthropic.ProviderOptions); ok {
+				effort := anthropic.Effort(*normalized)
+				opts.Effort = &effort
+			}
+		}
+	}
+
+	if normalized := chatprovider.ReasoningEffortFromChat(
+		fantasyopenrouter.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[fantasyopenrouter.Name]; ok {
+			if opts, ok := raw.(*fantasyopenrouter.ProviderOptions); ok {
+				if opts.Reasoning == nil {
+					opts.Reasoning = &fantasyopenrouter.ReasoningOptions{}
+				}
+				effort := fantasyopenrouter.ReasoningEffort(*normalized)
+				opts.Reasoning.Effort = &effort
+			}
+		}
+	}
+
+	if normalized := chatprovider.ReasoningEffortFromChat(
+		fantasyvercel.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[fantasyvercel.Name]; ok {
+			if opts, ok := raw.(*fantasyvercel.ProviderOptions); ok {
+				if opts.Reasoning == nil {
+					opts.Reasoning = &fantasyvercel.ReasoningOptions{}
+				}
+				effort := fantasyvercel.ReasoningEffort(*normalized)
+				opts.Reasoning.Effort = &effort
+			}
+		}
+	}
+}
+
+func (p *Server) resolveAdvisorModelOverride(
+	ctx context.Context,
+	chat database.Chat,
+	advisorCfg codersdk.AdvisorConfig,
+	fallbackModel fantasy.LanguageModel,
+	fallbackCallConfig codersdk.ChatModelCallConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+	logger slog.Logger,
+) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
+	if advisorCfg.ModelConfigID == uuid.Nil {
+		return fallbackModel, fallbackCallConfig
+	}
+
+	overrideConfig, err := p.configCache.ModelConfigByID(
+		ctx,
+		advisorCfg.ModelConfigID,
+	)
+	if err != nil {
+		logger.Warn(
+			ctx,
+			"failed to resolve advisor model config, continuing with chat model",
+			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackCallConfig
+	}
+
+	overrideCallConfig := codersdk.ChatModelCallConfig{}
+	if len(overrideConfig.Options) > 0 {
+		if err := json.Unmarshal(overrideConfig.Options, &overrideCallConfig); err != nil {
+			logger.Warn(
+				ctx,
+				"failed to parse advisor model config, continuing with chat model",
+				slog.F("model_config_id", advisorCfg.ModelConfigID),
+				slog.Error(err),
+			)
+			return fallbackModel, fallbackCallConfig
+		}
+	}
+
+	overrideModel, err := chatprovider.ModelFromConfig(
+		overrideConfig.Provider,
+		overrideConfig.Model,
+		providerKeys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+		nil,
+	)
+	if err != nil {
+		logger.Warn(
+			ctx,
+			"failed to create advisor override model, continuing with chat model",
+			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackCallConfig
+	}
+
+	return overrideModel, overrideCallConfig
+}
+
+func (p *Server) newAdvisorRuntime(
+	ctx context.Context,
+	chat database.Chat,
+	advisorCfg codersdk.AdvisorConfig,
+	fallbackModel fantasy.LanguageModel,
+	fallbackCallConfig codersdk.ChatModelCallConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+	logger slog.Logger,
+) *chatadvisor.Runtime {
+	advisorModel, advisorCallConfig := p.resolveAdvisorModelOverride(
+		ctx,
+		chat,
+		advisorCfg,
+		fallbackModel,
+		fallbackCallConfig,
+		providerKeys,
+		logger,
+	)
+
+	maxUsesPerRun := advisorCfg.MaxUsesPerRun
+	switch {
+	case maxUsesPerRun == 0:
+		// Advisor config treats 0 as unlimited, but the runtime
+		// requires a positive bound. maxChatSteps is the
+		// effective upper bound because advisor can run at most
+		// once per loop step.
+		maxUsesPerRun = maxChatSteps
+	case maxUsesPerRun < 0:
+		logger.Warn(
+			ctx,
+			"invalid advisor max uses per run, continuing without advisor",
+			slog.F("max_uses_per_run", maxUsesPerRun),
+		)
+		return nil
+	}
+
+	maxOutputTokens := advisorCfg.MaxOutputTokens
+	if maxOutputTokens <= 0 {
+		maxOutputTokens = 16384
+	}
+
+	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+		advisorModel,
+		advisorCallConfig.ProviderOptions,
+	)
+	applyAdvisorReasoningEffort(providerOptions, advisorCfg.ReasoningEffort)
+
+	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model:           advisorModel,
+		ModelConfig:     advisorCallConfig,
+		ProviderOptions: providerOptions,
+		MaxUsesPerRun:   maxUsesPerRun,
+		MaxOutputTokens: maxOutputTokens,
+	})
+	if err != nil {
+		logger.Warn(
+			ctx,
+			"failed to create advisor runtime, continuing without advisor",
+			slog.Error(err),
+		)
+		return nil
+	}
+	return rt
 }
 
 // cachedWorkspaceMCPTools stores workspace MCP tools discovered
@@ -5782,7 +6004,6 @@ func (p *Server) loadPlanModeInstructions(
 		)
 		return ""
 	}
-
 	return fetched
 }
 
@@ -6033,6 +6254,26 @@ func (p *Server) runChat(
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
+
+	advisorCfg := p.loadAdvisorConfig(ctx, logger)
+
+	var advisorRuntime *chatadvisor.Runtime
+	if advisorCfg.Enabled && !chat.ParentChatID.Valid {
+		advisorRuntime = p.newAdvisorRuntime(
+			ctx,
+			chat,
+			advisorCfg,
+			model,
+			callConfig,
+			providerKeys,
+			logger,
+		)
+	}
+
+	var advisorPromptSnapshot []fantasy.Message
+	setAdvisorPromptSnapshot := func(msgs []fantasy.Message) {
+		advisorPromptSnapshot = slices.Clone(msgs)
+	}
 
 	chainInfo := resolveChainMode(messages)
 	result.PushSummaryModel = model
@@ -6336,6 +6577,10 @@ func (p *Server) runChat(
 			isRootChat:           isRootChat,
 		},
 	)
+	// Inject advisor guidance when the advisor runtime is available.
+	if advisorRuntime != nil {
+		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
+	}
 	if mcpCleanup != nil {
 		defer mcpCleanup()
 	}
@@ -6352,6 +6597,7 @@ func (p *Server) runChat(
 
 	instructionInjected := instruction != ""
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
+	setAdvisorPromptSnapshot(prompt)
 	// Use the model config's context_limit as a fallback when the LLM
 	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
@@ -6742,6 +6988,19 @@ func (p *Server) runChat(
 			chattool.ReadSkillFile(skillOpts),
 		)
 	}
+	if advisorRuntime != nil {
+		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
+			Runtime: advisorRuntime,
+			GetConversationSnapshot: func() []fantasy.Message {
+				return slices.Clone(advisorPromptSnapshot)
+			},
+		}))
+	}
+
+	var exclusiveToolNames map[string]bool
+	if advisorRuntime != nil {
+		exclusiveToolNames = map[string]bool{"advisor": true}
+	}
 
 	// Record builtin tool names before appending MCP tools
 	// so the metrics layer can differentiate between built-in and MCP tools.
@@ -6905,15 +7164,16 @@ func (p *Server) runChat(
 	}()
 
 	loopErr = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:            model,
-		Messages:         prompt,
-		Tools:            tools,
-		ActiveTools:      activeToolNames,
-		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		MaxSteps:         maxChatSteps,
-		Metrics:          p.metrics,
-		Logger:           loopLogger,
-		BuiltinToolNames: builtinToolNames,
+		Model:              model,
+		Messages:           prompt,
+		Tools:              tools,
+		ActiveTools:        activeToolNames,
+		StopAfterTools:     stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+		MaxSteps:           maxChatSteps,
+		Metrics:            p.metrics,
+		Logger:             loopLogger,
+		BuiltinToolNames:   builtinToolNames,
+		ExclusiveToolNames: exclusiveToolNames,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: providerOptions,
@@ -6957,6 +7217,10 @@ func (p *Server) runChat(
 			chatsanitize.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
 			)
+			// Re-inject advisor guidance after compaction/reload.
+			if advisorRuntime != nil {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, chatadvisor.ParentGuidanceBlock)
+			}
 			// Re-derive instruction and skills from the reloaded
 			// messages so that any context added during the
 			// chatloop (e.g. via persistInstructionFiles when
@@ -6995,12 +7259,14 @@ func (p *Server) runChat(
 					chainInfo,
 				)
 			}
+			setAdvisorPromptSnapshot(reloadedPrompt)
 			return reloadedPrompt, nil
 		},
 		DisableChainMode: func() {
 			chainModeActive = false
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			setAdvisorPromptSnapshot(msgs)
 			if instructionInjected || instruction == "" {
 				return nil
 			}
@@ -7009,6 +7275,7 @@ func (p *Server) runChat(
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				result = chatprompt.InsertSystem(result, skillIndex)
 			}
+			setAdvisorPromptSnapshot(result)
 			return result
 		},
 		OnRetry: func(
