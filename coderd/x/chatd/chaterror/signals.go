@@ -37,11 +37,15 @@ var (
 		"broken pipe",
 		"bad gateway",
 		"gateway timeout",
-		// HTTP/2 transport-layer failures (force-closed streams,
-		// GOAWAY, etc). Classify as transient so the retry loop
+		// Transport-layer failures (HTTP/2 force-closed streams,
+		// GOAWAY, closed network connections). "client conn"
+		// covers all of the stdlib http2 ClientConn errors:
+		// "client conn is closed", "client conn not usable",
+		// "client conn could not be established",
+		// "client connection force closed via ClientConn.Close",
+		// and "client connection lost". Retryable so the loop
 		// drives and the user sees a per-provider message.
-		"force closed",
-		"clientconn.close",
+		"client conn",
 		"goaway",
 		"http2: stream closed",
 		"use of closed network connection",

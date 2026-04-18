@@ -221,6 +221,10 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "BrokenPipeLiteral", err: "broken pipe", wantKind: chaterror.KindTimeout, wantRetry: true},
 		{name: "BadGatewayLiteral", err: "bad gateway", wantKind: chaterror.KindTimeout, wantRetry: true},
 		{name: "GatewayTimeoutLiteral", err: "gateway timeout", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "ClientConnLiteral", err: "client conn", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "GOAWAYLiteral", err: "goaway", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "HTTP2StreamClosedLiteral", err: "http2: stream closed", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "UseOfClosedNetworkConnectionLiteral", err: "use of closed network connection", wantKind: chaterror.KindTimeout, wantRetry: true},
 		{name: "AuthenticationLiteral", err: "authentication", wantKind: chaterror.KindAuth, wantRetry: false},
 		{name: "UnauthorizedLiteral", err: "unauthorized", wantKind: chaterror.KindAuth, wantRetry: false},
 		{name: "InvalidAPIKeyLiteral", err: "invalid api key", wantKind: chaterror.KindAuth, wantRetry: false},
@@ -322,6 +326,22 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			name: "UseOfClosedNetworkConnectionOnPOST",
 			err:  `Post "https://example.com/v1/messages": use of closed network connection`,
 		},
+		{
+			name: "HTTP2ClientConnIsClosed",
+			err:  "http2: client conn is closed",
+		},
+		{
+			name: "HTTP2ClientConnNotUsable",
+			err:  "http2: client conn not usable",
+		},
+		{
+			name: "HTTP2ClientConnNotEstablished",
+			err:  "http2: client conn could not be established",
+		},
+		{
+			name: "HTTP2ClientConnectionLost",
+			err:  "http2: client connection lost",
+		},
 	}
 
 	for _, tt := range transportOnly {
@@ -403,6 +423,20 @@ func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
 		{
 			name:          "HTTP2With401",
 			err:           "http2: 401 unauthorized",
+			wantKind:      chaterror.KindAuth,
+			wantRetryable: false,
+			wantStatus:    401,
+		},
+		{
+			name:          "ClientConnWith429RateLimitWins",
+			err:           "http2: client conn is closed: status 429 Too Many Requests",
+			wantKind:      chaterror.KindRateLimit,
+			wantRetryable: true,
+			wantStatus:    429,
+		},
+		{
+			name:          "GOAWAYWith401AuthWins",
+			err:           "http2: server sent GOAWAY: status 401 unauthorized",
 			wantKind:      chaterror.KindAuth,
 			wantRetryable: false,
 			wantStatus:    401,
