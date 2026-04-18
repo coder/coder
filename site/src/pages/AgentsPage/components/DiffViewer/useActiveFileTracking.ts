@@ -77,6 +77,12 @@ export function useActiveFileTracking({
 		const viewport = viewportRef.current;
 		if (!viewport) return;
 
+		// Percentage rootMargin values resolve against the root's width
+		// (per CSS spec), not its height. Compute an explicit pixel value
+		// from the viewport height so the observation strip is reliably
+		// 5% of the visible height regardless of aspect ratio.
+		const bottomMargin = Math.round(viewport.clientHeight * 0.95);
+
 		// Track which files currently intersect the top strip.
 		const intersecting = new Set<string>();
 
@@ -102,8 +108,8 @@ export function useActiveFileTracking({
 			},
 			{
 				root: viewport,
-				// Observe only the top ~5% strip of the viewport.
-				rootMargin: "0px 0px -95% 0px",
+				// Observe only the top ~5% strip of the viewport height.
+				rootMargin: `0px 0px -${bottomMargin}px 0px`,
 				threshold: 0,
 			},
 		);
