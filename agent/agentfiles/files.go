@@ -785,8 +785,12 @@ func detectIndentUnit(lines []string) (string, bool) {
 	sawSpace := false
 	var spaceGCD int
 	for _, l := range lines {
-		lead := leadOnly(l)
-		if lead == "" {
+		lead, mid, _, _ := splitLineParts(l)
+		// Skip body-less lines: a blank line or a line with only
+		// trailing whitespace has no indent signal. Otherwise a
+		// 2sp whitespace-only line on a 4sp file would corrupt
+		// the GCD down to 2sp and emit the wrong unit.
+		if lead == "" || mid == "" {
 			continue
 		}
 		switch {
