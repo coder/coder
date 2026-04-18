@@ -4221,6 +4221,112 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var resp codersdk.AdvisorConfig
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored advisor configuration is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if resp.MaxUsesPerRun < 0 {
+		resp.MaxUsesPerRun = 0
+	}
+	if resp.MaxOutputTokens < 0 {
+		resp.MaxOutputTokens = 0
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateAdvisorConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.MaxUsesPerRun < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_uses_per_run must be non-negative.",
+		})
+		return
+	}
+	if req.MaxOutputTokens < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_output_tokens must be non-negative.",
+		})
+		return
+	}
+	switch req.ReasoningEffort {
+	case "", "low", "medium", "high":
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "reasoning_effort is invalid.",
+			Detail:  `reasoning_effort must be one of "", "low", "medium", or "high".`,
+		})
+		return
+	}
+	if req.ModelConfigID != uuid.Nil {
+		// Use system context because GetChatModelConfigByID requires
+		// deployment-config read access, which can be broader than the
+		// handler's explicit update check. The lookup only validates that
+		// the referenced model exists before persisting deployment config.
+		//nolint:gocritic // This admin-authorized validation lookup intentionally bypasses read authz.
+		if _, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "model_config_id is invalid.",
+					Detail:  "unknown model_config_id",
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating advisor model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	raw, err := json.Marshal(req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatAdvisorConfig(ctx, string(raw)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	raw, err := api.Database.GetChatWorkspaceTTL(ctx)

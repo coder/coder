@@ -11141,6 +11141,146 @@ func TestChatDebugRun(t *testing.T) {
 	})
 }
 
+func TestChatAdvisorConfig_GetDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AdvisorConfig{}, resp)
+}
+
+func TestChatAdvisorConfig_Update(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	want := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   5,
+		MaxOutputTokens: 1024,
+		ReasoningEffort: "high",
+	}
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, resp)
+}
+
+func TestChatAdvisorConfig_UnauthorizedUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	want := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 256,
+	}
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, resp)
+
+	err = memberClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		Enabled: true,
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	resp, err = adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, resp)
+}
+
+func TestChatAdvisorConfig_InvalidReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ReasoningEffort: "ultra",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "reasoning_effort is invalid.", sdkErr.Message)
+}
+
+func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ModelConfigID: uuid.New(),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "model_config_id is invalid.", sdkErr.Message)
+	require.Equal(t, "unknown model_config_id", sdkErr.Detail)
+}
+
+func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	want := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   0,
+		MaxOutputTokens: 0,
+	}
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, resp)
+}
+
+func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	stored := `{"enabled":true,"max_uses_per_run":-3,"max_output_tokens":-99}`
+	err := db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), stored)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   0,
+		MaxOutputTokens: 0,
+	}, resp)
+
+	raw, err := db.GetChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx))
+	require.NoError(t, err)
+	require.JSONEq(t, stored, raw)
+}
+
 func TestChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
