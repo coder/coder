@@ -2796,6 +2796,388 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 	require.Equal(t, expected, string(data))
 }
 
+// TestEditFiles_FuzzyIndent_InsertionLevelAware covers the class of
+// indent-propagation bugs that fire when the caller's search/replace
+// whitespace differs from the file's (tab vs space, 2sp vs 4sp).
+//
+// Each case falls into one of two groups:
+//
+//   - red:  asserts the CORRECT output. These currently fail and are
+//     expected to turn green once buildReplacementLines grows
+//     level-aware indent for inserted splice lines (the scoped fix:
+//     detect search_unit and file_unit per region, translate each
+//     inserted line's rep_level through the anchor).
+//
+//   - lock: pins CURRENT buggy output for middle-substitution cases
+//     (unwrap and middle-rewrite). Those bugs sit in the non-inserted
+//     default branch, which the scoped fix does not touch. They need
+//     the same level-aware reasoning extended to paired middle lines;
+//     a follow-up ticket tracks that work. When that lands, these
+//     locks flip to assert the correct output.
+//
+// The sibling TestEditFiles_ReplaceAll_FuzzyIndentGap follows the same
+// lock pattern for the `replace_all` + pass-3 fuzzy foot-gun.
+func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+		replaceAll      bool
+	}
+	tests := []struct {
+		name     string
+		kind     string // "red" or "lock"
+		content  string
+		edits    []edit
+		expected string
+	}{
+		// Red #1: wrap-in-block, tab file, 4sp LLM search.
+		// Inserted lines ("if verbose {", nested call, closing "}")
+		// must translate their 4sp/8sp rep levels to the file's tab
+		// unit. Pure insertion: prefix=1, suffix=0, two inserted
+		// middle lines past the single middle-substitution.
+		{
+			name: "Red_WrapInBlock_TabFile_4spLLM",
+			kind: "red",
+			content: "func main() {\n" +
+				"\tfmt.Println(\"hello\")\n" +
+				"\tfmt.Println(\"world\")\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    fmt.Println(\"hello\")\n" +
+					"    fmt.Println(\"world\")",
+				replace: "    fmt.Println(\"hello\")\n" +
+					"    if verbose {\n" +
+					"        fmt.Println(\"world\")\n" +
+					"    }",
+			}},
+			expected: "func main() {\n" +
+				"\tfmt.Println(\"hello\")\n" +
+				"\tif verbose {\n" +
+				"\t\tfmt.Println(\"world\")\n" +
+				"\t}\n" +
+				"}\n",
+		},
+
+		// Red #2: wrap-in-block, 2sp file (JS/TS/YAML style),
+		// 4sp LLM search. The most common real-world trigger:
+		// Claude/GPT default 4sp emitted into a 2sp-indented file.
+		// search_unit=4sp, file_unit=2sp; inserted 8sp rep_level=2
+		// must translate to 2sp*2=4sp file output.
+		{
+			name: "Red_WrapInBlock_2spFile_4spLLM",
+			kind: "red",
+			content: "function main() {\n" +
+				"  console.log('hello')\n" +
+				"  console.log('world')\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    console.log('hello')\n" +
+					"    console.log('world')",
+				replace: "    console.log('hello')\n" +
+					"    if (verbose) {\n" +
+					"        console.log('world')\n" +
+					"    }",
+			}},
+			expected: "function main() {\n" +
+				"  console.log('hello')\n" +
+				"  if (verbose) {\n" +
+				"    console.log('world')\n" +
+				"  }\n" +
+				"}\n",
+		},
+
+		// Red #3: single-line to multi-line expansion. Single
+		// search line, 4 replace lines. prefix=0, suffix=0, one
+		// middle-substitution plus three insertions.
+		{
+			name: "Red_SingleToMulti_ErrorHandling",
+			kind: "red",
+			content: "func main() {\n" +
+				"\tx := getValue()\n" +
+				"\tfmt.Println(x)\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    x := getValue()",
+				replace: "    x, err := getValue()\n" +
+					"    if err != nil {\n" +
+					"        log.Fatal(err)\n" +
+					"    }",
+			}},
+			expected: "func main() {\n" +
+				"\tx, err := getValue()\n" +
+				"\tif err != nil {\n" +
+				"\t\tlog.Fatal(err)\n" +
+				"\t}\n" +
+				"\tfmt.Println(x)\n" +
+				"}\n",
+		},
+
+		// Red #4: insert a new validation block after an existing
+		// if-block. prefix=3, suffix=3, four insertions in the
+		// middle; one default-branch insertion (12sp, matches
+		// neither prefixRLead nor suffixRLead) must translate to
+		// 2 tabs rather than inheriting matched[4]'s 1-tab cLead.
+		{
+			name: "Red_InsertNewBlock_AfterExisting",
+			kind: "red",
+			content: "func loadConfig() (*Config, error) {\n" +
+				"\tvar cfg Config\n" +
+				"\terr = json.Unmarshal(data, \u0026cfg)\n" +
+				"\tif err != nil {\n" +
+				"\t\treturn nil, err\n" +
+				"\t}\n" +
+				"\n" +
+				"\treturn \u0026cfg, nil\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    var cfg Config\n" +
+					"    err = json.Unmarshal(data, \u0026cfg)\n" +
+					"    if err != nil {\n" +
+					"        return nil, err\n" +
+					"    }\n" +
+					"\n" +
+					"    return \u0026cfg, nil",
+				replace: "    var cfg Config\n" +
+					"    err = json.Unmarshal(data, \u0026cfg)\n" +
+					"    if err != nil {\n" +
+					"        return nil, fmt.Errorf(\"unmarshal: %w\", err)\n" +
+					"    }\n" +
+					"    if err := cfg.Validate(); err != nil {\n" +
+					"        return nil, fmt.Errorf(\"validate: %w\", err)\n" +
+					"    }\n" +
+					"\n" +
+					"    return \u0026cfg, nil",
+			}},
+			expected: "func loadConfig() (*Config, error) {\n" +
+				"\tvar cfg Config\n" +
+				"\terr = json.Unmarshal(data, \u0026cfg)\n" +
+				"\tif err != nil {\n" +
+				"\t\treturn nil, fmt.Errorf(\"unmarshal: %w\", err)\n" +
+				"\t}\n" +
+				"\tif err := cfg.Validate(); err != nil {\n" +
+				"\t\treturn nil, fmt.Errorf(\"validate: %w\", err)\n" +
+				"\t}\n" +
+				"\n" +
+				"\treturn \u0026cfg, nil\n" +
+				"}\n",
+		},
+
+		// Red #5: replace_all + pass 3 + expansion at two match
+		// sites. Each site has prefix=1, suffix=1, three inserted
+		// middle lines. The inserted "return" at 12sp must
+		// translate to 3 tabs (not 2) at both sites.
+		{
+			name: "Red_ReplaceAll_Pass3_Expansion",
+			kind: "red",
+			content: "func handlers() {\n" +
+				"\thttp.HandleFunc(\"/a\", func(w http.ResponseWriter, r *http.Request) {\n" +
+				"\t\tdata := readBody(r)\n" +
+				"\t\tprocess(data)\n" +
+				"\t})\n" +
+				"\thttp.HandleFunc(\"/b\", func(w http.ResponseWriter, r *http.Request) {\n" +
+				"\t\tdata := readBody(r)\n" +
+				"\t\tprocess(data)\n" +
+				"\t})\n" +
+				"}\n",
+			edits: []edit{{
+				search: "        data := readBody(r)\n" +
+					"        process(data)",
+				replace: "        data := readBody(r)\n" +
+					"        if data == nil {\n" +
+					"            return\n" +
+					"        }\n" +
+					"        process(data)",
+				replaceAll: true,
+			}},
+			expected: "func handlers() {\n" +
+				"\thttp.HandleFunc(\"/a\", func(w http.ResponseWriter, r *http.Request) {\n" +
+				"\t\tdata := readBody(r)\n" +
+				"\t\tif data == nil {\n" +
+				"\t\t\treturn\n" +
+				"\t\t}\n" +
+				"\t\tprocess(data)\n" +
+				"\t})\n" +
+				"\thttp.HandleFunc(\"/b\", func(w http.ResponseWriter, r *http.Request) {\n" +
+				"\t\tdata := readBody(r)\n" +
+				"\t\tif data == nil {\n" +
+				"\t\t\treturn\n" +
+				"\t\t}\n" +
+				"\t\tprocess(data)\n" +
+				"\t})\n" +
+				"}\n",
+		},
+
+		// Lock #6: unwrap (decrease nesting). 4 search lines, 2
+		// replace lines, no inserted lines. Both output lines are
+		// middle-substitutions. The second middle-sub pairs with
+		// searchLines[1] (8sp) against replace's 4sp: disagreement
+		// fires, rLead wins, literal 4 spaces leak into a tab file.
+		// Scoped fix only touches inserted-line pairing; this stays
+		// red until middle-substitution follow-up.
+		{
+			name: "Lock_Unwrap_MiddleSubDisagreement",
+			kind: "lock",
+			content: "func main() {\n" +
+				"\tif condition {\n" +
+				"\t\tdoSomething()\n" +
+				"\t\tdoMore()\n" +
+				"\t}\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    if condition {\n" +
+					"        doSomething()\n" +
+					"        doMore()\n" +
+					"    }",
+				replace: "    doSomething()\n" +
+					"    doMore()",
+			}},
+			// Current output: first line tab-correct (sLead==rLead
+			// agreement, cLead="\t" wins); second line leaks 4
+			// literal spaces (sLead="        ", rLead="    ",
+			// disagreement -> rLead wins).
+			expected: "func main() {\n" +
+				"\tdoSomething()\n" +
+				"    doMore()\n" +
+				"}\n",
+		},
+
+		// Lock #7: middle-rewrite with different nesting, tab
+		// file. Mixed fate: some middle-sub lines carry the bug,
+		// some insertions get fixed by the scoped change. The
+		// composite output stays wrong until middle-sub is also
+		// made level-aware.
+		{
+			name: "Lock_MiddleRewrite_DifferentNesting_Tab",
+			kind: "lock",
+			content: "func transform(items []Item) []Result {\n" +
+				"\tvar results []Result\n" +
+				"\tfor _, item := range items {\n" +
+				"\t\tif item.Valid {\n" +
+				"\t\t\tresults = append(results, convert(item))\n" +
+				"\t\t}\n" +
+				"\t}\n" +
+				"\treturn results\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    var results []Result\n" +
+					"    for _, item := range items {\n" +
+					"        if item.Valid {\n" +
+					"            results = append(results, convert(item))\n" +
+					"        }\n" +
+					"    }\n" +
+					"    return results",
+				replace: "    var results []Result\n" +
+					"    for _, item := range items {\n" +
+					"        result, err := convert(item)\n" +
+					"        if err != nil {\n" +
+					"            continue\n" +
+					"        }\n" +
+					"        results = append(results, result)\n" +
+					"    }\n" +
+					"    return results",
+			}},
+			// Current output (pre-fix): inserted-line bugs cancel
+			// some leaks (i=5 and i=6 pick the right branch because
+			// inserted = lead = cLead = "\t"), middle-sub bugs leak
+			// 8sp/12sp literal indent at i=3 and i=4.
+			expected: "func transform(items []Item) []Result {\n" +
+				"\tvar results []Result\n" +
+				"\tfor _, item := range items {\n" +
+				"\t\tresult, err := convert(item)\n" +
+				"        if err != nil {\n" +
+				"            continue\n" +
+				"\t}\n" +
+				"\tresults = append(results, result)\n" +
+				"\t}\n" +
+				"\treturn results\n" +
+				"}\n",
+		},
+
+		// Lock #8: middle-rewrite with different nesting, 2sp
+		// file (JS/TS). Same class as lock #7 with a 2sp file.
+		// Still a middle-sub problem; still locked.
+		{
+			name: "Lock_MiddleRewrite_DifferentNesting_2sp",
+			kind: "lock",
+			content: "function transform(items) {\n" +
+				"  const results = [];\n" +
+				"  for (const item of items) {\n" +
+				"    if (item.valid) {\n" +
+				"      results.push(convert(item));\n" +
+				"    }\n" +
+				"  }\n" +
+				"  return results;\n" +
+				"}\n",
+			edits: []edit{{
+				search: "    const results = [];\n" +
+					"    for (const item of items) {\n" +
+					"        if (item.valid) {\n" +
+					"            results.push(convert(item));\n" +
+					"        }\n" +
+					"    }\n" +
+					"    return results;",
+				replace: "    const results = [];\n" +
+					"    for (const item of items) {\n" +
+					"        const result = convert(item);\n" +
+					"        if (!result) {\n" +
+					"            continue;\n" +
+					"        }\n" +
+					"        results.push(result);\n" +
+					"    }\n" +
+					"    return results;",
+			}},
+			// Current output (pre-fix): inserted lines at i=5 and i=6
+			// inherit 2sp cLead. Middle-sub bugs at i=3 and i=4 leak
+			// literal 8sp/12sp. Same class as lock #7.
+			expected: "function transform(items) {\n" +
+				"  const results = [];\n" +
+				"  for (const item of items) {\n" +
+				"    const result = convert(item);\n" +
+				"        if (!result) {\n" +
+				"            continue;\n" +
+				"  }\n" +
+				"  results.push(result);\n" +
+				"  }\n" +
+				"  return results;\n" +
+				"}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "fuzzyindent-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{
+					Path:  path,
+					Edits: make([]workspacesdk.FileEdit, 0, len(tt.edits)),
+				}},
+			}
+			for _, e := range tt.edits {
+				req.Files[0].Edits = append(req.Files[0].Edits, workspacesdk.FileEdit{
+					Search:     e.search,
+					Replace:    e.replace,
+					ReplaceAll: e.replaceAll,
+				})
+			}
+
+			_ = runEditFiles(t, api, req)
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, string(data))
+		})
+	}
+}
+
 // TestFuzzyReplace_Expansion_PreservesFileIndent pins that when
 // replace has more lines than search, every spliced line keeps
 // the file's indent style. Inserted lines especially must not
