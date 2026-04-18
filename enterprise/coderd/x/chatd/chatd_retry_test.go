@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -357,6 +358,112 @@ func TestRelayStopsAfterIntermittentCap(t *testing.T) {
 	totalDials := callCount.Load()
 	require.Equal(t, int32(7), totalDials,
 		"expected exactly relayMaxRetries+1 dials before cap; got %d", totalDials)
+}
+
+// chatByIDErrorStore wraps a database.Store and forces GetChatByID
+// to return a caller-supplied error once after N successful calls.
+// This lets the initial Subscribe call succeed (OSS's initial state
+// load needs a real Chat to wire up the relay) while subsequent
+// reconnect-branch calls exercise the DB-error retry path.
+type chatByIDErrorStore struct {
+	database.Store
+	err      error
+	okRemain atomic.Int32 // number of calls allowed to delegate before erroring.
+}
+
+func (s *chatByIDErrorStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if s.okRemain.Add(-1) >= 0 {
+		return s.Store.GetChatByID(ctx, id)
+	}
+	return database.Chat{}, s.err
+}
+
+// TestRelayReconnectStopsAfterDBErrorCap verifies the reconnect-timer
+// branch's DB-error path shares the same retry budget as dial
+// failures and trips the cap after enough consecutive DB errors.
+func TestRelayReconnectStopsAfterDBErrorCap(t *testing.T) {
+	t.Parallel()
+
+	realDB, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+	dialer := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		callCount.Add(1)
+		return nil, nil, nil, &entchatd.RelayDialError{
+			HTTPStatus: http.StatusBadGateway,
+			Err:        io.EOF,
+		}
+	}
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	// The server sees a DB whose GetChatByID always errors after
+	// the initial Subscribe snapshot load. Other methods delegate
+	// to the real DB, so seeding below still works.
+	failingDB := &chatByIDErrorStore{
+		Store: realDB,
+		err:   xerrors.New("mock: GetChatByID always fails"),
+	}
+	// Allow one successful GetChatByID (the Subscribe preamble's
+	// initial state load). All subsequent calls return the mock
+	// error, exercising the reconnect-branch DB-error path.
+	failingDB.okRemain.Store(1)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, realDB)
+	chat := seedWaitingChat(ctx, t, realDB, org.ID, user, model, "relay-db-error")
+
+	subscriber := newTestServer(t, failingDB, ps, subscriberID, dialer, mclk)
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Flip to running so the merge loop starts an async dial. The
+	// dial fails (attempts=1, reconnect scheduled). From there each
+	// reconnect timer fires, the merge loop calls GetChatByID, the
+	// failing DB returns an error, and retryState.next() increments.
+	//
+	// Budget: 1 dial-failure + 6 DB-failures = 7 next() calls; the
+	// 7th trips the cap.
+	setChatRunningAndPublish(ctx, t, realDB, ps, chat.ID, workerID)
+	for i := 0; i < 6; i++ {
+		call := trapReconnect.MustWait(ctx)
+		call.MustRelease(ctx)
+		mclk.Advance(call.Duration).MustWait(ctx)
+	}
+
+	var errEvent *codersdk.ChatStreamEvent
+	require.Eventually(t, func() bool {
+		select {
+		case ev, open := <-events:
+			if !open {
+				return errEvent != nil
+			}
+			if ev.Type == codersdk.ChatStreamEventTypeError {
+				errEvent = &ev
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"expected terminal error event after DB-error cap")
+	require.NotNil(t, errEvent.Error)
+	require.Contains(t, errEvent.Error.Message, "relay connection failed")
+	require.Contains(t, errEvent.Error.Message, "6")
+
+	// Exactly 1 dial fired: the one that triggered the initial
+	// reconnect schedule. All subsequent next() calls come from the
+	// DB-error branch without calling the dialer.
+	require.Equal(t, int32(1), callCount.Load(),
+		"expected exactly 1 dial; reconnects should short-circuit on DB error")
 }
 
 // TestRelayStopsImmediatelyOnUnauthorized tests the unrecoverable

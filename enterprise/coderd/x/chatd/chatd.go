@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -295,11 +296,20 @@ func NewMultiReplicaSubscribeFn(
 					// since they are expected when a dial is
 					// superseded by a newer one.
 					if dialCtx.Err() == nil {
-						logger.Warn(ctx, "failed to open relay for message parts",
+						fields := []slog.Field{
 							slog.F("chat_id", chatID),
 							slog.F("worker_id", workerID),
 							slog.Error(err),
-						)
+						}
+						// Surface the peer's HTTP status (when we
+						// got one) as a structured field so
+						// operators can filter 401/403 spam
+						// separately from 5xx/network warnings.
+						var dialErr *RelayDialError
+						if errors.As(err, &dialErr) && dialErr.HTTPStatus != 0 {
+							fields = append(fields, slog.F("http_status", dialErr.HTTPStatus))
+						}
+						logger.Warn(ctx, "failed to open relay for message parts", fields...)
 					}
 					// Hand the error to the merge loop, which will
 					// classify it and either back off or tear down.
@@ -432,7 +442,7 @@ func NewMultiReplicaSubscribeFn(
 							continue
 						}
 						var dialErr *RelayDialError
-						if xerrors.As(result.err, &dialErr) && dialErr.IsUnrecoverable() {
+						if errors.As(result.err, &dialErr) && dialErr.IsUnrecoverable() {
 							logger.Warn(ctx, "relay dial unrecoverable; tearing down relay leg",
 								slog.F("chat_id", chatID),
 								slog.F("worker_id", result.workerID),
