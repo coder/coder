@@ -797,6 +797,41 @@ export type Addon = "ai_governance";
 
 export const Addons: Addon[] = ["ai_governance"];
 
+// From codersdk/chats.go
+/**
+ * AdvisorConfig is the deployment-wide runtime configuration for the
+ * experimental chat advisor.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface AdvisorConfig {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model.
+	 */
+	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overlays provider reasoning effort on the advisor
+	 * call config when supported. Allowed: "", "low", "medium", "high".
+	 */
+	readonly reasoning_effort: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
 	readonly started_at: string;
@@ -7718,6 +7753,39 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
 	readonly id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateAdvisorConfigRequest is the pinned request body for updating
+ * advisor runtime configuration.
+ */
+export interface UpdateAdvisorConfigRequest {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model.
+	 */
+	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overlays provider reasoning effort on the advisor
+	 * call config when supported. Allowed: "", "low", "medium", "high".
+	 */
+	readonly reasoning_effort: string;
 }
 
 // From codersdk/deployment.go
