@@ -26,10 +26,8 @@ import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { cn } from "#/utils/cn";
 import type { AgentsOutletContext } from "../AgentsPageView";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
-import { sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
@@ -47,7 +45,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const { appearance } = useDashboard();
 	const logoUrl = appearance.logo_url;
 	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
 
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 	const webPush = useWebpushNotifications();
@@ -107,42 +104,9 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
-			{/* Desktop: individual icon buttons (unchanged) */}
-			{!mobileBack && (
-				<div className="hidden items-center gap-0.5 md:flex">
-					<Button
-						asChild
-						variant="subtle"
-						size="icon"
-						aria-label="Settings"
-						className={cn(
-							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							sidebarView.panel === "settings" && "text-content-primary",
-						)}
-					>
-						<Link to="/agents/settings" state={{ from: location.pathname }}>
-							<SettingsIcon />
-						</Link>
-					</Button>
-					<Button
-						asChild
-						variant="subtle"
-						size="icon"
-						aria-label="Analytics"
-						className={cn(
-							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							sidebarView.panel === "analytics" && "text-content-primary",
-						)}
-					>
-						<Link to="/agents/analytics">
-							<BarChart3Icon />
-						</Link>
-					</Button>
-				</div>
-			)}
 			{children && (
 				<div className="hidden items-center gap-2 md:flex">{children}</div>
-			)}
+			)}{" "}
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && (
 				<DropdownMenu>
