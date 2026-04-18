@@ -4548,20 +4548,6 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-func allowedPlanToolNames(
-	allTools []fantasy.AgentTool,
-	parentChatID uuid.NullUUID,
-) []string {
-	isRootChat := !parentChatID.Valid
-	toolNames := make([]string, 0, len(allTools))
-	for _, tool := range allTools {
-		if builtinPlanToolAllowed(tool.Info().Name, isRootChat) {
-			toolNames = append(toolNames, tool.Info().Name)
-		}
-	}
-	return toolNames
-}
-
 func filterExternalMCPConfigsForTurn(
 	configs []database.MCPServerConfig,
 	mode database.NullChatPlanMode,
@@ -4695,20 +4681,15 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	return toolNames
 }
 
-// allowedBehaviorToolNames applies behavior-specific precedence for
-// tool filtering: Explore mode wins over plan mode, and plan mode wins
-// over the default behavior that allows all tools.
+// allowedBehaviorToolNames runs only on non-plan turns because
+// appendDynamicTools returns early for plan mode. Within that boundary,
+// Explore mode wins over the default behavior that allows all tools.
 func allowedBehaviorToolNames(
 	allTools []fantasy.AgentTool,
-	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
 ) []string {
 	if isExploreSubagentMode(chatMode) {
 		return allowedExploreToolNames(allTools)
-	}
-	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
-		return allowedPlanToolNames(allTools, parentChatID)
 	}
 	return allToolNames(allTools)
 }
@@ -4969,7 +4950,6 @@ func appendDynamicTools(
 	raw pqtype.NullRawMessage,
 	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
 ) ([]fantasy.AgentTool, map[string]bool, error) {
 	if isExploreSubagentMode(chatMode) || (planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan) {
 		return tools, nil, nil
@@ -4991,7 +4971,7 @@ func appendDynamicTools(
 	}
 
 	activeToolNames := make(map[string]struct{}, len(tools))
-	for _, name := range allowedBehaviorToolNames(tools, planMode, chatMode, parentChatID) {
+	for _, name := range allowedBehaviorToolNames(tools, chatMode) {
 		activeToolNames[name] = struct{}{}
 	}
 	for _, t := range tools {
@@ -5820,7 +5800,6 @@ func (p *Server) runChat(
 		chat.DynamicTools,
 		currentPlanMode,
 		chat.Mode,
-		chat.ParentChatID,
 	)
 	if err != nil {
 		return result, err

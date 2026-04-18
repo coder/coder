@@ -75,96 +75,6 @@ func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
-func TestAllowedPlanToolNames(t *testing.T) {
-	t.Parallel()
-
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	t.Run("RootPlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
-		t.Parallel()
-
-		got := allowedPlanToolNames(makeTools(
-			"read_file",
-			"write_file",
-			"edit_files",
-			"execute",
-			"process_output",
-			"process_list",
-			"process_signal",
-			"list_templates",
-			"read_template",
-			"create_workspace",
-			"start_workspace",
-			"propose_plan",
-			"spawn_agent",
-			"spawn_explore_agent",
-			"wait_agent",
-			"message_agent",
-			"close_agent",
-			"spawn_computer_use_agent",
-			"read_skill",
-			"read_skill_file",
-			"ask_user_question",
-		), uuid.NullUUID{})
-
-		require.Equal(t, []string{
-			"read_file",
-			"write_file",
-			"edit_files",
-			"execute",
-			"process_output",
-			"list_templates",
-			"read_template",
-			"create_workspace",
-			"start_workspace",
-			"propose_plan",
-			"spawn_agent",
-			"spawn_explore_agent",
-			"wait_agent",
-			"read_skill",
-			"read_skill_file",
-			"ask_user_question",
-		}, got)
-	})
-
-	t.Run("ChildPlanModeAllowsExplorationOnly", func(t *testing.T) {
-		t.Parallel()
-
-		got := allowedPlanToolNames(makeTools(
-			"read_file",
-			"write_file",
-			"edit_files",
-			"execute",
-			"process_output",
-			"list_templates",
-			"read_template",
-			"create_workspace",
-			"start_workspace",
-			"propose_plan",
-			"spawn_agent",
-			"spawn_explore_agent",
-			"wait_agent",
-			"read_skill",
-			"read_skill_file",
-			"ask_user_question",
-		), uuid.NullUUID{UUID: uuid.New(), Valid: true})
-
-		require.Equal(t, []string{
-			"read_file",
-			"execute",
-			"process_output",
-			"read_skill",
-			"read_skill_file",
-		}, got)
-	})
-}
-
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 	t.Parallel()
 
@@ -439,10 +349,6 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 	}
 
 	allTools := makeTools("read_file", "custom_tool", "spawn_explore_agent")
-	planMode := database.NullChatPlanMode{
-		ChatPlanMode: database.ChatPlanModePlan,
-		Valid:        true,
-	}
 	exploreMode := database.NullChatMode{
 		ChatMode: database.ChatModeExplore,
 		Valid:    true,
@@ -452,19 +358,7 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, []string{"read_file", "custom_tool", "spawn_explore_agent"}, allowedBehaviorToolNames(
 			allTools,
-			database.NullChatPlanMode{},
 			database.NullChatMode{},
-			uuid.NullUUID{},
-		))
-	})
-
-	t.Run("PlanModeUsesPlanAllowlist", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file", "spawn_explore_agent"}, allowedBehaviorToolNames(
-			allTools,
-			planMode,
-			database.NullChatMode{},
-			uuid.NullUUID{},
 		))
 	})
 
@@ -472,9 +366,7 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
 			allTools,
-			database.NullChatPlanMode{},
 			exploreMode,
-			uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		))
 	})
 }
