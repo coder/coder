@@ -165,6 +165,58 @@ func TestAllowedPlanToolNames(t *testing.T) {
 	})
 }
 
+func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
+	t.Parallel()
+
+	approvedConfig := database.MCPServerConfig{ID: uuid.New(), AllowInPlanMode: true}
+	blockedConfig := database.MCPServerConfig{ID: uuid.New(), AllowInPlanMode: false}
+	configs := []database.MCPServerConfig{approvedConfig, blockedConfig}
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+
+	t.Run("NonPlanModePassesThroughAllConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
+			configs,
+			database.NullChatPlanMode{},
+			uuid.NullUUID{},
+		)
+
+		require.Equal(t, configs, filtered)
+		require.Nil(t, approvedIDs)
+	})
+
+	t.Run("PlanModeSubagentsReturnNoConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
+			configs,
+			planMode,
+			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		)
+
+		require.Nil(t, filtered)
+		require.NotNil(t, approvedIDs)
+		require.Empty(t, approvedIDs)
+	})
+
+	t.Run("PlanModeRootFiltersToApprovedConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
+			configs,
+			planMode,
+			uuid.NullUUID{},
+		)
+
+		require.Equal(t, []database.MCPServerConfig{approvedConfig}, filtered)
+		require.Equal(t, map[uuid.UUID]struct{}{approvedConfig.ID: {}}, approvedIDs)
+	})
+}
+
 func TestActiveToolNamesForTurn(t *testing.T) {
 	t.Parallel()
 

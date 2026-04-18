@@ -4571,8 +4571,8 @@ func filterExternalMCPConfigsForTurn(
 		return configs, nil
 	}
 	if parentChatID.Valid {
-		// Plan-mode subagents intentionally do not receive external MCP
-		// tools in this MVP, even when the parent chat allows them.
+		// Plan-mode subagents do not receive external MCP tools because
+		// their trust boundary is narrower than the root chat's.
 		return nil, map[uuid.UUID]struct{}{}
 	}
 
@@ -5870,16 +5870,20 @@ func (p *Server) runChat(
 		)
 		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
+	activeToolNames := activeToolNamesForTurn(
+		tools,
+		currentPlanMode,
+		chat.ParentChatID,
+		approvedPlanMCPConfigIDs,
+	)
+	if isExploreSubagent {
+		activeToolNames = allowedExploreToolNames(tools)
+	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:    model,
-		Messages: prompt,
-		Tools:    tools,
-		ActiveTools: func() []string {
-			if isExploreSubagent {
-				return allowedExploreToolNames(tools)
-			}
-			return activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
-		}(),
+		Model:            model,
+		Messages:         prompt,
+		Tools:            tools,
+		ActiveTools:      activeToolNames,
 		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,

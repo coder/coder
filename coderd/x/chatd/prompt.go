@@ -118,8 +118,9 @@ After a successful propose_plan call, stop immediately. Do not produce follow-up
 ` + defaultSystemPromptPlanPathBlockPlaceholder
 
 // Root plan mode may use approved external MCP tools, but delegated
-// plan-mode subagents intentionally stay on the narrower built-in-only
-// boundary for now.
+// plan-mode subagents stay on the narrower built-in-only boundary
+// because their trust boundary is narrower than the root chat's.
+
 // PlanningSubagentOverlayPrompt contains plan-mode instructions for
 // delegated child chats. Child chats may investigate with shell tools
 // but should return findings to the parent instead of authoring the

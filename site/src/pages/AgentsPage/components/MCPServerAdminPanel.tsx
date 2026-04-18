@@ -787,8 +787,9 @@ const ServerForm: FC<ServerFormProps> = ({
 								Allow all tools from this MCP server in root plan mode
 							</Label>
 							<p className="text-sm text-content-secondary">
-								Allow every tool from this server when the root agent is in plan
-								mode.
+								When enabled, the root plan-mode agent can call these tools
+								during planning. Workspace MCP and plan-mode subagents remain
+								restricted.
 							</p>
 						</div>
 						<Switch
