@@ -458,10 +458,15 @@ func NewMultiReplicaSubscribeFn(
 						scheduleRelayReconnect(delay)
 						continue
 					}
-					// An async relay dial completed; reset the
-					// retry state and swap in the new relay
-					// channel.
-					retryState.reset()
+					// An async relay dial completed. Swap in the
+					// new relay channel. We deliberately do NOT
+					// reset the retry counter here: a peer that
+					// accepts the handshake and immediately drops
+					// the stream would otherwise keep reconnecting
+					// forever, since each success would zero the
+					// counter before the next drop re-incremented
+					// it. The counter only resets when the target
+					// worker changes (see openRelayAsync).
 					if relayCancel != nil {
 						relayCancel()
 						relayCancel = nil

@@ -180,35 +180,27 @@ func TestRelayReconnectUsesExponentialBackoff(t *testing.T) {
 // TestRelayReconnectResetsOnSuccess exercises the path where a
 // successful dial resets the retry state so the next failure starts
 // over at the floor delay.
-func TestRelayReconnectResetsOnSuccess(t *testing.T) {
+// TestRelayRepeatedDropsHitCap verifies the cap covers a peer that
+// accepts the handshake and immediately drops it. Without a proper
+// cap, such a peer would produce one reconnect per floor delay
+// forever. The retry counter must accumulate across dial-success /
+// parts-close cycles so the cap trips.
+func TestRelayRepeatedDropsHitCap(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()
 	subscriberID := uuid.New()
 
-	successOpened := make(chan chan codersdk.ChatStreamEvent, 1)
+	opened := make(chan chan codersdk.ChatStreamEvent, 32)
 	var call atomic.Int32
 	dialer := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
 		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
 	) {
-		n := call.Add(1)
-		switch n {
-		case 1, 2:
-			return nil, nil, nil, &entchatd.RelayDialError{
-				HTTPStatus: http.StatusBadGateway,
-				Err:        io.EOF,
-			}
-		case 3:
-			ch := make(chan codersdk.ChatStreamEvent, 1)
-			successOpened <- ch
-			return nil, ch, func() {}, nil
-		default:
-			return nil, nil, nil, &entchatd.RelayDialError{
-				HTTPStatus: http.StatusBadGateway,
-				Err:        io.EOF,
-			}
-		}
+		call.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 1)
+		opened <- ch
+		return nil, ch, func() {}, nil
 	}
 
 	mclk := quartz.NewMock(t)
@@ -219,44 +211,66 @@ func TestRelayReconnectResetsOnSuccess(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-reset")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-drops")
 
-	_, _, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
+	// Kick off the first async dial.
 	setChatRunningAndPublish(ctx, t, db, ps, chat.ID, workerID)
-	// Attempt 1 (failure) → delay = floor.
-	c1 := trapReconnect.MustWait(ctx)
-	require.Equal(t, 500*time.Millisecond, c1.Duration)
-	c1.MustRelease(ctx)
-	mclk.Advance(c1.Duration).MustWait(ctx)
 
-	// Attempt 2 (failure) → delay grew.
-	c2 := trapReconnect.MustWait(ctx)
-	require.Greater(t, c2.Duration, 500*time.Millisecond)
-	c2.MustRelease(ctx)
-	mclk.Advance(c2.Duration).MustWait(ctx)
-
-	// Attempt 3 succeeds. Wait for the merge loop to swap in the
-	// new relay channel, then close it to trigger another
-	// reconnect.
-	var successCh chan codersdk.ChatStreamEvent
-	select {
-	case successCh = <-successOpened:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for successful dial")
+	// Close the first dial's parts channel so the merge loop
+	// schedules a reconnect. Then advance 6 reconnect timers,
+	// closing the parts channel each time so the cycle is:
+	//   dial -> success -> parts-close -> next() -> reconnect.
+	// 1 initial dial + 6 timer-driven dials = 7 total; the 7th
+	// parts-close trips the cap.
+	for i := 0; i < 7; i++ {
+		var ch chan codersdk.ChatStreamEvent
+		select {
+		case ch = <-opened:
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for dial %d", i+1)
+		}
+		// Closing the parts channel triggers the relayPartsCh
+		// close branch, which calls retryState.next() and
+		// schedules the next reconnect.
+		close(ch)
+		if i == 6 {
+			// 7th parts-close should trip the cap; no more
+			// reconnect timers.
+			break
+		}
+		call := trapReconnect.MustWait(ctx)
+		call.MustRelease(ctx)
+		mclk.Advance(call.Duration).MustWait(ctx)
 	}
-	// Close the parts channel; the merge loop sees it close and
-	// schedules another reconnect via retryState.next().
-	close(successCh)
 
-	// Attempt 4's reconnect delay must be the floor — retry state
-	// was reset on success.
-	c4 := trapReconnect.MustWait(ctx)
-	require.Equal(t, 500*time.Millisecond, c4.Duration,
-		"retry state must reset after successful dial")
-	c4.MustRelease(ctx)
+	// A terminal error event must arrive on the events channel.
+	var errEvent *codersdk.ChatStreamEvent
+	require.Eventually(t, func() bool {
+		select {
+		case ev, open := <-events:
+			if !open {
+				return errEvent != nil
+			}
+			if ev.Type == codersdk.ChatStreamEventTypeError {
+				errEvent = &ev
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"expected a terminal error event after repeated drops hit cap")
+	require.NotNil(t, errEvent.Error)
+	require.Contains(t, errEvent.Error.Message, "relay connection failed")
+
+	// We should have observed exactly 7 dials before tear-down.
+	require.Equal(t, int32(7), call.Load(),
+		"expected 7 dials (1 initial + 6 reconnect retries) before cap")
 }
 
 // TestRelayStopsAfterIntermittentCap verifies the cap-reached
