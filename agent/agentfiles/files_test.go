@@ -3080,18 +3080,19 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 					"    }\n" +
 					"    return results",
 			}},
-			// Current output (pre-fix): inserted-line bugs cancel
-			// some leaks (i=5 and i=6 pick the right branch because
-			// inserted = lead = cLead = "\t"), middle-sub bugs leak
-			// 8sp/12sp literal indent at i=3 and i=4.
+			// Post-scoped-fix output. Inserted lines at i=5 and i=6
+			// translate correctly to 2 tabs (were 1 tab pre-fix).
+			// Middle-sub bugs at i=3 and i=4 still leak literal
+			// 8sp/12sp into the tab-indented file. Middle-substitution
+			// follow-up will flip this to fully tab-correct output.
 			expected: "func transform(items []Item) []Result {\n" +
 				"\tvar results []Result\n" +
 				"\tfor _, item := range items {\n" +
 				"\t\tresult, err := convert(item)\n" +
 				"        if err != nil {\n" +
 				"            continue\n" +
-				"\t}\n" +
-				"\tresults = append(results, result)\n" +
+				"\t\t}\n" +
+				"\t\tresults = append(results, result)\n" +
 				"\t}\n" +
 				"\treturn results\n" +
 				"}\n",
@@ -3130,17 +3131,18 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 					"    }\n" +
 					"    return results;",
 			}},
-			// Current output (pre-fix): inserted lines at i=5 and i=6
-			// inherit 2sp cLead. Middle-sub bugs at i=3 and i=4 leak
-			// literal 8sp/12sp. Same class as lock #7.
+			// Post-scoped-fix output. Inserted lines at i=5 and i=6
+			// translate to 4sp (2-level in file_unit=2sp) instead of
+			// inheriting the 2sp cLead. Middle-sub bugs at i=3 and
+			// i=4 still leak literal 8sp/12sp. Same class as lock #7.
 			expected: "function transform(items) {\n" +
 				"  const results = [];\n" +
 				"  for (const item of items) {\n" +
 				"    const result = convert(item);\n" +
 				"        if (!result) {\n" +
 				"            continue;\n" +
-				"  }\n" +
-				"  results.push(result);\n" +
+				"    }\n" +
+				"    results.push(result);\n" +
 				"  }\n" +
 				"  return results;\n" +
 				"}\n",

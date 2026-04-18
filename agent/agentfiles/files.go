@@ -770,6 +770,114 @@ func alignSearchReplace(searchLines, repLines []string) (prefix, suffix int) {
 	return prefix, suffix
 }
 
+// detectIndentUnit scans leading whitespace across the given lines
+// and returns the smallest consistent indentation unit (one tab, or
+// N spaces where N is the GCD of observed non-zero lead lengths).
+// Returns ("", false) when no useful unit can be detected: no lines
+// have indent, indents mix tabs and spaces, or the GCD is zero.
+//
+// Tabs take priority: any tab-indented line forces unit="\t" and any
+// space-only indent on another line marks the sample as mixed.
+// Callers use this to translate the caller's rep_level into the
+// file's indent style for inserted splice lines.
+func detectIndentUnit(lines []string) (string, bool) {
+	sawTab := false
+	sawSpace := false
+	var spaceGCD int
+	for _, l := range lines {
+		lead := leadOnly(l)
+		if lead == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(lead, "\t") && !strings.ContainsAny(lead, " "):
+			sawTab = true
+		case !strings.ContainsAny(lead, "\t"):
+			sawSpace = true
+			if spaceGCD == 0 {
+				spaceGCD = len(lead)
+			} else {
+				spaceGCD = indentGCD(spaceGCD, len(lead))
+			}
+		default:
+			// Mixed tab+space in a single lead; bail. Caller falls
+			// back to emitting rLead verbatim.
+			return "", false
+		}
+	}
+	if sawTab && sawSpace {
+		return "", false
+	}
+	if sawTab {
+		return "\t", true
+	}
+	if spaceGCD > 0 {
+		return strings.Repeat(" ", spaceGCD), true
+	}
+	return "", false
+}
+
+// indentGCD returns the greatest common divisor of a and b. Used
+// only by detectIndentUnit on positive space-lead lengths.
+func indentGCD(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
+// translateIndentLevel returns the file-side lead for an inserted
+// splice line by translating the caller's indent level. rLead is
+// the inserted replacement line's lead, sLead is the reference
+// search line's lead (the pair the splice would have inherited
+// from), cLead is the matched content's lead at that same
+// reference slot. Returns ("", false) when any of the leads are
+// not clean multiples of their respective units.
+//
+// The computation: each lead's length in its unit is its level.
+// The inserted line's depth in file_unit is
+//
+//	file_base + (rep_level - search_base)
+//
+// where file_base is the matched reference line's level and
+// search_base is the search reference line's level. This keeps
+// the nesting delta the caller expressed in their own indent
+// style while emitting in the file's style.
+func translateIndentLevel(rLead, sLead, cLead, searchUnit, fileUnit string) (string, bool) {
+	repLevel, ok := indentLevel(rLead, searchUnit)
+	if !ok {
+		return "", false
+	}
+	searchBase, ok := indentLevel(sLead, searchUnit)
+	if !ok {
+		return "", false
+	}
+	fileBase, ok := indentLevel(cLead, fileUnit)
+	if !ok {
+		return "", false
+	}
+	targetLevel := fileBase + (repLevel - searchBase)
+	if targetLevel < 0 {
+		return "", false
+	}
+	return strings.Repeat(fileUnit, targetLevel), true
+}
+
+// indentLevel returns len(lead) / len(unit) when lead is a clean
+// multiple of unit. Returns (0, false) when lead doesn't divide
+// evenly by unit. Callers must ensure unit is non-empty;
+// detectIndentUnit's second return gates this.
+func indentLevel(lead, unit string) (int, bool) {
+	if len(lead)%len(unit) != 0 {
+		return 0, false
+	}
+	// Verify the lead is actually composed of repetitions of unit.
+	if strings.Repeat(unit, len(lead)/len(unit)) != lead {
+		return 0, false
+	}
+	return len(lead) / len(unit), true
+}
+
 // non-last line's ending replaced by ending; the last line keeps
 // its original ending. Used before pass 1 splicing to normalize
 // the replacement to the file's ending style.
@@ -839,12 +947,20 @@ func endingShapeEqual(a, b string) bool {
 // search/content line.
 //
 // Carve-outs on "file wins on agreement":
-//
 //   - Empty replacement body: emit the replacement's whitespace
 //     verbatim so a body-less line doesn't materialize whitespace.
 //   - Reference content line has no ending and this isn't the
 //     final replacement line: keep the replacement's newline so a
 //     multi-line splice at EOF doesn't collapse.
+//   - Inserted lines (no paired search line) try level-aware
+//     indent translation: if we can detect both the caller's
+//     search_unit and the file's fileUnit cleanly, the emitted
+//     lead is fileUnit * (file_base + (rep_level - search_base)).
+//     The caller's rep_level is computed from their own indent
+//     style; output in the file's style so a 4sp LLM inserting
+//     into a 2sp file emits 2sp indent at the correct depth. If
+//     detection fails (no indent info, mixed tabs+spaces, or
+//     a non-unit multiple), fall back to inheriting cLead.
 //
 // forcedEnding (from internalLineEnding normalization) overrides
 // interior endings; the final ending is forced too unless
@@ -865,6 +981,16 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 		repLines = repLines[:len(repLines)-1]
 	}
 	prefix, suffix := alignSearchReplace(searchLines, repLines)
+
+	// Detect indent units once per splice for level-aware insertion.
+	// Combine search and replace so a zero-width search (single line,
+	// no indent info) still gets a unit from the replacement's
+	// inserted depths. matched drives the file unit. When either
+	// detection fails or a line's lead isn't a clean multiple of its
+	// unit, the inserted branch falls back to emitting cLead verbatim
+	// (current behavior).
+	searchUnit, searchUnitOK := detectIndentUnit(append(append([]string(nil), searchLines...), repLines...))
+	fileUnit, fileUnitOK := detectIndentUnit(matched)
 	var b strings.Builder
 	for i, rLine := range repLines {
 		// Pair each repLines[i] with a searchLines index using
@@ -921,11 +1047,26 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 		case rMid == "":
 			// Body-less: emit the replacement's whitespace verbatim.
 		case inserted:
-			// Middle line has no search pair; inherit the
-			// reference content's lead directly. Keep the
-			// replacement's trailing whitespace (the caller owns it
-			// since no search line speaks to it).
+			// Middle line has no search pair. If we detected both
+			// indent units cleanly, translate the caller's indent
+			// level into the file's unit: the replacement's own
+			// rLead tells us the depth relative to the search's
+			// base; emit that same relative depth in file_unit.
+			//
+			// Example: file uses \t, caller sends 4sp search with
+			// inserted 8sp line; rep_level=2 over search_base=1,
+			// delta=1, file_base=1 -> emit "\t\t".
+			//
+			// Fall back to the old "inherit cLead" path when
+			// detection fails or leads aren't clean multiples of
+			// their units. This preserves behavior on malformed
+			// rep leads, zero-indent regions, and tab/space mixes.
 			lead = cLead
+			if searchUnitOK && fileUnitOK {
+				if translated, ok := translateIndentLevel(rLead, sLead, cLead, searchUnit, fileUnit); ok {
+					lead = translated
+				}
+			}
 		default:
 			if sLead == rLead {
 				lead = cLead
