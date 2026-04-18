@@ -1,8 +1,13 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
+	chatAdvisorConfig,
 	chatDebugLogging,
 	chatDesktopEnabled,
+	chatModelConfigs,
+	updateChatAdvisorConfig,
 	updateChatDebugLogging,
 	updateChatDesktopEnabled,
 } from "#/api/queries/chats";
@@ -21,12 +26,33 @@ const AgentSettingsExperimentsPage: FC = () => {
 		...chatDebugLogging(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const advisorConfigQuery = useQuery({
+		...chatAdvisorConfig(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const saveDesktopEnabledMutation = useMutation(
 		updateChatDesktopEnabled(queryClient),
 	);
 	const saveDebugLoggingMutation = useMutation(
 		updateChatDebugLogging(queryClient),
 	);
+	const advisorConfigMutationOptions = updateChatAdvisorConfig(queryClient);
+	const saveAdvisorConfigMutation = useMutation({
+		...advisorConfigMutationOptions,
+		onSuccess: async () => {
+			await advisorConfigMutationOptions.onSuccess?.();
+			toast.success("Advisor settings saved.");
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to save advisor settings."), {
+				description: getErrorDetail(error),
+			});
+		},
+	});
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
@@ -39,6 +65,15 @@ const AgentSettingsExperimentsPage: FC = () => {
 				onSaveDebugLogging={saveDebugLoggingMutation.mutate}
 				isSavingDebugLogging={saveDebugLoggingMutation.isPending}
 				isSaveDebugLoggingError={saveDebugLoggingMutation.isError}
+				advisorConfigData={advisorConfigQuery.data}
+				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
+				isAdvisorConfigLoadError={advisorConfigQuery.isError}
+				modelConfigsData={modelConfigsQuery.data ?? []}
+				modelConfigsError={modelConfigsQuery.error}
+				isLoadingModelConfigs={modelConfigsQuery.isLoading}
+				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
+				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
+				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
 			/>
 		</RequirePermission>
 	);

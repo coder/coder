@@ -2,8 +2,14 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdminChatDebugLoggingSettings } from "./components/AdminChatDebugLoggingSettings";
+import { AdvisorSettings } from "./components/AdvisorSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
+
+interface MutationCallbacks {
+	onSuccess?: () => void;
+	onError?: () => void;
+}
 
 export interface AgentSettingsExperimentsPageViewProps {
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
@@ -24,6 +30,18 @@ export interface AgentSettingsExperimentsPageViewProps {
 	>;
 	isSavingDebugLogging: boolean;
 	isSaveDebugLoggingError: boolean;
+	advisorConfigData: TypesGen.AdvisorConfig | undefined;
+	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigLoadError: boolean;
+	modelConfigsData: readonly TypesGen.ChatModelConfig[];
+	modelConfigsError: unknown;
+	isLoadingModelConfigs: boolean;
+	onSaveAdvisorConfig: (
+		req: TypesGen.UpdateAdvisorConfigRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingAdvisorConfig: boolean;
+	isSaveAdvisorConfigError: boolean;
 }
 
 export const AgentSettingsExperimentsPageView: FC<
@@ -37,6 +55,15 @@ export const AgentSettingsExperimentsPageView: FC<
 	onSaveDebugLogging,
 	isSavingDebugLogging,
 	isSaveDebugLoggingError,
+	advisorConfigData,
+	isAdvisorConfigLoading,
+	isAdvisorConfigLoadError,
+	modelConfigsData,
+	modelConfigsError,
+	isLoadingModelConfigs,
+	onSaveAdvisorConfig,
+	isSavingAdvisorConfig,
+	isSaveAdvisorConfigError,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -49,6 +76,17 @@ export const AgentSettingsExperimentsPageView: FC<
 				onSaveDesktopEnabled={onSaveDesktopEnabled}
 				isSavingDesktopEnabled={isSavingDesktopEnabled}
 				isSaveDesktopEnabledError={isSaveDesktopEnabledError}
+			/>
+			<AdvisorSettings
+				advisorConfigData={advisorConfigData}
+				isAdvisorConfigLoading={isAdvisorConfigLoading}
+				isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+				modelConfigs={modelConfigsData}
+				modelConfigsError={modelConfigsError}
+				isLoadingModelConfigs={isLoadingModelConfigs}
+				onSaveAdvisorConfig={onSaveAdvisorConfig}
+				isSavingAdvisorConfig={isSavingAdvisorConfig}
+				isSaveAdvisorConfigError={isSaveAdvisorConfigError}
 			/>
 			<AdminChatDebugLoggingSettings
 				adminSettings={debugLoggingData}

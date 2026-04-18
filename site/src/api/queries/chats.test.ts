@@ -11,6 +11,8 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	chatAdvisorConfig,
+	chatAdvisorConfigKey,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatDebugRunsKey,
@@ -123,6 +125,12 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("chatAdvisorConfig", () => {
+	it("reuses the exported advisor config query key", () => {
+		expect(chatAdvisorConfig().queryKey).toEqual(chatAdvisorConfigKey);
+	});
+});
 
 describe("invalidateChatListQueries", () => {
 	it("invalidates flat and infinite chat list queries", async () => {
