@@ -5743,7 +5743,10 @@ func seedChatDependenciesWithProviderPolicy(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
+	// Use raw insert because dbgen.ChatProvider uses takeFirst,
+	// which treats false/"" as zero values and overrides them
+	// with defaults (e.g. CentralApiKeyEnabled becomes true).
+	providerConfig, err := db.InsertChatProvider(dbauthz.AsSystemRestricted(context.Background()), database.InsertChatProviderParams{
 		Provider:                   provider,
 		DisplayName:                provider,
 		APIKey:                     apiKey,
@@ -5751,7 +5754,9 @@ func seedChatDependenciesWithProviderPolicy(
 		CentralApiKeyEnabled:       centralAPIKeyEnabled,
 		AllowUserApiKey:            allowUserAPIKey,
 		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
+		Enabled:                    true,
 	})
+	require.NoError(t, err)
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider:  provider,

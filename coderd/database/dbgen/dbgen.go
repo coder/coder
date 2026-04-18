@@ -110,7 +110,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
 	t.Helper()
 
-	content := "{}"
+	content := "[]"
 	if seed.Content.Valid {
 		content = string(seed.Content.RawMessage)
 	}
