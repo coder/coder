@@ -2768,16 +2768,7 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 		}},
 	}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	buf := bytes.NewBuffer(nil)
-	enc := json.NewEncoder(buf)
-	enc.SetEscapeHTML(false)
-	require.NoError(t, enc.Encode(req))
-	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
-	api.Routes().ServeHTTP(w, r)
-
-	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	_ = runEditFiles(t, api, req)
 
 	// Both depths got edited. The per-position splice preserved each
 	// site's local indent, so output is syntactically fine, just
@@ -2802,21 +2793,20 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 //
 // Each case falls into one of two groups:
 //
-//   - red:  asserts the CORRECT output. These currently fail and are
-//     expected to turn green once buildReplacementLines grows
-//     level-aware indent for inserted splice lines (the scoped fix:
-//     detect search_unit and file_unit per region, translate each
-//     inserted line's rep_level through the anchor).
+//   - Red_* cases assert the correct output that the indent-unit
+//     translation produces for inserted splice lines. The fix
+//     detects search_unit and file_unit per region and translates
+//     each inserted line's rep_level through the anchor.
 //
-//   - lock: pins CURRENT buggy output for middle-substitution cases
-//     (unwrap and middle-rewrite). Those bugs sit in the non-inserted
-//     default branch, which the scoped fix does not touch. They need
-//     the same level-aware reasoning extended to paired middle lines;
-//     a follow-up ticket tracks that work. When that lands, these
-//     locks flip to assert the correct output.
+//   - Lock_* cases pin output for middle-substitution scenarios
+//     that the insertion-only fix does not cover. Unwrap (#6) is
+//     fully buggy; middle-rewrite (#7, #8) are partially correct
+//     (inserted lines translated, paired middle lines still leak
+//     caller whitespace). Tracked in CODAGT-214.
 //
-// The sibling TestEditFiles_ReplaceAll_FuzzyIndentGap follows the same
-// lock pattern for the `replace_all` + pass-3 fuzzy foot-gun.
+// The sibling TestEditFiles_ReplaceAll_FuzzyIndentGap follows the
+// same lock pattern for a different class: replace_all with pass 3
+// matching at multiple nesting depths.
 func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 	t.Parallel()
 
@@ -2829,7 +2819,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		kind     string // "red" or "lock"
 		content  string
 		edits    []edit
 		expected string
@@ -2841,7 +2830,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// middle lines past the single middle-substitution.
 		{
 			name: "Red_WrapInBlock_TabFile_4spLLM",
-			kind: "red",
 			content: "func main() {\n" +
 				"\tfmt.Println(\"hello\")\n" +
 				"\tfmt.Println(\"world\")\n" +
@@ -2869,7 +2857,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// must translate to 2sp*2=4sp file output.
 		{
 			name: "Red_WrapInBlock_2spFile_4spLLM",
-			kind: "red",
 			content: "function main() {\n" +
 				"  console.log('hello')\n" +
 				"  console.log('world')\n" +
@@ -2895,7 +2882,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// middle-substitution plus three insertions.
 		{
 			name: "Red_SingleToMulti_ErrorHandling",
-			kind: "red",
 			content: "func main() {\n" +
 				"\tx := getValue()\n" +
 				"\tfmt.Println(x)\n" +
@@ -2923,7 +2909,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// 2 tabs rather than inheriting matched[4]'s 1-tab cLead.
 		{
 			name: "Red_InsertNewBlock_AfterExisting",
-			kind: "red",
 			content: "func loadConfig() (*Config, error) {\n" +
 				"\tvar cfg Config\n" +
 				"\terr = json.Unmarshal(data, \u0026cfg)\n" +
@@ -2972,7 +2957,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// translate to 3 tabs (not 2) at both sites.
 		{
 			name: "Red_ReplaceAll_Pass3_Expansion",
-			kind: "red",
 			content: "func handlers() {\n" +
 				"\thttp.HandleFunc(\"/a\", func(w http.ResponseWriter, r *http.Request) {\n" +
 				"\t\tdata := readBody(r)\n" +
@@ -3020,7 +3004,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// red until middle-substitution follow-up.
 		{
 			name: "Lock_Unwrap_MiddleSubDisagreement",
-			kind: "lock",
 			content: "func main() {\n" +
 				"\tif condition {\n" +
 				"\t\tdoSomething()\n" +
@@ -3052,7 +3035,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// made level-aware.
 		{
 			name: "Lock_MiddleRewrite_DifferentNesting_Tab",
-			kind: "lock",
 			content: "func transform(items []Item) []Result {\n" +
 				"\tvar results []Result\n" +
 				"\tfor _, item := range items {\n" +
@@ -3103,7 +3085,6 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 		// Still a middle-sub problem; still locked.
 		{
 			name: "Lock_MiddleRewrite_DifferentNesting_2sp",
-			kind: "lock",
 			content: "function transform(items) {\n" +
 				"  const results = [];\n" +
 				"  for (const item of items) {\n" +
@@ -3225,15 +3206,7 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 		}},
 	}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	buf := bytes.NewBuffer(nil)
-	enc := json.NewEncoder(buf)
-	enc.SetEscapeHTML(false)
-	require.NoError(t, enc.Encode(req))
-	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
-	api.Routes().ServeHTTP(w, r)
-	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	_ = runEditFiles(t, api, req)
 
 	// All lines emitted in the file's tab indent, including the
 	// inserted log.Println and the following return false (which
