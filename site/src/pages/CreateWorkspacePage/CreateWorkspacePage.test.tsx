@@ -147,19 +147,13 @@ describe("CreateWorkspacePage", () => {
 
 			vi.useFakeTimers({ shouldAdvanceTime: true });
 
-			await waitFor(async () => {
-				await userEvent.click(instanceTypeSelect);
+			await userEvent.click(instanceTypeSelect);
+
+			const mediumOption = await screen.findByRole("option", {
+				name: /t3\.medium/i,
 			});
 
-			let mediumOption: Element | null = null;
-			await waitFor(() => {
-				mediumOption = screen.queryByRole("option", { name: /t3\.medium/i });
-				expect(mediumOption).toBeTruthy();
-			});
-
-			await waitFor(async () => {
-				await userEvent.click(mediumOption!);
-			});
+			await userEvent.click(mediumOption);
 
 			await act(async () => {
 				await vi.runAllTimersAsync();
@@ -188,8 +182,14 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage();
 
 			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+			});
+
+			await act(async () => {
 				mockPublisher.publishError(new Event("Connection failed"));
+			});
+
+			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", { name: /connection failed/i }),
@@ -213,8 +213,14 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage();
 
 			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+			});
+
+			await act(async () => {
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
+			});
+
+			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", {
@@ -261,7 +267,7 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			await waitFor(() => {
+			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify(response1) }),
 				);
@@ -271,8 +277,10 @@ describe("CreateWorkspacePage", () => {
 				);
 			});
 
-			expect(screen.queryByText("CPU Count")).toBeInTheDocument();
-			expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+			await waitFor(() => {
+				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
+				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+			});
 		});
 	});
 
@@ -381,10 +389,8 @@ describe("CreateWorkspacePage", () => {
 			const numberInput = screen.getByDisplayValue("50");
 			expect(numberInput).toBeInTheDocument();
 
-			await waitFor(async () => {
-				await userEvent.clear(numberInput);
-				await userEvent.type(numberInput, "200");
-			});
+			await userEvent.clear(numberInput);
+			await userEvent.type(numberInput, "200");
 
 			await waitFor(() => {
 				expect(screen.getByDisplayValue("200")).toBeInTheDocument();
@@ -509,17 +515,13 @@ describe("CreateWorkspacePage", () => {
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
 			});
-			await waitFor(async () => {
-				await userEvent.clear(nameInput);
-				await userEvent.type(nameInput, "my-test-workspace");
-			});
+			await userEvent.clear(nameInput);
+			await userEvent.type(nameInput, "my-test-workspace");
 
 			const createButton = screen.getByRole("button", {
 				name: /create workspace/i,
 			});
-			await waitFor(async () => {
-				await userEvent.click(createButton);
-			});
+			await userEvent.click(createButton);
 
 			await waitFor(() => {
 				expect(API.createWorkspace).toHaveBeenCalledWith(
@@ -597,18 +599,13 @@ describe("CreateWorkspacePage", () => {
 				name: /workspace name/i,
 			});
 
-			await waitFor(async () => {
-				await userEvent.clear(nameInput);
-				await userEvent.type(nameInput, "my-test-workspace");
-			});
+			await userEvent.clear(nameInput);
+			await userEvent.type(nameInput, "my-test-workspace");
 
-			// Submit form
 			const createButton = screen.getByRole("button", {
 				name: /create workspace/i,
 			});
-			await waitFor(async () => {
-				await userEvent.click(createButton);
-			});
+			await userEvent.click(createButton);
 
 			await waitFor(() => {
 				expect(router.state.location.pathname).toBe(
