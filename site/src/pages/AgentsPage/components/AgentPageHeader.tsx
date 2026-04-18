@@ -1,17 +1,34 @@
 import {
+	ArrowLeftIcon,
 	BarChart3Icon,
-	ChevronLeftIcon,
+	BellIcon,
+	BellOffIcon,
+	EllipsisIcon,
 	PanelLeftIcon,
 	SettingsIcon,
+	Volume2Icon,
+	VolumeOffIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { useState } from "react";
 import { Link, NavLink, useLocation, useOutletContext } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import type { AgentsOutletContext } from "../AgentsPageView";
+import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 import { sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
 
 interface AgentPageHeaderProps {
@@ -32,16 +49,43 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 
+	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+	const webPush = useWebpushNotifications();
+
+	const handleChimeToggle = () => {
+		const next = !chimeEnabled;
+		setChimeEnabledState(next);
+		setChimeEnabled(next);
+	};
+
+	const handleNotificationToggle = async () => {
+		try {
+			if (webPush.subscribed) {
+				await webPush.unsubscribe();
+			} else {
+				await webPush.subscribe();
+			}
+		} catch (error) {
+			const action = webPush.subscribed ? "disable" : "enable";
+			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
+		}
+	};
+
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-0.5 md:py-0.5">
+		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 md:order-none md:px-4 md:py-0.5">
+			{" "}
 			{mobileBack ? (
-				<Link
-					to={mobileBack.to}
-					className="inline-flex shrink-0 items-center gap-1 text-sm text-content-secondary no-underline hover:text-content-primary md:hidden"
+				<Button
+					asChild
+					variant="subtle"
+					size="icon"
+					aria-label={mobileBack.label}
+					className="h-7 w-7 shrink-0 md:hidden"
 				>
-					<ChevronLeftIcon className="h-4 w-4" />
-					{mobileBack.label}
-				</Link>
+					<Link to={mobileBack.to}>
+						<ArrowLeftIcon />
+					</Link>
+				</Button>
 			) : (
 				<NavLink to="/workspaces" className="inline-flex shrink-0 md:hidden">
 					{logoUrl ? (
@@ -63,10 +107,9 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
-			{/* Mobile-only nav buttons mirroring the sidebar toolbar
-			 * which is hidden below the md breakpoint. */}
+			{/* Desktop: individual icon buttons (unchanged) */}
 			{!mobileBack && (
-				<div className="flex items-center gap-0.5 md:hidden">
+				<div className="hidden items-center gap-0.5 md:flex">
 					<Button
 						asChild
 						variant="subtle"
@@ -96,8 +139,75 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						</Link>
 					</Button>
 				</div>
-			)}{" "}
-			{children && <div className="flex items-center gap-2">{children}</div>}
+			)}
+			{children && (
+				<div className="hidden items-center gap-2 md:flex">{children}</div>
+			)}
+			{/* Mobile: meatball menu with all actions */}
+			{!mobileBack && (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="More options"
+							className="h-7 w-7 text-content-secondary hover:text-content-primary md:hidden"
+						>
+							<EllipsisIcon />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="end"
+						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
+					>
+						<DropdownMenuItem asChild>
+							<Link to="/agents/settings" state={{ from: location.pathname }}>
+								<SettingsIcon className="size-icon-sm" />
+								Settings
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<Link to="/agents/analytics">
+								<BarChart3Icon className="size-icon-sm" />
+								Analytics
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onSelect={(e) => {
+								e.preventDefault();
+								handleChimeToggle();
+							}}
+						>
+							{chimeEnabled ? (
+								<Volume2Icon className="size-icon-sm" />
+							) : (
+								<VolumeOffIcon className="size-icon-sm" />
+							)}
+							{chimeEnabled ? "Turn sound off" : "Turn sound on"}
+						</DropdownMenuItem>
+						{webPush.enabled && (
+							<DropdownMenuItem
+								onSelect={(e) => {
+									e.preventDefault();
+									void handleNotificationToggle();
+								}}
+								disabled={webPush.loading}
+							>
+								{webPush.loading ? (
+									<Spinner size="sm" loading className="size-icon-sm" />
+								) : webPush.subscribed ? (
+									<BellIcon className="size-icon-sm" />
+								) : (
+									<BellOffIcon className="size-icon-sm" />
+								)}
+								{webPush.subscribed
+									? "Turn notifications off"
+									: "Turn notifications on"}
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
 		</div>
 	);
 };

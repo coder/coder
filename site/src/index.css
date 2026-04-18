@@ -198,6 +198,38 @@
 	.navbar-stripe-rc::after {
 		bottom: 0;
 	}
+
+	@media (max-width: 767px) {
+		/*
+			 * Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
+			 * custom property on the chat input container so the dropdown
+			 * position tracks the actual input box, not a hardcoded offset.
+			 */
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+			position: fixed !important;
+			left: 1rem !important;
+			width: calc(100vw - 2rem) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-top-below-header
+			) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+		.mobile-full-width-dropdown {
+			width: 100% !important;
+			min-width: 0 !important;
+			max-width: none !important;
+		}
+	}
 }
 
 @layer base {

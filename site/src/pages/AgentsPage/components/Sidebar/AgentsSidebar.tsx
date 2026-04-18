@@ -20,11 +20,11 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	ArrowLeftIcon,
 	BotIcon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
 	FilterIcon,
@@ -899,7 +899,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
-				className="[&_[role=menuitem]]:text-[13px]"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
 			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
@@ -1238,7 +1238,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<Link
 								to={(location.state as { from?: string })?.from || "/agents"}
 							>
-								<ChevronLeftIcon />
+								<ArrowLeftIcon />{" "}
 							</Link>
 						</Button>
 						<div className="flex-1" />
