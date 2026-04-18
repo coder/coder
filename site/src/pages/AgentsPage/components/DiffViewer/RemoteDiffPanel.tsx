@@ -20,7 +20,7 @@ import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
 import { useParsedDiffFiles } from "./useParsedDiffFiles";
 
-export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
+export { InlinePromptInput } from "./CommentableDiffViewer";
 
 // -------------------------------------------------------------------
 // PR state badge

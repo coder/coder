@@ -14,9 +14,8 @@ import {
 	memo,
 	type ReactNode,
 	type RefObject,
-	useCallback,
 	useEffect,
-	useMemo,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -24,16 +23,13 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
+import { changeColor, changeLabel } from "../../utils/diffColors";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
-} from "#/pages/AgentsPage/components/ChatElements/tools/utils";
-import { getDiffRenderMode } from "#/pages/AgentsPage/components/DiffViewer/diffPerformance";
-import { cn } from "#/utils/cn";
-import {
-	changeColor,
-	changeLabel,
-} from "../../pages/AgentsPage/utils/diffColors";
+} from "../ChatElements/tools/utils";
+import { getDiffRenderMode } from "./diffPerformance";
 
 export interface ManagedDiffViewerProps {
 	/** Parsed file diffs to render. */
@@ -154,6 +150,11 @@ const VIRTUALIZER_METRICS: VirtualFileMetrics = {
 	fileGap: 2,
 };
 
+type FileDiffOptions = NonNullable<ComponentProps<typeof FileDiff>["options"]>;
+const NOOP_LINE_SELECTED: NonNullable<
+	FileDiffOptions["onLineSelected"]
+> = () => {};
+
 /**
  * Estimate the rendered pixel height of a file diff so the placeholder
  * occupies roughly the same space. This keeps the scroll position
@@ -162,8 +163,6 @@ const VIRTUALIZER_METRICS: VirtualFileMetrics = {
 function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
 	return HEADER_HEIGHT_PX + fileDiff.unifiedLineCount * LINE_HEIGHT_PX;
 }
-
-const NOOP_LINE_SELECTED = () => {};
 
 interface FileTreeNode {
 	name: string;
@@ -269,77 +268,42 @@ function sortFilesByTree(
 	);
 }
 
-function removeStaleEntries<T>(
-	entries: Map<string, T>,
-	activeFileNames: ReadonlySet<string>,
-): void {
-	for (const fileName of Array.from(entries.keys())) {
-		if (!activeFileNames.has(fileName)) {
-			entries.delete(fileName);
+function findFileElement(
+	root: HTMLElement | null,
+	fileName: string,
+): HTMLDivElement | null {
+	if (!root) {
+		return null;
+	}
+
+	for (const element of root.querySelectorAll<HTMLDivElement>(
+		"[data-file-name]",
+	)) {
+		if (element.dataset.fileName === fileName) {
+			return element;
 		}
 	}
+
+	return null;
 }
 
-function getFileOptionsCacheKey(
-	options: NonNullable<ComponentProps<typeof FileDiff>["options"]>,
-	hasLineNumberClick: boolean,
-	hasLineSelected: boolean,
-): string {
-	const theme = Array.isArray(options.theme)
-		? options.theme.join(",")
-		: String(options.theme ?? "");
-	return [
-		String(options.diffStyle ?? ""),
-		String(options.diffIndicators ?? ""),
-		String(options.overflow ?? ""),
-		String(options.themeType ?? ""),
-		theme,
-		String(options.unsafeCSS ?? ""),
-		hasLineNumberClick ? "click" : "noclick",
-		hasLineSelected ? "select" : "noselect",
-	].join("|");
-}
-
-function areLineAnnotationsEqual(
-	left: readonly DiffLineAnnotation<string>[],
-	right: readonly DiffLineAnnotation<string>[],
-): boolean {
-	if (left === right) {
-		return true;
-	}
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index++) {
-		const leftAnnotation = left[index];
-		const rightAnnotation = right[index];
-		if (
-			leftAnnotation.lineNumber !== rightAnnotation.lineNumber ||
-			leftAnnotation.side !== rightAnnotation.side ||
-			leftAnnotation.metadata !== rightAnnotation.metadata
-		) {
-			return false;
-		}
-	}
-	return true;
-}
-
-function areSelectedLinesEqual(
-	left: SelectedLineRange | null | undefined,
-	right: SelectedLineRange | null | undefined,
-): boolean {
-	if (left === right) {
-		return true;
-	}
-	if (!left || !right) {
-		return left == null && right == null;
-	}
-	return (
-		left.start === right.start &&
-		left.end === right.end &&
-		left.side === right.side &&
-		left.endSide === right.endSide
-	);
+function getFileOptions(
+	baseOptions: FileDiffOptions,
+	fileName: string,
+	onLineNumberClick: ManagedDiffViewerProps["onLineNumberClick"],
+	onLineSelected: ManagedDiffViewerProps["onLineSelected"],
+): FileDiffOptions {
+	return {
+		...baseOptions,
+		...(onLineNumberClick
+			? {
+					onLineNumberClick: (props) => onLineNumberClick(fileName, props),
+				}
+			: {}),
+		onLineSelected: onLineSelected
+			? (range) => onLineSelected(fileName, range)
+			: NOOP_LINE_SELECTED,
+	};
 }
 
 const FileTreeNodeView: FC<{
@@ -424,7 +388,6 @@ const FileTreeSidebar: FC<{
 	fileTree: readonly FileTreeNode[];
 	sortedFiles: readonly FileDiffMetadata[];
 	diffViewportRef: RefObject<HTMLElement | null>;
-	fileRefs: RefObject<Map<string, HTMLDivElement>>;
 	scrollBehavior: ScrollBehavior;
 	enableTreeSync: boolean;
 	scrollToFile?: string | null;
@@ -432,7 +395,6 @@ const FileTreeSidebar: FC<{
 	fileTree,
 	sortedFiles,
 	diffViewportRef,
-	fileRefs,
 	scrollBehavior,
 	enableTreeSync,
 	scrollToFile,
@@ -505,7 +467,9 @@ const FileTreeSidebar: FC<{
 			},
 		);
 
-		for (const element of fileRefs.current.values()) {
+		for (const element of viewport.querySelectorAll<HTMLDivElement>(
+			"[data-file-name]",
+		)) {
 			observer.observe(element);
 		}
 		updateActiveFile();
@@ -513,10 +477,10 @@ const FileTreeSidebar: FC<{
 		return () => {
 			observer.disconnect();
 		};
-	}, [diffViewportRef, enableTreeSync, fileRefs, sortedFiles]);
+	}, [diffViewportRef, enableTreeSync, sortedFiles]);
 
 	const handleFileClick = (fileName: string) => {
-		const element = fileRefs.current.get(fileName);
+		const element = findFileElement(diffViewportRef.current, fileName);
 		if (element) {
 			element.scrollIntoView({ block: "start", behavior: scrollBehavior });
 			setActiveFile(fileName);
@@ -547,7 +511,7 @@ const FileTreeSidebar: FC<{
 /**
  * Wraps the diff list in a Radix ScrollArea and wires up the
  * @pierre/diffs Virtualizer. Extracted into its own component so the
- * ref-callback stability lives here instead of in the parent.
+ * imperative viewport setup is isolated from the parent render path.
  */
 const DiffScrollContainer: FC<{
 	children: ReactNode;
@@ -559,26 +523,26 @@ const DiffScrollContainer: FC<{
 	};
 }> = ({ children, className, diffViewportRef, virtualizerConfig }) => {
 	const [virtualizer] = useState(() => new Virtualizer(virtualizerConfig));
-
-	const contentRef = useCallback(
-		(node: HTMLDivElement | null) => {
-			const viewport = node?.closest<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			);
-			if (!viewport) {
-				return;
-			}
-
-			diffViewportRef.current = viewport;
-			virtualizer.setup(viewport);
-
-			return () => {
-				virtualizer.cleanUp();
-				diffViewportRef.current = null;
-			};
-		},
-		[diffViewportRef, virtualizer],
+	const [contentElement, setContentElement] = useState<HTMLDivElement | null>(
+		null,
 	);
+
+	useLayoutEffect(() => {
+		const viewport = contentElement?.closest<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!viewport) {
+			return;
+		}
+
+		diffViewportRef.current = viewport;
+		virtualizer.setup(viewport);
+
+		return () => {
+			virtualizer.cleanUp();
+			diffViewportRef.current = null;
+		};
+	}, [contentElement, diffViewportRef, virtualizer]);
 
 	return (
 		<ScrollArea
@@ -587,7 +551,7 @@ const DiffScrollContainer: FC<{
 			viewportClassName="[&>div]:!block"
 		>
 			<VirtualizerContext value={virtualizer}>
-				<div ref={contentRef} className="min-w-0 text-xs">
+				<div ref={setContentElement} className="min-w-0 text-xs">
 					{children}
 				</div>
 			</VirtualizerContext>
@@ -597,7 +561,9 @@ const DiffScrollContainer: FC<{
 
 interface LazyFileDiffProps {
 	fileDiff: FileDiffMetadata;
-	options: ComponentProps<typeof FileDiff>["options"];
+	baseOptions: FileDiffOptions;
+	onLineNumberClick?: ManagedDiffViewerProps["onLineNumberClick"];
+	onLineSelected?: ManagedDiffViewerProps["onLineSelected"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	selectedLines?: SelectedLineRange | null;
@@ -606,7 +572,9 @@ interface LazyFileDiffProps {
 
 const LazyFileDiff = memo(function LazyFileDiff({
 	fileDiff,
-	options,
+	baseOptions,
+	onLineNumberClick,
+	onLineSelected,
 	lineAnnotations,
 	renderAnnotation: renderAnnotationProp,
 	selectedLines,
@@ -648,6 +616,13 @@ const LazyFileDiff = memo(function LazyFileDiff({
 		);
 	}
 
+	const options = getFileOptions(
+		baseOptions,
+		fileDiff.name,
+		onLineNumberClick,
+		onLineSelected,
+	);
+
 	return (
 		<FileDiff
 			fileDiff={fileDiff}
@@ -678,214 +653,53 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
-	const renderMode = useMemo(
-		() => getDiffRenderMode(parsedFiles),
-		[parsedFiles],
-	);
-	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
-	const sortedFiles = useMemo(
-		() => sortFilesByTree(parsedFiles, fileTree),
-		[fileTree, parsedFiles],
-	);
-
-	const lineNumberClickRef = useRef(onLineNumberClick);
-	const lineSelectedRef = useRef(onLineSelected);
-	const renderAnnotationRef = useRef(renderAnnotation);
-	lineNumberClickRef.current = onLineNumberClick;
-	lineSelectedRef.current = onLineSelected;
-	renderAnnotationRef.current = renderAnnotation;
-
-	const diffOptions = useMemo(() => {
-		const base = getDiffViewerOptions(isDark);
-		return {
-			...base,
-			diffStyle,
-			overflow: renderMode.overflow,
-			unsafeCSS: `${base.unsafeCSS ?? ""} ${
-				renderMode.showStickyHeaders ? STICKY_HEADER_CSS : NON_STICKY_HEADER_CSS
-			}`,
-		};
-	}, [diffStyle, isDark, renderMode.overflow, renderMode.showStickyHeaders]);
-
-	const fileOptions = useMemo(
-		() => ({
-			...diffOptions,
-			enableLineSelection: true,
-			enableHoverUtility: true,
-			onLineSelected: NOOP_LINE_SELECTED,
-		}),
-		[diffOptions],
-	);
-
-	const stableRenderAnnotation = useCallback(
-		(annotation: DiffLineAnnotation<string>) =>
-			renderAnnotationRef.current?.(annotation) ?? null,
-		[],
-	);
-	const annotationRenderer = renderAnnotation
-		? stableRenderAnnotation
-		: undefined;
-
-	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
-	const optionClickHandlersRef = useRef(
-		new Map<
-			string,
-			(props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			}) => void
-		>(),
-	);
-	const optionSelectedHandlersRef = useRef(
-		new Map<
-			string,
-			(
-				range: {
-					start: number;
-					end: number;
-					side?: "additions" | "deletions";
-					endSide?: "additions" | "deletions";
-				} | null,
-			) => void
-		>(),
-	);
-	const perFileOptionsRef = useRef(
-		new Map<string, ComponentProps<typeof FileDiff>["options"]>(),
-	);
-	const perFileOptionsKeyRef = useRef<string | null>(null);
-
-	for (const file of sortedFiles) {
-		if (onLineNumberClick && !optionClickHandlersRef.current.has(file.name)) {
-			optionClickHandlersRef.current.set(file.name, (props) => {
-				lineNumberClickRef.current?.(file.name, props);
-			});
-		}
-		if (onLineSelected && !optionSelectedHandlersRef.current.has(file.name)) {
-			optionSelectedHandlersRef.current.set(file.name, (range) => {
-				lineSelectedRef.current?.(file.name, range);
-			});
-		}
-	}
-
-	const activeFileNames = new Set(sortedFiles.map((file) => file.name));
-	removeStaleEntries(optionClickHandlersRef.current, activeFileNames);
-	removeStaleEntries(optionSelectedHandlersRef.current, activeFileNames);
-	removeStaleEntries(perFileOptionsRef.current, activeFileNames);
-
-	const perFileOptionsKey = getFileOptionsCacheKey(
-		fileOptions,
-		Boolean(onLineNumberClick),
-		Boolean(onLineSelected),
-	);
-	if (perFileOptionsKeyRef.current !== perFileOptionsKey) {
-		perFileOptionsRef.current.clear();
-		perFileOptionsKeyRef.current = perFileOptionsKey;
-	}
-
-	for (const file of sortedFiles) {
-		if (perFileOptionsRef.current.has(file.name)) {
-			continue;
-		}
-		const lineNumberClickHandler = optionClickHandlersRef.current.get(
-			file.name,
-		);
-		const lineSelectedHandler =
-			optionSelectedHandlersRef.current.get(file.name) ?? NOOP_LINE_SELECTED;
-		perFileOptionsRef.current.set(file.name, {
-			...fileOptions,
-			...(onLineNumberClick && lineNumberClickHandler
-				? { onLineNumberClick: lineNumberClickHandler }
-				: {}),
-			onLineSelected:
-				onLineSelected != null ? lineSelectedHandler : NOOP_LINE_SELECTED,
-		});
-	}
-	const perFileOptions = hasPerFileCallbacks ? perFileOptionsRef.current : null;
-
-	const perFileAnnotationsRef = useRef(
-		new Map<string, DiffLineAnnotation<string>[]>(),
-	);
-	const nextAnnotationFileNames = new Set<string>();
-	if (getLineAnnotations) {
-		for (const file of sortedFiles) {
-			const annotations = getLineAnnotations(file.name);
-			if (annotations.length === 0) {
-				continue;
-			}
-			nextAnnotationFileNames.add(file.name);
-			const previousAnnotations = perFileAnnotationsRef.current.get(file.name);
-			if (
-				!previousAnnotations ||
-				!areLineAnnotationsEqual(previousAnnotations, annotations)
-			) {
-				perFileAnnotationsRef.current.set(file.name, annotations);
-			}
-		}
-	}
-	removeStaleEntries(perFileAnnotationsRef.current, nextAnnotationFileNames);
-	const perFileAnnotations = getLineAnnotations
-		? perFileAnnotationsRef.current
-		: null;
-
-	const perFileSelectedLinesRef = useRef(new Map<string, SelectedLineRange>());
-	const nextSelectedLineFileNames = new Set<string>();
-	if (getSelectedLines) {
-		for (const file of sortedFiles) {
-			const selectedLines = getSelectedLines(file.name);
-			if (!selectedLines) {
-				continue;
-			}
-			nextSelectedLineFileNames.add(file.name);
-			const previousSelectedLines = perFileSelectedLinesRef.current.get(
-				file.name,
-			);
-			if (!areSelectedLinesEqual(previousSelectedLines, selectedLines)) {
-				perFileSelectedLinesRef.current.set(file.name, selectedLines);
-			}
-		}
-	}
-	removeStaleEntries(
-		perFileSelectedLinesRef.current,
-		nextSelectedLineFileNames,
-	);
-	const perFileSelectedLines = getSelectedLines
-		? perFileSelectedLinesRef.current
-		: null;
+	const renderMode = getDiffRenderMode(parsedFiles);
+	const fileTree = buildFileTree(parsedFiles);
+	const sortedFiles = sortFilesByTree(parsedFiles, fileTree);
+	const baseOptions = getDiffViewerOptions(isDark);
+	const diffOptions: FileDiffOptions = {
+		...baseOptions,
+		diffStyle,
+		overflow: renderMode.overflow,
+		unsafeCSS: `${baseOptions.unsafeCSS ?? ""} ${
+			renderMode.showStickyHeaders ? STICKY_HEADER_CSS : NON_STICKY_HEADER_CSS
+		}`,
+	};
+	const fileOptions: FileDiffOptions = {
+		...diffOptions,
+		enableLineSelection: true,
+		enableHoverUtility: true,
+		onLineSelected: NOOP_LINE_SELECTED,
+	};
 
 	const [containerWidth, setContainerWidth] = useState(0);
-	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+	const [containerElement, setContainerElement] =
+		useState<HTMLDivElement | null>(null);
+	const diffViewportRef = useRef<HTMLElement | null>(null);
 
 	useEffect(() => {
-		if (!containerEl) {
+		if (!containerElement) {
 			return;
 		}
-		setContainerWidth(containerEl.getBoundingClientRect().width);
+		setContainerWidth(containerElement.getBoundingClientRect().width);
 		const observer = new ResizeObserver(([entry]) => {
 			setContainerWidth(entry.contentRect.width);
 		});
-		observer.observe(containerEl);
+		observer.observe(containerElement);
 		return () => observer.disconnect();
-	}, [containerEl]);
+	}, [containerElement]);
 
 	const showTree =
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
 		sortedFiles.length > 0;
 
-	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-	const diffViewportRef = useRef<HTMLElement | null>(null);
-	const setFileRef = (fileName: string, element: HTMLDivElement | null) => {
-		if (element) {
-			fileRefs.current.set(fileName, element);
-		} else {
-			fileRefs.current.delete(fileName);
-		}
-	};
-
 	useEffect(() => {
 		if (!scrollToFile) {
 			return;
 		}
-		const element = fileRefs.current.get(scrollToFile);
+		const element =
+			findFileElement(diffViewportRef.current, scrollToFile) ??
+			findFileElement(containerElement, scrollToFile);
 		if (element) {
 			element.scrollIntoView({
 				block: "start",
@@ -893,7 +707,12 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 			});
 		}
 		onScrollToFileComplete?.();
-	}, [onScrollToFileComplete, renderMode.scrollBehavior, scrollToFile]);
+	}, [
+		containerElement,
+		onScrollToFileComplete,
+		renderMode.scrollBehavior,
+		scrollToFile,
+	]);
 
 	if (isLoading) {
 		return (
@@ -922,7 +741,7 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 
 	return (
 		<div
-			ref={setContainerEl}
+			ref={setContainerElement}
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{sortedFiles.length === 0 ? (
@@ -936,7 +755,6 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 							fileTree={fileTree}
 							sortedFiles={sortedFiles}
 							diffViewportRef={diffViewportRef}
-							fileRefs={fileRefs}
 							scrollBehavior={renderMode.scrollBehavior}
 							enableTreeSync={renderMode.enableTreeSync}
 							scrollToFile={scrollToFile}
@@ -954,11 +772,16 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 					>
 						{sortedFiles.map((fileDiff, index) => {
 							const isLast = index === sortedFiles.length - 1;
+							const lineAnnotations = getLineAnnotations?.(fileDiff.name);
+							const selectedLines = getSelectedLines?.(fileDiff.name) ?? null;
+							const visibleAnnotations =
+								lineAnnotations && lineAnnotations.length > 0
+									? lineAnnotations
+									: undefined;
 							return (
 								<div
 									key={fileDiff.name}
 									data-file-name={fileDiff.name}
-									ref={(element) => setFileRef(fileDiff.name, element)}
 									className={
 										index > 0
 											? "border-0 border-t border-solid border-border-default"
@@ -967,13 +790,15 @@ export const ManagedDiffViewer: FC<ManagedDiffViewerProps> = ({
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}
+										baseOptions={fileOptions}
+										onLineNumberClick={onLineNumberClick}
+										onLineSelected={onLineSelected}
 										lazyMountRootMargin={renderMode.lazyMountRootMargin}
-										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
-										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-										renderAnnotation={annotationRenderer}
-										selectedLines={
-											perFileSelectedLines?.get(fileDiff.name) ?? null
+										lineAnnotations={visibleAnnotations}
+										renderAnnotation={
+											visibleAnnotations ? renderAnnotation : undefined
 										}
+										selectedLines={selectedLines}
 									/>
 									{isLast && (
 										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">

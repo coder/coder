@@ -2,7 +2,7 @@ import type { FC } from "react";
 import {
 	ManagedDiffViewer,
 	type ManagedDiffViewerProps,
-} from "#/modules/diffs/ManagedDiffViewer";
+} from "./ManagedDiffViewer";
 
 interface DiffViewerProps extends ManagedDiffViewerProps {
 	diffStyle: DiffStyle;
