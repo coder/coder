@@ -4112,6 +4112,19 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
 
+			// Wait for background title generation triggered by
+			// createChat to settle before backdating; otherwise the
+			// async path may update updated_at after our UPDATE and
+			// race with the assertion.
+			require.Eventually(t, func() bool {
+				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				if getErr != nil {
+					return false
+				}
+				return c.Status != database.ChatStatusPending &&
+					c.Status != database.ChatStatusRunning
+			}, testutil.WaitShort, testutil.IntervalFast)
+
 			// Back-date updated_at to something clearly older than
 			// "just now" so the assertion is not sensitive to clock
 			// drift between the test process and postgres.
@@ -4151,10 +4164,27 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "steady title")
 
+			// Wait for background title generation triggered by
+			// createChat to settle before backdating; otherwise the
+			// async path may update updated_at after our UPDATE and
+			// race with the assertion.
+			require.Eventually(t, func() bool {
+				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				if getErr != nil {
+					return false
+				}
+				return c.Status != database.ChatStatusPending &&
+					c.Status != database.ChatStatusRunning
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			// Force-set the chat's title to a known value under a
+			// backdated updated_at. We can't use client.UpdateChat here
+			// because that is the very path under test; update
+			// directly to seed the baseline.
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET updated_at = $1 WHERE id = $2",
-				past, chat.ID,
+				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
+				"steady title", past, chat.ID,
 			)
 			require.NoError(t, err)
 
