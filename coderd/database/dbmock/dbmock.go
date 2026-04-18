@@ -3332,6 +3332,21 @@ func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildByWorkspaceID(ctx, works
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildByWorkspaceID), ctx, workspaceID)
 }
 
+// GetLatestWorkspaceBuildWithStatusByWorkspaceID mocks base method.
+func (m *MockStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceBuildWithStatusByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestWorkspaceBuildWithStatusByWorkspaceID indicates an expected call of GetLatestWorkspaceBuildWithStatusByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildWithStatusByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildWithStatusByWorkspaceID), ctx, workspaceID)
+}
+
 // GetLatestWorkspaceBuildsByWorkspaceIDs mocks base method.
 func (m *MockStore) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	m.ctrl.T.Helper()

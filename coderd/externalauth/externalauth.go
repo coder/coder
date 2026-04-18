@@ -261,6 +261,37 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
+	// Persist the refreshed token to the DB before validation. GitHub
+	// rotates refresh tokens on every use, so the old refresh token is
+	// already invalid on the IDP side. If we validated first and the
+	// validation endpoint was unavailable (e.g. rate-limited 403), the
+	// new token would be silently lost and the user would be forced to
+	// re-authenticate manually.
+	// Use a detached context for the DB write only. The IDP already
+	// consumed the old refresh token, so if the caller's request
+	// context is canceled mid-save, the new token would be lost.
+	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer persistCancel()
+
+	originalAccessToken := externalAuthLink.OAuthAccessToken
+	if token.AccessToken != originalAccessToken {
+		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
+			ProviderID:             c.ID,
+			UserID:                 externalAuthLink.UserID,
+			UpdatedAt:              dbtime.Now(),
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:            token.Expiry,
+			OAuthExtra:             extra,
+		})
+		if err != nil {
+			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
+		}
+		externalAuthLink = updatedAuthLink
+	}
+
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
 	// See the comment below why the retry and cancel is required.
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
@@ -285,35 +316,18 @@ validate:
 		return externalAuthLink, InvalidTokenError("token failed to validate")
 	}
 
-	if token.AccessToken != externalAuthLink.OAuthAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             c.ID,
-			UserID:                 externalAuthLink.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             extra,
+	// Update the associated user's github.com user ID if the token
+	// is for github.com and validation returned user info.
+	if token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
+			ID: externalAuthLink.UserID,
+			GithubComUserID: sql.NullInt64{
+				Int64: user.ID,
+				Valid: true,
+			},
 		})
 		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
-		}
-		externalAuthLink = updatedAuthLink
-
-		// Update the associated users github.com username if the token is for github.com.
-		if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
-			err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
-				ID: externalAuthLink.UserID,
-				GithubComUserID: sql.NullInt64{
-					Int64: user.ID,
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
-			}
+			return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
 		}
 	}
 

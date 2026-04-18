@@ -14,6 +14,11 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+// ManifestFromProto converts the proto manifest to the SDK Manifest.
+// Secrets are intentionally NOT included on the returned Manifest:
+// keeping them off of the SDK type makes it impossible for any code
+// path that only holds a *Manifest to leak secret values via
+// logging, JSON encoding, fmt verbs, or debug endpoints.
 func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	parentID := uuid.Nil
 	if pid := manifest.GetParentId(); pid != nil {
@@ -65,6 +70,9 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	}, nil
 }
 
+// ProtoFromManifest converts the SDK Manifest to the proto manifest.
+// It does not populate the proto's Secrets field because the SDK
+// Manifest intentionally does not carry secrets (see ManifestFromProto).
 func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	apps, err := ProtoFromApps(manifest.Apps)
 	if err != nil {
@@ -476,4 +484,28 @@ func ProtoFromPatchAppStatus(pas PatchAppStatus) (*proto.UpdateAppStatusRequest,
 		Message: pas.Message,
 		Uri:     pas.URI,
 	}, nil
+}
+
+func SecretsFromProto(protoSecrets []*proto.WorkspaceSecret) []WorkspaceSecret {
+	ret := make([]WorkspaceSecret, len(protoSecrets))
+	for i, s := range protoSecrets {
+		ret[i] = WorkspaceSecret{
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Value:    s.Value,
+		}
+	}
+	return ret
+}
+
+func ProtoFromSecrets(secrets []WorkspaceSecret) []*proto.WorkspaceSecret {
+	ret := make([]*proto.WorkspaceSecret, len(secrets))
+	for i, s := range secrets {
+		ret[i] = &proto.WorkspaceSecret{
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Value:    s.Value,
+		}
+	}
+	return ret
 }
