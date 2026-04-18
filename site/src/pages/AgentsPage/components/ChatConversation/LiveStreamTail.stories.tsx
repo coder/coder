@@ -183,7 +183,9 @@ export const RetryingTimeoutAnthropic: Story = {
 		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
 		// StatusCountdown renders label and seconds as separate text
 		// nodes, so match against the element's combined textContent.
-		expect(canvasElement).toHaveTextContent(/retrying in \d+s/i);
+		await waitFor(() => {
+			expect(canvasElement).toHaveTextContent(/retrying in \d+s/i);
+		});
 	},
 };
 
