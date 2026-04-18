@@ -113,7 +113,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			<SelectTrigger
 				aria-label={selectedModel ? getOptionLabel(selectedModel) : placeholder}
 				className={cn(
-					"h-8 w-auto min-w-0 max-w-[6rem] md:max-w-none gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
 				onTouchStart={onTriggerTouchStart}
