@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
 	selectIsAwaitingFirstStreamChunk,
@@ -36,6 +37,7 @@ interface LiveStreamTailContentProps {
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	computerUseSubagentIds?: Set<string>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	urlTransform?: UrlTransform;
@@ -49,6 +51,7 @@ export const LiveStreamTailContent = ({
 	liveStatus,
 	startingResetKey,
 	subagentTitles,
+	subagentVariants,
 	computerUseSubagentIds,
 	subagentStatusOverrides,
 	urlTransform,
@@ -83,6 +86,7 @@ export const LiveStreamTailContent = ({
 					liveStatus={liveStatus}
 					startingResetKey={startingResetKey}
 					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
 					computerUseSubagentIds={computerUseSubagentIds}
 					subagentStatusOverrides={subagentStatusOverrides}
 					urlTransform={urlTransform}
@@ -113,6 +117,7 @@ interface LiveStreamTailProps {
 	isTranscriptEmpty: boolean;
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	computerUseSubagentIds?: Set<string>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -124,6 +129,7 @@ export const LiveStreamTail = ({
 	isTranscriptEmpty,
 	startingResetKey,
 	subagentTitles,
+	subagentVariants,
 	computerUseSubagentIds,
 	urlTransform,
 	mcpServers,
@@ -161,6 +167,7 @@ export const LiveStreamTail = ({
 			liveStatus={liveStatus}
 			startingResetKey={startingResetKey}
 			subagentTitles={subagentTitles}
+			subagentVariants={subagentVariants}
 			computerUseSubagentIds={computerUseSubagentIds}
 			subagentStatusOverrides={subagentStatusOverrides}
 			urlTransform={urlTransform}

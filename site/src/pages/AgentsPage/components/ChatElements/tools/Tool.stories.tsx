@@ -355,6 +355,224 @@ export const SubagentMessageRequestMetadata: Story = {
 	},
 };
 
+export const SpawnSubagentGeneralRunning: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "running",
+		args: {
+			subagent_type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			subagent_type: "general",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Workspace diagnostics/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentGeneralCompleted: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "completed",
+		args: {
+			subagent_type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			subagent_type: "general",
+			title: "Workspace diagnostics",
+			status: "completed",
+			duration_ms: 3200,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 3s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreRunning: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "running",
+		args: {
+			subagent_type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			subagent_type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreCompleted: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "completed",
+		args: {
+			subagent_type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			subagent_type: "explore",
+			status: "completed",
+			duration_ms: 4100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 4s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentComputerUseRunning: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "running",
+		args: {
+			subagent_type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			subagent_type: "computer_use",
+			status: "pending",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "spawn-desktop-child",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Open desktop tab" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const SpawnSubagentComputerUseCompleted: Story = {
+	args: {
+		name: "spawn_subagent",
+		status: "completed",
+		args: {
+			subagent_type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			subagent_type: "computer_use",
+			title: "Visual regression check",
+			status: "completed",
+			duration_ms: "12400",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
+	},
+};
+
+export const WaitAgentExploreStreamingFromHistory: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: { chat_id: "explore-child" },
+		result: { chat_id: "explore-child", status: "pending" },
+		subagentVariants: new Map([["explore-child", "explore"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Waiting for sub-agent…")).toBeNull();
+	},
+};
+
+export const MessageAgentExploreStreamingFromResult: Story = {
+	args: {
+		name: "message_agent",
+		status: "running",
+		args: { chat_id: "message-child", message: "continue" },
+		result: {
+			chat_id: "message-child",
+			subagent_type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Messaging sub-agent…")).toBeNull();
+	},
+};
+
+export const CloseAgentExploreCompleted: Story = {
+	args: {
+		name: "close_agent",
+		status: "completed",
+		args: { chat_id: "close-child" },
+		result: {
+			chat_id: "close-child",
+			subagent_type: "explore",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Terminated Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // ListTemplates stories
 // ---------------------------------------------------------------------------
