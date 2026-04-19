@@ -892,6 +892,7 @@ export const WithMixedSubagentTranscript: Story = {
 								tool_name: "wait_agent",
 								result: {
 									chat_id: "explore-child",
+									subagent_type: "explore",
 									status: "completed",
 								},
 							},
@@ -907,6 +908,7 @@ export const WithMixedSubagentTranscript: Story = {
 								tool_name: "close_agent",
 								result: {
 									chat_id: "legacy-child",
+									subagent_type: "general",
 									status: "completed",
 								},
 							},

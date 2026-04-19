@@ -1167,6 +1167,22 @@ func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
 }
 
+func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"message":"error"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"message\":\"error\"}"}`, string(sdkPart.Result))
+}
+
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles
 // handles a realistic post-deploy conversation where legacy and new
 // storage formats coexist.

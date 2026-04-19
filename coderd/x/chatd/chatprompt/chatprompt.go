@@ -793,7 +793,7 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		isError = true
 		if output.Error != nil {
 			raw := json.RawMessage(strings.TrimSpace(output.Error.Error()))
-			if json.Valid(raw) && bytes.Contains(raw, []byte(`"error"`)) {
+			if hasErrorField(raw) {
 				result = raw
 			} else {
 				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
@@ -822,6 +822,15 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+func hasErrorField(raw json.RawMessage) bool {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	_, ok := payload["error"]
+	return ok
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
