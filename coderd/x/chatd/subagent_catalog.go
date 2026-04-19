@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -192,6 +193,15 @@ func withSubagentType(result map[string]any, chat database.Chat) map[string]any 
 	}
 	result["subagent_type"] = subagentTypeFromChat(chat)
 	return result
+}
+
+func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse {
+	if chat == nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return toolJSONErrorResponse(withSubagentType(map[string]any{
+		"error": err.Error(),
+	}, *chat))
 }
 
 func buildSpawnSubagentDescription(

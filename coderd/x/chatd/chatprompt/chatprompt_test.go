@@ -1151,6 +1151,22 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	require.Equal(t, "ephemeral", cc.Type)
 }
 
+func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"target chat is not a subagent of the current chat","subagent_type":"explore"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles
 // handles a realistic post-deploy conversation where legacy and new
 // storage formats coexist.

@@ -1643,6 +1643,7 @@ export const WaitAgentComputerUseRunning: Story = {
 			chat_id: "desktop-child-1",
 			status: "pending",
 		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 		computerUseSubagentIds: new Set(["desktop-child-1"]),
 	},
 	decorators: [
@@ -1684,6 +1685,7 @@ export const WaitAgentComputerUseCompletedNoRecording: Story = {
 			status: "waiting",
 			report: "Configured the dev environment.",
 		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 		computerUseSubagentIds: new Set(["desktop-child-1"]),
 	},
 	decorators: [
@@ -1719,6 +1721,7 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			status: "pending",
 			error: "timed out waiting for agent",
 		},
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 		computerUseSubagentIds: new Set(["desktop-child-1"]),
 	},
 	play: async ({ canvasElement }) => {

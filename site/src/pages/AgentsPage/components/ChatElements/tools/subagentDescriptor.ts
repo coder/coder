@@ -22,7 +22,7 @@ const subagentCatalog: Record<
 	}
 > = {
 	general: {
-		fallbackTitle: "Sub-agent",
+		fallbackTitle: "sub-agent",
 		iconKind: "bot",
 		supportsDesktopAffordance: false,
 	},

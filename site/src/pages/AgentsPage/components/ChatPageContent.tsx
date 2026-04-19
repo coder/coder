@@ -26,6 +26,7 @@ import {
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildSubagentMaps,
+	computerUseSubagentIdsFromVariants,
 	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
@@ -88,12 +89,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	const computerUseSubagentIds = new Set<string>();
-	for (const [chatId, variant] of subagentVariants) {
-		if (variant === "computer_use") {
-			computerUseSubagentIds.add(chatId);
-		}
-	}
+	const computerUseSubagentIds =
+		computerUseSubagentIdsFromVariants(subagentVariants);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (

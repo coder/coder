@@ -454,7 +454,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	isError,
 	subagentTitles,
 	subagentVariants,
-	computerUseSubagentIds,
 	showDesktopPreviews = true,
 	subagentStatusOverrides,
 }) => {
@@ -464,10 +463,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
 	});
-	const inferredVariant = chatId
-		? (subagentVariants?.get(chatId) ??
-			(computerUseSubagentIds?.has(chatId) ? "computer_use" : undefined))
-		: undefined;
+	const inferredVariant = chatId ? subagentVariants?.get(chatId) : undefined;
 	const descriptor = getSubagentDescriptor({
 		name,
 		args: parsedArgs ?? args,
@@ -498,7 +494,9 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
 	});
-	let title = descriptor.fallbackTitle;
+	let title =
+		descriptor.fallbackTitle.charAt(0).toUpperCase() +
+		descriptor.fallbackTitle.slice(1);
 	if (chatId) {
 		const mappedTitle = subagentTitles?.get(chatId);
 		if (mappedTitle) {

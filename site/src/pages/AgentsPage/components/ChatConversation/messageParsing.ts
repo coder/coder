@@ -385,10 +385,9 @@ export const buildSubagentVariants = (
 	return buildSubagentMaps(parsedMessages).variants;
 };
 
-export const buildComputerUseSubagentIds = (
-	parsedMessages: readonly ParsedMessageEntry[],
+export const computerUseSubagentIdsFromVariants = (
+	variants: ReadonlyMap<string, SubagentVariant>,
 ): Set<string> => {
-	const variants = buildSubagentVariants(parsedMessages);
 	const ids = new Set<string>();
 	for (const [chatId, variant] of variants) {
 		if (variant === "computer_use") {
@@ -396,4 +395,12 @@ export const buildComputerUseSubagentIds = (
 		}
 	}
 	return ids;
+};
+
+export const buildComputerUseSubagentIds = (
+	parsedMessages: readonly ParsedMessageEntry[],
+): Set<string> => {
+	return computerUseSubagentIdsFromVariants(
+		buildSubagentVariants(parsedMessages),
+	);
 };

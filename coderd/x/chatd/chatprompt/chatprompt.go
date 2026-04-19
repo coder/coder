@@ -792,7 +792,12 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	case fantasy.ToolResultOutputContentError:
 		isError = true
 		if output.Error != nil {
-			result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+			raw := json.RawMessage(strings.TrimSpace(output.Error.Error()))
+			if json.Valid(raw) && bytes.Contains(raw, []byte(`"error"`)) {
+				result = raw
+			} else {
+				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+			}
 		} else {
 			result = []byte(`{"error":""}`)
 		}

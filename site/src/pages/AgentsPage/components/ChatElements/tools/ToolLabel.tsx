@@ -16,8 +16,7 @@ const renderSubagentLabel = (
 	}
 
 	const providedTitle = getProvidedSubagentTitle({ args, result });
-	const fallbackTitle =
-		descriptor.variant === "general" ? "sub-agent" : descriptor.fallbackTitle;
+	const fallbackTitle = descriptor.fallbackTitle;
 	const text = (() => {
 		switch (descriptor.action) {
 			case "spawn":

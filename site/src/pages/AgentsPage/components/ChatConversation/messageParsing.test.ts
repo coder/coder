@@ -6,6 +6,7 @@ import {
 	buildSubagentMaps,
 	buildSubagentTitles,
 	buildSubagentVariants,
+	computerUseSubagentIdsFromVariants,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -573,42 +574,47 @@ describe("subagent transcript parsing", () => {
 			parsedMessages,
 			titles,
 			variants,
-			computerUseIds: buildComputerUseSubagentIds(parsedMessages),
+			computerUseIds: computerUseSubagentIdsFromVariants(variants),
+			legacyComputerUseIds: buildComputerUseSubagentIds(parsedMessages),
 		};
 	};
 
 	it("keeps legacy spawn tool parsing intact", () => {
-		const { parsedMessages, titles, variants, computerUseIds } = parseSubagents(
-			[
-				msg(1, [
-					toolCall("legacy-general", "spawn_agent", {
-						title: "Legacy general",
-					}),
-					toolResult("legacy-general", "spawn_agent", {
-						chat_id: "legacy-general-child",
-						title: "Legacy general",
-						status: "completed",
-					}),
-				]),
-				msg(2, [
-					toolCall("legacy-explore", "spawn_explore_agent", {}),
-					toolResult("legacy-explore", "spawn_explore_agent", {
-						chat_id: "legacy-explore-child",
-						status: "completed",
-					}),
-				]),
-				msg(3, [
-					toolCall("legacy-desktop", "spawn_computer_use_agent", {
-						title: "Legacy desktop",
-					}),
-					toolResult("legacy-desktop", "spawn_computer_use_agent", {
-						chat_id: "legacy-desktop-child",
-						title: "Legacy desktop",
-						status: "completed",
-					}),
-				]),
-			],
-		);
+		const {
+			parsedMessages,
+			titles,
+			variants,
+			computerUseIds,
+			legacyComputerUseIds,
+		} = parseSubagents([
+			msg(1, [
+				toolCall("legacy-general", "spawn_agent", {
+					title: "Legacy general",
+				}),
+				toolResult("legacy-general", "spawn_agent", {
+					chat_id: "legacy-general-child",
+					title: "Legacy general",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("legacy-explore", "spawn_explore_agent", {}),
+				toolResult("legacy-explore", "spawn_explore_agent", {
+					chat_id: "legacy-explore-child",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("legacy-desktop", "spawn_computer_use_agent", {
+					title: "Legacy desktop",
+				}),
+				toolResult("legacy-desktop", "spawn_computer_use_agent", {
+					chat_id: "legacy-desktop-child",
+					title: "Legacy desktop",
+					status: "completed",
+				}),
+			]),
+		]);
 
 		expect(parsedMessages[0]?.parsed.tools[0]?.name).toBe("spawn_agent");
 		expect(parsedMessages[1]?.parsed.tools[0]?.name).toBe(
@@ -622,51 +628,54 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("legacy-explore-child")).toBe("explore");
 		expect(variants.get("legacy-desktop-child")).toBe("computer_use");
 		expect(Array.from(computerUseIds)).toEqual(["legacy-desktop-child"]);
+		expect(legacyComputerUseIds).toEqual(computerUseIds);
 	});
 
 	it("parses spawn_subagent variants from args and results", () => {
-		const { titles, variants, computerUseIds } = parseSubagents([
-			msg(1, [
-				toolCall("spawn-general", "spawn_subagent", {
-					subagent_type: "general",
-					title: "General helper",
-				}),
-				toolResult("spawn-general", "spawn_subagent", {
-					chat_id: "spawn-general-child",
-					subagent_type: "general",
-					title: "General helper",
-					status: "completed",
-				}),
-			]),
-			msg(2, [
-				toolCall("spawn-explore", "spawn_subagent", {
-					subagent_type: "explore",
-				}),
-				toolResult("spawn-explore", "spawn_subagent", {
-					chat_id: "spawn-explore-child",
-					subagent_type: "explore",
-					status: "completed",
-				}),
-			]),
-			msg(3, [
-				toolCall("spawn-desktop", "spawn_subagent", {
-					subagent_type: "computer_use",
-					title: "Desktop helper",
-				}),
-				toolResult("spawn-desktop", "spawn_subagent", {
-					chat_id: "spawn-desktop-child",
-					subagent_type: "computer_use",
-					title: "Desktop helper",
-					status: "completed",
-				}),
-			]),
-		]);
+		const { titles, variants, computerUseIds, legacyComputerUseIds } =
+			parseSubagents([
+				msg(1, [
+					toolCall("spawn-general", "spawn_subagent", {
+						subagent_type: "general",
+						title: "General helper",
+					}),
+					toolResult("spawn-general", "spawn_subagent", {
+						chat_id: "spawn-general-child",
+						subagent_type: "general",
+						title: "General helper",
+						status: "completed",
+					}),
+				]),
+				msg(2, [
+					toolCall("spawn-explore", "spawn_subagent", {
+						subagent_type: "explore",
+					}),
+					toolResult("spawn-explore", "spawn_subagent", {
+						chat_id: "spawn-explore-child",
+						subagent_type: "explore",
+						status: "completed",
+					}),
+				]),
+				msg(3, [
+					toolCall("spawn-desktop", "spawn_subagent", {
+						subagent_type: "computer_use",
+						title: "Desktop helper",
+					}),
+					toolResult("spawn-desktop", "spawn_subagent", {
+						chat_id: "spawn-desktop-child",
+						subagent_type: "computer_use",
+						title: "Desktop helper",
+						status: "completed",
+					}),
+				]),
+			]);
 
 		expect(titles.get("spawn-general-child")).toBe("General helper");
 		expect(variants.get("spawn-general-child")).toBe("general");
 		expect(variants.get("spawn-explore-child")).toBe("explore");
 		expect(variants.get("spawn-desktop-child")).toBe("computer_use");
 		expect(Array.from(computerUseIds)).toEqual(["spawn-desktop-child"]);
+		expect(legacyComputerUseIds).toEqual(computerUseIds);
 	});
 
 	it("buildSubagentMaps merges mixed legacy and spawn_subagent transcripts coherently", () => {

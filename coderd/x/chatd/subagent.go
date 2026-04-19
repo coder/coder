@@ -240,17 +240,30 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for recording",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
+				}
 
 				// Authorize: the target chat must be a descendant
 				// of the current (parent) chat.
 				isDescendant, descErr := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
 				if descErr != nil {
-					return fantasy.NewTextErrorResponse(
-						fmt.Sprintf("failed to verify subagent relationship: %v", descErr)), nil
+					return subagentErrorResponse(
+						xerrors.New(fmt.Sprintf("failed to verify subagent relationship: %v", descErr)),
+						targetChatInfo,
+					), nil
 				}
 				if !isDescendant {
-					return fantasy.NewTextErrorResponse(
-						"target chat is not a subagent of the current chat"), nil
+					return subagentErrorResponse(
+						xerrors.New("target chat is not a subagent of the current chat"),
+						targetChatInfo,
+					), nil
 				}
 
 				// Check if the target is a computer_use subagent
@@ -260,14 +273,8 @@ func (p *Server) subagentTools(
 				var recordingID string
 				var agentConn workspacesdk.AgentConn
 
-				targetChatInfo, lookupErr := p.db.GetChatByID(ctx, targetChatID)
-				if lookupErr != nil && !xerrors.Is(lookupErr, sql.ErrNoRows) {
-					p.logger.Warn(ctx, "unexpected error looking up chat for recording",
-						slog.F("chat_id", targetChatID),
-						slog.Error(lookupErr),
-					)
-				}
-				isComputerUseChat := lookupErr == nil && targetChatInfo.Mode.Valid &&
+				isComputerUseChat := targetChatInfo != nil &&
+					targetChatInfo.Mode.Valid &&
 					targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse &&
 					targetChatInfo.AgentID.Valid
 				canRecord := isComputerUseChat && p.agentConnFn != nil
@@ -299,7 +306,7 @@ func (p *Server) subagentTools(
 				// On timeout or error, leave the recording running on
 				// the agent so the next wait_agent call continues it.
 				if awaitErr != nil {
-					return fantasy.NewTextErrorResponse(awaitErr.Error()), nil
+					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
 
 				// Only stop and store the recording on success.
@@ -345,6 +352,10 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				}
 				busyBehavior := SendMessageBusyBehaviorQueue
 				if args.Interrupt {
 					busyBehavior = SendMessageBusyBehaviorInterrupt
@@ -357,7 +368,7 @@ func (p *Server) subagentTools(
 					busyBehavior,
 				)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
 				return toolJSONResponse(withSubagentType(map[string]any{
@@ -384,13 +395,17 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				}
 				targetChat, err := p.closeSubagent(
 					ctx,
 					parent.ID,
 					targetChatID,
 				)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
 				return toolJSONResponse(withSubagentType(map[string]any{
@@ -1046,4 +1061,10 @@ func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
 		return fantasy.NewTextResponse("{}")
 	}
 	return fantasy.NewTextResponse(string(data))
+}
+
+func toolJSONErrorResponse(result map[string]any) fantasy.ToolResponse {
+	resp := toolJSONResponse(result)
+	resp.IsError = true
+	return resp
 }

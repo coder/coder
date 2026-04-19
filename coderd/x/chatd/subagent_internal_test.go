@@ -384,6 +384,19 @@ func requireSpawnAgentChildChatID(t *testing.T, resp fantasy.ToolResponse) uuid.
 	return childID
 }
 
+func requireToolResponseMap(
+	t *testing.T,
+	resp fantasy.ToolResponse,
+	wantError bool,
+) map[string]any {
+	t.Helper()
+	require.Equal(t, wantError, resp.IsError, "unexpected tool error state: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	return result
+}
+
 func TestCreateChildSubagentChatCopiesPlanMode(t *testing.T) {
 	t.Parallel()
 
@@ -900,7 +913,96 @@ func TestSpawnSubagent_NotAvailableForExploreChats(t *testing.T) {
 	require.Contains(t, resp.Content, "explore chats cannot create child subagents")
 }
 
-func TestSubagentLifecycleToolsIncludePersistedSubagentType(t *testing.T) {
+func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		variant string
+	}{
+		{name: "General", variant: subagentTypeGeneral},
+		{name: "Explore", variant: subagentTypeExplore},
+		{name: "ComputerUse", variant: subagentTypeComputerUse},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			if tt.variant == subagentTypeComputerUse {
+				require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+			}
+
+			providerKeys := chatprovider.ProviderAPIKeys{}
+			if tt.variant == subagentTypeComputerUse {
+				providerKeys = chatprovider.ProviderAPIKeys{Anthropic: "test-anthropic-key"}
+			}
+			server := newInternalTestServer(t, db, ps, providerKeys)
+
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(ctx, t, db)
+			parentChat := createInternalParentChat(
+				ctx,
+				t,
+				server,
+				db,
+				org.ID,
+				user.ID,
+				model.ID,
+				"parent-lifecycle-"+tt.variant,
+			)
+
+			spawnResp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
+				SubagentType: tt.variant,
+				Prompt:       "delegate work",
+			})
+			spawnResult := requireSpawnSubagentResponse(t, spawnResp)
+			require.Equal(t, tt.variant, spawnResult.SubagentType)
+			childID, err := uuid.Parse(spawnResult.ChatID)
+			require.NoError(t, err)
+
+			setChatStatus(ctx, t, db, childID, database.ChatStatusWaiting, "")
+			insertAssistantMessage(ctx, t, db, childID, model.ID, "task complete")
+			waitResult := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parentChat,
+				parentChat.LastModelConfigID,
+				"wait_agent",
+				waitAgentArgs{ChatID: childID.String()},
+			), false)
+			require.Equal(t, tt.variant, waitResult["subagent_type"])
+
+			messageResult := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parentChat,
+				parentChat.LastModelConfigID,
+				"message_agent",
+				messageAgentArgs{ChatID: childID.String(), Message: "follow up"},
+			), false)
+			require.Equal(t, tt.variant, messageResult["subagent_type"])
+
+			setChatStatus(ctx, t, db, childID, database.ChatStatusRunning, "")
+			closeResult := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parentChat,
+				parentChat.LastModelConfigID,
+				"close_agent",
+				closeAgentArgs{ChatID: childID.String()},
+			), false)
+			require.Equal(t, tt.variant, closeResult["subagent_type"])
+		})
+	}
+}
+
+func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -908,52 +1010,62 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentType(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
-	parent, child := createComputerUseParentChild(
-		ctx, t, server, user, org, model, workspace, agent,
-		"parent-lifecycle", "computer-use-child-lifecycle",
-	)
-
-	parentChat, err := db.GetChatByID(ctx, parent.ID)
-	require.NoError(t, err)
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-
-	messageTool := findToolByName(tools, "message_agent")
-	require.NotNil(t, messageTool)
-	messageArgs, err := json.Marshal(map[string]any{
-		"chat_id": child.ID.String(),
-		"message": "follow up",
+	_, child := createParentChildChats(ctx, t, server, user, org, model)
+	unrelated, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "unrelated-lifecycle-parent",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("other")},
 	})
 	require.NoError(t, err)
-	messageResp, err := messageTool.Run(ctx, fantasy.ToolCall{
-		ID:    "call-message",
-		Name:  "message_agent",
-		Input: string(messageArgs),
-	})
+	unrelatedChat, err := db.GetChatByID(ctx, unrelated.ID)
 	require.NoError(t, err)
-	require.False(t, messageResp.IsError)
-	var messageResult map[string]any
-	require.NoError(t, json.Unmarshal([]byte(messageResp.Content), &messageResult))
-	require.Equal(t, subagentTypeComputerUse, messageResult["subagent_type"])
 
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+	tests := []struct {
+		name      string
+		toolName  string
+		args      any
+		wantError string
+	}{
+		{
+			name:      "WaitAgent",
+			toolName:  "wait_agent",
+			args:      waitAgentArgs{ChatID: child.ID.String()},
+			wantError: "target chat is not a subagent of the current chat",
+		},
+		{
+			name:      "MessageAgent",
+			toolName:  "message_agent",
+			args:      messageAgentArgs{ChatID: child.ID.String(), Message: "follow up"},
+			wantError: ErrSubagentNotDescendant.Error(),
+		},
+		{
+			name:      "CloseAgent",
+			toolName:  "close_agent",
+			args:      closeAgentArgs{ChatID: child.ID.String()},
+			wantError: ErrSubagentNotDescendant.Error(),
+		},
+	}
 
-	closeTool := findToolByName(tools, "close_agent")
-	require.NotNil(t, closeTool)
-	closeArgs, err := json.Marshal(map[string]any{
-		"chat_id": child.ID.String(),
-	})
-	require.NoError(t, err)
-	closeResp, err := closeTool.Run(ctx, fantasy.ToolCall{
-		ID:    "call-close",
-		Name:  "close_agent",
-		Input: string(closeArgs),
-	})
-	require.NoError(t, err)
-	require.False(t, closeResp.IsError)
-	var closeResult map[string]any
-	require.NoError(t, json.Unmarshal([]byte(closeResp.Content), &closeResult))
-	require.Equal(t, subagentTypeComputerUse, closeResult["subagent_type"])
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				unrelatedChat,
+				unrelatedChat.LastModelConfigID,
+				tt.toolName,
+				tt.args,
+			), true)
+			require.Equal(t, subagentTypeGeneral, result["subagent_type"])
+			require.Equal(t, tt.wantError, result["error"])
+		})
+	}
 }
 
 func TestSpawnSubagent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
