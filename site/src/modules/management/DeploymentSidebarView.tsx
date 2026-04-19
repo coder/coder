@@ -7,7 +7,7 @@ import {
 } from "#/components/Sidebar/Sidebar";
 import { Stack } from "#/components/Stack/Stack";
 import type { Permissions } from "#/modules/permissions";
-import { isDevBuild } from "#/utils/buildInfo";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */
@@ -54,7 +54,8 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig &&
-					(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+					(experiments.includes("oauth2") ||
+						getPrereleaseFlag(buildInfo) === "devel") && (
 						<SidebarNavItem href="/deployment/oauth2-provider/apps">
 							OAuth2 Applications
 						</SidebarNavItem>
