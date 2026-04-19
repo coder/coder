@@ -30,7 +30,7 @@ const renderSubagentLabel = (
 				if (descriptor.variant === "computer_use") {
 					return "Spawning computer use sub-agent…";
 				}
-				return "Spawning sub-agent…";
+				return `Spawning ${fallbackTitle}…`;
 			case "wait":
 				return providedTitle
 					? `Waiting for ${providedTitle}`

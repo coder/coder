@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildComputerUseSubagentIds,
+	buildSubagentMaps,
 	buildSubagentTitles,
 	buildSubagentVariants,
 	mergeTools,
@@ -566,10 +568,11 @@ describe("subagent transcript parsing", () => {
 
 	const parseSubagents = (messages: readonly ChatMessage[]) => {
 		const parsedMessages = parseMessagesWithMergedTools(messages);
+		const { titles, variants } = buildSubagentMaps(parsedMessages);
 		return {
 			parsedMessages,
-			titles: buildSubagentTitles(parsedMessages),
-			variants: buildSubagentVariants(parsedMessages),
+			titles,
+			variants,
 			computerUseIds: buildComputerUseSubagentIds(parsedMessages),
 		};
 	};
@@ -666,8 +669,8 @@ describe("subagent transcript parsing", () => {
 		expect(Array.from(computerUseIds)).toEqual(["spawn-desktop-child"]);
 	});
 
-	it("merges mixed legacy and spawn_subagent transcripts coherently", () => {
-		const { parsedMessages, titles, variants } = parseSubagents([
+	it("buildSubagentMaps merges mixed legacy and spawn_subagent transcripts coherently", () => {
+		const parsedMessages = parseMessagesWithMergedTools([
 			msg(1, [toolCall("legacy", "spawn_agent", { title: "Legacy helper" })]),
 			msg(2, [
 				toolResult("legacy", "spawn_agent", {
@@ -691,6 +694,7 @@ describe("subagent transcript parsing", () => {
 				}),
 			]),
 		]);
+		const { titles, variants } = buildSubagentMaps(parsedMessages);
 
 		expect(parsedMessages[0]?.parsed.tools[0]?.result).toMatchObject({
 			chat_id: "legacy-child",
@@ -705,6 +709,8 @@ describe("subagent transcript parsing", () => {
 		expect(titles.get("unified-child")).toBe("Unified helper");
 		expect(variants.get("legacy-child")).toBe("general");
 		expect(variants.get("unified-child")).toBe("explore");
+		expect(buildSubagentTitles(parsedMessages)).toEqual(titles);
+		expect(buildSubagentVariants(parsedMessages)).toEqual(variants);
 	});
 
 	it("includes close_agent in the shared subagent parsing path", () => {
@@ -827,5 +833,53 @@ describe("subagent transcript parsing", () => {
 
 		expect(titles.get("history-child")).toBe("Inspect repository");
 		expect(variants.get("history-child")).toBe("explore");
+	});
+});
+
+describe("getSubagentDescriptor", () => {
+	it("uses the inferred variant for lifecycle tools without explicit metadata", () => {
+		const lifecycleTools = [
+			{ name: "wait_agent", action: "wait" },
+			{ name: "message_agent", action: "message" },
+			{ name: "close_agent", action: "close" },
+		] as const;
+
+		for (const tool of lifecycleTools) {
+			const descriptor = getSubagentDescriptor({
+				name: tool.name,
+				args: { chat_id: "desktop-child" },
+				result: { chat_id: "desktop-child", status: "running" },
+				inferredVariant: "computer_use",
+			});
+
+			expect(descriptor).toMatchObject({
+				action: tool.action,
+				variant: "computer_use",
+				iconKind: "monitor",
+				supportsDesktopAffordance: true,
+			});
+		}
+	});
+
+	it("falls back to the general lifecycle variant without an inference", () => {
+		const lifecycleToolNames = [
+			"wait_agent",
+			"message_agent",
+			"close_agent",
+		] as const;
+
+		for (const name of lifecycleToolNames) {
+			const descriptor = getSubagentDescriptor({
+				name,
+				args: { chat_id: "general-child" },
+				result: { chat_id: "general-child", status: "running" },
+			});
+
+			expect(descriptor).toMatchObject({
+				variant: "general",
+				iconKind: "bot",
+				supportsDesktopAffordance: false,
+			});
+		}
 	});
 });

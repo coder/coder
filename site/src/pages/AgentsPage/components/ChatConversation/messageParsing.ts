@@ -325,7 +325,7 @@ export const parseMessagesWithMergedTools = (
 	return rawParsed;
 };
 
-const buildSubagentMaps = (
+export const buildSubagentMaps = (
 	parsedMessages: readonly ParsedMessageEntry[],
 ): {
 	titles: Map<string, string>;

@@ -25,9 +25,7 @@ import {
 } from "./ChatConversation/chatStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
-	buildComputerUseSubagentIds,
-	buildSubagentTitles,
-	buildSubagentVariants,
+	buildSubagentMaps,
 	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
@@ -88,9 +86,14 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		})
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
-	const subagentTitles = buildSubagentTitles(parsedMessages);
-	const subagentVariants = buildSubagentVariants(parsedMessages);
-	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
+	const { titles: subagentTitles, variants: subagentVariants } =
+		buildSubagentMaps(parsedMessages);
+	const computerUseSubagentIds = new Set<string>();
+	for (const [chatId, variant] of subagentVariants) {
+		if (variant === "computer_use") {
+			computerUseSubagentIds.add(chatId);
+		}
+	}
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (

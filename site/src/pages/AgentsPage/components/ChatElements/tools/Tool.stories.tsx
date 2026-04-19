@@ -554,6 +554,23 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 	},
 };
 
+export const CloseAgentRunningWithoutChatId: Story = {
+	args: {
+		name: "close_agent",
+		status: "running",
+		args: {},
+		result: { status: "running" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvasElement.textContent?.trim()).toBe("");
+		});
+		expect(canvas.queryByRole("button")).toBeNull();
+		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
+	},
+};
+
 export const CloseAgentExploreCompleted: Story = {
 	args: {
 		name: "close_agent",

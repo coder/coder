@@ -73,6 +73,9 @@ export const ToolIcon: React.FC<{
 	}
 
 	if (isSubagentToolName(name)) {
+		// This name-based fallback only exists for legacy callers that do
+		// not pass a descriptor. The descriptor path should provide
+		// subagentIconKind for new subagent types instead of extending it.
 		const iconKind =
 			subagentIconKind ||
 			(name === "spawn_computer_use_agent" ? "monitor" : "bot");

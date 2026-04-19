@@ -793,6 +793,45 @@ func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 	require.Contains(t, unavailableResp.Content, `subagent_type "computer_use" is unavailable because computer use is not configured`)
 }
 
+func TestSpawnSubagent_BlankTypeReturnsValidOptions(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-blank-type",
+	)
+
+	tests := []struct {
+		name         string
+		subagentType string
+	}{
+		{name: "empty", subagentType: ""},
+		{name: "space", subagentType: " "},
+		{name: "whitespace", subagentType: "\n\t"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
+				SubagentType: tt.subagentType,
+				Prompt:       "delegate work",
+			})
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, "subagent_type must be one of:")
+			require.Contains(t, resp.Content, subagentTypeGeneral)
+			require.Contains(t, resp.Content, subagentTypeExplore)
+			require.Contains(t, resp.Content, subagentTypeComputerUse)
+		})
+	}
+}
+
 func TestSpawnSubagent_NotAvailableForChildChats(t *testing.T) {
 	t.Parallel()
 

@@ -535,15 +535,16 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		}
 	}
 
-	// Postpone rendering wait_agent / message_agent until the
-	// chat_id has been parsed from the streaming args. Without it
-	// we can't determine variant or title, which causes a brief
-	// flash of the generic wait or message copy.
+	// Postpone rendering wait_agent, message_agent, and close_agent
+	// until the chat_id has been parsed from the streaming args.
+	// Without it we cannot determine variant or title, which causes
+	// a brief flash of the generic lifecycle copy.
 	if (!chatId && status === "running") {
-		if (descriptor.action === "wait") {
-			return null;
-		}
-		if (descriptor.action === "message") {
+		if (
+			descriptor.action === "wait" ||
+			descriptor.action === "message" ||
+			descriptor.action === "close"
+		) {
 			return null;
 		}
 	}
