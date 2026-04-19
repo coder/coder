@@ -310,27 +310,195 @@ func diffMetadataLines(diff codersdk.ChatDiffContents) []string {
 	return lines
 }
 
-func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
-	lines := diffMetadataLines(diff)
-	if len(changes) == 0 {
-		if len(lines) > 0 {
-			lines = append(lines, "")
+func resolvedChatDiffChanges(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) []codersdk.ChatGitChange {
+	if len(changes) > 0 {
+		return changes
+	}
+	return parseChatGitChangesFromUnifiedDiff(diff)
+}
+
+func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []codersdk.ChatGitChange {
+	rawDiff := sanitizeTerminalRenderableText(diff.Diff)
+	if strings.TrimSpace(rawDiff) == "" {
+		return nil
+	}
+
+	var (
+		changes          []codersdk.ChatGitChange
+		current          *codersdk.ChatGitChange
+		currentAdditions int
+		currentDeletions int
+	)
+	flush := func() {
+		if current == nil {
+			return
 		}
-		lines = append(lines, "No changes detected.")
-		return strings.Join(lines, "\n")
+		if current.FilePath == "" {
+			current = nil
+			currentAdditions = 0
+			currentDeletions = 0
+			return
+		}
+		if currentAdditions > 0 || currentDeletions > 0 {
+			stats := make([]string, 0, 2)
+			if currentAdditions > 0 {
+				stats = append(stats, fmt.Sprintf("+%d", currentAdditions))
+			}
+			if currentDeletions > 0 {
+				stats = append(stats, fmt.Sprintf("-%d", currentDeletions))
+			}
+			summary := strings.Join(stats, " ")
+			current.DiffSummary = &summary
+		}
+		changes = append(changes, *current)
+		current = nil
+		currentAdditions = 0
+		currentDeletions = 0
 	}
-	if len(lines) > 0 {
-		lines = append(lines, "")
+
+	for _, line := range strings.Split(rawDiff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			flush()
+			oldPath, newPath, ok := parseUnifiedDiffHeaderPaths(line)
+			if !ok {
+				continue
+			}
+			current = &codersdk.ChatGitChange{
+				ChatID:     diff.ChatID,
+				FilePath:   newPath,
+				ChangeType: "modified",
+			}
+			if oldPath != "" && newPath != "" && oldPath != newPath {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+				current.ChangeType = "renamed"
+			}
+		case current == nil:
+			continue
+		case strings.HasPrefix(line, "new file mode "):
+			current.ChangeType = "added"
+		case strings.HasPrefix(line, "deleted file mode "):
+			current.ChangeType = "deleted"
+		case strings.HasPrefix(line, "rename from "):
+			oldPath := strings.TrimSpace(strings.TrimPrefix(line, "rename from "))
+			if oldPath != "" {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+			}
+			current.ChangeType = "renamed"
+		case strings.HasPrefix(line, "rename to "):
+			newPath := strings.TrimSpace(strings.TrimPrefix(line, "rename to "))
+			if newPath != "" {
+				current.FilePath = newPath
+			}
+			current.ChangeType = "renamed"
+		case strings.HasPrefix(line, "--- /dev/null"):
+			current.ChangeType = "added"
+		case strings.HasPrefix(line, "+++ /dev/null"):
+			current.ChangeType = "deleted"
+		case strings.HasPrefix(line, "--- "):
+			if current.ChangeType == "added" {
+				continue
+			}
+			if oldPath := trimUnifiedDiffPath(strings.TrimSpace(strings.TrimPrefix(line, "--- "))); oldPath != "" && oldPath != "/dev/null" {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+			}
+		case strings.HasPrefix(line, "+++ "):
+			if current.ChangeType == "deleted" {
+				continue
+			}
+			if newPath := trimUnifiedDiffPath(strings.TrimSpace(strings.TrimPrefix(line, "+++ "))); newPath != "" && newPath != "/dev/null" {
+				current.FilePath = newPath
+			}
+		case strings.HasPrefix(line, "+"):
+			currentAdditions++
+		case strings.HasPrefix(line, "-"):
+			currentDeletions++
+		}
 	}
-	lines = append(lines, "Files changed:")
+	flush()
+	return changes
+}
+
+func parseUnifiedDiffHeaderPaths(line string) (oldPath string, newPath string, ok bool) {
+	parts := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, "diff --git ")))
+	if len(parts) < 2 {
+		return "", "", false
+	}
+	return trimUnifiedDiffPath(parts[0]), trimUnifiedDiffPath(parts[1]), true
+}
+
+func trimUnifiedDiffPath(path string) string {
+	path = strings.Trim(strings.TrimSpace(path), `"`)
+	switch {
+	case strings.HasPrefix(path, "a/"), strings.HasPrefix(path, "b/"):
+		return path[2:]
+	default:
+		return path
+	}
+}
+
+func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
+	changes = resolvedChatDiffChanges(diff, changes)
+	if len(changes) == 0 {
+		return "No changes detected."
+	}
+
+	label := "files"
+	if len(changes) == 1 {
+		label = "file"
+	}
+	lines := []string{fmt.Sprintf("%d %s changed:", len(changes), label)}
 	for _, change := range changes {
 		path := sanitizeTerminalRenderableText(change.FilePath)
 		if change.ChangeType == "renamed" && change.OldPath != nil && *change.OldPath != "" {
 			path = fmt.Sprintf("%s → %s", sanitizeTerminalRenderableText(*change.OldPath), path)
 		}
-		lines = append(lines, fmt.Sprintf("  %-8s %s", change.ChangeType, path))
+		line := fmt.Sprintf("  %-8s %s", change.ChangeType, path)
+		if change.DiffSummary != nil && strings.TrimSpace(*change.DiffSummary) != "" {
+			line = fmt.Sprintf("%s (%s)", line, sanitizeTerminalRenderableText(*change.DiffSummary))
+		}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderStyledDiffBody(styles tuiStyles, diff string) string {
+	diff = sanitizeTerminalRenderableText(diff)
+	if strings.TrimSpace(diff) == "" {
+		return styles.dimmedText.Render("No diff contents.")
+	}
+	lines := strings.Split(diff, "\n")
+	for i, line := range lines {
+		lines[i] = styleUnifiedDiffLine(styles, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func styleUnifiedDiffLine(styles tuiStyles, line string) string {
+	switch {
+	case strings.HasPrefix(line, "diff --git "):
+		return styles.selectedItem.Render(line)
+	case strings.HasPrefix(line, "index "),
+		strings.HasPrefix(line, "new file mode "),
+		strings.HasPrefix(line, "deleted file mode "),
+		strings.HasPrefix(line, "rename from "),
+		strings.HasPrefix(line, "rename to "),
+		strings.HasPrefix(line, "Binary files "),
+		strings.HasPrefix(line, "--- "),
+		strings.HasPrefix(line, "+++ "):
+		return styles.subtitle.Render(line)
+	case strings.HasPrefix(line, "@@"):
+		return styles.warningText.Render(line)
+	case strings.HasPrefix(line, "+"):
+		return styles.toolSuccess.Render(line)
+	case strings.HasPrefix(line, "-"):
+		return styles.errorText.Render(line)
+	default:
+		return line
+	}
 }
 
 func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
@@ -340,10 +508,7 @@ func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes 
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
 	summary := renderChatDiffSummary(diff, changes)
-	diffBody := sanitizeTerminalRenderableText(diff.Diff)
-	if strings.TrimSpace(diffBody) == "" {
-		diffBody = styles.dimmedText.Render("No diff contents.")
-	}
+	diffBody := renderStyledDiffBody(styles, diff.Diff)
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4
 	availableBodyLines := max(height-overhead, 0)

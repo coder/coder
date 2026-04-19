@@ -344,15 +344,13 @@ func (m *expChatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
 	if !m.toggleOverlay(overlayDiffDrawer) {
 		return nil
 	}
-	if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
+	if m.chat.diffContents == nil || m.chat.diffErr != nil {
 		m.chat.diffErr = nil
 		chatID := m.chat.chat.ID
 		generation := m.chat.chatGeneration
-		return tea.Batch(apiCmd(func() ([]codersdk.ChatGitChange, error) { return m.client.GetChatGitChanges(m.ctx, chatID) }, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
-			return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
-		}), apiCmd(func() (codersdk.ChatDiffContents, error) { return m.client.GetChatDiffContents(m.ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
+		return apiCmd(func() (codersdk.ChatDiffContents, error) { return fetchChatDiffContents(m.ctx, m.client, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
 			return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
-		}))
+		})
 	}
 	return nil
 }

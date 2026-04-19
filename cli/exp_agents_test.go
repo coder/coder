@@ -543,7 +543,7 @@ func TestExpAgents(t *testing.T) {
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, overlayDiffDrawer, updated.overlay)
-			require.Len(t, mustBatchMsg(t, cmd), 2)
+			require.NotNil(t, cmd)
 			require.Contains(t, plainText(updated.View()), "Loading diff")
 		})
 
@@ -558,7 +558,7 @@ func TestExpAgents(t *testing.T) {
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 
-			updatedModel, cmd = updated.Update(gitChangesMsg{err: xerrors.New("connection refused")})
+			updatedModel, cmd = updated.Update(diffContentsMsg{err: xerrors.New("connection refused")})
 			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Contains(t, plainText(updated.View()), "connection refused")
 		})

@@ -564,7 +564,9 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, "Branch: feature/chat-ui")
 				require.Contains(t, output, "PR: https://example.com/pulls/123")
 			}},
-			{name: "ShowsDiffContent", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+added line"}, changes: []codersdk.ChatGitChange{{FilePath: "a.txt", ChangeType: "modified"}}, assert: func(t *testing.T, output string) {
+			{name: "ShowsDiffContent", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n+added line"}, assert: func(t *testing.T, output string) {
+				require.Contains(t, output, "1 file changed:")
+				require.Contains(t, output, "modified a.txt (+1)")
 				require.Contains(t, output, "diff --git a/a.txt b/a.txt")
 				require.Contains(t, output, "+added line")
 			}},
@@ -579,6 +581,55 @@ func TestExpAgentsRender(t *testing.T) {
 			})
 		}
 	})
+	t.Run("ParseChatGitChangesFromUnifiedDiff", func(t *testing.T) {
+		t.Parallel()
+
+		diff := strings.Join([]string{
+			"diff --git a/a.txt b/a.txt",
+			"--- a/a.txt",
+			"+++ b/a.txt",
+			"@@ -1 +1 @@",
+			"-old",
+			"+new",
+			"diff --git a/new.txt b/new.txt",
+			"new file mode 100644",
+			"--- /dev/null",
+			"+++ b/new.txt",
+			"@@ -0,0 +1 @@",
+			"+hello",
+			"diff --git a/old.txt b/old.txt",
+			"deleted file mode 100644",
+			"--- a/old.txt",
+			"+++ /dev/null",
+			"@@ -1 +0,0 @@",
+			"-bye",
+			"diff --git a/old-name.txt b/new-name.txt",
+			"similarity index 100%",
+			"rename from old-name.txt",
+			"rename to new-name.txt",
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 4)
+		require.Equal(t, "a.txt", changes[0].FilePath)
+		require.Equal(t, "modified", changes[0].ChangeType)
+		require.NotNil(t, changes[0].DiffSummary)
+		require.Equal(t, "+1 -1", *changes[0].DiffSummary)
+		require.Equal(t, "new.txt", changes[1].FilePath)
+		require.Equal(t, "added", changes[1].ChangeType)
+		require.NotNil(t, changes[1].DiffSummary)
+		require.Equal(t, "+1", *changes[1].DiffSummary)
+		require.Equal(t, "old.txt", changes[2].FilePath)
+		require.Equal(t, "deleted", changes[2].ChangeType)
+		require.NotNil(t, changes[2].DiffSummary)
+		require.Equal(t, "-1", *changes[2].DiffSummary)
+		require.Equal(t, "new-name.txt", changes[3].FilePath)
+		require.Equal(t, "renamed", changes[3].ChangeType)
+		require.NotNil(t, changes[3].OldPath)
+		require.Equal(t, "old-name.txt", *changes[3].OldPath)
+		require.Nil(t, changes[3].DiffSummary)
+	})
+
 	t.Run("RenderDiffDrawerSanitizesUntrustedContent", func(t *testing.T) {
 		t.Parallel()
 
