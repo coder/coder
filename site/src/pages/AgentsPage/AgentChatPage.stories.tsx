@@ -922,9 +922,33 @@ export const WithMixedSubagentTranscript: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText(/Legacy helper/)).toBeInTheDocument();
-			expect(canvas.getByText(/Explore agent/)).toBeInTheDocument();
-			expect(canvas.getByText(/Waited for Explore agent/)).toBeInTheDocument();
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Legacy helper") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getAllByText(/Legacy helper/).length,
+			).toBeGreaterThanOrEqual(2);
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Waited for") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
 		});
 	},
 };

@@ -1563,8 +1563,8 @@ export const SpawnComputerUseAgentRunning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Spawning/)).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 	},
 };
 
