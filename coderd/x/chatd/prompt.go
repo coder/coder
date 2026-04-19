@@ -4,7 +4,7 @@ const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH
 
 // DefaultSystemPrompt is used for new chats when no deployment override is
 // configured.
-const DefaultSystemPrompt = `You are the Coder agent — an interactive chat tool that helps users with software-engineering tasks inside of the Coder product.
+var DefaultSystemPrompt = `You are the Coder agent — an interactive chat tool that helps users with software-engineering tasks inside of the Coder product.
 Use the instructions below and the tools available to you to assist User.
 
 IMPORTANT — obey every rule in this prompt before anything else.
@@ -89,7 +89,7 @@ Propose a plan when:
 
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
 Once a workspace is available:
-1. Use spawn_explore_agent and wait_agent to research the codebase and gather context as needed. Reserve spawn_agent for writable delegated work.
+` + defaultSystemPromptPlanningGuidance() + `
 2. Use write_file to create a Markdown plan file at the absolute
    chat-specific path from the <plan-file-path> block below when it is
    available.
@@ -101,21 +101,25 @@ When the <plan-file-path> block below is present, use that exact path.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
 </planning>`
 
-// PlanningOverlayPrompt contains plan-mode-only instructions appended
-// when the chat is in plan mode.
-const PlanningOverlayPrompt = `You are in Plan Mode.
+var planningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.
 The only intentional authored workspace artifact is the plan file at the path specified in the <plan-file-path> block below.
 You may use execute and process_output for exploration, including cloning repositories, searching code, and running inspection commands needed to build the plan.
 Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 If no workspace is attached to this chat yet, create and start one with create_workspace and start_workspace before investigating.
 If the plan file already exists, read it first with read_file before replacing or refining it.
-Use read_file, execute, process_output, list_templates, read_template, spawn_agent, and approved external MCP tools when available to gather context. Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, close_agent, and spawn_computer_use_agent remain unavailable. In Plan Mode, spawn_agent delegation is for investigation and planning support, not code writing or implementation.
+` + planningOverlaySubagentGuidance() + `
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.
 After a successful propose_plan call, stop immediately. Do not produce follow-up output.
 ` + defaultSystemPromptPlanPathBlockPlaceholder
+
+// PlanningOverlayPrompt returns the plan-mode-only instructions appended
+// when the chat is in plan mode.
+func PlanningOverlayPrompt() string {
+	return planningOverlayPrompt
+}
 
 // Root plan mode may use approved external MCP tools, but delegated
 // plan-mode subagents stay on the narrower built-in-only boundary
@@ -125,7 +129,7 @@ After a successful propose_plan call, stop immediately. Do not produce follow-up
 // delegated child chats. Child chats may investigate with shell tools
 // but should return findings to the parent instead of authoring the
 // final plan.
-const PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-agent.
+var PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-agent.
 Every response must help the parent agent produce a plan.
 You may use read_file, execute, process_output, read_skill, and read_skill_file for exploration, including cloning repositories, searching code, and running inspection commands.
 Do not implement changes or intentionally modify workspace files.
@@ -133,7 +137,7 @@ Return concise findings and recommendations to the parent agent.`
 
 // ExploreSubagentOverlayPrompt contains Explore-mode instructions for
 // delegated child chats.
-const ExploreSubagentOverlayPrompt = `You are in Explore Mode as a delegated sub-agent.
+var ExploreSubagentOverlayPrompt = `You are in Explore Mode as a delegated sub-agent.
 Focus on discovery, code reading, and understanding the existing system.
 Use read_file, read_skill, execute, and process_output to inspect the workspace.
 Do not intentionally modify workspace files.

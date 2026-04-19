@@ -235,9 +235,9 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		toolsMu.Unlock()
 
 		if callCount.Add(1) == 1 {
-			// Root chat: model calls spawn_agent.
+			// Root chat: model calls spawn_subagent.
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_subagent", `{"subagent_type":"general","prompt":"do the thing","title":"sub"}`),
 			)
 		}
 		// Subsequent calls (including the subagent): just reply.
@@ -295,7 +295,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		toolsMu.Lock()
 		n := len(toolsByCall)
 		toolsMu.Unlock()
-		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
+		// Expect at least 3 calls: root-1 (spawn_subagent), child-1, root-2.
 		return n >= 3
 	}, testutil.WaitLong, testutil.IntervalFast)
 
@@ -309,16 +309,16 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"expected at least 2 streamed LLM calls (root + subagent)")
 
 	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+	subagentTools := []string{"spawn_subagent", "wait_agent", "message_agent", "close_agent"}
 
 	// Identify root and subagent calls. Root chat calls include
-	// spawn_agent; the subagent call does not. Because the root chat
-	// makes multiple LLM calls (before and after spawn_agent), we
-	// find exactly one call that lacks spawn_agent — that's the
+	// spawn_subagent; the subagent call does not. Because the root chat
+	// makes multiple LLM calls (before and after spawn_subagent), we
+	// find exactly one call that lacks spawn_subagent — that's the
 	// subagent.
 	var rootCalls, childCalls [][]string
 	for _, tools := range recorded {
-		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
+		hasSpawnAgent := slice.Contains(tools, "spawn_subagent")
 		if hasSpawnAgent {
 			rootCalls = append(rootCalls, tools)
 		} else {
@@ -431,7 +431,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"inspect the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_subagent", `{"subagent_type":"general","prompt":"inspect the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -495,7 +495,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	var rootCalls, childCalls [][]string
 	var rootRequests, childRequests []recordedOpenAIRequest
 	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_agent") {
+		if slice.Contains(tools, "spawn_subagent") {
 			rootCalls = append(rootCalls, tools)
 			rootRequests = append(rootRequests, recordedRequests[i])
 			continue
@@ -587,7 +587,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_explore_agent", `{"prompt":"investigate the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_subagent", `{"subagent_type":"explore","prompt":"investigate the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -631,7 +631,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		sawRoot := false
 		sawChild := false
 		for _, tools := range toolsByCall {
-			if slice.Contains(tools, "spawn_explore_agent") {
+			if slice.Contains(tools, "spawn_subagent") {
 				sawRoot = true
 				continue
 			}
@@ -652,7 +652,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	var rootCalls, childCalls [][]string
 	var rootRequests, childRequests []recordedOpenAIRequest
 	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_explore_agent") {
+		if slice.Contains(tools, "spawn_subagent") {
 			rootCalls = append(rootCalls, tools)
 			rootRequests = append(rootRequests, recordedRequests[i])
 			continue
@@ -665,14 +665,12 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
 	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
 	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
-	require.Contains(t, rootCalls[0], "spawn_agent")
-	require.Contains(t, rootCalls[0], "spawn_explore_agent")
+	require.Contains(t, rootCalls[0], "spawn_subagent")
 	require.Contains(t, rootCalls[0], "write_file")
 	require.Contains(t, rootCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "write_file")
 	require.NotContains(t, childCalls[0], "edit_files")
-	require.NotContains(t, childCalls[0], "spawn_agent")
-	require.NotContains(t, childCalls[0], "spawn_explore_agent")
+	require.NotContains(t, childCalls[0], "spawn_subagent")
 	require.NotContains(t, childCalls[0], "wait_agent")
 	require.Contains(t, childCalls[0], "read_file")
 	require.Contains(t, childCalls[0], "execute")
@@ -5499,7 +5497,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	t.Cleanup(anthropicSrv.Close)
 
 	// OpenAI mock for the root chat. The first streaming call
-	// triggers spawn_computer_use_agent; subsequent calls reply
+	// triggers spawn_subagent; subsequent calls reply
 	// with text.
 	var openAICallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -5509,8 +5507,8 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		if openAICallCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk(
-					"spawn_computer_use_agent",
-					`{"prompt":"do the desktop thing","title":"cu-sub"}`,
+					"spawn_subagent",
+					`{"subagent_type":"computer_use","prompt":"do the desktop thing","title":"cu-sub"}`,
 				),
 			)
 		}
@@ -5657,7 +5655,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
-		"spawn_agent", "spawn_computer_use_agent",
+		"spawn_subagent",
 		"wait_agent", "message_agent", "close_agent",
 	}
 	for _, tool := range subagentTools {

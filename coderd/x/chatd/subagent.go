@@ -48,16 +48,6 @@ Guidelines:
 - If an action doesn't produce the expected result, try alternative approaches.
 - Report what you accomplished when done.`
 
-type spawnAgentArgs struct {
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
-}
-
-type spawnComputerUseAgentArgs struct {
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
-}
-
 type waitAgentArgs struct {
 	ChatID         string `json:"chat_id"`
 	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
@@ -164,130 +154,76 @@ func (p *Server) subagentTools(
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
 ) []fantasy.AgentTool {
-	var planMode database.NullChatPlanMode
+	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
-		planMode = currentChat().PlanMode
+		currentChatSnapshot = currentChat()
 	}
 
-	spawnAgentDescription := "Spawn a delegated child agent to work on a clearly scoped, " +
-		"independent task in parallel. Use this when the task is " +
-		"self-contained and would benefit from a separate agent " +
-		"(e.g. fixing a specific bug, writing a single module, " +
-		"running a migration). Do NOT use for simple or quick " +
-		"operations you can handle directly with execute, " +
-		"read_file, or write_file. For read-only investigation and " +
-		"codebase discovery, prefer spawn_explore_agent instead. " +
-		"Reserve writable subagents for tasks that require " +
-		"intellectual work such as code analysis, writing new " +
-		"code, or complex refactoring. Be careful when running " +
-		"parallel subagents: if two subagents modify the same " +
-		"files they will conflict with each other, so ensure " +
-		"parallel subagent tasks are independent. " +
-		"The child agent receives the same workspace tools but " +
-		"cannot spawn its own subagents. After spawning, use " +
-		"wait_agent to collect the result."
-	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
-		spawnAgentDescription += " During plan mode, spawned agents may use shell commands for exploration, such as cloning repositories, searching code, and running inspection commands, but they must not implement changes or intentionally modify workspace files."
-	}
-	spawnExploreAgentDescription := "Spawn a read-only delegated child agent for discovery, code reading, and system understanding. Use this when you need investigation, tracing, codebase research, or architecture discovery without intentionally modifying workspace files. The child agent cannot spawn its own subagents and has a restricted toolset focused on reading files and inspection commands. After spawning, use wait_agent to collect the result."
+	spawnSubagentDescription := buildSpawnSubagentDescription(
+		ctx,
+		p,
+		currentChatSnapshot,
+	)
 
-	tools := []fantasy.AgentTool{
+	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
-			"spawn_agent",
-			spawnAgentDescription,
-			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			spawnSubagentToolName,
+			spawnSubagentDescription,
+			func(ctx context.Context, args spawnSubagentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
+				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				childChat, err := p.createChildSubagentChatWithOptions(
+
+				definition, err := resolveSubagentDefinition(
 					ctx,
+					p,
 					parent,
-					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{},
+					args.SubagentType,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
-					"status":  string(childChat.Status),
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"spawn_explore_agent",
-			spawnExploreAgentDescription,
-			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
-				}
-
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
+				options, err := definition.buildOptions(
 					ctx,
-					parent.OwnerID,
+					p,
+					parent,
 					currentModelConfigID,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				// Explore subagents operate independently of planning.
-				// Clear plan mode to prevent the child from inheriting
-				// parent planning behavior.
-				clearPlanMode := database.NullChatPlanMode{}
-				childChat, err := p.createChildSubagentChatWithOptions(
-					ctx,
-					parent,
 					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{
-						chatMode: database.NullChatMode{
-							ChatMode: database.ChatModeExplore,
-							Valid:    true,
-						},
-						modelConfigIDOverride: &modelConfigID,
-						planModeOverride:      &clearPlanMode,
-					},
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
+				childChat, err := p.createChildSubagentChatWithOptions(
+					ctx,
+					parent,
+					args.Prompt,
+					args.Title,
+					options,
+				)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id": childChat.ID.String(),
 					"title":   childChat.Title,
 					"status":  string(childChat.Status),
-				}), nil
+				}, childChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a spawned child agent finishes its task. "+
 				"Returns the agent's final response and status. "+
-				"Call this after spawn_agent, spawn_explore_agent, or "+
-				"spawn_computer_use_agent to collect the result before "+
-				"continuing your own work.",
+				"Call this after "+spawnSubagentToolName+" to collect the "+
+				"result before continuing your own work.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -319,7 +255,7 @@ func (p *Server) subagentTools(
 
 				// Check if the target is a computer_use subagent
 				// and start a desktop recording. Failures are
-				// best-effort warnings — recording never blocks
+				// best-effort warnings. Recording never blocks
 				// the wait_agent flow.
 				var recordingID string
 				var agentConn workspacesdk.AgentConn
@@ -348,7 +284,7 @@ func (p *Server) subagentTools(
 						if startErr != nil {
 							p.logger.Warn(ctx, "failed to start desktop recording",
 								slog.Error(startErr))
-							recordingID = "" // Don't try to stop.
+							recordingID = ""
 						}
 					} else {
 						p.logger.Warn(ctx, "failed to get agent conn for recording",
@@ -360,9 +296,8 @@ func (p *Server) subagentTools(
 					ctx, parent.ID, targetChatID, timeout,
 				)
 
-				// On timeout/error, leave the recording running on
-				// the agent so the next wait_agent call continues
-				// it seamlessly.
+				// On timeout or error, leave the recording running on
+				// the agent so the next wait_agent call continues it.
 				if awaitErr != nil {
 					return fantasy.NewTextErrorResponse(awaitErr.Error()), nil
 				}
@@ -371,18 +306,18 @@ func (p *Server) subagentTools(
 				var recResult recordingResult
 				if recordingID != "" && agentConn != nil {
 					// Use a fresh context for cleanup so a canceled
-					// parent context doesn't prevent recording storage.
+					// parent context does not prevent recording storage.
 					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 					defer stopCancel()
 					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
 						recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
 				}
-				resp := map[string]any{
-					"chat_id": targetChatID.String(),
+				resp := withSubagentType(map[string]any{
+					"chat_id": targetChat.ID.String(),
 					"title":   targetChat.Title,
 					"report":  report,
 					"status":  string(targetChat.Status),
-				}
+				}, targetChat)
 				if recResult.recordingFileID != "" {
 					resp["recording_file_id"] = recResult.recordingFileID
 				}
@@ -425,12 +360,12 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id":     targetChatID.String(),
+				return toolJSONResponse(withSubagentType(map[string]any{
+					"chat_id":     targetChat.ID.String(),
 					"title":       targetChat.Title,
 					"status":      string(targetChat.Status),
 					"interrupted": args.Interrupt,
-				}), nil
+				}, targetChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -458,71 +393,35 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id":    targetChatID.String(),
+				return toolJSONResponse(withSubagentType(map[string]any{
+					"chat_id":    targetChat.ID.String(),
 					"title":      targetChat.Title,
 					"terminated": true,
 					"status":     string(targetChat.Status),
-				}), nil
+				}, targetChat)), nil
 			},
 		),
 	}
+}
 
-	// Only include the computer use tool when an Anthropic
-	// provider is configured and desktop is enabled.
-	if p.isAnthropicConfigured(ctx) && p.isDesktopEnabled(ctx) {
-		tools = append(tools, fantasy.NewAgentTool(
-			"spawn_computer_use_agent",
-			"Spawn a dedicated computer use agent that can see the desktop "+
-				"(take screenshots) and interact with it (mouse, keyboard, "+
-				"scroll). The agent runs on a model optimized for computer "+
-				"use and has the same workspace tools as a standard subagent "+
-				"plus the native Anthropic computer tool. Use this for tasks "+
-				"that require visual interaction with a desktop GUI (e.g. "+
-				"browser automation, GUI testing, visual inspection). After "+
-				"spawning, use wait_agent to collect the result.",
-			func(ctx context.Context, args spawnComputerUseAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
-				}
-
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				childChat, err := p.createChildSubagentChatWithOptions(
-					ctx,
-					parent,
-					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{
-						chatMode: database.NullChatMode{
-							ChatMode: database.ChatModeComputerUse,
-							Valid:    true,
-						},
-						systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(args.Prompt),
-					},
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				return toolJSONResponse(map[string]any{
-					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
-					"status":  string(childChat.Status),
-				}), nil
-			},
-		))
+func (p *Server) loadSubagentSpawnParentChat(
+	ctx context.Context,
+	currentChat func() database.Chat,
+) (database.Chat, error) {
+	parent := currentChat()
+	if err := validateSubagentSpawnParent(parent); err != nil {
+		return database.Chat{}, err
 	}
 
-	return tools
+	parent, err := p.db.GetChatByID(ctx, parent.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := validateSubagentSpawnParent(parent); err != nil {
+		return database.Chat{}, err
+	}
+
+	return parent, nil
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
