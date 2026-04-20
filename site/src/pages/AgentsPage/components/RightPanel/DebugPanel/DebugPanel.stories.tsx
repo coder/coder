@@ -473,7 +473,7 @@ const meta: Meta<typeof DebugPanel> = {
 	component: DebugPanel,
 	args: {
 		chatId: CHAT_ID,
-		enabled: true,
+		isVisible: true,
 	},
 	beforeEach: (ctx) => {
 		const real = Date.now;
@@ -525,6 +525,19 @@ export const Empty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/no debug runs/i)).toBeInTheDocument();
+	},
+};
+
+export const Disabled: Story = {
+	args: {
+		isVisible: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/no debug runs recorded yet/i),
+		).toBeInTheDocument();
+		await expect(canvas.getByText(/Settings → Behavior/)).toBeInTheDocument();
 	},
 };
 
