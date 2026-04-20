@@ -1548,7 +1548,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								variant="outline"
 								size="sm"
 								onClick={closeRenameDialog}
-								disabled={isRenamingChat || isGeneratingRenameTitle}
+								disabled={isRenamingChat}
 							>
 								Cancel
 							</Button>
