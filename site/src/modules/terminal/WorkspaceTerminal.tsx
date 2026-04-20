@@ -100,13 +100,10 @@ export const WorkspaceTerminal = ({
 		setHasBeenVisible(true);
 	}
 
-	const reportTerminalError = useCallback(
-		(error: Error) => {
-			console.error(error);
-			onError?.(error);
-		},
-		[onError],
-	);
+	const reportTerminalError = useEffectEvent((error: Error) => {
+		console.error(error);
+		onError?.(error);
+	});
 
 	const getTerminalDimensions = useCallback(
 		(terminal: Terminal): { height: number; width: number } | null => {
@@ -124,7 +121,7 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[reportTerminalError],
+		[],
 	);
 
 	const refit = useCallback(() => {
@@ -265,7 +262,6 @@ export const WorkspaceTerminal = ({
 		hasBeenVisible,
 		copyToClipboard,
 		refit,
-		reportTerminalError,
 		renderer,
 		terminalFontFamily,
 		backgroundColor,
@@ -468,7 +464,6 @@ export const WorkspaceTerminal = ({
 		loading,
 		operatingSystem,
 		reconnectionToken,
-		reportTerminalError,
 		refit,
 		terminal,
 	]);

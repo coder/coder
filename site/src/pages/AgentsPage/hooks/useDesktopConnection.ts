@@ -1,5 +1,5 @@
 import RFB from "@novnc/novnc/lib/rfb";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
 import { useClipboard } from "#/hooks/useClipboard";
@@ -118,11 +118,12 @@ export function useDesktopConnection({
 	const reconnect = () => {
 		restartRef.current?.();
 	};
-	const onClipboardError = useCallback(() => {
-		toast.error("Failed to sync the remote clipboard to your local clipboard.");
-	}, []);
 	const { copyToClipboard: syncRemoteClipboardToLocal } = useClipboard({
-		onError: onClipboardError,
+		onError: () => {
+			toast.error(
+				"Failed to sync the remote clipboard to your local clipboard.",
+			);
+		},
 	});
 
 	const attach = (container: HTMLElement) => {

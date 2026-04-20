@@ -1,4 +1,11 @@
-import { type FC, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -27,8 +34,22 @@ const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
 const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
 
 function useSafeSearchParams() {
-	// setSearchParams from React Router has a stable reference.
-	return useSearchParams();
+	// Have to wrap setSearchParams because React Router doesn't guarantee
+	// a stable reference for setSearchParams across renders.
+	const [searchParams, setSearchParams] = useSearchParams();
+	const setterRef = useRef(setSearchParams);
+	useLayoutEffect(() => {
+		setterRef.current = setSearchParams;
+	}, [setSearchParams]);
+	const stableSetSearchParams = useCallback(
+		(...args: Parameters<typeof setSearchParams>) => setterRef.current(...args),
+		[],
+	);
+	// Need this to return a tuple, not a plain array. Using "as const"
+	// would make it readonly and cause type mismatches at call sites.
+	return [searchParams, stableSetSearchParams] as ReturnType<
+		typeof useSearchParams
+	>;
 }
 
 type BatchAction = "delete" | "update";
