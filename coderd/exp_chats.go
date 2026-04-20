@@ -2790,7 +2790,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to propose chat title.",
+			Message: "Failed to generate chat title.",
 			Detail:  err.Error(),
 		})
 		return
