@@ -3,8 +3,10 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
 	spyOn,
 	userEvent,
+	waitFor,
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -88,9 +90,25 @@ const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
 	],
 ]);
 
-const IMAGE_ATTACHMENT_STATUSES = new Map<string, number>([
-	["storybook-expired-image", 404],
-	["storybook-failed-image", 500],
+type ImageAttachmentResponse = {
+	status: number;
+	body?: string;
+};
+
+const FAILED_IMAGE_API_MESSAGE = "Failed to get chat file.";
+
+const IMAGE_ATTACHMENT_RESPONSES = new Map<string, ImageAttachmentResponse>([
+	["storybook-expired-image", { status: 404 }],
+	[
+		"storybook-failed-image",
+		{
+			status: 500,
+			body: JSON.stringify({
+				message: FAILED_IMAGE_API_MESSAGE,
+				detail: "db: connection reset",
+			}),
+		},
+	],
 ]);
 
 const mockAttachmentFetch = () => {
@@ -109,9 +127,14 @@ const mockAttachmentFetch = () => {
 			}
 		}
 
-		for (const [fileId, status] of IMAGE_ATTACHMENT_STATUSES) {
+		for (const [fileId, response] of IMAGE_ATTACHMENT_RESPONSES) {
 			if (url.endsWith(fileId)) {
-				return new Response("", { status });
+				return new Response(response.body ?? "", {
+					status: response.status,
+					headers: response.body
+						? { "Content-Type": "application/json" }
+						: undefined,
+				});
 			}
 		}
 
@@ -274,14 +297,22 @@ export const UserMessageWithExpiredImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		expect(
-			await canvas.findByRole("img", { name: "Image expired" }),
-		).toBeInTheDocument();
+		const expiredTile = await canvas.findByRole("img", {
+			name: "Image expired",
+		});
 		expect(canvas.getByText("Image expired")).toBeInTheDocument();
 		expect(canvas.getByText("This upload has expired")).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View image" }),
 		).not.toBeInTheDocument();
+
+		// The tooltip explains the retention policy generically so the
+		// copy survives any operator-chosen retention window.
+		await userEvent.hover(expiredTile);
+		const expiredTooltip = await screen.findByRole("tooltip");
+		expect(expiredTooltip).toHaveTextContent(
+			/deleted after the retention window/i,
+		);
 	},
 };
 
@@ -317,6 +348,24 @@ export const UserMessageWithFailedRemoteImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View image" }),
 		).not.toBeInTheDocument();
+
+		// When the probe returns a structured error body, the tooltip
+		// surfaces the API's message so the viewer has something
+		// actionable instead of a bare "failed to load". The label
+		// doesn't change when the probe settles (still "Image failed
+		// to load"), and the tile's DOM node is replaced when the
+		// Tooltip wrapper mounts, so re-query each time and wait for
+		// the Radix-stamped data-state attribute before hovering.
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("img", { name: "Image failed to load" }),
+			).toHaveAttribute("data-state"),
+		);
+		await userEvent.hover(
+			canvas.getByRole("img", { name: "Image failed to load" }),
+		);
+		const failedTooltip = await screen.findByRole("tooltip");
+		expect(failedTooltip).toHaveTextContent(FAILED_IMAGE_API_MESSAGE);
 	},
 };
 

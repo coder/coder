@@ -24,14 +24,38 @@ type ChatImageSource =
 	| { kind: "file"; fileId: string; src: string }
 	| { kind: "inline"; src: string };
 
-type ImageFailureState = "idle" | "probing" | "expired" | "failed";
+type ImageFailureState =
+	| { kind: "idle" }
+	| { kind: "expired" }
+	| { kind: "failed"; detail?: string };
+
+type ImageFailureReason = Exclude<ImageFailureState, { kind: "idle" }>;
 
 const classifyRemoteImageFailure = async (
 	src: string,
 	signal?: AbortSignal,
-): Promise<Extract<ImageFailureState, "expired" | "failed">> => {
+): Promise<ImageFailureReason> => {
 	const response = await fetch(src, { signal });
-	return response.status === 404 ? "expired" : "failed";
+	if (response.status === 404) {
+		return { kind: "expired" };
+	}
+
+	// Prefer the API's structured error message (coderd returns
+	// codersdk.Response { message, detail }). Fall back to the status
+	// line when the body isn't JSON — e.g. a proxy inserted an HTML
+	// page — so the tooltip still surfaces something concrete.
+	let detail = response.statusText
+		? `${response.status} ${response.statusText}`
+		: `HTTP ${response.status}`;
+	try {
+		const body = await response.json();
+		if (body && typeof body.message === "string" && body.message.trim()) {
+			detail = body.message;
+		}
+	} catch {
+		// Body wasn't JSON; stick with the status line.
+	}
+	return { kind: "failed", detail };
 };
 
 const InlineTextAttachmentButton: FC<{
@@ -114,11 +138,11 @@ const TextAttachmentButton: FC<{
 	);
 };
 
-const getImageFallbackLabel = (state: Exclude<ImageFailureState, "idle">) =>
-	state === "expired" ? "Image expired" : "Image failed to load";
+const getImageFallbackLabel = (state: ImageFailureReason) =>
+	state.kind === "expired" ? "Image expired" : "Image failed to load";
 
 const ImageFallbackTile: FC<{
-	state: Exclude<ImageFailureState, "idle">;
+	state: ImageFailureReason;
 }> = ({ state }) => {
 	const label = getImageFallbackLabel(state);
 
@@ -136,10 +160,16 @@ const ImageFallbackTile: FC<{
 		</div>
 	);
 
-	// Only "expired" gets a tooltip: the retention explanation is specific
-	// to attachments that were purged. A transient "failed to load" has no
-	// extra context worth surfacing.
-	if (state !== "expired") {
+	// Only surface a tooltip when we have something to add:
+	// - "expired" explains the retention policy.
+	// - "failed" with a detail surfaces the API error or network reason.
+	// A bare "failed" (e.g. an inline base64 decode failure, where the
+	// browser exposes nothing useful) stays a plain tile.
+	const tooltipBody =
+		state.kind === "expired"
+			? "Chat attachments are deleted after the retention window set for this deployment."
+			: state.detail;
+	if (!tooltipBody) {
 		return tile;
 	}
 
@@ -147,8 +177,7 @@ const ImageFallbackTile: FC<{
 		<Tooltip>
 			<TooltipTrigger asChild>{tile}</TooltipTrigger>
 			<TooltipContent side="top" className="max-w-xs">
-				Chat attachments are deleted after the retention window set for this
-				deployment.
+				{tooltipBody}
 			</TooltipContent>
 		</Tooltip>
 	);
@@ -158,14 +187,16 @@ const ChatImageBlock: FC<{
 	source: ChatImageSource;
 	onImageClick?: (src: string) => void;
 }> = ({ source, onImageClick }) => {
-	const [failureState, setFailureState] = useState<ImageFailureState>("idle");
+	const [failureState, setFailureState] = useState<ImageFailureState>({
+		kind: "idle",
+	});
 	const probeControllerRef = useRef<AbortController | null>(null);
 
 	useEffect(() => {
 		return () => probeControllerRef.current?.abort();
 	}, []);
 
-	if (failureState !== "idle") {
+	if (failureState.kind !== "idle") {
 		return <ImageFallbackTile state={failureState} />;
 	}
 
@@ -185,22 +216,26 @@ const ChatImageBlock: FC<{
 				className="cursor-pointer transition-opacity hover:opacity-80"
 				onError={() => {
 					if (source.kind !== "file") {
-						setFailureState("failed");
+						setFailureState({ kind: "failed" });
 						return;
 					}
 
 					probeControllerRef.current?.abort();
 					const controller = new AbortController();
 					probeControllerRef.current = controller;
-					setFailureState("probing");
+					// Optimistically swap to the generic failure tile. The
+					// probe will either upgrade it to "expired" or fill in
+					// a detail; showing a tile without a label flash is
+					// preferable to leaving the broken-image icon up.
+					setFailureState({ kind: "failed" });
 
 					void classifyRemoteImageFailure(source.src, controller.signal)
-						.then((nextState) => {
+						.then((reason) => {
 							if (probeControllerRef.current !== controller) {
 								return;
 							}
 							probeControllerRef.current = null;
-							setFailureState(nextState);
+							setFailureState(reason);
 						})
 						.catch((error) => {
 							if (probeControllerRef.current !== controller) {
@@ -210,7 +245,10 @@ const ChatImageBlock: FC<{
 							if (error instanceof Error && error.name === "AbortError") {
 								return;
 							}
-							setFailureState("failed");
+							setFailureState({
+								kind: "failed",
+								detail: error instanceof Error ? error.message : undefined,
+							});
 						});
 				}}
 			/>
