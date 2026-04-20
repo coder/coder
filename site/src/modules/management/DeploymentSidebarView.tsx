@@ -1,4 +1,10 @@
-import { Container, KeyRound, Scale, Settings, Sparkles } from "lucide-react";
+import {
+	HardDrive,
+	Settings,
+	Settings2,
+	ShieldCheck,
+	UserLock,
+} from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import { SettingsSidebarNavItem as BaseSidebarNavItem } from "#/components/Sidebar/Sidebar";
@@ -113,7 +119,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* Infrastructure */}
 			<SidebarAccordion
-				icon={Container}
+				icon={HardDrive}
 				label="Infrastructure"
 				href="/deployment/security"
 				open={openSections.has("infrastructure")}
@@ -146,7 +152,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* Authentication */}
 			<SidebarAccordion
-				icon={KeyRound}
+				icon={UserLock}
 				label="Authentication"
 				href="/deployment/userauth"
 				open={openSections.has("authentication")}
@@ -180,7 +186,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* AI Settings */}
 			<SidebarAccordion
-				icon={Sparkles}
+				icon={Settings2}
 				label="AI Settings"
 				href="/deployment/ai-settings/usage-stats"
 				open={openSections.has("ai-settings")}
@@ -205,7 +211,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* AI Governance */}
 			<SidebarAccordion
-				icon={Scale}
+				icon={ShieldCheck}
 				label="AI Governance"
 				href="/deployment/ai-governance"
 				open={openSections.has("ai-governance")}
