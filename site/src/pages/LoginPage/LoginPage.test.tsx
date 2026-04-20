@@ -12,6 +12,11 @@ import { server } from "#/testHelpers/server";
 import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
+	// Capture original values before any test stubs take effect.
+	const origLocationOrigin = window.location.origin;
+	const origLocationHref = window.location.href;
+	const locationHrefSpy = vi.fn();
+
 	beforeEach(() => {
 		server.use(
 			// Appear logged out
@@ -19,6 +24,22 @@ describe("LoginPage", () => {
 				return HttpResponse.json({ message: "no user here" }, { status: 401 });
 			}),
 		);
+		// Stub the location global so tests can intercept server-side redirects
+		// without actually navigating away.
+		vi.stubGlobal("location", {
+			origin: origLocationOrigin,
+			get href() {
+				return origLocationHref;
+			},
+			set href(url: string) {
+				locationHrefSpy(url);
+			},
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		locationHrefSpy.mockReset();
 	});
 
 	it("shows an error message if SignIn fails", async () => {
@@ -91,6 +112,7 @@ describe("LoginPage", () => {
 		);
 		expect(document.getElementById("signin-password-error")).toBeNull();
 	});
+
 	it("redirects to the setup page if there is no first user", async () => {
 		// Given
 		server.use(
@@ -121,6 +143,55 @@ describe("LoginPage", () => {
 		await screen.findByText("Setup");
 	});
 
+	it("navigates to the home page after successful password login", async () => {
+		// Given - user is NOT signed in
+		let loggedIn = false;
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				if (!loggedIn) {
+					return HttpResponse.json(
+						{ message: "no user here" },
+						{ status: 401 },
+					);
+				}
+				return HttpResponse.json(MockUserOwner);
+			}),
+			http.post("/api/v2/users/login", () => {
+				loggedIn = true;
+				return HttpResponse.json({
+					session_token: "test-session-token",
+				});
+			}),
+		);
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+					{
+						path: "/",
+						element: <h1>Home</h1>,
+					},
+				],
+				{ initialEntries: ["/login"] },
+			),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
+		await userEvent.type(screen.getByLabelText(/Password/), "password");
+		fireEvent.click(await screen.findByText("Sign In"));
+
+		// Then - the component uses React Router navigation for standard
+		// redirects so the new session cookie is picked up by the next route.
+		await screen.findByText("Home");
+	});
+
 	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
 		// Given - user is signed in
 		server.use(
@@ -131,23 +202,6 @@ describe("LoginPage", () => {
 
 		const redirectPath =
 			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
-
-		// Spy on window.location.href assignment
-		const locationHrefSpy = vi.fn();
-		const originalLocation = window.location;
-		Object.defineProperty(window, "location", {
-			configurable: true,
-			value: {
-				...originalLocation,
-				origin: originalLocation.origin,
-				set href(url: string) {
-					locationHrefSpy(url);
-				},
-				get href() {
-					return originalLocation.href;
-				},
-			},
-		});
 
 		// When
 		renderWithRouter(
@@ -166,17 +220,10 @@ describe("LoginPage", () => {
 			),
 		);
 
-		// Then - it should perform a server-side redirect, not a React navigate
+		// Then - the full redirect path (including query params) must be
+		// preserved for the OAuth2 authorization flow to complete.
 		await waitFor(() => {
-			expect(locationHrefSpy).toHaveBeenCalledWith(
-				expect.stringContaining("/oauth2/authorize"),
-			);
-		});
-
-		// Cleanup
-		Object.defineProperty(window, "location", {
-			configurable: true,
-			value: originalLocation,
+			expect(locationHrefSpy).toHaveBeenCalledWith(redirectPath);
 		});
 	});
 
@@ -204,24 +251,6 @@ describe("LoginPage", () => {
 		const redirectPath =
 			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
 
-		// Spy on window.location.href
-		const originalLocation = window.location;
-		const locationHrefSpy = vi.fn();
-
-		Object.defineProperty(window, "location", {
-			configurable: true,
-			value: {
-				...originalLocation,
-				origin: originalLocation.origin,
-				set href(url: string) {
-					locationHrefSpy(url);
-				},
-				get href() {
-					return originalLocation.href;
-				},
-			},
-		});
-
 		// When
 		renderWithRouter(
 			createMemoryRouter(
@@ -241,26 +270,14 @@ describe("LoginPage", () => {
 
 		await waitForLoaderToBeRemoved();
 
-		const email = screen.getByLabelText(/Email/);
-		const password = screen.getByLabelText(/Password/);
+		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
+		await userEvent.type(screen.getByLabelText(/Password/), "password");
+		fireEvent.click(await screen.findByText("Sign In"));
 
-		await userEvent.type(email, "test@coder.com");
-		await userEvent.type(password, "password");
-
-		const signInButton = await screen.findByText("Sign In");
-		fireEvent.click(signInButton);
-
-		// Then - it should hard redirect to OAuth endpoint
+		// Then - the full redirect path (including query params) must be
+		// preserved for the OAuth2 authorization flow to complete.
 		await waitFor(() => {
-			expect(locationHrefSpy).toHaveBeenCalledWith(
-				expect.stringContaining("/oauth2/authorize"),
-			);
-		});
-
-		// Cleanup
-		Object.defineProperty(window, "location", {
-			configurable: true,
-			value: originalLocation,
+			expect(locationHrefSpy).toHaveBeenCalledWith(redirectPath);
 		});
 	});
 });

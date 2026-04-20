@@ -62,6 +62,22 @@ func buildMultipartResponse(parts ...partSpec) workspacesdk.StopDesktopRecording
 	}
 }
 
+func validRecordingMP4(extra int, fill byte) []byte {
+	data := []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2', 0x00, 0x00, 0x00, 0x00, 'm', 'p', '4', '1', 'i', 's', 'o', 'm'}
+	if extra <= 0 {
+		return data
+	}
+	return append(data, bytes.Repeat([]byte{fill}, extra)...)
+}
+
+func validRecordingJPEG(extra int, fill byte) []byte {
+	data := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00}
+	if extra <= 0 {
+		return data
+	}
+	return append(data, bytes.Repeat([]byte{fill}, extra)...)
+}
+
 // createComputerUseParentChild creates a parent chat and a
 // computer_use child chat bound to the given workspace/agent.
 // Both chats are inserted directly via DB to avoid triggering
@@ -191,7 +207,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	// Set up mock expectations for start and stop.
-	fakeMp4 := []byte("fake-mp4-data-for-recording-test")
+	fakeMp4 := validRecordingMP4(32, 0xA1)
 
 	mockConn.EXPECT().
 		StartDesktopRecording(gomock.Any(), gomock.Any()).
@@ -229,10 +245,14 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 	assert.Equal(t, user.ID, chatFile.OwnerID)
 	assert.Equal(t, fakeMp4, chatFile.Data)
 
-	// Verify the file is linked to the parent chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
 	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 1)
+	require.Len(t, parentFiles, 1)
+	assert.Equal(t, fileUUID, parentFiles[0].ID)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, childFiles)
 }
 
 // TestWaitAgentComputerUseRecordingWithThumbnail verifies the
@@ -268,8 +288,8 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
-	fakeMp4 := []byte("fake-mp4-data-with-thumbnail-test")
-	fakeThumb := []byte("fake-jpeg-thumbnail-data")
+	fakeMp4 := validRecordingMP4(48, 0xA2)
+	fakeThumb := validRecordingJPEG(32, 0xB1)
 
 	mockConn.EXPECT().
 		StartDesktopRecording(gomock.Any(), gomock.Any()).
@@ -315,10 +335,15 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, fakeThumb, thumbFile.Data)
 
-	// Verify both files are linked to the parent chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
 	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 2)
+	require.Len(t, parentFiles, 2)
+	assert.Equal(t, fileUUID, parentFiles[0].ID)
+	assert.Equal(t, thumbUUID, parentFiles[1].ID)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, childFiles)
 }
 
 // TestWaitAgentNonComputerUseNoRecording verifies that when the
@@ -581,10 +606,11 @@ func TestStopAndStoreRecording_Oversized(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	// Build a streaming multipart response with a video/mp4 part
 	// that exceeds MaxRecordingSize without allocating the full
@@ -611,9 +637,8 @@ func TestStopAndStoreRecording_Oversized(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		uuid.Nil,
 	)
 	assert.Empty(t, result.recordingFileID, "oversized recording should not be stored")
 }
@@ -631,23 +656,12 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	videoData := bytes.Repeat([]byte{0xAA}, 1024)
+	videoData := validRecordingMP4(1024, 0xAA)
 
 	// Build a streaming multipart response with a normal video part
 	// and an oversized thumbnail part.
@@ -677,9 +691,8 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
 	)
 
 	// Video should be stored.
@@ -692,11 +705,6 @@ func TestStopAndStoreRecording_OversizedThumbnail(t *testing.T) {
 
 	// Thumbnail should be skipped (oversized).
 	assert.Empty(t, result.thumbnailFileID, "oversized thumbnail should not be stored")
-
-	// Verify that the stored files are linked to the chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 1)
 }
 
 // TestStopAndStoreRecording_DuplicatePartsIgnored verifies that when
@@ -712,24 +720,13 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	firstVideo := bytes.Repeat([]byte{0x01}, 512)
-	secondVideo := bytes.Repeat([]byte{0x02}, 512)
+	firstVideo := validRecordingMP4(512, 0x01)
+	secondVideo := validRecordingMP4(512, 0x02)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -741,9 +738,8 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
 	)
 
 	// Only the first video part should be stored.
@@ -752,11 +748,6 @@ func TestStopAndStoreRecording_DuplicatePartsIgnored(t *testing.T) {
 	recFile, err := db.GetChatFileByID(ctx, recUUID)
 	require.NoError(t, err)
 	assert.Equal(t, firstVideo, recFile.Data, "first video part should be stored, not the duplicate")
-
-	// Verify that the stored files are linked to the chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 1)
 }
 
 // TestStopAndStoreRecording_Empty verifies that when the recording
@@ -771,10 +762,11 @@ func TestStopAndStoreRecording_Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	// Build a multipart response with an empty video/mp4 part.
 	mockConn.EXPECT().
@@ -783,11 +775,64 @@ func TestStopAndStoreRecording_Empty(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		uuid.Nil,
 	)
 	assert.Empty(t, result.recordingFileID, "empty recording should not be stored")
+}
+
+// TestStopAndStoreRecording_LinkFailureRollsBackInsert verifies that a
+// chat-file cap rejection does not leave behind an unlinked recording row.
+func TestStopAndStoreRecording_LinkFailureRollsBackInsert(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := chatdTestContext(t)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+
+	for i := range codersdk.MaxChatFileIDs {
+		insertLinkedChatFile(
+			ctx,
+			t,
+			db,
+			parent.ID,
+			user.ID,
+			workspace.OrganizationID,
+			fmt.Sprintf("existing-%02d.txt", i),
+			"text/plain",
+			[]byte("existing"),
+		)
+	}
+
+	var beforeCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&beforeCount))
+
+	videoData := validRecordingMP4(1000, 0xDE)
+	mockConn.EXPECT().
+		StopDesktopRecording(gomock.Any(), gomock.Any()).
+		Return(buildMultipartResponse(partSpec{"video/mp4", videoData}), nil).
+		Times(1)
+
+	recordingID := uuid.New().String()
+	result := server.stopAndStoreRecording(
+		ctx, mockConn, recordingID, parent.ID, user.ID,
+		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+	)
+
+	assert.Empty(t, result.recordingFileID)
+	assert.Empty(t, result.thumbnailFileID)
+
+	var afterCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&afterCount))
+	assert.Equal(t, beforeCount, afterCount)
 }
 
 // TestStopAndStoreRecording_WithThumbnail verifies that a multipart
@@ -803,24 +848,13 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	videoData := bytes.Repeat([]byte{0xDE, 0xAD}, 512) // 1024 bytes
-	thumbData := bytes.Repeat([]byte{0xFF, 0xD8}, 256) // 512 bytes
+	videoData := validRecordingMP4(1000, 0xDE)
+	thumbData := validRecordingJPEG(492, 0xD8)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -832,9 +866,8 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
 	)
 
 	// Both file IDs should be valid UUIDs.
@@ -854,104 +887,6 @@ func TestStopAndStoreRecording_WithThumbnail(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, thumbData, thumbFile.Data)
-
-	// Verify that the stored files are linked to the chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 2)
-}
-
-// TestStopAndStoreRecording_CapExceededRollback verifies that when
-// the chat's file-link cap would be exceeded by the new recording,
-// stopAndStoreRecording rolls back the transaction so that the
-// chat_files inserts are reverted. This prevents orphaned files
-// that would be invisible to users and bypass the purge retention
-// logic.
-func TestStopAndStoreRecording_CapExceededRollback(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
-
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	// Pre-fill the chat with MaxChatFileIDs links so any new
-	// recording file will be rejected by LinkChatFiles.
-	preFileIDs := make([]uuid.UUID, codersdk.MaxChatFileIDs)
-	for i := range preFileIDs {
-		row, insertErr := db.InsertChatFile(ctx, database.InsertChatFileParams{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			Name:           fmt.Sprintf("prefill-%d.bin", i),
-			Mimetype:       "application/octet-stream",
-			Data:           []byte{byte(i)},
-		})
-		require.NoError(t, insertErr)
-		preFileIDs[i] = row.ID
-	}
-	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chat.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      preFileIDs,
-	})
-	require.NoError(t, err)
-	require.Zero(t, rejected)
-
-	videoData := bytes.Repeat([]byte{0xAB}, 1024)
-	thumbData := bytes.Repeat([]byte{0xCD}, 512)
-
-	mockConn.EXPECT().
-		StopDesktopRecording(gomock.Any(), gomock.Any()).
-		Return(buildMultipartResponse(
-			partSpec{"video/mp4", videoData},
-			partSpec{"image/jpeg", thumbData},
-		), nil).
-		Times(1)
-
-	recordingID := uuid.New().String()
-	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
-		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
-	)
-
-	// Both IDs must be empty because the transaction was rolled
-	// back, so there is no file to reference.
-	assert.Empty(t, result.recordingFileID,
-		"recordingFileID must be empty when linking fails")
-	assert.Empty(t, result.thumbnailFileID,
-		"thumbnailFileID must be empty when linking fails")
-
-	// Only the pre-fill files should exist; the recording and
-	// thumbnail rows must have been rolled back.
-	for _, id := range preFileIDs {
-		_, err := db.GetChatFileByID(ctx, id)
-		require.NoError(t, err, "prefill file must still exist")
-	}
-
-	// Chat should still have exactly MaxChatFileIDs links; no
-	// new orphan or link was added.
-	linked, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	assert.Len(t, linked, codersdk.MaxChatFileIDs)
 }
 
 // TestStopAndStoreRecording_VideoOnly verifies that a multipart
@@ -967,23 +902,12 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	videoData := make([]byte, 1024)
+	videoData := validRecordingMP4(1000, 0xCC)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -991,9 +915,8 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
 	)
 
 	// Recording should be stored.
@@ -1007,11 +930,42 @@ func TestStopAndStoreRecording_VideoOnly(t *testing.T) {
 
 	// No thumbnail.
 	assert.Empty(t, result.thumbnailFileID, "ThumbnailFileID should be empty when no thumbnail part is present")
+}
 
-	// Verify that the stored files are linked to the chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+// TestStopAndStoreRecording_MismatchedVideoBytesSkipped verifies that a
+// part labeled video/mp4 is skipped when its bytes do not sniff as MP4.
+func TestStopAndStoreRecording_MismatchedVideoBytesSkipped(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+
+	mockConn.EXPECT().
+		StopDesktopRecording(gomock.Any(), gomock.Any()).
+		Return(buildMultipartResponse(partSpec{"video/mp4", validRecordingJPEG(32, 0x44)}), nil).
+		Times(1)
+
+	recordingID := uuid.New().String()
+	result := server.stopAndStoreRecording(
+		ctx, mockConn, recordingID, parent.ID, user.ID,
+		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+	)
+
+	assert.Empty(t, result.recordingFileID)
+	assert.Empty(t, result.thumbnailFileID)
+
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
 	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 1)
+	assert.Empty(t, parentFiles)
 }
 
 // TestStopAndStoreRecording_DownloadFailure verifies that when
@@ -1026,10 +980,11 @@ func TestStopAndStoreRecording_DownloadFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -1038,9 +993,8 @@ func TestStopAndStoreRecording_DownloadFailure(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty on download failure")
@@ -1060,24 +1014,13 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "test-recording",
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-	})
-	require.NoError(t, err)
-
-	videoData := make([]byte, 1024)
-	thumbData := make([]byte, 512)
+	videoData := validRecordingMP4(1000, 0x11)
+	thumbData := validRecordingJPEG(492, 0x22)
 	unknownData := make([]byte, 256)
 
 	mockConn.EXPECT().
@@ -1090,9 +1033,8 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		chat.ID,
 	)
 
 	// Both known parts should be stored.
@@ -1112,11 +1054,6 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", thumbFile.Mimetype)
 	assert.Equal(t, thumbData, thumbFile.Data)
-
-	// Verify that the stored files are linked to the chat.
-	linkedFiles, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	assert.Len(t, linkedFiles, 2)
 }
 
 // TestStopAndStoreRecording_MalformedContentType verifies that a
@@ -1130,10 +1067,11 @@ func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -1145,9 +1083,8 @@ func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty for malformed content type")
@@ -1166,10 +1103,11 @@ func TestStopAndStoreRecording_MissingBoundary(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-	user, _, _ := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
@@ -1181,9 +1119,8 @@ func TestStopAndStoreRecording_MissingBoundary(t *testing.T) {
 
 	recordingID := uuid.New().String()
 	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, user.ID,
+		ctx, mockConn, recordingID, parent.ID, user.ID,
 		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		uuid.Nil,
 	)
 
 	assert.Empty(t, result.recordingFileID, "RecordingFileID should be empty when boundary is missing")

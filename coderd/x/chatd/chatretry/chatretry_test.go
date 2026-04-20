@@ -317,3 +317,24 @@ func TestRetry_UsesRetryAfterAsDelayFloor(t *testing.T) {
 		})
 	}
 }
+
+// TestRetry_HTTP2TransportErrorKeepsRetrying proves a bare HTTP/2
+// transport error is treated as retryable, so Retry drives one more
+// attempt instead of returning on the first call.
+func TestRetry_HTTP2TransportErrorKeepsRetrying(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls == 1 {
+			return xerrors.New(
+				"http2: client connection force closed via ClientConn.Close",
+			)
+		}
+		return nil
+	}, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, calls, "expected one retry after an HTTP/2 transport failure")
+}
