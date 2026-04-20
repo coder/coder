@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -18,26 +19,32 @@ import (
 func TestAuditLogIsResourceDeleted(t *testing.T) {
 	t.Parallel()
 
-	for _, err := range []error{
-		dbauthz.NotAuthorizedError{},
-		sql.ErrNoRows,
+	for _, tc := range []struct {
+		name        string
+		err         error
+		wantDeleted bool
+	}{
+		{name: "AnError", err: assert.AnError, wantDeleted: false},
+		{name: "NotAuthorized", err: dbauthz.NotAuthorizedError{}, wantDeleted: false},
+		{name: "NoError", err: nil, wantDeleted: false},
+		{name: "NoRows", err: sql.ErrNoRows, wantDeleted: true},
 	} {
-		t.Run(err.Error(), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
 			chatID := uuid.New()
-			db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, err)
+			db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, tc.err)
 
 			api := &API{
-				Options: &Options{Database: db, Logger: slogtest.Make(t, nil)},
+				Options: &Options{Database: db, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})},
 			}
 
 			deleted := api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{
 				AuditLog: database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: chatID},
 			})
-			require.True(t, deleted)
+			require.Equal(t, tc.wantDeleted, deleted)
 		})
 	}
 }

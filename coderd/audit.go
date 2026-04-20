@@ -438,7 +438,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeChat:
 		// Chats are hard-deleted, so a 404 means deleted.
 		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
-		if httpapi.Is404Error(err) {
+		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}
 		if err != nil {
