@@ -687,18 +687,18 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataAfterMessageID(ctx, arg any)
 }
 
 // DeleteChatDebugDataByChatID mocks base method.
-func (m *MockStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m *MockStore) DeleteChatDebugDataByChatID(ctx context.Context, arg database.DeleteChatDebugDataByChatIDParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatDebugDataByChatID", ctx, chatID)
+	ret := m.ctrl.Call(m, "DeleteChatDebugDataByChatID", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteChatDebugDataByChatID indicates an expected call of DeleteChatDebugDataByChatID.
-func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, chatID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
 }
 
 // DeleteChatModelConfigByID mocks base method.
@@ -1518,18 +1518,18 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 }
 
 // FinalizeStaleChatDebugRows mocks base method.
-func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (database.FinalizeStaleChatDebugRowsRow, error) {
+func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, arg database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinalizeStaleChatDebugRows", ctx, updatedBefore)
+	ret := m.ctrl.Call(m, "FinalizeStaleChatDebugRows", ctx, arg)
 	ret0, _ := ret[0].(database.FinalizeStaleChatDebugRowsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FinalizeStaleChatDebugRows indicates an expected call of FinalizeStaleChatDebugRows.
-func (mr *MockStoreMockRecorder) FinalizeStaleChatDebugRows(ctx, updatedBefore any) *gomock.Call {
+func (mr *MockStoreMockRecorder) FinalizeStaleChatDebugRows(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeStaleChatDebugRows", reflect.TypeOf((*MockStore)(nil).FinalizeStaleChatDebugRows), ctx, updatedBefore)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeStaleChatDebugRows", reflect.TypeOf((*MockStore)(nil).FinalizeStaleChatDebugRows), ctx, arg)
 }
 
 // FindMatchingPresetID mocks base method.
@@ -2687,6 +2687,21 @@ func (mr *MockStoreMockRecorder) GetChatsUpdatedAfter(ctx, updatedAfter any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetChatsUpdatedAfter), ctx, updatedAfter)
 }
 
+// GetChildChatsByParentIDs mocks base method.
+func (m *MockStore) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChildChatsByParentIDs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChildChatsByParentIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChildChatsByParentIDs indicates an expected call of GetChildChatsByParentIDs.
+func (mr *MockStoreMockRecorder) GetChildChatsByParentIDs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChildChatsByParentIDs", reflect.TypeOf((*MockStore)(nil).GetChildChatsByParentIDs), ctx, arg)
+}
+
 // GetConnectionLogsOffset mocks base method.
 func (m *MockStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	m.ctrl.T.Helper()
@@ -3330,6 +3345,21 @@ func (m *MockStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, wo
 func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildByWorkspaceID), ctx, workspaceID)
+}
+
+// GetLatestWorkspaceBuildWithStatusByWorkspaceID mocks base method.
+func (m *MockStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceBuildWithStatusByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestWorkspaceBuildWithStatusByWorkspaceID indicates an expected call of GetLatestWorkspaceBuildWithStatusByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildWithStatusByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildWithStatusByWorkspaceID), ctx, workspaceID)
 }
 
 // GetLatestWorkspaceBuildsByWorkspaceIDs mocks base method.
@@ -8032,6 +8062,34 @@ func (m *MockStore) SoftDeleteContextFileMessages(ctx context.Context, chatID uu
 func (mr *MockStoreMockRecorder) SoftDeleteContextFileMessages(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteContextFileMessages", reflect.TypeOf((*MockStore)(nil).SoftDeleteContextFileMessages), ctx, chatID)
+}
+
+// TouchChatDebugRunUpdatedAt mocks base method.
+func (m *MockStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TouchChatDebugRunUpdatedAt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TouchChatDebugRunUpdatedAt indicates an expected call of TouchChatDebugRunUpdatedAt.
+func (mr *MockStoreMockRecorder) TouchChatDebugRunUpdatedAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugRunUpdatedAt", reflect.TypeOf((*MockStore)(nil).TouchChatDebugRunUpdatedAt), ctx, arg)
+}
+
+// TouchChatDebugStepAndRun mocks base method.
+func (m *MockStore) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TouchChatDebugStepAndRun", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TouchChatDebugStepAndRun indicates an expected call of TouchChatDebugStepAndRun.
+func (mr *MockStoreMockRecorder) TouchChatDebugStepAndRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugStepAndRun", reflect.TypeOf((*MockStore)(nil).TouchChatDebugStepAndRun), ctx, arg)
 }
 
 // TryAcquireLock mocks base method.

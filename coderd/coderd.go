@@ -2002,29 +2002,46 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(
-		options.Telemetry.Enabled(), func() []*proxyhealth.ProxyHost {
-			if api.DeploymentValues.Dangerous.AllowAllCors {
-				// In this mode, allow all external requests.
-				return []*proxyhealth.ProxyHost{
-					{
-						Host:    "*",
-						AppHost: "*",
-					},
-				}
-			}
-			// Always add the primary, since the app host may be on a sub-domain.
-			proxies := []*proxyhealth.ProxyHost{
+	cspProxyHosts := func() []*proxyhealth.ProxyHost {
+		if api.DeploymentValues.Dangerous.AllowAllCors {
+			// In this mode, allow all external requests.
+			return []*proxyhealth.ProxyHost{
 				{
-					Host:    api.AccessURL.Host,
-					AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+					Host:    "*",
+					AppHost: "*",
 				},
 			}
-			if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
-				proxies = append(proxies, (*f)()...)
-			}
-			return proxies
-		}, additionalCSPHeaders)
+		}
+		// Always add the primary, since the app host may be on a sub-domain.
+		proxies := []*proxyhealth.ProxyHost{
+			{
+				Host:    api.AccessURL.Host,
+				AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+			},
+		}
+		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
+			proxies = append(proxies, (*f)()...)
+		}
+		return proxies
+	}
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, additionalCSPHeaders)
+
+	// Embed routes (e.g. VS Code extension chat) are designed to be
+	// loaded inside iframes, so they need a relaxed frame-ancestors
+	// policy instead of the default 'self'. However, if the operator
+	// explicitly configured frame-ancestors via CODER_ADDITIONAL_CSP_POLICY,
+	// respect that setting.
+	embedCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(additionalCSPHeaders))
+	for k, v := range additionalCSPHeaders {
+		embedCSPHeaders[k] = v
+	}
+	if _, ok := additionalCSPHeaders[httpmw.CSPFrameAncestors]; !ok {
+		embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{"*"}
+	}
+	embedCSPMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, embedCSPHeaders)
+	embedHandler := embedCSPMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg)))
+	r.Get("/agents/{agentId}/embed", embedHandler.ServeHTTP)
+	r.Get("/agents/{agentId}/embed/*", embedHandler.ServeHTTP)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on

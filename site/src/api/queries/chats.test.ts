@@ -4,6 +4,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
+	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatCostSummary,
@@ -23,10 +24,12 @@ import {
 	pinChat,
 	promoteChatQueuedMessage,
 	regenerateChatTitle,
+	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
 	updateChatPlanMode,
+	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -95,6 +98,7 @@ const makeChat = (
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -261,6 +265,29 @@ describe("archiveChat optimistic update", () => {
 
 		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
 		expect(cachedChat?.archived).toBe(true);
+	});
+
+	it("strips an individually-archived child from its parent's embedded children", async () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const sibling = makeChat("child-2", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+
+		const mutation = archiveChat(queryClient);
+		await mutation.onMutate("child-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-2");
 	});
 
 	it("rolls back the chats list on error by invalidating", async () => {
@@ -1673,5 +1700,157 @@ describe("mutation onMutate cancels pagination fetches", () => {
 		// overwrite the cache with stale oldPages.
 		const chat = readInfiniteChats(queryClient)?.find((c) => c.id === chatId);
 		expect(chat?.archived).toBe(true);
+	});
+});
+
+describe("addChildToParentInCache", () => {
+	it("prepends new child to the parent's children array", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		addChildToParentInCache(queryClient, child, "parent-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result).toHaveLength(1);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-1");
+	});
+
+	it("silently drops the child when the parent is not in any page", () => {
+		const queryClient = createTestQueryClient();
+		const other = makeChat("other-root");
+		seedInfiniteChats(queryClient, [other]);
+
+		const child = makeChat("orphan-child", {
+			parent_chat_id: "missing-parent",
+			root_chat_id: "missing-parent",
+		});
+		addChildToParentInCache(queryClient, child, "missing-parent");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result).toHaveLength(1);
+		expect(result?.[0].id).toBe("other-root");
+		expect(result?.[0].children).toHaveLength(0);
+	});
+
+	it("does not duplicate a child that already exists under the parent", () => {
+		const queryClient = createTestQueryClient();
+		const existingChild = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [existingChild] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		addChildToParentInCache(queryClient, existingChild, "parent-1");
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+	});
+});
+
+describe("updateChildInParentCache", () => {
+	it("applies the updater to a child nested under its parent", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			title: "Original title",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = updateChildInParentCache(
+			queryClient,
+			(c) => ({ ...c, title: "Updated title" }),
+			"child-1",
+		);
+		expect(found).toBe(true);
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children?.[0].title).toBe("Updated title");
+	});
+
+	it("returns false when the child is not present under any parent", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = updateChildInParentCache(
+			queryClient,
+			(c) => ({ ...c, title: "Never applied" }),
+			"missing-child",
+		);
+		expect(found).toBe(false);
+	});
+
+	it("preserves the same reference when the updater returns the child unchanged", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const before = readInfiniteChats(queryClient)?.[0];
+		const found = updateChildInParentCache(queryClient, (c) => c, "child-1");
+		const after = readInfiniteChats(queryClient)?.[0];
+
+		expect(found).toBe(false);
+		expect(after).toBe(before);
+	});
+});
+
+describe("removeChildFromParentInCache", () => {
+	it("removes the child from its parent's children array", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const sibling = makeChat("child-2", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = removeChildFromParentInCache(queryClient, "child-1");
+		expect(found).toBe(true);
+
+		const result = readInfiniteChats(queryClient);
+		expect(result?.[0].children).toHaveLength(1);
+		expect(result?.[0].children?.[0].id).toBe("child-2");
+	});
+
+	it("returns false when no parent embeds the given child", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+
+		const found = removeChildFromParentInCache(queryClient, "missing-child");
+		expect(found).toBe(false);
+	});
+
+	it("preserves the parent reference when the child is not found", () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		const parent = makeChat("parent-1", { children: [child] });
+		seedInfiniteChats(queryClient, [parent]);
+
+		const before = readInfiniteChats(queryClient)?.[0];
+		removeChildFromParentInCache(queryClient, "missing-child");
+		const after = readInfiniteChats(queryClient)?.[0];
+
+		expect(after).toBe(before);
 	});
 });

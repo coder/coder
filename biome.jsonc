@@ -111,7 +111,6 @@
 							// "@mui/material/useMediaQuery": "Use Tailwind responsive classes or custom hook instead.",
 							// "@mui/system": "Use Tailwind CSS instead.",
 							// "@mui/utils": "Use native alternatives or utility libraries instead.",
-							// "@mui/x-tree-view": "Use a Tailwind-compatible alternative.",
 							// "@emotion/css": "Use Tailwind CSS instead.",
 							// "@emotion/react": "Use Tailwind CSS instead.",
 							"@emotion/styled": "Use Tailwind CSS instead.",

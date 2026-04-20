@@ -2905,19 +2905,23 @@ WITH affected_runs AS (
     SELECT DISTINCT run.id
     FROM chat_debug_runs run
     WHERE run.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            run.history_tip_message_id > $2::bigint
-            OR run.trigger_message_id > $2::bigint
+            run.history_tip_message_id > $3::bigint
+            OR run.trigger_message_id > $3::bigint
         )
 
     UNION
 
     SELECT DISTINCT step.run_id AS id
     FROM chat_debug_steps step
+    JOIN chat_debug_runs run ON run.id = step.run_id
+        AND run.chat_id = step.chat_id
     WHERE step.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            step.assistant_message_id > $2::bigint
-            OR step.history_tip_message_id > $2::bigint
+            step.assistant_message_id > $3::bigint
+            OR step.history_tip_message_id > $3::bigint
         )
 )
 DELETE FROM chat_debug_runs
@@ -2926,12 +2930,17 @@ WHERE chat_id = $1::uuid
 `
 
 type DeleteChatDebugDataAfterMessageIDParams struct {
-	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
-	MessageID int64     `db:"message_id" json:"message_id"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+	MessageID     int64     `db:"message_id" json:"message_id"`
 }
 
+// Deletes debug runs (and their cascaded steps) whose message IDs
+// exceed the cutoff. The started_before bound prevents retried
+// cleanup from deleting runs created by a replacement turn that
+// raced ahead of the retry window.
 func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.MessageID)
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.StartedBefore, arg.MessageID)
 	if err != nil {
 		return 0, err
 	}
@@ -2941,10 +2950,20 @@ func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg 
 const deleteChatDebugDataByChatID = `-- name: DeleteChatDebugDataByChatID :execrows
 DELETE FROM chat_debug_runs
 WHERE chat_id = $1::uuid
+    AND started_at < $2::timestamptz
 `
 
-func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, chatID)
+type DeleteChatDebugDataByChatIDParams struct {
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+}
+
+// The started_before bound prevents retried cleanup from deleting
+// runs created by a replacement turn that races ahead of the retry
+// window (for example, after an unarchive races with a pending
+// archive-cleanup retry).
+func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, arg.ChatID, arg.StartedBefore)
 	if err != nil {
 		return 0, err
 	}
@@ -2956,9 +2975,9 @@ WITH finalized_runs AS (
     UPDATE chat_debug_runs
     SET
         status = 'interrupted',
-        updated_at = NOW(),
-        finished_at = NOW()
-    WHERE updated_at < $1::timestamptz
+        updated_at = $1::timestamptz,
+        finished_at = $1::timestamptz
+    WHERE updated_at < $2::timestamptz
         AND finished_at IS NULL
         AND status NOT IN ('completed', 'error', 'interrupted')
     RETURNING id
@@ -2966,10 +2985,10 @@ WITH finalized_runs AS (
     UPDATE chat_debug_steps
     SET
         status = 'interrupted',
-        updated_at = NOW(),
-        finished_at = NOW()
+        updated_at = $1::timestamptz,
+        finished_at = $1::timestamptz
     WHERE (
-            updated_at < $1::timestamptz
+            updated_at < $2::timestamptz
             OR run_id IN (SELECT id FROM finalized_runs)
         )
         AND finished_at IS NULL
@@ -2981,22 +3000,30 @@ SELECT
     (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
 `
 
+type FinalizeStaleChatDebugRowsParams struct {
+	Now           time.Time `db:"now" json:"now"`
+	UpdatedBefore time.Time `db:"updated_before" json:"updated_before"`
+}
+
 type FinalizeStaleChatDebugRowsRow struct {
 	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
 	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
 }
 
 // Marks orphaned in-progress rows as interrupted so they do not stay
-// in a non-terminal state forever.  The NOT IN list must match the
+// in a non-terminal state forever. The NOT IN list must match the
 // terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
 //
 // The steps CTE also catches steps whose parent run was just finalized
 // (via run_id IN), because PostgreSQL data-modifying CTEs share the
-// same snapshot and cannot see each other's row updates.  Without this,
+// same snapshot and cannot see each other's row updates. Without this,
 // a step with a recent updated_at would survive its run's finalization
 // and remain in 'in_progress' state permanently.
-func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (FinalizeStaleChatDebugRowsRow, error) {
-	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, updatedBefore)
+//
+// @now is the caller's clock timestamp so that mock-clock tests stay
+// consistent with the @updated_before cutoff.
+func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error) {
+	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, arg.Now, arg.UpdatedBefore)
 	var i FinalizeStaleChatDebugRowsRow
 	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
 	return i, err
@@ -3225,6 +3252,14 @@ func (q *sqlQuerier) InsertChatDebugRun(ctx context.Context, arg InsertChatDebug
 }
 
 const insertChatDebugStep = `-- name: InsertChatDebugStep :one
+WITH locked_run AS (
+    UPDATE chat_debug_runs
+    SET updated_at = COALESCE($14::timestamptz, NOW())
+    WHERE id = $1::uuid
+        AND chat_id = $16::uuid
+        AND finished_at IS NULL
+    RETURNING chat_id
+)
 INSERT INTO chat_debug_steps (
     run_id,
     chat_id,
@@ -3245,7 +3280,7 @@ INSERT INTO chat_debug_steps (
 )
 SELECT
     $1::uuid,
-    run.chat_id,
+    locked_run.chat_id,
     $2::int,
     $3::text,
     $4::text,
@@ -3260,9 +3295,7 @@ SELECT
     COALESCE($13::timestamptz, NOW()),
     COALESCE($14::timestamptz, NOW()),
     $15::timestamptz
-FROM chat_debug_runs run
-WHERE run.id = $1::uuid
-    AND run.chat_id = $16::uuid
+FROM locked_run
 RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
 `
 
@@ -3285,6 +3318,12 @@ type InsertChatDebugStepParams struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
+// The CTE atomically locks the parent run via UPDATE, bumps its
+// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
+// call), and enforces the finalization guard: if the run is already
+// finished, the UPDATE returns zero rows, the INSERT gets no source
+// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
+// with concurrent FinalizeStale under READ COMMITTED isolation.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,
@@ -3327,6 +3366,80 @@ func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebu
 	return i, err
 }
 
+const touchChatDebugRunUpdatedAt = `-- name: TouchChatDebugRunUpdatedAt :exec
+UPDATE chat_debug_runs
+SET updated_at = $1::timestamptz
+WHERE id = $2::uuid
+    AND chat_id = $3::uuid
+`
+
+type TouchChatDebugRunUpdatedAtParams struct {
+	Now    time.Time `db:"now" json:"now"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Overrides updated_at on the parent run without touching any
+// other column. Used by tests that need to stamp a run with a
+// specific timestamp after the InsertChatDebugStep CTE has
+// already bumped it to NOW(), so stale-row finalization paths
+// can be exercised deterministically. The chatdebug service
+// itself does not call this: heartbeats go through
+// TouchChatDebugStepAndRun, and step creation updates the parent
+// run via the InsertChatDebugStep CTE.
+func (q *sqlQuerier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error {
+	_, err := q.db.ExecContext(ctx, touchChatDebugRunUpdatedAt, arg.Now, arg.ID, arg.ChatID)
+	return err
+}
+
+const touchChatDebugStepAndRun = `-- name: TouchChatDebugStepAndRun :exec
+WITH touched_run AS (
+    UPDATE chat_debug_runs
+    SET updated_at = $1::timestamptz
+    WHERE id = $3::uuid
+        AND chat_id = $4::uuid
+    RETURNING id, chat_id
+)
+UPDATE chat_debug_steps
+SET updated_at = $1::timestamptz
+FROM touched_run
+WHERE chat_debug_steps.id = $2::uuid
+    AND chat_debug_steps.run_id = touched_run.id
+    AND chat_debug_steps.chat_id = touched_run.chat_id
+`
+
+type TouchChatDebugStepAndRunParams struct {
+	Now    time.Time `db:"now" json:"now"`
+	StepID uuid.UUID `db:"step_id" json:"step_id"`
+	RunID  uuid.UUID `db:"run_id" json:"run_id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Atomically bumps updated_at on both the step and its parent run
+// in a single statement. This prevents FinalizeStale from
+// interleaving between the two touches and finalizing a run whose
+// step heartbeat was just written.
+//
+// The step UPDATE joins through touched_run (via FROM) and reads
+// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+// is the only way to communicate values between a data-modifying
+// CTE and the main query, and consuming those rows forces the run
+// UPDATE to complete before the step UPDATE. That matches the
+// lock order used by FinalizeStaleChatDebugRows and avoids a
+// deadlock between concurrent heartbeats and stale sweeps. The
+// join also constrains the step update to the specified run so a
+// mismatched (run_id, step_id) pair cannot silently refresh an
+// unrelated step.
+func (q *sqlQuerier) TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error {
+	_, err := q.db.ExecContext(ctx, touchChatDebugStepAndRun,
+		arg.Now,
+		arg.StepID,
+		arg.RunID,
+		arg.ChatID,
+	)
+	return err
+}
+
 const updateChatDebugRun = `-- name: UpdateChatDebugRun :one
 UPDATE chat_debug_runs
 SET
@@ -3339,10 +3452,10 @@ SET
     provider = COALESCE($7::text, provider),
     model = COALESCE($8::text, model),
     summary = COALESCE($9::jsonb, summary),
-    finished_at = COALESCE($10::timestamptz, finished_at),
-    updated_at = NOW()
-WHERE id = $11::uuid
-    AND chat_id = $12::uuid
+    finished_at = COALESCE(finished_at, $10::timestamptz),
+    updated_at = $11::timestamptz
+WHERE id = $12::uuid
+    AND chat_id = $13::uuid
 RETURNING id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 `
 
@@ -3357,14 +3470,24 @@ type UpdateChatDebugRunParams struct {
 	Model               sql.NullString        `db:"model" json:"model"`
 	Summary             pqtype.NullRawMessage `db:"summary" json:"summary"`
 	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Now                 time.Time             `db:"now" json:"now"`
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
 // Uses COALESCE so that passing NULL from Go means "keep the
-// existing value."  This is intentional: debug rows follow a
+// existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
-// or finalization and never cleared back to NULL.
+// or finalization and never cleared back to NULL. The @now
+// parameter keeps updated_at under the caller's clock.
+//
+// finished_at is enforced as write-once at the SQL level: once
+// populated it cannot be overwritten by a later call. Callers
+// that issue a summary or status refresh after the run has
+// already finalized therefore cannot corrupt the original
+// completion timestamp, which keeps duration and ordering
+// calculations stable regardless of how many times the row is
+// updated.
 func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebugRunParams) (ChatDebugRun, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugRun,
 		arg.RootChatID,
@@ -3377,6 +3500,7 @@ func (q *sqlQuerier) UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebug
 		arg.Model,
 		arg.Summary,
 		arg.FinishedAt,
+		arg.Now,
 		arg.ID,
 		arg.ChatID,
 	)
@@ -3414,9 +3538,9 @@ SET
     error = COALESCE($8::jsonb, error),
     metadata = COALESCE($9::jsonb, metadata),
     finished_at = COALESCE($10::timestamptz, finished_at),
-    updated_at = NOW()
-WHERE id = $11::uuid
-    AND chat_id = $12::uuid
+    updated_at = $11::timestamptz
+WHERE id = $12::uuid
+    AND chat_id = $13::uuid
 RETURNING id, run_id, chat_id, step_number, operation, status, history_tip_message_id, assistant_message_id, normalized_request, normalized_response, usage, attempts, error, metadata, started_at, updated_at, finished_at
 `
 
@@ -3431,14 +3555,17 @@ type UpdateChatDebugStepParams struct {
 	Error               pqtype.NullRawMessage `db:"error" json:"error"`
 	Metadata            pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Now                 time.Time             `db:"now" json:"now"`
 	ID                  uuid.UUID             `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 }
 
 // Uses COALESCE so that passing NULL from Go means "keep the
-// existing value."  This is intentional: debug rows follow a
+// existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
-// or finalization and never cleared back to NULL.
+// or finalization and never cleared back to NULL. The @now
+// parameter keeps updated_at under the caller's clock, matching
+// the injectable quartz.Clock used by FinalizeStale sweeps.
 func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
 		arg.Status,
@@ -3451,6 +3578,7 @@ func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebu
 		arg.Error,
 		arg.Metadata,
 		arg.FinishedAt,
+		arg.Now,
 		arg.ID,
 		arg.ChatID,
 	)
@@ -6511,6 +6639,11 @@ WHERE
         WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -6715,6 +6848,95 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.LastModelConfigID,
 			&i.ClientType,
 			&i.PullRequestState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
+SELECT
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY($1 :: uuid[])
+    AND CASE
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC
+`
+
+type GetChildChatsByParentIDsParams struct {
+	ParentIds []uuid.UUID  `db:"parent_ids" json:"parent_ids"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+}
+
+type GetChildChatsByParentIDsRow struct {
+	Chat      Chat `db:"chat" json:"chat"`
+	HasUnread bool `db:"has_unread" json:"has_unread"`
+}
+
+// Fetches child chats of the given parents, optionally filtered by
+// archive state (NULL = all, true/false = match). The archive
+// invariant (parent archived implies child archived) is enforced
+// at write time, not here.
+func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(arg.ParentIds), arg.Archived)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChildChatsByParentIDsRow
+	for rows.Next() {
+		var i GetChildChatsByParentIDsRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.LastInjectedContext,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.HasUnread,
 		); err != nil {
 			return nil, err
 		}
@@ -29547,6 +29769,61 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+	)
+	return i, err
+}
+
+const getLatestWorkspaceBuildWithStatusByWorkspaceID = `-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
+SELECT
+	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl -- Used for dbauthz fetch() checks
+FROM
+	workspace_builds
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.workspace_id = $1 AND
+	workspaces.deleted = false
+ORDER BY
+	workspace_builds.build_number desc
+	LIMIT
+	1
+`
+
+type GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow struct {
+	Transition     WorkspaceTransition  `db:"transition" json:"transition"`
+	BuildNumber    int32                `db:"build_number" json:"build_number"`
+	JobStatus      ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	WorkspaceTable WorkspaceTable       `db:"workspace_table" json:"workspace_table"`
+}
+
+func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getLatestWorkspaceBuildWithStatusByWorkspaceID, workspaceID)
+	var i GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
+	err := row.Scan(
+		&i.Transition,
+		&i.BuildNumber,
+		&i.JobStatus,
+		&i.WorkspaceTable.ID,
+		&i.WorkspaceTable.CreatedAt,
+		&i.WorkspaceTable.UpdatedAt,
+		&i.WorkspaceTable.OwnerID,
+		&i.WorkspaceTable.OrganizationID,
+		&i.WorkspaceTable.TemplateID,
+		&i.WorkspaceTable.Deleted,
+		&i.WorkspaceTable.Name,
+		&i.WorkspaceTable.AutostartSchedule,
+		&i.WorkspaceTable.Ttl,
+		&i.WorkspaceTable.LastUsedAt,
+		&i.WorkspaceTable.DormantAt,
+		&i.WorkspaceTable.DeletingAt,
+		&i.WorkspaceTable.AutomaticUpdates,
+		&i.WorkspaceTable.Favorite,
+		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
 	)
 	return i, err
 }

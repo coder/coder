@@ -67,6 +67,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
+	children: [],
 	...overrides,
 });
 

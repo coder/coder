@@ -9,8 +9,11 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAttemptSink_ThreadSafe(t *testing.T) {
@@ -145,11 +148,18 @@ func TestBeginStep_NilService(t *testing.T) {
 func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
 	t.Parallel()
 
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
 	runID := uuid.New()
 	runChatID := uuid.New()
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
+	ownerID := uuid.New()
+	expectDebugLoggingEnabled(t, db, ownerID)
+	expectCreateStepNumberWithRequestValidity(t, db, runID, runChatID, 1, OperationGenerate, false)
 
-	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{}, OperationGenerate, nil)
+	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
+	svc := NewService(db, testutil.Logger(t), nil)
+
+	handle, enriched := beginStep(ctx, svc, RecorderOptions{OwnerID: ownerID}, OperationGenerate, nil)
 	require.NotNil(t, handle)
 	require.Equal(t, runChatID, handle.stepCtx.ChatID)
 

@@ -233,3 +233,39 @@ func TestMetadataFromProto(t *testing.T) {
 	require.Equal(t, "lemons", smd.Value)
 	require.Equal(t, "rats", smd.Error)
 }
+
+func TestSecretsRoundTrip(t *testing.T) {
+	t.Parallel()
+	secrets := []agentsdk.WorkspaceSecret{
+		{
+			EnvName:  "GITHUB_TOKEN",
+			FilePath: "",
+			Value:    []byte("ghp_xxxx"),
+		},
+		{
+			EnvName:  "",
+			FilePath: "~/.aws/credentials",
+			Value:    []byte("[default]\naws_access_key_id=AKIA..."),
+		},
+		{
+			EnvName:  "BOTH_ENV",
+			FilePath: "/etc/both",
+			Value:    []byte("both-value"),
+		},
+	}
+
+	protoSecrets := agentsdk.ProtoFromSecrets(secrets)
+	require.Len(t, protoSecrets, 3)
+	require.Equal(t, "GITHUB_TOKEN", protoSecrets[0].EnvName)
+	require.Equal(t, "", protoSecrets[0].FilePath)
+	require.Equal(t, []byte("ghp_xxxx"), protoSecrets[0].Value)
+	require.Equal(t, "", protoSecrets[1].EnvName)
+	require.Equal(t, "~/.aws/credentials", protoSecrets[1].FilePath)
+	require.Equal(t, []byte("[default]\naws_access_key_id=AKIA..."), protoSecrets[1].Value)
+	require.Equal(t, "BOTH_ENV", protoSecrets[2].EnvName)
+	require.Equal(t, "/etc/both", protoSecrets[2].FilePath)
+	require.Equal(t, []byte("both-value"), protoSecrets[2].Value)
+
+	roundTripped := agentsdk.SecretsFromProto(protoSecrets)
+	require.Equal(t, secrets, roundTripped)
+}
