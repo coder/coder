@@ -204,11 +204,12 @@ func (mr *MockAgentConnMockRecorder) DialContext(ctx, network, addr any) *gomock
 }
 
 // EditFiles mocks base method.
-func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEditRequest) error {
+func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EditFiles", ctx, edits)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(workspacesdk.FileEditResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // EditFiles indicates an expected call of EditFiles.

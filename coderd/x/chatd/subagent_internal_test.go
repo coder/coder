@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -26,16 +27,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-func TestComputerUseSubagentSystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	// Verify the system prompt constant is non-empty and contains
-	// key instructions for the computer use agent.
-	assert.NotEmpty(t, computerUseSubagentSystemPrompt)
-	assert.Contains(t, computerUseSubagentSystemPrompt, "computer")
-	assert.Contains(t, computerUseSubagentSystemPrompt, "screenshot")
-}
 
 func TestSubagentFallbackChatTitle(t *testing.T) {
 	t.Parallel()
@@ -1289,6 +1280,158 @@ func insertAssistantMessage(
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+}
+
+func insertLinkedChatFile(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	ownerID uuid.UUID,
+	organizationID uuid.UUID,
+	name string,
+	mediaType string,
+	data []byte,
+) uuid.UUID {
+	t.Helper()
+
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
+		Name:           name,
+		Mimetype:       mediaType,
+		Data:           data,
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      []uuid.UUID{file.ID},
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	return file.ID
+}
+
+func TestWaitAgentDoesNotRelayComputerUseSubagentAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	parent, child := createComputerUseParentChild(
+		ctx, t, server, user, org, model, workspace, agent,
+		"parent-relay", "child-relay",
+	)
+
+	insertedFile := insertLinkedChatFile(
+		ctx,
+		t,
+		db,
+		child.ID,
+		user.ID,
+		workspace.OrganizationID,
+		"screenshot.png",
+		"image/png",
+		[]byte("fake-png"),
+	)
+	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the screenshot.")
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected successful response, got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Shared the screenshot.", result["report"])
+	require.Equal(t, string(database.ChatStatusWaiting), result["status"])
+	assert.NotContains(t, result, "attachment_count")
+	assert.NotContains(t, result, "attachment_warning")
+
+	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, attachments)
+	parts := buildAssistantPartsForPersist(
+		context.Background(),
+		testutil.Logger(t),
+		nil,
+		[]fantasy.ToolResultContent{{
+			ToolCallID:     "call-1",
+			ToolName:       "wait_agent",
+			ClientMetadata: resp.Metadata,
+		}},
+		chatloop.PersistedStep{},
+		nil,
+	)
+	assert.Empty(t, parts)
+
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Empty(t, parentFiles)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, childFiles, 1)
+	assert.Equal(t, insertedFile, childFiles[0].ID)
+	assert.Equal(t, "screenshot.png", childFiles[0].Name)
+	assert.Equal(t, "image/png", childFiles[0].Mimetype)
+}
+
+func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	server.drainInflight()
+
+	insertedFile := insertLinkedChatFile(
+		ctx,
+		t,
+		db,
+		child.ID,
+		user.ID,
+		workspace.OrganizationID,
+		"notes.txt",
+		"text/plain",
+		[]byte("release notes"),
+	)
+	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the release notes.")
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected successful response, got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Shared the release notes.", result["report"])
+	assert.NotContains(t, result, "attachment_count")
+	assert.NotContains(t, result, "attachment_warning")
+	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, attachments)
+
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Empty(t, parentFiles)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, childFiles, 1)
+	assert.Equal(t, insertedFile, childFiles[0].ID)
+	assert.Equal(t, "notes.txt", childFiles[0].Name)
+	assert.Equal(t, "text/plain", childFiles[0].Mimetype)
 }
 
 func TestAwaitSubagentCompletion(t *testing.T) {

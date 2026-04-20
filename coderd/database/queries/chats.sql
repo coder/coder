@@ -373,6 +373,11 @@ WHERE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -389,6 +394,32 @@ LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
+
+-- name: GetChildChatsByParentIDs :many
+-- Fetches child chats of the given parents, optionally filtered by
+-- archive state (NULL = all, true/false = match). The archive
+-- invariant (parent archived implies child archived) is enforced
+-- at write time, not here.
+SELECT
+    sqlc.embed(chats),
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY(@parent_ids :: uuid[])
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC;
 
 -- name: InsertChat :one
 INSERT INTO chats (
@@ -517,6 +548,19 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
 WHERE
     id = @id::uuid
 RETURNING

@@ -1871,15 +1871,15 @@ func (q *querier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg dat
 	return q.db.DeleteChatDebugDataAfterMessageID(ctx, arg)
 }
 
-func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
+func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.DeleteChatDebugDataByChatIDParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return 0, err
 	}
-	return q.db.DeleteChatDebugDataByChatID(ctx, chatID)
+	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
@@ -2944,6 +2944,14 @@ func (q *querier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Ti
 	return q.db.GetChatsUpdatedAfter(ctx, updatedAfter)
 }
 
+func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
+	// Each child is independently authorized via post-filter.
+	// The handler calls this after GetChats already authorized
+	// the parent chats, but we still verify read access on
+	// every child row for defense in depth.
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChildChatsByParentIDs)(ctx, arg)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -3251,6 +3259,10 @@ func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, work
 		return database.WorkspaceBuild{}, err
 	}
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	return fetch(q.log, q.auth, q.db.GetLatestWorkspaceBuildWithStatusByWorkspaceID)(ctx, workspaceID)
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -6192,6 +6204,17 @@ func (q *querier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg dat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatusPreserveUpdatedAt(ctx, arg)
+}
+
+func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatTitleByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {

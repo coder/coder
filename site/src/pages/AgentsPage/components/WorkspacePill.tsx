@@ -92,16 +92,16 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							type="button"
 							aria-label={`${workspace.name} workspace menu`}
 							className={cn(
-								"inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-secondary text-xs font-medium text-content-secondary",
+								"inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-secondary text-xs font-medium text-content-secondary overflow-hidden md:min-w-[2.75rem]",
 								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 								"size-7 justify-center p-0 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
 							)}
 						>
 							<StatusIcon
 								type={effectiveType}
-								className="size-icon-sm md:size-3"
+								className="size-icon-sm shrink-0 md:size-3"
 							/>
-							<span className="hidden truncate md:inline">
+							<span className="hidden min-w-0 truncate md:inline">
 								{workspace.name}
 							</span>
 							{/* The menu opens upward (side="top"), so the chevron
