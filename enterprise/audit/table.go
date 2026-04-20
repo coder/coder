@@ -29,7 +29,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AiSeatState":     {codersdk.AuditActionCreate},
-	"Chat":            {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Chat":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 }
 
 type Action string
@@ -405,7 +405,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_read_message_id":  ActionIgnore, // User-scoped read cursor.
 		"last_injected_context": ActionIgnore, // Internal lifecycle.
 		"dynamic_tools":         ActionIgnore, // Internal lifecycle.
-		"plan_mode":             ActionTrack,
+		"plan_mode":             ActionIgnore, // Can flip back and forth during a session.
 		"client_type":           ActionIgnore, // Set at creation.
 	},
 }
