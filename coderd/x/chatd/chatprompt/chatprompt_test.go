@@ -222,7 +222,6 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			fileID := uuid.New()
@@ -266,6 +265,73 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 			require.Equal(t, tt.expectedText, textPart.Text)
 		})
 	}
+}
+
+func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
+	t.Parallel()
+
+	resolvedFileID := uuid.New()
+	missingFileID := uuid.New()
+	resolvedData := []byte("resolved-image-data")
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    resolvedFileID.String(),
+			},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "application/pdf",
+				"file_id":    missingFileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == resolvedFileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+					Name:      "resolved.png",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok, "expected missing second part to become a TextPart")
+	require.Equal(t,
+		"[missing-attachment] The user attached a file here, but the content has expired and is no longer available. "+
+			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
+		textPart.Text,
+	)
 }
 
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {

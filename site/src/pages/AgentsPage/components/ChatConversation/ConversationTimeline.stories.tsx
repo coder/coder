@@ -97,8 +97,12 @@ type ImageAttachmentResponse = {
 
 const FAILED_IMAGE_API_MESSAGE = "Failed to get chat file.";
 
+const UNDISPLAYABLE_REMOTE_IMAGE_MESSAGE =
+	"File exists but could not be displayed.";
+
 const IMAGE_ATTACHMENT_RESPONSES = new Map<string, ImageAttachmentResponse>([
 	["storybook-expired-image", { status: 404 }],
+	["storybook-undisplayable-image", { status: 200 }],
 	[
 		"storybook-failed-image",
 		{
@@ -110,6 +114,18 @@ const IMAGE_ATTACHMENT_RESPONSES = new Map<string, ImageAttachmentResponse>([
 		},
 	],
 ]);
+
+let imageAttachmentFetchCounts = new Map<string, number>();
+
+const recordImageAttachmentFetch = (fileId: string) => {
+	imageAttachmentFetchCounts.set(
+		fileId,
+		(imageAttachmentFetchCounts.get(fileId) ?? 0) + 1,
+	);
+};
+
+const getImageAttachmentFetchCount = (fileId: string) =>
+	imageAttachmentFetchCounts.get(fileId) ?? 0;
 
 const mockAttachmentFetch = () => {
 	const originalFetch = globalThis.fetch;
@@ -129,6 +145,7 @@ const mockAttachmentFetch = () => {
 
 		for (const [fileId, response] of IMAGE_ATTACHMENT_RESPONSES) {
 			if (url.endsWith(fileId)) {
+				recordImageAttachmentFetch(fileId);
 				return new Response(response.body ?? "", {
 					status: response.status,
 					headers: response.body
@@ -160,6 +177,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		),
 	],
 	beforeEach: () => {
+		imageAttachmentFetchCounts = new Map();
 		mockAttachmentFetch();
 	},
 };
@@ -316,6 +334,55 @@ export const UserMessageWithExpiredImage: Story = {
 	},
 };
 
+/** Duplicate expired file IDs reuse the first probe result page-wide. */
+export const UserMessageWithRepeatedExpiredImage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "First reference to the expired upload" },
+					{
+						type: "file",
+						media_type: "image/png",
+						file_id: "storybook-expired-image",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{ type: "text", text: "Second reference to the same expired upload" },
+					{
+						type: "file",
+						media_type: "image/png",
+						file_id: "storybook-expired-image",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(2);
+		fireEvent.error(images[0]);
+		await waitFor(() =>
+			expect(
+				canvas.getAllByRole("img", { name: "Image expired" }),
+			).toHaveLength(2),
+		);
+		expect(getImageAttachmentFetchCount("storybook-expired-image")).toBe(1);
+		expect(
+			canvas.queryByRole("button", { name: "View image" }),
+		).not.toBeInTheDocument();
+	},
+};
 /** File-id images that fail with a non-404 status render a generic failure tile. */
 export const UserMessageWithFailedRemoteImage: Story = {
 	args: {
@@ -369,6 +436,45 @@ export const UserMessageWithFailedRemoteImage: Story = {
 	},
 };
 
+/** A successful follow-up probe still maps to the generic failure tile. */
+export const UserMessageWithUndisplayableRemoteImage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "This image exists but cannot be displayed" },
+					{
+						type: "file",
+						media_type: "image/png",
+						file_id: "storybook-undisplayable-image",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		expect(
+			await canvas.findByRole("img", { name: "Image failed to load" }),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("img", { name: "Image failed to load" }),
+			).toHaveAttribute("data-state"),
+		);
+		await userEvent.hover(
+			canvas.getByRole("img", { name: "Image failed to load" }),
+		);
+		const failedTooltip = await screen.findByRole("tooltip");
+		expect(failedTooltip).toHaveTextContent(UNDISPLAYABLE_REMOTE_IMAGE_MESSAGE);
+	},
+};
 /** Invalid inline image data skips the probe and renders the generic failure tile. */
 export const UserMessageWithInvalidInlineImage: Story = {
 	args: {

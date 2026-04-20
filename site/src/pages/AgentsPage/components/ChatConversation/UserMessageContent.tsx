@@ -1,5 +1,6 @@
 import { AlertTriangleIcon, FileTextIcon } from "lucide-react";
 import { type FC, Fragment, useEffect, useRef, useState } from "react";
+import { isApiErrorResponse } from "#/api/errors";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,6 +15,7 @@ import {
 import { ImageThumbnail } from "../AgentChatInput";
 import { Message, MessageContent } from "../ChatElements";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import { useExpiredFileIds } from "./ExpiredFileIdsContext";
 import type {
 	MessageDisplayState,
 	UserFileRenderBlock,
@@ -21,12 +23,14 @@ import type {
 } from "./messageHelpers";
 
 type ChatImageSource =
-	| { kind: "file"; src: string }
+	| { kind: "file"; fileId: string; src: string }
 	| { kind: "inline"; src: string };
 
 type ImageFailure = { kind: "expired" } | { kind: "failed"; detail?: string };
 
 type ImageFailureState = { kind: "idle" } | ImageFailure;
+
+const undisplayableFileDetail = "File exists but could not be displayed.";
 
 const classifyRemoteImageFailure = async (
 	src: string,
@@ -36,17 +40,20 @@ const classifyRemoteImageFailure = async (
 	if (response.status === 404) {
 		return { kind: "expired" };
 	}
+	if (response.ok) {
+		return { kind: "failed", detail: undisplayableFileDetail };
+	}
 
 	// Prefer the API's structured error message (coderd returns
 	// codersdk.Response { message, detail }). Fall back to the status
-	// line when the body isn't JSON — e.g. a proxy inserted an HTML
-	// page — so the tooltip still surfaces something concrete.
+	// line when the body isn't JSON, for example when a proxy inserted
+	// an HTML page, so the tooltip still surfaces something concrete.
 	let detail = response.statusText
 		? `${response.status} ${response.statusText}`
 		: `HTTP ${response.status}`;
 	try {
-		const body = await response.json();
-		if (body && typeof body.message === "string" && body.message.trim()) {
+		const body: unknown = await response.json();
+		if (isApiErrorResponse(body) && body.message.trim()) {
 			detail = body.message;
 		}
 	} catch {
@@ -182,16 +189,27 @@ const ChatImageBlock: FC<{
 	source: ChatImageSource;
 	onImageClick?: (src: string) => void;
 }> = ({ source, onImageClick }) => {
-	const [failureState, setFailureState] = useState<ImageFailureState>({
-		kind: "idle",
-	});
+	const { hasExpired, markExpired } = useExpiredFileIds();
+	const isKnownExpired = source.kind === "file" && hasExpired(source.fileId);
+	const [failureState, setFailureState] = useState<ImageFailureState>(() =>
+		isKnownExpired ? { kind: "expired" } : { kind: "idle" },
+	);
 	const probeControllerRef = useRef<AbortController | null>(null);
 
 	useEffect(() => {
 		return () => probeControllerRef.current?.abort();
 	}, []);
 
-	if (failureState.kind !== "idle") {
+	useEffect(() => {
+		if (isKnownExpired) {
+			probeControllerRef.current?.abort();
+		}
+	}, [isKnownExpired]);
+
+	if (failureState.kind === "expired" || isKnownExpired) {
+		return <ImageFallbackTile state={{ kind: "expired" }} />;
+	}
+	if (failureState.kind === "failed") {
 		return <ImageFallbackTile state={failureState} />;
 	}
 
@@ -214,6 +232,10 @@ const ChatImageBlock: FC<{
 						setFailureState({ kind: "failed" });
 						return;
 					}
+					if (hasExpired(source.fileId)) {
+						setFailureState({ kind: "expired" });
+						return;
+					}
 
 					probeControllerRef.current?.abort();
 					const controller = new AbortController();
@@ -230,6 +252,9 @@ const ChatImageBlock: FC<{
 								return;
 							}
 							probeControllerRef.current = null;
+							if (reason.kind === "expired") {
+								markExpired(source.fileId);
+							}
 							setFailureState(reason);
 						})
 						.catch((error) => {
@@ -280,6 +305,7 @@ export const FileBlock: FC<{
 	const source: ChatImageSource = block.file_id
 		? {
 				kind: "file",
+				fileId: block.file_id,
 				src: `/api/experimental/chats/files/${block.file_id}`,
 			}
 		: {
