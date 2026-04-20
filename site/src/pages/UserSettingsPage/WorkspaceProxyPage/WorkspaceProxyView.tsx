@@ -56,9 +56,9 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[70%]">Proxy</TableHead>
-						<TableHead className="w-[10%] text-right">Status</TableHead>
-						<TableHead className="w-[20%] text-right">Latency</TableHead>
+						<TableHead className="w-[60%]">Proxy</TableHead>
+						<TableHead className="w-[20%]">Status</TableHead>
+						<TableHead className="w-[20%]">Latency</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
