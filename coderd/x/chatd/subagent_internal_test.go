@@ -837,7 +837,7 @@ func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnSubagentArgs{SubagentType: "invalid", Prompt: "delegate work"},
 	)
 	require.True(t, invalidResp.IsError)
-	require.Contains(t, invalidResp.Content, "subagent_type must be one of: general, explore, computer_use")
+	require.Contains(t, invalidResp.Content, "subagent_type must be one of: general, explore")
 
 	unavailableResp := runSubagentTool(
 		ctx,
@@ -857,7 +857,9 @@ func TestSpawnSubagent_BlankTypeReturnsValidOptions(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)

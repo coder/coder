@@ -123,6 +123,19 @@ func availableSubagentDefinitions(
 	return available
 }
 
+func availableSubagentTypeIDs(
+	ctx context.Context,
+	p *Server,
+	currentChat database.Chat,
+) []string {
+	defs := availableSubagentDefinitions(ctx, p, currentChat)
+	ids := make([]string, 0, len(defs))
+	for _, def := range defs {
+		ids = append(ids, def.id)
+	}
+	return ids
+}
+
 func (d subagentDefinition) unavailableReasonText(
 	ctx context.Context,
 	p *Server,
@@ -145,22 +158,13 @@ func resolveSubagentDefinition(
 	if !ok {
 		return subagentDefinition{}, xerrors.Errorf(
 			"subagent_type must be one of: %s",
-			strings.Join(allSubagentTypeIDs(), ", "),
+			strings.Join(availableSubagentTypeIDs(ctx, p, currentChat), ", "),
 		)
 	}
 	if reason := def.unavailableReasonText(ctx, p, currentChat); reason != "" {
 		return subagentDefinition{}, xerrors.New(reason)
 	}
 	return def, nil
-}
-
-func allSubagentTypeIDs() []string {
-	defs := allSubagentDefinitions()
-	ids := make([]string, 0, len(defs))
-	for _, def := range defs {
-		ids = append(ids, def.id)
-	}
-	return ids
 }
 
 func validateSubagentSpawnParent(currentChat database.Chat) error {
