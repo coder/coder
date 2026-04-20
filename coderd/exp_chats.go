@@ -513,6 +513,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: req.OrganizationID,
+	})
+	defer commitAudit()
+
 	// Validate organization membership.
 	if req.OrganizationID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -682,14 +691,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	aReq, commitAudit := audit.InitRequestWithCancel[database.Chat](rw, &audit.RequestParams{
-		Audit:   *api.Auditor.Load(),
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionCreate,
-	})
-	defer commitAudit(true)
-
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
@@ -703,6 +704,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
+		// IMPORTANT: users can only create root chats at the time of writing.
+		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -730,6 +733,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if chat.ParentChatID.Valid {
+		// Should not be possible. If we get here, something is very wrong. Bail.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Developer error: ParentChatID got set somehow in api.postChats. This should never happen.",
+		})
+		return
+	}
+
 	// Link any user-uploaded files referenced in the initial
 	// message to this newly created chat (best-effort; cap
 	// enforced in SQL).
@@ -747,10 +758,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = chat
-	aReq.UpdateOrganizationID(chat.OrganizationID)
-	if chat.ParentChatID.Valid {
-		commitAudit(false)
-	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
