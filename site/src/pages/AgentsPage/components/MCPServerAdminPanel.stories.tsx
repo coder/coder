@@ -83,7 +83,7 @@ export const EmptyState: Story = {
 		).toBeInTheDocument();
 
 		// Both the section header and the empty state render a distinct
-		// Add button — the empty-state one is the primary CTA.
+		// Add button, and the empty-state one is the primary CTA.
 		expect(
 			body.getByRole("button", { name: "Add server" }),
 		).toBeInTheDocument();
@@ -519,6 +519,31 @@ export const DeleteServerCancelled: Story = {
 };
 
 /** Confirm delete in dialog calls the API. */
+export const DirectEditWhileLoading: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/settings/mcp-servers",
+				searchParams: { server: "mcp-sentry" },
+			},
+			routing: { path: "/agents/settings/mcp-servers" },
+		}),
+	},
+	args: {
+		serversData: undefined,
+		isLoadingServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(await body.findByText(/^Loading$/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Display Name/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: /Save changes/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const DeleteServerConfirmed: Story = {
 	args: {
 		serversData: [

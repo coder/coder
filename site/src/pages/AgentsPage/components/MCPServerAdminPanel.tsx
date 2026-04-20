@@ -1237,7 +1237,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 						sectionDescription={sectionDescription}
 						sectionBadge={sectionBadge}
 					/>
-				) : (
+				) : isCreating || (!isLoadingServers && editingServer) ? (
 					<ServerForm
 						key={serverId}
 						server={isCreating ? null : editingServer}
@@ -1247,7 +1247,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 						onDelete={handleDelete}
 						onBack={exitServerView}
 					/>
-				)}
+				) : null}
 			</div>
 
 			{serversError && <ErrorAlert error={serversError} />}
