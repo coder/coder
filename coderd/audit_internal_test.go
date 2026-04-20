@@ -1,12 +1,47 @@
 package coderd
 
 import (
+	"context"
+	"database/sql"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 )
+
+func TestAuditLogIsResourceDeleted(t *testing.T) {
+	t.Parallel()
+
+	for name, err := range map[string]error{
+		"ChatNotAuthorized": dbauthz.NotAuthorizedError{},
+		"ChatNoRows":        sql.ErrNoRows,
+	} {
+		err := err
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			chatID := uuid.New()
+			db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, err)
+
+			api := &API{
+				Options: &Options{Database: db, Logger: slogtest.Make(t, nil)},
+			}
+
+			deleted := api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: chatID},
+			})
+			require.True(t, deleted)
+		})
+	}
+}
 
 func TestAuditLogDescription(t *testing.T) {
 	t.Parallel()

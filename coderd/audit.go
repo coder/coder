@@ -436,12 +436,12 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		}
 		return task.DeletedAt.Valid && task.DeletedAt.Time.Before(time.Now())
 	case database.ResourceTypeChat:
-		// Chat rows are hard-deleted by dbpurge; a missing row is the
-		// "deleted" state. There is no soft-delete flag on chats.
+		// Chats are hard-deleted, so a 404 means deleted.
 		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			return true
-		} else if err != nil {
+		}
+		if err != nil {
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
 		}
 		return false
