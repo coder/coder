@@ -316,10 +316,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		...(workspace && workspaceAgent ? ["terminal"] : []),
 		...(debugLoggingEnabled ? ["debug"] : []),
 	];
+	// Desktop is only available when the workspace + agent are ready;
+	// `SidebarTabView` gates the desktop tab/panel on the same condition,
+	// so resolve tab selection against the same availability to avoid
+	// picking "desktop" when no desktop panel is rendered.
+	const availableDesktopChatId =
+		workspace && workspaceAgent ? desktopChatId : undefined;
 	const effectiveSidebarTabId = getEffectiveTabId(
 		sidebarTabIds,
 		sidebarTabId,
-		desktopChatId,
+		availableDesktopChatId,
 	);
 	const sidebarTabs = [
 		{
@@ -532,9 +538,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							chatTitle={chatTitle}
-							desktopChatId={
-								workspace && workspaceAgent ? desktopChatId : undefined
-							}
+							desktopChatId={availableDesktopChatId}
 						/>
 					</RightPanel>
 				</div>
