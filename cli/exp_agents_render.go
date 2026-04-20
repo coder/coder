@@ -321,6 +321,7 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 		current          *codersdk.ChatGitChange
 		currentAdditions int
 		currentDeletions int
+		inHunk           bool
 	)
 	flush := func() {
 		if current == nil {
@@ -353,6 +354,7 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
 			flush()
+			inHunk = false
 			// parseUnifiedDiffHeaderPaths may return ("", "", false) when
 			// the unquoted header form is ambiguous, such as a rename with
 			// spaces in the paths. We still want to start a new entry so
@@ -372,48 +374,56 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 			}
 		case current == nil:
 			continue
-		case strings.HasPrefix(line, "new file mode "):
+		case strings.HasPrefix(line, "@@"):
+			// Entering a hunk. Everything from here until the next
+			// "diff --git " header is diff content, including any
+			// added/removed lines that happen to start with "--- "
+			// or "+++ ". Those must no longer be treated as file
+			// headers.
+			inHunk = true
+		case !inHunk && strings.HasPrefix(line, "new file mode "):
 			current.ChangeType = "added"
-		case strings.HasPrefix(line, "deleted file mode "):
+		case !inHunk && strings.HasPrefix(line, "deleted file mode "):
 			current.ChangeType = "deleted"
-		case strings.HasPrefix(line, "rename from "):
-			// trimUnifiedDiffPath decodes C-quoted paths that git emits for
-			// non-ASCII or control-character file names, matching the
-			// treatment of --- and +++ lines below.
-			oldPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "rename from "))
+		case !inHunk && strings.HasPrefix(line, "rename from "):
+			// rename from/rename to paths are repository-relative and
+			// never carry the a/ or b/ prefix, so we must not strip
+			// those segments: a real file at a/foo.txt would otherwise
+			// be truncated to foo.txt.
+			oldPath := decodeQuotedDiffLinePath(strings.TrimPrefix(line, "rename from "))
 			if oldPath != "" {
 				oldPathCopy := oldPath
 				current.OldPath = &oldPathCopy
 			}
 			current.ChangeType = "renamed"
-		case strings.HasPrefix(line, "rename to "):
-			newPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "rename to "))
+		case !inHunk && strings.HasPrefix(line, "rename to "):
+			newPath := decodeQuotedDiffLinePath(strings.TrimPrefix(line, "rename to "))
 			if newPath != "" {
 				current.FilePath = newPath
 			}
 			current.ChangeType = "renamed"
-		case strings.HasPrefix(line, "--- /dev/null"):
+		case !inHunk && strings.HasPrefix(line, "--- /dev/null"):
 			current.ChangeType = "added"
-		case strings.HasPrefix(line, "+++ /dev/null"):
+		case !inHunk && strings.HasPrefix(line, "+++ /dev/null"):
 			current.ChangeType = "deleted"
-		case strings.HasPrefix(line, "--- "):
+		case !inHunk && strings.HasPrefix(line, "--- "):
 			if current.ChangeType == "added" {
 				continue
 			}
-			if oldPath := trimUnifiedDiffPath(strings.TrimSpace(strings.TrimPrefix(line, "--- "))); oldPath != "" && oldPath != "/dev/null" {
+			if oldPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "--- ")); oldPath != "" && oldPath != "/dev/null" {
 				oldPathCopy := oldPath
 				current.OldPath = &oldPathCopy
 			}
-		case strings.HasPrefix(line, "+++ "):
+		case !inHunk && strings.HasPrefix(line, "+++ "):
 			if current.ChangeType == "deleted" {
 				continue
 			}
-			if newPath := trimUnifiedDiffPath(strings.TrimSpace(strings.TrimPrefix(line, "+++ "))); newPath != "" && newPath != "/dev/null" {
+			if newPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "+++ ")); newPath != "" && newPath != "/dev/null" {
 				current.FilePath = newPath
 			}
-		case strings.HasPrefix(line, "+"):
+		case inHunk && strings.HasPrefix(line, "+"):
 			currentAdditions++
-		case strings.HasPrefix(line, "-"):
+		case inHunk && strings.HasPrefix(line, "-"):
 			currentDeletions++
 		}
 	}
@@ -522,7 +532,19 @@ func consumeQuotedDiffPath(s string) (path string, rest string, ok bool) {
 	return "", "", false
 }
 
+// trimUnifiedDiffPath decodes a path taken from a `--- ` or `+++ ` line
+// of a unified diff. Those lines always prefix the path with `a/` or `b/`,
+// so the prefix is stripped after any C-quote decoding.
 func trimUnifiedDiffPath(path string) string {
+	return stripUnifiedDiffPrefix(decodeQuotedDiffLinePath(path))
+}
+
+// decodeQuotedDiffLinePath decodes a git-emitted path without stripping
+// any `a/` or `b/` prefix. Git only adds those prefixes to `diff --git`,
+// `--- `, and `+++ ` lines, so `rename from`, `rename to`, and similar
+// lines must use this helper to avoid truncating a real leading `a/` or
+// `b/` directory component.
+func decodeQuotedDiffLinePath(path string) string {
 	path = strings.TrimSpace(path)
 	// Git quotes the whole path with double quotes and C-style escapes when
 	// it contains control characters, backslashes, double quotes, or (with
@@ -530,12 +552,11 @@ func trimUnifiedDiffPath(path string) string {
 	// understands the same escape vocabulary for the common cases.
 	if len(path) >= 2 && strings.HasPrefix(path, `"`) && strings.HasSuffix(path, `"`) {
 		if unq, err := strconv.Unquote(path); err == nil {
-			path = unq
-		} else {
-			path = strings.Trim(path, `"`)
+			return unq
 		}
+		return strings.Trim(path, `"`)
 	}
-	return stripUnifiedDiffPrefix(path)
+	return path
 }
 
 func stripUnifiedDiffPrefix(path string) string {

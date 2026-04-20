@@ -719,6 +719,58 @@ func TestExpAgentsRender(t *testing.T) {
 		require.Equal(t, "bär old.txt", *changes[0].OldPath)
 	})
 
+	t.Run("ParseChatGitChangesFromUnifiedDiffRenameWithLiteralAPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		// rename from/rename to paths are repository-relative and never
+		// carry the a/ or b/ prefix, so real directories named a/ must
+		// survive parsing intact.
+		diff := strings.Join([]string{
+			"diff --git a/a/foo.txt b/a/bar.txt",
+			"similarity index 100%",
+			"rename from a/foo.txt",
+			"rename to a/bar.txt",
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 1)
+		require.Equal(t, "renamed", changes[0].ChangeType)
+		require.Equal(t, "a/bar.txt", changes[0].FilePath)
+		require.NotNil(t, changes[0].OldPath)
+		require.Equal(t, "a/foo.txt", *changes[0].OldPath)
+	})
+
+	t.Run("ParseChatGitChangesFromUnifiedDiffIgnoresHunkContentLookalikes", func(t *testing.T) {
+		t.Parallel()
+
+		// Added/removed diff lines can legitimately start with `+++ ` or
+		// `--- ` (the content happens to begin with `++ ` or `-- `). The
+		// parser must treat those as content after the first `@@` hunk
+		// header instead of overwriting the already-resolved FilePath
+		// and change counts.
+		diff := strings.Join([]string{
+			"diff --git a/a.txt b/a.txt",
+			"--- a/a.txt",
+			"+++ b/a.txt",
+			"@@ -1,2 +1,2 @@",
+			"--- not a header",
+			"+++ also not a header",
+			"-left",
+			"+right",
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 1)
+		require.Equal(t, "a.txt", changes[0].FilePath)
+		require.Equal(t, "modified", changes[0].ChangeType)
+		require.NotNil(t, changes[0].DiffSummary)
+		// Inside the hunk, both "--- not a header" and "-left" are
+		// deletion lines, and both "+++ also not a header" and "+right"
+		// are addition lines. The header "--- a/a.txt" and "+++ b/a.txt"
+		// lines before @@ are not counted.
+		require.Equal(t, "+2 -2", *changes[0].DiffSummary)
+	})
+
 	t.Run("ParseUnifiedDiffHeaderPaths", func(t *testing.T) {
 		t.Parallel()
 
