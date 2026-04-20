@@ -1074,7 +1074,7 @@ scrape_configs:
 	go func() {
 		if err := cmd.Wait(); err != nil {
 			if ctx.Err() != nil {
-				// Normal shutdown: context was cancelled.
+				// Normal shutdown: context was canceled.
 				named.Info(ctx, "prometheus server stopped")
 				return
 			}
