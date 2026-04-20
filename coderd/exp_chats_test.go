@@ -4149,6 +4149,271 @@ func TestPatchChat(t *testing.T) {
 			require.Nil(t, updated.AgentID)
 		})
 	})
+
+	t.Run("Title", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Rename", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "original title")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("renamed title"),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "renamed title", updated.Title)
+		})
+
+		t.Run("TrimsWhitespace", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "before trim")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("   padded title   "),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "padded title", updated.Title)
+		})
+
+		t.Run("RejectsEmpty", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original")
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("   "),
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, chat.Title, updated.Title)
+		})
+
+		t.Run("RejectsTooLong", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original length")
+
+			tooLong := strings.Repeat("a", 201)
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref(tooLong),
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, chat.Title, updated.Title)
+		})
+
+		t.Run("LengthBoundaries", func(t *testing.T) {
+			t.Parallel()
+
+			cases := []struct {
+				name     string
+				title    string
+				expectOK bool
+				storedAs string
+			}{
+				{
+					name:     "ExactlyMaxASCII",
+					title:    strings.Repeat("a", 200),
+					expectOK: true,
+					storedAs: strings.Repeat("a", 200),
+				},
+				{
+					name:     "OneOverMaxASCII",
+					title:    strings.Repeat("a", 201),
+					expectOK: false,
+				},
+				{
+					name:     "ExactlyMaxMultiByte",
+					title:    strings.Repeat("é", 200),
+					expectOK: true,
+					storedAs: strings.Repeat("é", 200),
+				},
+				{
+					name:     "OneOverMaxMultiByte",
+					title:    strings.Repeat("é", 201),
+					expectOK: false,
+				},
+				{
+					name:     "TrimsDownToMax",
+					title:    "   " + strings.Repeat("a", 200) + "   ",
+					expectOK: true,
+					storedAs: strings.Repeat("a", 200),
+				},
+			}
+
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					client := newChatClient(t)
+					firstUser := coderdtest.CreateFirstUser(t, client.Client)
+					_ = createChatModelConfig(t, client)
+
+					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
+					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+						Title: ptr.Ref(tc.title),
+					})
+					updated := getChat(ctx, t, client, chat.ID)
+					if tc.expectOK {
+						require.NoError(t, err)
+						require.Equal(t, tc.storedAs, updated.Title)
+					} else {
+						requireSDKError(t, err, http.StatusBadRequest)
+						require.Equal(t, chat.Title, updated.Title)
+					}
+				})
+			}
+		})
+
+		t.Run("PreservesUpdatedAt", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			clientRaw := coderdtest.New(t, &coderdtest.Options{
+				DeploymentValues: chatDeploymentValues(t),
+				Database:         db,
+				Pubsub:           ps,
+			})
+			client := codersdk.NewExperimentalClient(clientRaw)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
+
+			require.Eventually(t, func() bool {
+				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				if getErr != nil {
+					return false
+				}
+				return c.Status != database.ChatStatusPending &&
+					c.Status != database.ChatStatusRunning
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+			_, err := sqlDB.ExecContext(ctx,
+				"UPDATE chats SET updated_at = $1 WHERE id = $2",
+				past, chat.ID,
+			)
+			require.NoError(t, err)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("renamed in place"),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "renamed in place", updated.Title)
+			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
+				"rename bumped updated_at; it should be preserved to keep list ordering stable")
+		})
+
+		t.Run("NoOpWhenTitleUnchanged", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			clientRaw := coderdtest.New(t, &coderdtest.Options{
+				DeploymentValues: chatDeploymentValues(t),
+				Database:         db,
+				Pubsub:           ps,
+			})
+			client := codersdk.NewExperimentalClient(clientRaw)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "steady title")
+
+			require.Eventually(t, func() bool {
+				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				if getErr != nil {
+					return false
+				}
+				return c.Status != database.ChatStatusPending &&
+					c.Status != database.ChatStatusRunning
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+			_, err := sqlDB.ExecContext(ctx,
+				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
+				"steady title", past, chat.ID,
+			)
+			require.NoError(t, err)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: ptr.Ref("steady title"),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "steady title", updated.Title)
+			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
+				"no-op rename bumped updated_at; it should have been short-circuited before the write")
+		})
+
+		t.Run("PublishesWatchEvent", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "announce me")
+
+			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+			require.NoError(t, err)
+			defer conn.Close(websocket.StatusNormalClosure, "done")
+
+			go func() {
+				_ = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+					Title: ptr.Ref("announced name"),
+				})
+			}()
+
+			var received codersdk.ChatWatchEvent
+			for {
+				if err := wsjson.Read(ctx, conn, &received); err != nil {
+					break
+				}
+				if received.Kind == codersdk.ChatWatchEventKindTitleChange &&
+					received.Chat.ID == chat.ID {
+					require.Equal(t, "announced name", received.Chat.Title)
+					return
+				}
+			}
+			t.Fatalf("did not observe title_change event for chat %s", chat.ID)
+		})
+	})
 }
 
 func TestArchiveChat(t *testing.T) {
@@ -6589,6 +6854,92 @@ func TestRegenerateChatTitle(t *testing.T) {
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
+	})
+}
+
+func TestProposeChatTitle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ChatNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.ProposeChatTitle(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("UpdateDenied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clientRaw, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			Authorizer: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
+					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
+						return xerrors.New("denied")
+					}
+					return nil
+				},
+			},
+			DeploymentValues: chatDeploymentValues(t),
+		})
+		client := codersdk.NewExperimentalClient(clientRaw)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat with update denied",
+		})
+		require.NoError(t, err)
+
+		_, err = client.ProposeChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("DoesNotPersistTitleOrBumpUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "test chat"},
+			},
+		})
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		_, err = client.ProposeChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, before.Title, after.Title,
+			"propose must not persist the suggested title")
+		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt),
+			"propose must not bump updated_at")
 	})
 }
 

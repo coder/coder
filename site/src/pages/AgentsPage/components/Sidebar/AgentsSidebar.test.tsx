@@ -110,7 +110,7 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
-	onRegenerateTitle: vi.fn(),
+	onRenameTitle: vi.fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,

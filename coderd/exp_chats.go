@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -109,6 +110,30 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 		return true
 	}
 	return false
+}
+
+func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
+	if ps == nil {
+		return
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindTitleChange,
+		Chat: db2sdk.Chat(chat, nil, nil),
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
 }
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
@@ -1929,6 +1954,86 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
+func (api *API) applyChatTitleUpdate(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+	rawTitle string,
+) (database.Chat, bool) {
+	trimmedTitle := strings.TrimSpace(rawTitle)
+	if trimmedTitle == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Title cannot be empty.",
+		})
+		return chat, true
+	}
+	const maxChatTitleRunes = 200
+	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+		})
+		return chat, true
+	}
+	if trimmedTitle == chat.Title {
+		return chat, false
+	}
+
+	var (
+		updatedChat database.Chat
+		wrote       bool
+		err         error
+	)
+	if api.chatDaemon != nil {
+		updatedChat, wrote, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+	} else {
+		err = api.Database.InTx(func(tx database.Store) error {
+			currentChat, txErr := tx.GetChatByID(ctx, chat.ID)
+			if txErr != nil {
+				return txErr
+			}
+			if trimmedTitle == currentChat.Title {
+				updatedChat = currentChat
+				wrote = false
+				return nil
+			}
+			updatedChat, txErr = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID:    chat.ID,
+				Title: trimmedTitle,
+			})
+			if txErr != nil {
+				return txErr
+			}
+			wrote = true
+			return nil
+		}, nil)
+	}
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return chat, true
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return chat, true
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat title.",
+			Detail:  err.Error(),
+		})
+		return chat, true
+	}
+	if wrote {
+		if api.chatDaemon != nil {
+			api.chatDaemon.PublishTitleChange(updatedChat)
+		} else {
+			publishChatTitleChange(api.Logger, api.Pubsub, updatedChat)
+		}
+	}
+	return updatedChat, false
+}
+
 // patchChat updates a chat resource. Supports updating labels,
 // workspace binding, archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
@@ -1952,6 +2057,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
+	if req.Title != nil {
+		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
+		if handled {
+			return
+		}
+		chat = updatedChat
+	}
 	if req.Labels != nil {
 		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2754,6 +2866,48 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
+}
+
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate chat title.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProposeChatTitleResponse{Title: title})
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

@@ -2558,6 +2558,25 @@ func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uui
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// ProposeChatTitleResponse is returned by the propose-title endpoint.
+type ProposeChatTitleResponse struct {
+	Title string `json:"title"`
+}
+
+// ProposeChatTitle requests the server to generate a suggested chat title without persisting it.
+func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.UUID) (ProposeChatTitleResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/propose", chatID), nil)
+	if err != nil {
+		return ProposeChatTitleResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ProposeChatTitleResponse{}, readBodyAsChatUsageLimitError(res)
+	}
+	var resp ProposeChatTitleResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // GetChatGitChanges returns git changes for a chat.
 func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)

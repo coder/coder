@@ -5700,6 +5700,14 @@ export interface PrometheusConfig {
 	readonly aggregate_agent_stats_by: string;
 }
 
+// From codersdk/chats.go
+/**
+ * ProposeChatTitleResponse is returned by the propose-title endpoint.
+ */
+export interface ProposeChatTitleResponse {
+	readonly title: string;
+}
+
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
 	/**
