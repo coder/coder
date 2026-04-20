@@ -282,9 +282,6 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 func TestRenameChatTitle(t *testing.T) {
 	t.Parallel()
 
-	// Helper: plumb the manual-title lock acquire/release through a
-	// "running chat with a real worker" path so acquire returns nil
-	// after a single GetChatByIDForUpdate and release is a no-op.
 	setupRealWorkerLock := func(
 		db *dbmock.MockStore,
 		chatID uuid.UUID,
@@ -305,8 +302,6 @@ func TestRenameChatTitle(t *testing.T) {
 			),
 		)
 		lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-		// releaseManualTitleLock sees WorkerID != manualTitleLockWorkerID
-		// and exits without mutating.
 		unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
 	}
 
@@ -347,13 +342,6 @@ func TestRenameChatTitle(t *testing.T) {
 	t.Run("SkipsWriteWhenAlreadyAtNewTitle", func(t *testing.T) {
 		t.Parallel()
 
-		// Regression: under concurrent renames the request-time chat
-		// snapshot can be stale. If another writer already landed the
-		// same title, RenameChatTitle must not issue a duplicate
-		// UPDATE, and must return wrote=false so the handler can skip
-		// its follow-up title_change publish. Previously the handler
-		// compared updatedChat.Title against the stale snapshot and
-		// published a spurious event to every watching client.
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
@@ -361,17 +349,12 @@ func TestRenameChatTitle(t *testing.T) {
 
 		chatID := uuid.New()
 		workerID := uuid.New()
-		// The caller passes the stale snapshot it read before the
-		// rename request was queued.
 		stale := database.Chat{
 			ID:       chatID,
 			Status:   database.ChatStatusRunning,
 			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
 			Title:    "pre-race",
 		}
-		// A concurrent writer has already landed the same title we are
-		// about to request, so the row the daemon re-reads under the
-		// lock already matches newTitle.
 		landed := stale
 		landed.Title = "landed-concurrently"
 
@@ -379,8 +362,6 @@ func TestRenameChatTitle(t *testing.T) {
 
 		setupRealWorkerLock(db, chatID, landed)
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
-		// Crucially, UpdateChatTitleByID MUST NOT be called here.
-		// gomock will fail the test if it is.
 
 		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
 		require.NoError(t, err)

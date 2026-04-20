@@ -5695,9 +5695,6 @@ export interface PrometheusConfig {
 // From codersdk/chats.go
 /**
  * ProposeChatTitleResponse is returned by the propose-title endpoint.
- * It intentionally carries only the suggestion so the client can
- * populate an input field without applying the proposal to the server
- * until the user explicitly saves the rename.
  */
 export interface ProposeChatTitleResponse {
 	readonly title: string;

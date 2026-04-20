@@ -1,11 +1,3 @@
-/**
- * Shared Tailwind class tokens for the DropdownMenu and ContextMenu
- * wrappers. Keeping the class strings here means a style tweak to
- * one menu primitive ripples to both by construction, preventing
- * visual drift between the sidebar's click-triggered and
- * right-click-triggered menus.
- */
-
 export const menuContentClass = [
 	"z-50 min-w-48 overflow-hidden rounded-md border border-solid bg-surface-primary p-2 text-content-secondary shadow-md",
 	"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",

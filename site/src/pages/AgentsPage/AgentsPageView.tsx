@@ -145,11 +145,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
 		onRegenerateTitle: (chatId: string) => {
-			// Fire-and-forget: onRegenerateTitle resolves from mutateAsync and
-			// rejects on failures (usage limits, conflicts, network, etc.).
-			// The shared mutation onError already toasts, so swallow the
-			// rejection here to avoid triggering global unhandledrejection
-			// handlers and noisy error reporting.
 			onRegenerateTitle(chatId).catch(() => {});
 		},
 		regeneratingTitleChatIds,

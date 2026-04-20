@@ -1896,11 +1896,26 @@ func (api *API) applyChatTitleUpdate(
 	if api.chatDaemon != nil {
 		updatedChat, wrote, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
 	} else {
-		updatedChat, err = api.Database.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-			ID:    chat.ID,
-			Title: trimmedTitle,
-		})
-		wrote = err == nil
+		err = api.Database.InTx(func(tx database.Store) error {
+			currentChat, txErr := tx.GetChatByID(ctx, chat.ID)
+			if txErr != nil {
+				return txErr
+			}
+			if trimmedTitle == currentChat.Title {
+				updatedChat = currentChat
+				wrote = false
+				return nil
+			}
+			updatedChat, txErr = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID:    chat.ID,
+				Title: trimmedTitle,
+			})
+			if txErr != nil {
+				return txErr
+			}
+			wrote = true
+			return nil
+		}, nil)
 	}
 	if err != nil {
 		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {

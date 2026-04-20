@@ -364,16 +364,11 @@ export const RenameChatAvailableDuringRegeneration: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		// Regenerating chats still render their busy state in the
-		// sidebar so users can see why a title may be about to change.
 		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
 			"aria-busy",
 			"true",
 		);
 
-		// Rename is offered on both chats regardless of regeneration
-		// state. Generate inside the dialog has its own disabled-while-
-		// pending guard so the two actions don't compound.
 		await userEvent.click(
 			canvas.getByRole("button", {
 				name: "Open actions for Regenerating agent",
@@ -431,8 +426,6 @@ export const RenameChatSubmitsNewTitle: Story = {
 			await body.findByRole("menuitem", { name: "Rename chat" }),
 		);
 
-		// Dialog opens pre-populated with the existing title and auto-selects
-		// it so the user can overwrite immediately.
 		const input = await body.findByRole<HTMLInputElement>("textbox", {
 			name: "Chat title",
 		});
@@ -449,15 +442,12 @@ export const RenameChatSubmitsNewTitle: Story = {
 		});
 		await userEvent.click(body.getByRole("button", { name: "Save" }));
 
-		// The sidebar forwards the edited title to its parent through
-		// the same callback the page wires to react-query.
 		await waitFor(() => {
 			expect(args.onRenameTitle).toHaveBeenCalledWith(
 				"rename-target",
 				"Renamed title",
 			);
 		});
-		// Dialog closes on success so the user returns to the chat list.
 		await waitFor(() => {
 			expect(
 				body.queryByRole("heading", { name: "Rename chat" }),
@@ -503,8 +493,6 @@ export const CancellingRenameDialogKeepsTitle: Story = {
 		await userEvent.type(input, "Discarded edit");
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Cancelling the dialog must not invoke the save path, otherwise
-		// the UI would briefly display a title the user rejected.
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 		expect(canvas.getByText("Keep me")).toBeInTheDocument();
 	},
@@ -545,9 +533,6 @@ export const RenameChatGenerateFillsInput: Story = {
 			name: "Chat title",
 		});
 
-		// Generate asks the server for a suggestion but does not
-		// persist it. The suggestion replaces the input value so the
-		// user can review before saving.
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
 		await waitFor(() => {
 			expect(input).toHaveValue("AI suggested title");
@@ -596,9 +581,6 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
 
-		// The error path renders an inline alert wired to the input via
-		// aria-describedby and flips aria-invalid on the input so
-		// assistive tech announces the problem.
 		const alert = await body.findByRole("alert");
 		expect(alert).toHaveTextContent(
 			"Proposal provider is temporarily unavailable.",
@@ -606,8 +588,6 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 		await waitFor(() => {
 			expect(input).toHaveAttribute("aria-invalid", "true");
 		});
-		// Input value is unchanged so the user's typed text survives
-		// the failed generation.
 		expect(input).toHaveValue("Original title");
 	},
 };
@@ -651,9 +631,6 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 			expect(input).toHaveValue("Server suggestion");
 		});
 
-		// Cancel after Generate must not save. The propose endpoint
-		// does not persist, so the original title is untouched in both
-		// the sidebar cache and on the server.
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 		expect(canvas.getByText("Keep this one")).toBeInTheDocument();
@@ -674,10 +651,6 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		// Delay A's proposal so it resolves after the user has
-		// cancelled A's dialog and switched to editing Chat B.
-		// Without the target-chat guard, this late response would
-		// overwrite B's in-progress edit.
 		onProposeTitle: fn((chatId: string) => {
 			if (chatId === "rename-generate-a") {
 				return new Promise<string>((resolve) => {
@@ -698,9 +671,6 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		// Open Chat A's rename dialog and start Generate. The stub
-		// holds the response so it remains pending through the cancel
-		// and reopen below.
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Open actions for Chat A" }),
 		);
@@ -712,13 +682,8 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 		});
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
 
-		// Cancel A's dialog while the proposal is still in flight. The
-		// pending promise for A will resolve during the steps below.
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Open Chat B's dialog and type an edit. Generate is not
-		// invoked here — we only want to catch A's late response
-		// trying to clobber B's input.
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Open actions for Chat B" }),
 		);
@@ -732,16 +697,70 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 		await userEvent.clear(inputB);
 		await userEvent.type(inputB, "User edit for B");
 
-		// Wait past A's stubbed delay. If the late response were
-		// applied, the input would now contain "Late suggestion for
-		// A"; the target-chat guard must drop it instead.
 		await new Promise((resolve) => setTimeout(resolve, 250));
 		expect(inputB).toHaveValue("User edit for B");
-		// The error alert must also remain absent — the guard covers
-		// the rejected-promise branch symmetrically.
 		expect(body.queryByRole("alert")).not.toBeInTheDocument();
 	},
 };
+
+export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
+	{
+		args: {
+			chats: [
+				buildChat({
+					id: "rename-generate-same",
+					title: "Chat same",
+					updated_at: recentTimestamp,
+				}),
+			],
+			onProposeTitle: fn(() => {
+				return new Promise<string>((resolve) => {
+					setTimeout(() => resolve("Late suggestion"), 150);
+				});
+			}),
+			onRenameTitle: fn(() => Promise.resolve()),
+		},
+		parameters: {
+			reactRouter: reactRouterParameters({
+				location: { path: "/agents" },
+				routing: agentsRouting,
+			}),
+		},
+		play: async ({ canvasElement }) => {
+			const canvas = within(canvasElement);
+			const body = within(document.body);
+
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Open actions for Chat same" }),
+			);
+			await userEvent.click(
+				await body.findByRole("menuitem", { name: "Rename chat" }),
+			);
+			await body.findByRole<HTMLInputElement>("textbox", {
+				name: "Chat title",
+			});
+			await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+			await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Open actions for Chat same" }),
+			);
+			await userEvent.click(
+				await body.findByRole("menuitem", { name: "Rename chat" }),
+			);
+			const input = await body.findByRole<HTMLInputElement>("textbox", {
+				name: "Chat title",
+			});
+			expect(input).toHaveValue("Chat same");
+			await userEvent.clear(input);
+			await userEvent.type(input, "User edit");
+
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			expect(input).toHaveValue("User edit");
+			expect(body.queryByRole("alert")).not.toBeInTheDocument();
+		},
+	};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {

@@ -274,10 +274,6 @@ const AgentsPage: FC = () => {
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
 	>([]);
-	// Tracks in-flight title regeneration promises so that concurrent callers
-	// (e.g. the top bar action and the rename dialog's "Generate" button) share
-	// a single request instead of racing and letting the later response
-	// overwrite the earlier one.
 	const regeneratingTitlePromisesRef = useRef(
 		new Map<string, Promise<string>>(),
 	);
@@ -436,15 +432,6 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	// requestRegenerateTitle triggers a persisted title regeneration for a
-	// chat. It returns the eventual new title so callers that care (such as
-	// the chat top-bar "Regenerate title" action) can await it. Fire-and-
-	// forget callers may simply `void` the return value; the shared
-	// mutation onError already reports failures via toast.
-	//
-	// Concurrent calls for the same chat ID share a single in-flight
-	// request so a later Generate click cannot overwrite the result of an
-	// earlier click.
 	const requestRegenerateTitle = (chatId: string): Promise<string> => {
 		const existing = regeneratingTitlePromisesRef.current.get(chatId);
 		if (existing) {
@@ -468,11 +455,6 @@ const AgentsPage: FC = () => {
 		regeneratingTitlePromisesRef.current.set(chatId, promise);
 		return promise;
 	};
-	// requestProposeTitle asks the server to generate a title suggestion
-	// without persisting it. The rename dialog's Generate button uses this
-	// so that Cancel truly means "nothing changed server-side". Failures
-	// surface via the inline alert inside the dialog; the caller handles
-	// the promise rejection.
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await API.experimental.proposeChatTitle(chatId);
 		return result.title;
