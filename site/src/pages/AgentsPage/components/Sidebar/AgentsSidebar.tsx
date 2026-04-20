@@ -157,6 +157,7 @@ const statusConfig = {
 
 type ChatTree = {
 	readonly rootIds: readonly string[];
+	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
@@ -263,45 +264,54 @@ const getParentChatID = (chat: Chat): string | undefined => {
 	return asNonEmptyString(chat.parent_chat_id);
 };
 
-const getRootChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString(chat.root_chat_id);
-};
-
 const buildChatTree = (chats: readonly Chat[]): ChatTree => {
-	const orderById = new Map<string, number>();
 	const chatById = new Map<string, Chat>();
 	const parentById = new Map<string, string | undefined>();
 	const childrenById = new Map<string, string[]>();
 
-	for (const [index, chat] of chats.entries()) {
-		orderById.set(chat.id, index);
+	// The paginated list now contains only root chats. Children
+	// are embedded in each root's `children` field.
+	for (const chat of chats) {
 		chatById.set(chat.id, chat);
 		childrenById.set(chat.id, []);
-	}
-
-	for (const chat of chats) {
-		let parentID = getParentChatID(chat);
-		if (!parentID || parentID === chat.id || !chatById.has(parentID)) {
-			parentID = undefined;
+		// Guard against stale cache entries: if a flat child
+		// entry appears in `chats` after its embedded parent has
+		// already set its parent link, do not overwrite the link
+		// with `undefined`. Without this, the defensive fallback
+		// below re-adds the child to its parent's list, producing
+		// a duplicate key in React rendering.
+		if (!parentById.has(chat.id)) {
+			parentById.set(chat.id, undefined);
 		}
 
-		if (!parentID) {
-			const rootID = getRootChatID(chat);
-			if (rootID && rootID !== chat.id && chatById.has(rootID)) {
-				parentID = rootID;
+		if (chat.children) {
+			for (const child of chat.children) {
+				chatById.set(child.id, child);
+				parentById.set(child.id, chat.id);
+				childrenById.get(chat.id)?.push(child.id);
+				// Children cannot have their own children (depth
+				// capped at 1), but initialize the map entry for
+				// uniform lookup.
+				childrenById.set(child.id, []);
 			}
 		}
-
-		parentById.set(chat.id, parentID);
-		if (parentID) {
-			childrenById.get(parentID)?.push(chat.id);
-		}
 	}
 
-	for (const children of childrenById.values()) {
-		children.sort((leftID, rightID) => {
-			return (orderById.get(leftID) ?? 0) - (orderById.get(rightID) ?? 0);
-		});
+	// Defensive fallback for cached data during rollout: if any
+	// chat has a parent_chat_id that points to a chat in the list
+	// but was not embedded, build the link. This handles stale
+	// cache entries from before the backend change.
+	for (const chat of chats) {
+		const parentID = getParentChatID(chat);
+		if (
+			parentID &&
+			parentID !== chat.id &&
+			chatById.has(parentID) &&
+			!parentById.get(chat.id)
+		) {
+			parentById.set(chat.id, parentID);
+			childrenById.get(parentID)?.push(chat.id);
+		}
 	}
 
 	const rootIds = chats
@@ -310,6 +320,7 @@ const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 
 	return {
 		rootIds,
+		chatById,
 		childrenById,
 		parentById,
 	};
@@ -325,10 +336,17 @@ const collectVisibleChatIDs = ({
 	readonly tree: ChatTree;
 }): Set<string> => {
 	if (!search) {
-		return new Set(chats.map((chat) => chat.id));
+		const allIDs = new Set(chats.map((chat) => chat.id));
+		for (const chat of chats) {
+			for (const child of chat.children ?? []) {
+				allIDs.add(child.id);
+			}
+		}
+		return allIDs;
 	}
 
-	const matchedChatIDs = chats
+	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
+	const matchedChatIDs = allChats
 		.filter((chat) => chat.title.toLowerCase().includes(search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
@@ -780,7 +798,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
 	const chatTree = buildChatTree(chats);
-	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
 		search: normalizedSearch,

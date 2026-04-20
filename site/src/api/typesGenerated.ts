@@ -1261,6 +1261,14 @@ export interface Chat {
 	readonly last_injected_context?: readonly ChatMessagePart[];
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
+	/**
+	 * Children holds child (subagent) chats nested under this root
+	 * chat. Always initialized to an empty slice so the JSON field
+	 * is present as []. Child chats cannot create their own
+	 * subagents, so nesting depth is capped at 1 and this slice is
+	 * always empty for child chats.
+	 */
+	readonly children: readonly Chat[];
 }
 
 // From codersdk/chats.go
@@ -1424,10 +1432,9 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
- * ChatDebugRun is the detailed run response including steps.
- * This type is consumed by the run-detail handler added in a later
- * PR in this stack; it is forward-declared here so that all SDK
- * types live in the same schema-layer commit.
+ * ChatDebugRun is the detailed run response returned by the run-detail
+ * endpoint. It includes the same summary fields as ChatDebugRunSummary
+ * along with the full step history for the run.
  */
 export interface ChatDebugRun {
 	readonly id: string;
@@ -1614,6 +1621,7 @@ export interface ChatFileMetadata {
 export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
+	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
 }

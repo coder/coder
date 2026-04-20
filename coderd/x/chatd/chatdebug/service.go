@@ -426,7 +426,7 @@ func (s *Service) CreateStep(
 	}
 
 	return database.ChatDebugStep{}, xerrors.Errorf(
-		"failed to create debug step after %d attempts (run_id=%s)",
+		"chatdebug: failed to create step after %d retries (run %s)",
 		maxCreateStepRetries, params.RunID,
 	)
 }
@@ -522,12 +522,24 @@ func (s *Service) TouchStep(
 		})
 }
 
-// DeleteByChatID deletes all debug data for a chat and emits a delete event.
+// DeleteByChatID deletes debug data for a chat and emits a delete event.
+// The startedBefore bound scopes deletion to runs created before that
+// instant so that retried cleanup does not remove runs created by a
+// replacement turn that raced ahead of the retry window (for example,
+// an unarchive that fires between the initial archive-cleanup attempt
+// and its retry).
 func (s *Service) DeleteByChatID(
 	ctx context.Context,
 	chatID uuid.UUID,
+	startedBefore time.Time,
 ) (int64, error) {
-	deleted, err := s.db.DeleteChatDebugDataByChatID(chatdContext(ctx), chatID)
+	deleted, err := s.db.DeleteChatDebugDataByChatID(
+		chatdContext(ctx),
+		database.DeleteChatDebugDataByChatIDParams{
+			ChatID:        chatID,
+			StartedBefore: startedBefore,
+		},
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -537,16 +549,21 @@ func (s *Service) DeleteByChatID(
 }
 
 // DeleteAfterMessageID deletes debug data newer than the given message.
+// The startedBefore bound scopes deletion to runs created before that
+// instant so that retried cleanup does not remove runs created by a
+// replacement turn that raced ahead of the retry window.
 func (s *Service) DeleteAfterMessageID(
 	ctx context.Context,
 	chatID uuid.UUID,
 	messageID int64,
+	startedBefore time.Time,
 ) (int64, error) {
 	deleted, err := s.db.DeleteChatDebugDataAfterMessageID(
 		chatdContext(ctx),
 		database.DeleteChatDebugDataAfterMessageIDParams{
-			ChatID:    chatID,
-			MessageID: messageID,
+			ChatID:        chatID,
+			MessageID:     messageID,
+			StartedBefore: startedBefore,
 		},
 	)
 	if err != nil {
@@ -577,6 +594,79 @@ func (s *Service) FinalizeStale(
 		s.publishEvent(ctx, uuid.Nil, EventKindFinalize, uuid.Nil, uuid.Nil)
 	}
 	return result, nil
+}
+
+// FinalizeRunParams bundles the arguments for FinalizeRun.
+type FinalizeRunParams struct {
+	RunID       uuid.UUID
+	ChatID      uuid.UUID
+	Status      Status
+	SeedSummary map[string]any
+	// Timeout for the aggregate + update calls. Zero defaults to 5s.
+	Timeout time.Duration
+}
+
+// FinalizeRun aggregates the run summary, updates the run status, and
+// cleans up the step counter. It detaches from the parent context's
+// cancellation so finalization succeeds even when the request context
+// is already done. Errors are returned but are always safe to ignore;
+// callers that treat debug instrumentation as best-effort can discard
+// them.
+func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
+	timeout := p.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+
+	finalizeCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx), timeout,
+	)
+	defer cancel()
+
+	finalSummary := p.SeedSummary
+	if aggregated, aggErr := s.AggregateRunSummary(
+		finalizeCtx,
+		p.RunID,
+		p.SeedSummary,
+	); aggErr != nil {
+		// Non-fatal: proceed with the seed summary.
+		s.log.Warn(ctx, "failed to aggregate debug run summary",
+			slog.F("chat_id", p.ChatID),
+			slog.F("run_id", p.RunID),
+			slog.Error(aggErr),
+		)
+	} else {
+		finalSummary = aggregated
+	}
+
+	if _, err := s.UpdateRun(finalizeCtx, UpdateRunParams{
+		ID:         p.RunID,
+		ChatID:     p.ChatID,
+		Status:     p.Status,
+		Summary:    finalSummary,
+		FinishedAt: s.clock.Now(),
+	}); err != nil {
+		CleanupStepCounter(p.RunID)
+		return xerrors.Errorf("update debug run: %w", err)
+	}
+	CleanupStepCounter(p.RunID)
+	return nil
+}
+
+// ClassifyError maps a run error to the appropriate debug status.
+// nil → StatusCompleted, context.Canceled → StatusInterrupted,
+// everything else → StatusError. Callers with additional
+// classification rules (e.g. ErrInterrupted, ErrDynamicToolCall)
+// should handle those before falling back to this helper.
+func ClassifyError(err error) Status {
+	switch {
+	case err == nil:
+		return StatusCompleted
+	case errors.Is(err, context.Canceled):
+		return StatusInterrupted
+	default:
+		return StatusError
+	}
 }
 
 func nullUUID(id uuid.UUID) uuid.NullUUID {
