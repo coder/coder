@@ -119,27 +119,44 @@ func TestFetchChatDiffContents(t *testing.T) {
 	t.Run("IgnoresMissingWorkspaceFallbackErrors", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-		chatID := uuid.New()
-		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
-		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case path + "/diff":
-				rw.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
-			case path + "/stream/git":
-				rw.Header().Set("Content-Type", "application/json")
-				rw.WriteHeader(http.StatusBadRequest)
-				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "Chat has no workspace to watch."}))
-			default:
-				http.NotFound(rw, r)
-			}
-		}))
+		// Each message here matches a 400 response that watchChatGit can
+		// return when the chat cannot be observed through the workspace
+		// agent. fetchChatDiffContents should swallow the error and fall
+		// back to the empty remote diff instead of surfacing a hard
+		// error in the TUI.
+		for _, message := range []string{
+			"Chat has no workspace to watch.",
+			"Chat workspace not found.",
+			"Chat workspace has no agents.",
+			`Agent state is "connecting", it must be in the "connected" state.`,
+		} {
+			message := message
+			t.Run(message, func(t *testing.T) {
+				t.Parallel()
 
-		diff, err := fetchChatDiffContents(ctx, client, chatID)
-		require.NoError(t, err)
-		require.Equal(t, chatID, diff.ChatID)
-		require.Empty(t, diff.Diff)
+				ctx := context.Background()
+				chatID := uuid.New()
+				path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+				client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case path + "/diff":
+						rw.Header().Set("Content-Type", "application/json")
+						require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+					case path + "/stream/git":
+						rw.Header().Set("Content-Type", "application/json")
+						rw.WriteHeader(http.StatusBadRequest)
+						require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: message}))
+					default:
+						http.NotFound(rw, r)
+					}
+				}))
+
+				diff, err := fetchChatDiffContents(ctx, client, chatID)
+				require.NoError(t, err)
+				require.Equal(t, chatID, diff.ChatID)
+				require.Empty(t, diff.Diff)
+			})
+		}
 	})
 }
 

@@ -196,8 +196,24 @@ func shouldIgnoreLocalDiffFallbackError(err error) bool {
 		return true
 	case http.StatusBadRequest:
 		message := strings.ToLower(strings.TrimSpace(sdkErr.Message))
-		return strings.Contains(message, "chat has no workspace to watch") ||
-			strings.Contains(message, "chat workspace has no agents")
+		// These correspond to the 400 responses from watchChatGit in
+		// coderd/exp_chats.go when the chat cannot be observed through
+		// a workspace agent (no workspace bound, workspace deleted, no
+		// agents, or an agent that is not yet connected). Each should
+		// fall back to the empty remote diff the same way a missing
+		// chat (404) does instead of surfacing a hard error.
+		ignorable := []string{
+			"chat has no workspace to watch",
+			"chat workspace not found",
+			"chat workspace has no agents",
+			"agent state is ",
+		}
+		for _, phrase := range ignorable {
+			if strings.Contains(message, phrase) {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
