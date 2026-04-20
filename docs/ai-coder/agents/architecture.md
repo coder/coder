@@ -146,7 +146,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
 These tools run entirely within the control plane. They do not require a
 workspace connection. Platform and orchestration tools are only available to
-root chats — sub-agents spawned by `spawn_agent` do not have access to them
+root chats — sub-agents spawned by `spawn_subagent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
 | Tool                | What it does                                                                            |
@@ -172,13 +172,13 @@ provider-native, and computer-use tools are not available.
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool                       | What it does                                                                                                                                                                      |
-|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent`              | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
-| `wait_agent`               | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
-| `message_agent`            | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
-| `close_agent`              | Stops a running sub-agent.                                                                                                                                                        |
-| `spawn_computer_use_agent` | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
+| Tool                                                    | What it does                                                                                                                                                                      |
+|---------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_subagent` (`subagent_type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
+| `wait_agent`                                            | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
+| `message_agent`                                         | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
+| `close_agent`                                           | Stops a running sub-agent.                                                                                                                                                        |
+| `spawn_subagent` (`subagent_type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
 
 ### Provider tools
 
