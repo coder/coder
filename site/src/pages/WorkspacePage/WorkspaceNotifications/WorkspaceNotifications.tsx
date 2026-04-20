@@ -239,7 +239,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	}
 
 	return (
-		<div css={styles.notificationsGroup}>
+		<div className="flex items-center gap-3">
 			{infoNotifications.length > 0 && (
 				<Notifications
 					items={infoNotifications}
@@ -258,14 +258,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	notificationsGroup: {
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 const findTroubleshootingURL = (
 	workspaceBuild: WorkspaceBuild,
