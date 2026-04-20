@@ -19,7 +19,7 @@ export function PaginationNavButton({
 }: PaginationNavButtonProps) {
 	return (
 		<Button
-			variant="outline"
+			variant="subtle"
 			size="icon"
 			disabled={disabled}
 			onClick={onClick}
