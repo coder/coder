@@ -360,10 +360,13 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
 			flush()
-			oldPath, newPath, ok := parseUnifiedDiffHeaderPaths(line)
-			if !ok {
-				continue
-			}
+			// parseUnifiedDiffHeaderPaths may return ("", "", false) when
+			// the unquoted header form is ambiguous, such as a rename with
+			// spaces in the paths. We still want to start a new entry so
+			// the follow-up rename from / rename to / --- / +++ lines can
+			// populate the correct paths. flush() drops entries that never
+			// received a FilePath.
+			oldPath, newPath, _ := parseUnifiedDiffHeaderPaths(line)
 			current = &codersdk.ChatGitChange{
 				ChatID:     diff.ChatID,
 				FilePath:   newPath,
@@ -422,16 +425,124 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 	return changes
 }
 
+// parseUnifiedDiffHeaderPaths extracts the old and new paths from a
+// `diff --git ...` header line. Git emits paths in one of two forms:
+//
+//  1. Quoted: `diff --git "a/<old>" "b/<new>"`. Used when paths contain
+//     control characters, backslashes, double quotes, or (with the default
+//     core.quotepath setting) bytes above 0x7f. The contents are C-quoted.
+//  2. Unquoted: `diff --git a/<old> b/<new>`. Used for simple paths, which
+//     may still contain spaces. Because there is no delimiter between the
+//     two paths, this form is ambiguous when paths contain spaces: we rely
+//     on the git convention that non-rename diffs repeat the same path in
+//     both halves.
+//
+// For the unquoted form we first search for a split point at ` b/` where
+// the left and right halves are equal after stripping the `a/` and `b/`
+// prefixes (the non-rename case). If that fails but the line contains only
+// a single space, we split there for simple renames with no embedded
+// whitespace. Otherwise we return ok=false and let the caller rely on the
+// subsequent `rename from`, `rename to`, `--- `, and `+++ ` lines.
 func parseUnifiedDiffHeaderPaths(line string) (oldPath string, newPath string, ok bool) {
-	parts := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, "diff --git ")))
-	if len(parts) < 2 {
+	raw := strings.TrimSpace(strings.TrimPrefix(line, "diff --git "))
+	if raw == "" {
 		return "", "", false
 	}
-	return trimUnifiedDiffPath(parts[0]), trimUnifiedDiffPath(parts[1]), true
+
+	if strings.HasPrefix(raw, `"`) {
+		old, rest, ok := consumeQuotedDiffPath(raw)
+		if !ok {
+			return "", "", false
+		}
+		rest = strings.TrimLeft(rest, " ")
+		newp, _, ok := consumeQuotedDiffPath(rest)
+		if !ok {
+			return "", "", false
+		}
+		// The unquoted values already have their surrounding quotes removed,
+		// so we must not feed them to trimUnifiedDiffPath (which would strip
+		// any legitimate leading or trailing quote characters in the file
+		// name). Only strip the a/ or b/ prefix here.
+		return stripUnifiedDiffPrefix(old), stripUnifiedDiffPrefix(newp), true
+	}
+
+	if !strings.HasPrefix(raw, "a/") {
+		return "", "", false
+	}
+	for offset := 0; offset < len(raw); {
+		idx := strings.Index(raw[offset:], " b/")
+		if idx < 0 {
+			break
+		}
+		pos := offset + idx
+		left := trimUnifiedDiffPath(raw[:pos])
+		right := trimUnifiedDiffPath(raw[pos+1:])
+		if left == right {
+			return left, right, true
+		}
+		offset = pos + 1
+	}
+	// No equal split was found. If the line only contains a single space,
+	// the split is unambiguous and this is a simple rename whose paths
+	// happen to differ. Splitting the quoted-path form was handled above,
+	// so we know the raw form has no quoting to worry about here.
+	if strings.Count(raw, " ") == 1 {
+		idx := strings.Index(raw, " b/")
+		if idx > 0 {
+			return trimUnifiedDiffPath(raw[:idx]), trimUnifiedDiffPath(raw[idx+1:]), true
+		}
+	}
+	return "", "", false
+}
+
+// consumeQuotedDiffPath reads one C-quoted path from the start of s and
+// returns the unquoted value along with the remainder of the string. The
+// leading character of s must be `"`. git's C-quoting matches Go's quoted
+// string syntax closely enough for strconv.Unquote to handle the common
+// cases (octal byte escapes like `\303`, and the usual `\t`, `\n`, `\"`,
+// `\\`).
+func consumeQuotedDiffPath(s string) (path string, rest string, ok bool) {
+	if !strings.HasPrefix(s, `"`) {
+		return "", "", false
+	}
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			// Skip the next byte so an escaped quote does not terminate
+			// the literal early. Bounds-check to avoid running off the
+			// end of a malformed input.
+			if i+1 >= len(s) {
+				return "", "", false
+			}
+			i++
+		case '"':
+			unq, err := strconv.Unquote(s[:i+1])
+			if err != nil {
+				return "", "", false
+			}
+			return unq, s[i+1:], true
+		}
+	}
+	return "", "", false
 }
 
 func trimUnifiedDiffPath(path string) string {
-	path = strings.Trim(strings.TrimSpace(path), `"`)
+	path = strings.TrimSpace(path)
+	// Git quotes the whole path with double quotes and C-style escapes when
+	// it contains control characters, backslashes, double quotes, or (with
+	// the default core.quotepath setting) bytes above 0x7f. strconv.Unquote
+	// understands the same escape vocabulary for the common cases.
+	if len(path) >= 2 && strings.HasPrefix(path, `"`) && strings.HasSuffix(path, `"`) {
+		if unq, err := strconv.Unquote(path); err == nil {
+			path = unq
+		} else {
+			path = strings.Trim(path, `"`)
+		}
+	}
+	return stripUnifiedDiffPrefix(path)
+}
+
+func stripUnifiedDiffPrefix(path string) string {
 	switch {
 	case strings.HasPrefix(path, "a/"), strings.HasPrefix(path, "b/"):
 		return path[2:]

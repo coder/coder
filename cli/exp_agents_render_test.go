@@ -630,6 +630,138 @@ func TestExpAgentsRender(t *testing.T) {
 		require.Nil(t, changes[3].DiffSummary)
 	})
 
+	t.Run("ParseChatGitChangesFromUnifiedDiffPathsWithSpaces", func(t *testing.T) {
+		t.Parallel()
+
+		// Git does not quote paths that only contain spaces, so the
+		// `diff --git` header is ambiguous without help from the body.
+		// Verify that modifications, binary or mode-only diffs, and
+		// renames all resolve to the correct paths and change types.
+		diff := strings.Join([]string{
+			"diff --git a/foo bar.txt b/foo bar.txt",
+			"--- a/foo bar.txt",
+			"+++ b/foo bar.txt",
+			"@@ -1 +1 @@",
+			"-old",
+			"+new",
+			"diff --git a/foo bar.bin b/foo bar.bin",
+			"index 0f49c4a..9100462 100644",
+			"Binary files a/foo bar.bin and b/foo bar.bin differ",
+			"diff --git a/new empty.txt b/new empty.txt",
+			"new file mode 100644",
+			"index 0000000..e69de29",
+			"diff --git a/old name.txt b/new name.txt",
+			"similarity index 100%",
+			"rename from old name.txt",
+			"rename to new name.txt",
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 4)
+
+		// The buggy parser used to split the unquoted header on any
+		// whitespace, producing truncated paths and marking simple edits
+		// as renames. Verify that each change now reports the full path
+		// and the correct change type.
+		require.Equal(t, "foo bar.txt", changes[0].FilePath)
+		require.Equal(t, "modified", changes[0].ChangeType)
+
+		require.Equal(t, "foo bar.bin", changes[1].FilePath)
+		require.Equal(t, "modified", changes[1].ChangeType)
+
+		require.Equal(t, "new empty.txt", changes[2].FilePath)
+		require.Equal(t, "added", changes[2].ChangeType)
+
+		require.Equal(t, "new name.txt", changes[3].FilePath)
+		require.Equal(t, "renamed", changes[3].ChangeType)
+		require.NotNil(t, changes[3].OldPath)
+		require.Equal(t, "old name.txt", *changes[3].OldPath)
+	})
+
+	t.Run("ParseChatGitChangesFromUnifiedDiffQuotedPaths", func(t *testing.T) {
+		t.Parallel()
+
+		// Git C-quotes paths when they contain bytes above 0x7f (with
+		// the default core.quotepath setting) or control characters.
+		diff := strings.Join([]string{
+			`diff --git "a/f\303\266\303\266bar.txt" "b/f\303\266\303\266bar.txt"`,
+			`--- "a/f\303\266\303\266bar.txt"`,
+			`+++ "b/f\303\266\303\266bar.txt"`,
+			"@@ -1 +1 @@",
+			"-old",
+			"+new",
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 1)
+		require.Equal(t, "fööbar.txt", changes[0].FilePath)
+		require.Equal(t, "modified", changes[0].ChangeType)
+	})
+
+	t.Run("ParseUnifiedDiffHeaderPaths", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name    string
+			line    string
+			oldPath string
+			newPath string
+			ok      bool
+		}{
+			{
+				name:    "Simple",
+				line:    "diff --git a/foo.txt b/foo.txt",
+				oldPath: "foo.txt", newPath: "foo.txt", ok: true,
+			},
+			{
+				name:    "Rename",
+				line:    "diff --git a/old.txt b/new.txt",
+				oldPath: "old.txt", newPath: "new.txt", ok: true,
+			},
+			{
+				name:    "SpacesNonRename",
+				line:    "diff --git a/foo bar.txt b/foo bar.txt",
+				oldPath: "foo bar.txt", newPath: "foo bar.txt", ok: true,
+			},
+			{
+				name: "SpacesRenameIsAmbiguous",
+				line: "diff --git a/old name.txt b/new name.txt",
+				ok:   false,
+			},
+			{
+				name:    "QuotedTabEscape",
+				line:    `diff --git "a/a\tb.txt" "b/a\tb.txt"`,
+				oldPath: "a\tb.txt", newPath: "a\tb.txt", ok: true,
+			},
+			{
+				name:    "NestedBPrefix",
+				line:    "diff --git a/b/foo.txt b/b/foo.txt",
+				oldPath: "b/foo.txt", newPath: "b/foo.txt", ok: true,
+			},
+			{
+				name: "Empty",
+				line: "diff --git ",
+				ok:   false,
+			},
+			{
+				name: "MissingAPrefix",
+				line: "diff --git foo.txt bar.txt",
+				ok:   false,
+			},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				gotOld, gotNew, gotOK := parseUnifiedDiffHeaderPaths(tc.line)
+				require.Equal(t, tc.ok, gotOK)
+				if gotOK {
+					require.Equal(t, tc.oldPath, gotOld)
+					require.Equal(t, tc.newPath, gotNew)
+				}
+			})
+		}
+	})
+
 	t.Run("RenderDiffDrawerSanitizesUntrustedContent", func(t *testing.T) {
 		t.Parallel()
 
