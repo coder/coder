@@ -77,8 +77,6 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	subagentTitles?: Map<string, string>;
 	/** Maps sub-agent chat IDs to their normalized variants. */
 	subagentVariants?: Map<string, SubagentVariant>;
-	/** Set of chat IDs that should render desktop affordances. */
-	computerUseSubagentIds?: Set<string>;
 	/** When false, suppresses inline VNC previews while still
 	 * allowing the MonitorIcon variant to render. */
 	showDesktopPreviews?: boolean;
@@ -108,7 +106,6 @@ type ToolRendererProps = {
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
 	onImplementPlan?: () => Promise<void> | void;
@@ -956,7 +953,6 @@ export const Tool = memo(
 		killedBySignal,
 		subagentTitles,
 		subagentVariants,
-		computerUseSubagentIds,
 		showDesktopPreviews,
 		subagentStatusOverrides,
 		mcpServerConfigId,
@@ -996,7 +992,6 @@ export const Tool = memo(
 					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={subagentStatusOverrides}
 					mcpServerConfigId={mcpServerConfigId}

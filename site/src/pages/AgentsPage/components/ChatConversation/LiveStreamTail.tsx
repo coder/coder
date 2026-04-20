@@ -38,7 +38,6 @@ interface LiveStreamTailContentProps {
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -52,7 +51,6 @@ export const LiveStreamTailContent = ({
 	startingResetKey,
 	subagentTitles,
 	subagentVariants,
-	computerUseSubagentIds,
 	subagentStatusOverrides,
 	urlTransform,
 	mcpServers,
@@ -87,7 +85,6 @@ export const LiveStreamTailContent = ({
 					startingResetKey={startingResetKey}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					computerUseSubagentIds={computerUseSubagentIds}
 					subagentStatusOverrides={subagentStatusOverrides}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
@@ -118,7 +115,6 @@ interface LiveStreamTailProps {
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -130,7 +126,6 @@ export const LiveStreamTail = ({
 	startingResetKey,
 	subagentTitles,
 	subagentVariants,
-	computerUseSubagentIds,
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailProps) => {
@@ -168,7 +163,6 @@ export const LiveStreamTail = ({
 			startingResetKey={startingResetKey}
 			subagentTitles={subagentTitles}
 			subagentVariants={subagentVariants}
-			computerUseSubagentIds={computerUseSubagentIds}
 			subagentStatusOverrides={subagentStatusOverrides}
 			urlTransform={urlTransform}
 			mcpServers={mcpServers}

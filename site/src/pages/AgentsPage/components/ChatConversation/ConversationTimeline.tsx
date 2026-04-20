@@ -130,7 +130,6 @@ export const BlockList: FC<{
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -150,7 +149,6 @@ export const BlockList: FC<{
 	isStreaming = false,
 	subagentTitles,
 	subagentVariants,
-	computerUseSubagentIds,
 	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
@@ -260,7 +258,6 @@ export const BlockList: FC<{
 								killedBySignal={tool.killedBySignal}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
-								computerUseSubagentIds={computerUseSubagentIds}
 								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
@@ -314,7 +311,6 @@ export const BlockList: FC<{
 					killedBySignal={tool.killedBySignal}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
@@ -361,7 +357,6 @@ const ChatMessageItem = memo<{
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -388,7 +383,6 @@ const ChatMessageItem = memo<{
 		mcpServers,
 		subagentTitles,
 		subagentVariants,
-		computerUseSubagentIds,
 		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
@@ -438,7 +432,6 @@ const ChatMessageItem = memo<{
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
 										subagentVariants={subagentVariants}
-										computerUseSubagentIds={computerUseSubagentIds}
 										showDesktopPreviews={showDesktopPreviews}
 										onImplementPlan={onImplementPlan}
 										onSendAskUserQuestionResponse={
@@ -835,7 +828,6 @@ interface ConversationTimelineProps {
 	isChatCompleted?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	isTurnActive?: boolean;
 }
@@ -852,7 +844,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isChatCompleted,
 		urlTransform,
 		mcpServers,
-		computerUseSubagentIds,
 		showDesktopPreviews,
 	}) => {
 		if (parsedMessages.length === 0) {
@@ -949,7 +940,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							mcpServers={mcpServers}
 							subagentTitles={subagentTitles}
 							subagentVariants={subagentVariants}
-							computerUseSubagentIds={computerUseSubagentIds}
 							showDesktopPreviews={showDesktopPreviews}
 						/>
 					);

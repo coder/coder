@@ -52,7 +52,6 @@ export const StreamingOutput: FC<{
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	computerUseSubagentIds?: Set<string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
@@ -63,7 +62,6 @@ export const StreamingOutput: FC<{
 	streamTools,
 	subagentTitles,
 	subagentVariants,
-	computerUseSubagentIds,
 	subagentStatusOverrides,
 	liveStatus,
 	startingResetKey,
@@ -110,7 +108,6 @@ export const StreamingOutput: FC<{
 								isStreaming={isStreaming}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
-								computerUseSubagentIds={computerUseSubagentIds}
 								subagentStatusOverrides={subagentStatusOverrides}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}

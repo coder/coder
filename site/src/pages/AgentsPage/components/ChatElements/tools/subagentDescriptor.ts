@@ -1,4 +1,5 @@
-import { asRecord, asString } from "../runtimeTypeUtils";
+import { asString } from "../runtimeTypeUtils";
+import { parseArgs } from "./utils";
 
 export type SubagentAction = "spawn" | "wait" | "message" | "close";
 export type SubagentVariant = "general" | "explore" | "computer_use";
@@ -54,17 +55,6 @@ const variantBySpawnToolName: Record<string, SubagentVariant> = {
 	spawn_computer_use_agent: "computer_use",
 };
 
-const parseRecord = (value: unknown): Record<string, unknown> | null => {
-	if (typeof value === "string") {
-		try {
-			return asRecord(JSON.parse(value));
-		} catch {
-			return null;
-		}
-	}
-	return asRecord(value);
-};
-
 const normalizeSubagentVariant = (
 	value: unknown,
 ): SubagentVariant | undefined => {
@@ -96,8 +86,8 @@ export const getSubagentChatId = ({
 	args?: unknown;
 	result?: unknown;
 }): string => {
-	const resultRecord = parseRecord(result);
-	const argsRecord = parseRecord(args);
+	const resultRecord = parseArgs(result);
+	const argsRecord = parseArgs(args);
 	return (
 		asString(resultRecord?.chat_id).trim() ||
 		asString(argsRecord?.chat_id).trim()
@@ -111,8 +101,8 @@ export const getProvidedSubagentTitle = ({
 	args?: unknown;
 	result?: unknown;
 }): string => {
-	const resultRecord = parseRecord(result);
-	const argsRecord = parseRecord(args);
+	const resultRecord = parseArgs(result);
+	const argsRecord = parseArgs(args);
 	return (
 		asString(resultRecord?.title).trim() || asString(argsRecord?.title).trim()
 	);
@@ -134,8 +124,8 @@ export const getSubagentDescriptor = ({
 		return null;
 	}
 
-	const resultRecord = parseRecord(result);
-	const argsRecord = parseRecord(args);
+	const resultRecord = parseArgs(result);
+	const argsRecord = parseArgs(args);
 	const variant =
 		getVariantFromName(name) ??
 		normalizeSubagentVariant(resultRecord?.subagent_type) ??
