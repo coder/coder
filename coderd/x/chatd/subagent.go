@@ -41,6 +41,8 @@ Your primary tool is the "computer" tool which lets you interact with the deskto
 
 Guidelines:
 - Always start by taking a screenshot to see the current state of the desktop.
+- Use wait or ordinary actions when you only need a screenshot for your own reasoning.
+- Use an explicit screenshot action when you want to share a durable screenshot with the user; those screenshots are attached to the chat automatically.
 - Be precise with coordinates when clicking or typing.
 - Wait for UI elements to load before interacting with them.
 - If an action doesn't produce the expected result, try alternative approaches.
@@ -373,7 +375,7 @@ func (p *Server) subagentTools(
 					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 					defer stopCancel()
 					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-						recordingID, parent.OwnerID, parent.WorkspaceID, parent.ID)
+						recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
 				}
 				resp := map[string]any{
 					"chat_id": targetChatID.String(),

@@ -279,6 +279,14 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 	})
 }
 
+// TestWaitForActiveChatStop and TestWaitForActiveChatStop_WaitsForReplacementRun
+// were removed along with the process-local activeChats mechanism.
+// Debug cleanup is now best-effort; stale finalization handles orphaned rows.
+
+// TestArchiveChatWaitsForActiveChatStop and
+// TestArchiveChatWaitsForEveryInterruptedChat were removed along with
+// the process-local activeChats mechanism. Archive cleanup is now
+// best-effort; stale finalization handles any orphaned rows.
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -2889,6 +2897,10 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 			return database.Chat{ID: chatID, Status: params.Status}, nil
 		},
 	)
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusError},
+		nil,
+	)
 
 	// resolveChatModel fails immediately — that's fine, we only
 	// need processChat to get past initialization without being
@@ -2918,6 +2930,69 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+func TestShouldPublishFinishedChatState(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{db: db}
+	updatedChat := database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}, nil)
+
+	require.True(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat))
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+	}, nil)
+
+	require.False(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat))
+}
+
+// TestShouldPublishFinishedChatState_DBErrorPublishes pins the
+// deliberate fail-open behavior when the re-read query errors: we
+// surface the finished state anyway so watchers don't get stuck
+// waiting for a status update that never arrives. The error path is
+// easy to regress into a fail-closed default otherwise.
+func TestShouldPublishFinishedChatState_DBErrorPublishes(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+
+	server := &Server{db: db}
+	updatedChat := database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{}, xerrors.New("boom"),
+	)
+
+	require.True(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat),
+		"fail-open: a re-read error must not swallow the status change")
 }
 
 // TestHeartbeatTick_StolenChatIsInterrupted verifies that when the

@@ -182,6 +182,10 @@ func (r GetChatsRow) RBACObject() rbac.Object {
 	return r.Chat.RBACObject()
 }
 
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
