@@ -223,7 +223,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 						<div
 							key={item.dataKey}
 							className={cn(
-								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
+								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-content-secondary",
 								indicator === "dot" && "items-center",
 							)}
 						>
@@ -263,12 +263,12 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 									>
 										<div className="grid gap-1.5">
 											{nestLabel ? tooltipLabel : null}
-											<span className="text-muted-foreground">
+											<span className="text-content-secondary">
 												{itemConfig?.label || item.name}
 											</span>
 										</div>
 										{item.value && (
-											<span className="font-mono font-medium tabular-nums text-foreground">
+											<span className="font-mono font-medium tabular-nums text-content-primary">
 												{item.value.toLocaleString()}
 											</span>
 										)}

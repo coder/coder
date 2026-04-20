@@ -41,6 +41,21 @@ func NewClient(t testing.TB,
 	statsChan chan *agentproto.Stats,
 	coordinator tailnet.Coordinator,
 ) *Client {
+	return NewClientWithSecrets(t, logger, agentID, manifest, nil, statsChan, coordinator)
+}
+
+// NewClientWithSecrets is like NewClient but also injects user
+// secrets into the agent's proto manifest. Separate from NewClient
+// because agentsdk.Manifest intentionally does not carry secrets;
+// see the Manifest doc comment in codersdk/agentsdk.
+func NewClientWithSecrets(t testing.TB,
+	logger slog.Logger,
+	agentID uuid.UUID,
+	manifest agentsdk.Manifest,
+	secrets []agentsdk.WorkspaceSecret,
+	statsChan chan *agentproto.Stats,
+	coordinator tailnet.Coordinator,
+) *Client {
 	if manifest.AgentID == uuid.Nil {
 		manifest.AgentID = agentID
 	}
@@ -58,6 +73,7 @@ func NewClient(t testing.TB,
 	require.NoError(t, err)
 	mp, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
+	mp.Secrets = agentsdk.ProtoFromSecrets(secrets)
 	fakeAAPI := NewFakeAgentAPI(t, logger, mp, statsChan)
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)

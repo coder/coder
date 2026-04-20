@@ -29660,6 +29660,61 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 	return i, err
 }
 
+const getLatestWorkspaceBuildWithStatusByWorkspaceID = `-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
+SELECT
+	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl -- Used for dbauthz fetch() checks
+FROM
+	workspace_builds
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.workspace_id = $1 AND
+	workspaces.deleted = false
+ORDER BY
+	workspace_builds.build_number desc
+	LIMIT
+	1
+`
+
+type GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow struct {
+	Transition     WorkspaceTransition  `db:"transition" json:"transition"`
+	BuildNumber    int32                `db:"build_number" json:"build_number"`
+	JobStatus      ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	WorkspaceTable WorkspaceTable       `db:"workspace_table" json:"workspace_table"`
+}
+
+func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getLatestWorkspaceBuildWithStatusByWorkspaceID, workspaceID)
+	var i GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow
+	err := row.Scan(
+		&i.Transition,
+		&i.BuildNumber,
+		&i.JobStatus,
+		&i.WorkspaceTable.ID,
+		&i.WorkspaceTable.CreatedAt,
+		&i.WorkspaceTable.UpdatedAt,
+		&i.WorkspaceTable.OwnerID,
+		&i.WorkspaceTable.OrganizationID,
+		&i.WorkspaceTable.TemplateID,
+		&i.WorkspaceTable.Deleted,
+		&i.WorkspaceTable.Name,
+		&i.WorkspaceTable.AutostartSchedule,
+		&i.WorkspaceTable.Ttl,
+		&i.WorkspaceTable.LastUsedAt,
+		&i.WorkspaceTable.DormantAt,
+		&i.WorkspaceTable.DeletingAt,
+		&i.WorkspaceTable.AutomaticUpdates,
+		&i.WorkspaceTable.Favorite,
+		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
+	)
+	return i, err
+}
+
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT
 	DISTINCT ON (workspace_id)

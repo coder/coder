@@ -22,6 +22,8 @@ import {
 	normalizeStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	shortDurationMs,
 	stripSvnIndexHeaders,
 	toProviderLabel,
@@ -852,5 +854,70 @@ describe("constants", () => {
 
 	it("diffViewerCSS includes border-left style", () => {
 		expect(diffViewerCSS).toContain("border-left");
+	});
+});
+
+describe("parseServerEditResults", () => {
+	it("returns null when result is not a record", () => {
+		expect(parseServerEditResults(null)).toBeNull();
+		expect(parseServerEditResults(undefined)).toBeNull();
+		expect(parseServerEditResults("foo")).toBeNull();
+	});
+
+	it("returns null when files field is absent", () => {
+		expect(parseServerEditResults({ ok: true })).toBeNull();
+	});
+
+	it("returns null when files is explicitly null (older agents)", () => {
+		expect(parseServerEditResults({ files: null })).toBeNull();
+	});
+
+	it("returns an empty array when files is an empty array", () => {
+		expect(parseServerEditResults({ files: [] })).toEqual([]);
+	});
+
+	it("parses well-formed entries", () => {
+		const result = parseServerEditResults({
+			files: [
+				{
+					path: "/abs/a.txt",
+					diff: "--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-a\n+A\n",
+				},
+				{ path: "/abs/b.txt", diff: "" },
+			],
+		});
+		expect(result).toEqual([
+			{
+				path: "/abs/a.txt",
+				diff: "--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-a\n+A\n",
+			},
+			{ path: "/abs/b.txt", diff: "" },
+		]);
+	});
+
+	it("skips malformed entries without dropping the rest", () => {
+		const result = parseServerEditResults({
+			files: [
+				null,
+				{ diff: "orphan" },
+				{ path: "", diff: "empty-path" },
+				{ path: "/ok", diff: "--- /ok\n+++ /ok\n" },
+			],
+		});
+		expect(result).toEqual([{ path: "/ok", diff: "--- /ok\n+++ /ok\n" }]);
+	});
+});
+
+describe("parseServerEditDiffText", () => {
+	it("returns null for an empty string (no-op edit)", () => {
+		expect(parseServerEditDiffText("")).toBeNull();
+	});
+
+	it("parses a unified diff into a FileDiffMetadata", () => {
+		const diff = parseServerEditDiffText(
+			"--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-hello\n+HELLO\n",
+		);
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("/abs/a.txt");
 	});
 });
