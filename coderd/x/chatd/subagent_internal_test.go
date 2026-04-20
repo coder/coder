@@ -768,6 +768,40 @@ func TestSpawnSubagent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
+func TestSpawnSubagent_PlanModeRejectsComputerUse(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "plan-parent-computer-use-reject",
+		ModelConfigID:  model.ID,
+		PlanMode: database.NullChatPlanMode{
+			ChatPlanMode: database.ChatPlanModePlan,
+			Valid:        true,
+		},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("plan this change")},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
+		SubagentType: subagentTypeComputerUse,
+		Prompt:       "open the browser and click around",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `subagent_type "computer_use" is unavailable in plan mode`)
+}
+
 func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing.T) {
 	t.Parallel()
 
@@ -1044,7 +1078,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 			name:      "WaitAgent",
 			toolName:  "wait_agent",
 			args:      waitAgentArgs{ChatID: child.ID.String()},
-			wantError: "target chat is not a subagent of the current chat",
+			wantError: ErrSubagentNotDescendant.Error(),
 		},
 		{
 			name:      "MessageAgent",

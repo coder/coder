@@ -28,7 +28,7 @@ type spawnSubagentArgs struct {
 type subagentDefinition struct {
 	id                string
 	description       string
-	unavailableReason func(*Server, context.Context, database.Chat) string
+	unavailableReason func(context.Context, *Server, database.Chat) string
 	buildOptions      func(context.Context, *Server, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
@@ -67,7 +67,7 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeComputerUse,
 			description: "desktop GUI interaction, screenshots, and browser or app automation",
-			unavailableReason: func(p *Server, ctx context.Context, currentChat database.Chat) string {
+			unavailableReason: func(ctx context.Context, p *Server, currentChat database.Chat) string {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `subagent_type "computer_use" is unavailable in plan mode`
 				}
@@ -131,7 +131,7 @@ func (d subagentDefinition) unavailableReasonText(
 	if d.unavailableReason == nil {
 		return ""
 	}
-	return d.unavailableReason(p, ctx, currentChat)
+	return d.unavailableReason(ctx, p, currentChat)
 }
 
 func resolveSubagentDefinition(

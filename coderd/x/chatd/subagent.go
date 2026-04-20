@@ -261,7 +261,7 @@ func (p *Server) subagentTools(
 				}
 				if !isDescendant {
 					return subagentErrorResponse(
-						xerrors.New("target chat is not a subagent of the current chat"),
+						ErrSubagentNotDescendant,
 						targetChatInfo,
 					), nil
 				}
@@ -355,6 +355,11 @@ func (p *Server) subagentTools(
 				var targetChatInfo *database.Chat
 				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
 					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for message",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
 				}
 				busyBehavior := SendMessageBusyBehaviorQueue
 				if args.Interrupt {
@@ -398,6 +403,11 @@ func (p *Server) subagentTools(
 				var targetChatInfo *database.Chat
 				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
 					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for close",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
 				}
 				targetChat, err := p.closeSubagent(
 					ctx,

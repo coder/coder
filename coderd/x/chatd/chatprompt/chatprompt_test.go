@@ -1154,7 +1154,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 	t.Parallel()
 
-	resultJSON := `{"error":"target chat is not a subagent of the current chat","subagent_type":"explore"}`
+	resultJSON := `{"error":"target chat is not a descendant of current chat","subagent_type":"explore"}`
 	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
 		ToolCallID: "call-1",
 		ToolName:   "wait_agent",
@@ -1165,6 +1165,23 @@ func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 
 	require.True(t, sdkPart.IsError)
 	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"permission denied","detail":"nested payload"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "execute",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"error\":\"permission denied\",\"detail\":\"nested payload\"}"}`,
+		string(sdkPart.Result))
 }
 
 func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {

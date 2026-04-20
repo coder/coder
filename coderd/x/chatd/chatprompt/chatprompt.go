@@ -793,7 +793,7 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		isError = true
 		if output.Error != nil {
 			raw := json.RawMessage(strings.TrimSpace(output.Error.Error()))
-			if hasErrorField(raw) {
+			if isSubagentLifecycleToolName(content.ToolName) && hasErrorField(raw) {
 				result = raw
 			} else {
 				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
@@ -822,6 +822,16 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+// Keep in sync with coderd/x/chatd/subagent.go.
+func isSubagentLifecycleToolName(name string) bool {
+	switch name {
+	case "spawn_subagent", "wait_agent", "message_agent", "close_agent":
+		return true
+	default:
+		return false
+	}
 }
 
 func hasErrorField(raw json.RawMessage) bool {
