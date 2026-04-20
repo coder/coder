@@ -18,12 +18,11 @@ import (
 func TestAuditLogIsResourceDeleted(t *testing.T) {
 	t.Parallel()
 
-	for name, err := range map[string]error{
-		"ChatNotAuthorized": dbauthz.NotAuthorizedError{},
-		"ChatNoRows":        sql.ErrNoRows,
+	for _, err := range []error{
+		dbauthz.NotAuthorizedError{},
+		sql.ErrNoRows,
 	} {
-		err := err
-		t.Run(name, func(t *testing.T) {
+		t.Run(err.Error(), func(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
