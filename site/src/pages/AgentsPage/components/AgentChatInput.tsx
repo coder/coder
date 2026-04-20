@@ -898,9 +898,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												)}
 											</button>
 										)}
-						{workspaceOptions &&
-							onWorkspaceChange &&
-							(isBelowMdViewport() ? (
+										{workspaceOptions &&
+											onWorkspaceChange &&
+											(isBelowMdViewport() ? (
 												<button
 													type="button"
 													disabled={isDisabled || isWorkspaceLoading}
