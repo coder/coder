@@ -2,7 +2,7 @@ import {
 	type Dispatch,
 	type SetStateAction,
 	useEffect,
-	useEffectEvent,
+	useRef,
 	useState,
 } from "react";
 import { API } from "#/api/api";
@@ -190,14 +190,20 @@ export function useFileAttachments(
 		() => new Map<File, string>(),
 	);
 
-	// Revoke blob URLs on unmount to prevent memory leaks.
-	const revokePreviewUrls = useEffectEvent(() => {
-		for (const [, url] of previewUrls) {
-			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-		}
-	});
+	// Track latest previewUrls in a ref for use in the unmount cleanup, which
+	// runs against the initial capture but needs the most recent value.
+	const previewUrlsRef = useRef(previewUrls);
 	useEffect(() => {
-		return () => revokePreviewUrls();
+		previewUrlsRef.current = previewUrls;
+	});
+
+	// Revoke blob URLs on unmount to prevent memory leaks.
+	useEffect(() => {
+		return () => {
+			for (const [, url] of previewUrlsRef.current) {
+				if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+			}
+		};
 	}, []);
 
 	const startUpload = (file: File) => {
@@ -345,7 +351,9 @@ export function useFileAttachments(
 	};
 
 	const resetAttachments = () => {
-		revokePreviewUrls();
+		for (const [, url] of previewUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 		setPreviewUrls(new Map());
 		setTextContents(new Map());
 		setUploadStates(new Map());

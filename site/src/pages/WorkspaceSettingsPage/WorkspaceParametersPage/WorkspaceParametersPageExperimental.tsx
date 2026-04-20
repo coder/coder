@@ -60,7 +60,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			source: "active_build",
 		})) ?? [];
 
-	const sendMessage = useEffectEvent((formValues: Record<string, string>) => {
+	const sendMessage = (formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
 			owner_id: workspace.owner_id,
@@ -70,7 +70,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
 		}
-	});
+	};
 
 	// On page load, sends initial workspace build parameters to the websocket.
 	// This ensures the backend has the form's complete initial state,
