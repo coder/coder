@@ -697,6 +697,28 @@ func TestExpAgentsRender(t *testing.T) {
 		require.Equal(t, "modified", changes[0].ChangeType)
 	})
 
+	t.Run("ParseChatGitChangesFromUnifiedDiffQuotedRename", func(t *testing.T) {
+		t.Parallel()
+
+		// Git C-quotes `rename from`/`rename to` paths when they contain
+		// non-ASCII bytes (like `ä`). The parser should decode them so
+		// the diff summary shows a readable file name rather than the
+		// raw quoted octal escape.
+		diff := strings.Join([]string{
+			`diff --git "a/b\303\244r old.txt" "b/b\303\244r new.txt"`,
+			"similarity index 100%",
+			`rename from "b\303\244r old.txt"`,
+			`rename to "b\303\244r new.txt"`,
+		}, "\n")
+
+		changes := parseChatGitChangesFromUnifiedDiff(codersdk.ChatDiffContents{Diff: diff})
+		require.Len(t, changes, 1)
+		require.Equal(t, "renamed", changes[0].ChangeType)
+		require.Equal(t, "bär new.txt", changes[0].FilePath)
+		require.NotNil(t, changes[0].OldPath)
+		require.Equal(t, "bär old.txt", *changes[0].OldPath)
+	})
+
 	t.Run("ParseUnifiedDiffHeaderPaths", func(t *testing.T) {
 		t.Parallel()
 

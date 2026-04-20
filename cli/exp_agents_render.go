@@ -377,14 +377,17 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 		case strings.HasPrefix(line, "deleted file mode "):
 			current.ChangeType = "deleted"
 		case strings.HasPrefix(line, "rename from "):
-			oldPath := strings.TrimSpace(strings.TrimPrefix(line, "rename from "))
+			// trimUnifiedDiffPath decodes C-quoted paths that git emits for
+			// non-ASCII or control-character file names, matching the
+			// treatment of --- and +++ lines below.
+			oldPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "rename from "))
 			if oldPath != "" {
 				oldPathCopy := oldPath
 				current.OldPath = &oldPathCopy
 			}
 			current.ChangeType = "renamed"
 		case strings.HasPrefix(line, "rename to "):
-			newPath := strings.TrimSpace(strings.TrimPrefix(line, "rename to "))
+			newPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "rename to "))
 			if newPath != "" {
 				current.FilePath = newPath
 			}
