@@ -856,7 +856,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRows (which joins the
+	// HasUnread is populated by ChatRowsWithChildren (which joins the
 	// read-cursor query), not by Chat. Warnings is a transient
 	// field populated by handlers, not the converter. Both are
 	// expected to remain zero here.

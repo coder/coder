@@ -2,9 +2,12 @@ package chatd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,11 +16,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	osschatd "github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
+	"github.com/coder/retry"
 	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // RelaySourceHeader marks replica-relayed stream requests.
@@ -32,7 +36,38 @@ const (
 	// buffered snapshot events time to be forwarded before
 	// the relay is torn down.
 	relayDrainTimeout = 200 * time.Millisecond
+
+	// Retry knobs for the cross-replica relay handshake. Uses the
+	// github.com/coder/retry defaults (φ-growth, no jitter) but drives
+	// the delay manually because retry.Retrier.Wait uses time.After,
+	// which isn't compatible with quartz.Clock determinism in tests.
+	relayRetryFloor = 500 * time.Millisecond // first retry matches old fixed delay
+	relayRetryCeil  = 15 * time.Second       // cap stall before tear-down
+	// After this many reconnect retries the relay leg is torn down.
+	// Total dial attempts = 1 initial dial + relayMaxRetries.
+	relayMaxRetries = 6
 )
+
+// RelayDialError wraps a failed relay handshake. HTTPStatus is 0
+// when the failure happened before a response (DNS, TCP, TLS,
+// timeout, context cancel); otherwise it carries the peer's status
+// code for the reconnect loop to classify.
+type RelayDialError struct {
+	HTTPStatus int
+	Err        error
+}
+
+func (e *RelayDialError) Error() string { return e.Err.Error() }
+func (e *RelayDialError) Unwrap() error { return e.Err }
+
+// IsUnrecoverable reports whether retrying with the same captured
+// session token is futile. Only 401/403 qualify - the token is dead
+// or the peer won't authorize it. 5xx, 429, network, and context
+// errors fall through to backoff.
+func (e *RelayDialError) IsUnrecoverable() bool {
+	return e.HTTPStatus == http.StatusUnauthorized ||
+		e.HTTPStatus == http.StatusForbidden
+}
 
 // MultiReplicaSubscribeConfig holds the dependencies for multi-replica chat
 // subscription. ReplicaIDFn is called lazily because the
@@ -62,10 +97,8 @@ type MultiReplicaSubscribeConfig struct {
 	Clock quartz.Clock
 }
 
-// dial returns the dialer function to use for relay connections.
-// If DialerFn is set (e.g. in tests), it takes precedence.
-// Otherwise, dialRelay is used with the real MultiReplicaSubscribeConfig dependencies.
-// Returns nil when no relay capability is configured.
+// dial returns the configured dialer, preferring DialerFn (tests)
+// over the real dialRelay. Returns nil when relay is not configured.
 func (c MultiReplicaSubscribeConfig) dial() func(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -160,9 +193,16 @@ func NewMultiReplicaSubscribeFn(
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
+			// err and parts are mutually exclusive: success sets
+			// parts; failure sets err (unwrap to *RelayDialError
+			// for classification).
+			err error
 		}
 		relayReadyCh := make(chan relayResult, 4)
 
+		// Reset on successful dial or when the relay target
+		// changes, so a fresh target starts at the floor delay.
+		retryState := newRelayRetryState()
 		// Per-dial context so in-flight dials can be canceled when
 		// a new dial is initiated or the relay is closed.
 		var dialCancel context.CancelFunc
@@ -236,6 +276,12 @@ func NewMultiReplicaSubscribeFn(
 			if cfg.dial() == nil {
 				return
 			}
+			// Scoped here (not in closeRelay) so repeated dials
+			// against the same worker keep the attempt counter and
+			// correctly trip the cap.
+			if workerID != expectedWorkerID {
+				retryState.reset()
+			}
 			closeRelay()
 			// Create a per-dial context so this goroutine is
 			// canceled if closeRelay() or openRelayAsync() is
@@ -250,23 +296,31 @@ func NewMultiReplicaSubscribeFn(
 					// since they are expected when a dial is
 					// superseded by a newer one.
 					if dialCtx.Err() == nil {
-						logger.Warn(ctx, "failed to open relay for message parts",
+						fields := []slog.Field{
 							slog.F("chat_id", chatID),
 							slog.F("worker_id", workerID),
 							slog.Error(err),
-						)
+						}
+						// Surface the peer's HTTP status (when we
+						// got one) as a structured field so
+						// operators can filter 401/403 spam
+						// separately from 5xx/network warnings.
+						var dialErr *RelayDialError
+						if errors.As(err, &dialErr) && dialErr.HTTPStatus != 0 {
+							fields = append(fields, slog.F("http_status", dialErr.HTTPStatus))
+						}
+						logger.Warn(ctx, "failed to open relay for message parts", fields...)
 					}
-					// Send an empty result so the merge loop
-					// can schedule a reconnect attempt.
+					// Hand the error to the merge loop, which will
+					// classify it and either back off or tear down.
 					select {
-					case relayReadyCh <- relayResult{workerID: workerID}:
+					case relayReadyCh <- relayResult{workerID: workerID, err: err}:
 					case <-dialCtx.Done():
 					}
 					return
-				} // If the dial context was canceled while the
-				// dial was in progress, discard the result to
-				// avoid starting a wrappedParts goroutine for
-				// a stale connection.
+				}
+				// Discard stale dials so we don't start a
+				// wrappedParts goroutine on a canceled connection.
 				if dialCtx.Err() != nil {
 					cancel()
 					return
@@ -274,7 +328,7 @@ func NewMultiReplicaSubscribeFn(
 				// Wrap the relay channel so snapshot parts
 				// are delivered through the same channel as
 				// live parts. This goroutine only forwards
-				// events — it does not own the relay
+				// events - it does not own the relay
 				// lifecycle. When dialCtx is canceled it
 				// simply returns, closing wrappedParts via
 				// its defer. The cancel() is called by
@@ -316,20 +370,35 @@ func NewMultiReplicaSubscribeFn(
 			}()
 		}
 
-		// scheduleRelayReconnect arms a short timer so the select
-		// loop can re-check chat status and reopen the relay
-		// without spinning in a tight loop.
-		scheduleRelayReconnect := func() {
+		// scheduleRelayReconnect arms a timer so the select loop
+		// can re-check chat status and reopen the relay. Callers
+		// pass the delay from retryState so the failed-dial branch
+		// gets backoff while transient branches stay at the floor.
+		scheduleRelayReconnect := func(delay time.Duration) {
 			if cfg.dial() == nil {
 				return
 			}
 			if reconnectTimer != nil {
 				reconnectTimer.Stop()
 			}
-			reconnectTimer = cfg.clock().NewTimer(500*time.Millisecond, "reconnect")
+			reconnectTimer = cfg.clock().NewTimer(delay, "reconnect")
 			reconnectCh = reconnectTimer.C
 		}
 
+		// sendRelayTerminalError enqueues one error event for the
+		// subscriber; callers return afterwards so the deferred
+		// close(mergedEvents) fires and the OSS merge loop tears
+		// the relay leg down while pubsub/local sources keep going.
+		sendRelayTerminalError := func(msg string) {
+			select {
+			case mergedEvents <- codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeError,
+				ChatID: chatID,
+				Error:  &codersdk.ChatStreamError{Message: msg},
+			}:
+			case <-ctx.Done():
+			}
+		}
 		statusNotifications := params.StatusNotifications
 		go func() {
 			defer close(mergedEvents)
@@ -360,20 +429,59 @@ func NewMultiReplicaSubscribeFn(
 						continue
 					}
 					// A nil parts channel signals the dial
-					// failed — schedule a retry.
+					// failed - classify the error to decide
+					// whether to schedule a backoff retry, emit a
+					// terminal error and tear the relay leg down
+					// (unrecoverable / cap reached), or simply
+					// drop the stale drain.
 					if result.parts == nil {
 						if drainAndClose {
 							// Dial failed and we were only
-							// waiting to drain — nothing to do.
+							// waiting to drain - nothing to do.
 							drainAndClose = false
-						} else {
-							scheduleRelayReconnect()
+							continue
 						}
+						var dialErr *RelayDialError
+						if errors.As(result.err, &dialErr) && dialErr.IsUnrecoverable() {
+							logger.Warn(ctx, "relay dial unrecoverable; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("worker_id", result.workerID),
+								slog.F("http_status", dialErr.HTTPStatus),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay authentication failed (status %d)",
+								dialErr.HTTPStatus,
+							))
+							return
+						}
+						delay, giveUp := retryState.next()
+						if giveUp {
+							logger.Warn(ctx, "relay dial retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("worker_id", result.workerID),
+								slog.F("max_retries", relayMaxRetries),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay connection failed after %d retries",
+								relayMaxRetries,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
-					} // An async relay dial completed; swap
-					// in the new relay channel.
+					}
+					// An async relay dial completed. Swap in the
+					// new relay channel. We deliberately do NOT
+					// reset the retry counter here: a peer that
+					// accepts the handshake and immediately drops
+					// the stream would otherwise keep reconnecting
+					// forever, since each success would zero the
+					// counter before the next drop re-incremented
+					// it. The counter only resets when the target
+					// worker changes (see openRelayAsync).
 					if relayCancel != nil {
 						relayCancel()
+						relayCancel = nil
 					}
 					relayParts = result.parts
 					relayCancel = result.cancel
@@ -398,7 +506,7 @@ func NewMultiReplicaSubscribeFn(
 							// openRelayAsync handle the new one.
 							closeRelay()
 						} else {
-							// Chat is still idle — drain the
+							// Chat is still idle - drain the
 							// buffered snapshot before closing.
 							if drainTimer != nil {
 								drainTimer.Stop()
@@ -421,8 +529,24 @@ func NewMultiReplicaSubscribeFn(
 						)
 						// Retry on transient DB errors to
 						// avoid permanently stalling the
-						// stream.
-						scheduleRelayReconnect()
+						// stream. The same retry state
+						// bounds the DB-error loop too so a
+						// persistently broken DB eventually
+						// tears the relay down instead of
+						// spinning forever.
+						delay, giveUp := retryState.next()
+						if giveUp {
+							logger.Warn(ctx, "relay reconnect retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("max_retries", relayMaxRetries),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay connection failed after %d retries",
+								relayMaxRetries,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
 					}
 					if currentChat.Status == database.ChatStatusRunning &&
@@ -459,9 +583,6 @@ func NewMultiReplicaSubscribeFn(
 					drainTimerCh = nil
 					drainTimer = nil
 					closeRelay()
-					drainTimerCh = nil
-					drainTimer = nil
-					closeRelay()
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						if relayCancel != nil {
@@ -469,9 +590,21 @@ func NewMultiReplicaSubscribeFn(
 							relayCancel = nil
 						}
 						relayParts = nil
-						// Schedule reconnection instead of
-						// giving up.
-						scheduleRelayReconnect()
+						// Reuse the retry state so a relay that
+						// repeatedly drops eventually tears down.
+						delay, giveUp := retryState.next()
+						if giveUp {
+							logger.Warn(ctx, "relay drop retry cap reached; tearing down relay leg",
+								slog.F("chat_id", chatID),
+								slog.F("max_retries", relayMaxRetries),
+							)
+							sendRelayTerminalError(fmt.Sprintf(
+								"relay connection failed after %d retries",
+								relayMaxRetries,
+							))
+							return
+						}
+						scheduleRelayReconnect(delay)
 						continue
 					}
 					// Only forward message_part events from
@@ -495,12 +628,60 @@ func NewMultiReplicaSubscribeFn(
 	}
 }
 
-// dialRelay opens a WebSocket relay connection to the replica
-// identified by workerID and returns a snapshot of buffered
-// message_part events plus a live channel of subsequent events.
-// It passes afterID=MaxInt64 so the remote replica skips the
-// full message history snapshot, since the relay only needs
-// live message_part events.
+// relayRetryState drives the retry policy for the relay reconnect
+// loop. Wraps github.com/coder/retry to reuse its φ-growth defaults
+// but computes the delay without blocking so the merge loop can
+// schedule its own quartz.Clock timer.
+//
+// Not safe for concurrent use.
+type relayRetryState struct {
+	retrier  *retry.Retrier
+	attempts int
+}
+
+func newRelayRetryState() *relayRetryState {
+	return &relayRetryState{
+		retrier: retry.New(relayRetryFloor, relayRetryCeil),
+	}
+}
+
+// next returns the delay before the next dial and sets giveUp once
+// attempts exceed relayMaxRetries. Adapts the math from
+// retry.Retrier.Wait (github.com/coder/retry/retrier.go) without
+// blocking: the library's Wait returns 0 on the first call and sets
+// Delay to Floor only after the sleep, so we clamp to Floor up
+// front.
+func (s *relayRetryState) next() (delay time.Duration, giveUp bool) {
+	s.attempts++
+	if s.attempts > relayMaxRetries {
+		return 0, true
+	}
+	r := s.retrier
+	d := time.Duration(float64(r.Delay) * r.Rate)
+	if d > r.Ceil {
+		d = r.Ceil
+	}
+	if d < r.Floor {
+		d = r.Floor
+	}
+	r.Delay = d
+	return d, false
+}
+
+// reset returns the state to the floor delay and zero attempts.
+// Called after a successful dial or a relay target change.
+func (s *relayRetryState) reset() {
+	s.retrier.Reset()
+	s.attempts = 0
+}
+
+// dialRelay opens a WebSocket to the replica owning chatID and
+// returns any buffered message_part snapshot plus a live channel of
+// subsequent events. Handshake failures return an error unwrapping
+// to *RelayDialError so callers can classify via IsUnrecoverable.
+//
+// websocket.Dial is called directly (not via the SDK wrapper) so we
+// can read *http.Response.StatusCode for classification.
 func dialRelay(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -516,31 +697,78 @@ func dialRelay(
 ) {
 	address, ok := cfg.ResolveReplicaAddress(ctx, workerID)
 	if !ok {
-		return nil, nil, nil, xerrors.New("worker replica not found")
+		return nil, nil, nil, &RelayDialError{
+			Err: xerrors.New("dial relay stream: worker replica not found"),
+		}
 	}
 
-	baseURL, err := url.Parse(address)
+	wsURL, err := buildRelayURL(address, chatID)
 	if err != nil {
-		return nil, nil, nil, xerrors.Errorf("parse relay address %q: %w", address, err)
+		return nil, nil, nil, &RelayDialError{
+			Err: xerrors.Errorf("dial relay stream: %w", err),
+		}
 	}
+
 	replicaID := cfg.ReplicaIDFn()
+	headers := make(http.Header, 2)
+	headers.Set(codersdk.SessionTokenHeader, extractSessionToken(requestHeader))
+	headers.Set(RelaySourceHeader, replicaID.String())
+
 	relayCtx, relayCancel := context.WithCancel(ctx)
-	sdkClient := codersdk.New(baseURL)
-	sdkClient.HTTPClient = cfg.ReplicaHTTPClient
-	sdkClient.SessionTokenProvider = relayTokenProvider{
-		token:     extractSessionToken(requestHeader),
-		replicaID: replicaID,
-	}
-	expClient := codersdk.NewExperimentalClient(sdkClient)
-	sourceEvents, sourceStream, err := expClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
-		AfterID: ptr.Ref(int64(math.MaxInt64)),
+	conn, resp, dialErr := websocket.Dial(relayCtx, wsURL, &websocket.DialOptions{
+		HTTPClient:      cfg.ReplicaHTTPClient,
+		HTTPHeader:      headers,
+		CompressionMode: websocket.CompressionDisabled,
 	})
-	if err != nil {
-		relayCancel()
-		return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", err)
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+		// The websocket library closes resp.Body on success; on
+		// failure we close it ourselves so we don't leak the TCP
+		// connection.
+		if dialErr != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 	}
+	if dialErr != nil {
+		relayCancel()
+		return nil, nil, nil, &RelayDialError{
+			HTTPStatus: status,
+			Err:        xerrors.Errorf("dial relay stream: %w", dialErr),
+		}
+	}
+	// Match the server's 4 MiB read limit in codersdk.StreamChat so
+	// large message_part batches don't trip the default 32 KiB cap.
+	conn.SetReadLimit(1 << 22)
 
 	snapshot = make([]codersdk.ChatStreamEvent, 0, 100)
+
+	// sourceEvents is the flattened batch→event channel. A small
+	// goroutine reads batches off the websocket and fans them out;
+	// callers see a single event stream identical to the shape the
+	// old SDK call produced.
+	sourceEvents := make(chan codersdk.ChatStreamEvent, 128)
+	go func() {
+		defer close(sourceEvents)
+		for {
+			var batch []codersdk.ChatStreamEvent
+			if readErr := wsjson.Read(relayCtx, conn, &batch); readErr != nil {
+				return
+			}
+			for _, event := range batch {
+				select {
+				case sourceEvents <- event:
+				case <-relayCtx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	closeSource := func() {
+		relayCancel()
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
 
 	// Wait briefly for the first event to handle the common
 	// case where the remote side has buffered parts but hasn't
@@ -553,9 +781,10 @@ drainInitial:
 	for len(snapshot) < cap(snapshot) {
 		select {
 		case <-relayCtx.Done():
-			_ = sourceStream.Close()
-			relayCancel()
-			return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", relayCtx.Err())
+			closeSource()
+			return nil, nil, nil, &RelayDialError{
+				Err: xerrors.Errorf("dial relay stream: %w", relayCtx.Err()),
+			}
 		case event, ok := <-sourceEvents:
 			if !ok {
 				break drainInitial
@@ -577,12 +806,9 @@ drainInitial:
 
 	go func() {
 		defer close(events)
-		defer relayCancel()
-		defer func() {
-			_ = sourceStream.Close()
-		}()
+		defer closeSource()
 
-		// No need to re-send snapshot events — they're
+		// No need to re-send snapshot events - they're
 		// returned to the caller directly.
 		for {
 			select {
@@ -604,40 +830,33 @@ drainInitial:
 		}
 	}()
 
-	cancelFn := func() {
-		relayCancel()
-		_ = sourceStream.Close()
+	return snapshot, events, closeSource, nil
+}
+
+// buildRelayURL builds the websocket URL for the chat stream
+// endpoint on a peer replica. It maps http(s) schemes to ws(s).
+func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", xerrors.Errorf("parse relay address %q: %w", address, err)
 	}
-	return snapshot, events, cancelFn, nil
-}
-
-// relayTokenProvider authenticates relay requests to the worker
-// replica using the session token extracted from the original
-// browser request. It also stamps each request with the relay
-// source header so the worker can identify it as an inter-replica
-// call.
-type relayTokenProvider struct {
-	token     string
-	replicaID uuid.UUID
-}
-
-func (p relayTokenProvider) AsRequestOption() codersdk.RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set(codersdk.SessionTokenHeader, p.token)
-		req.Header.Set(RelaySourceHeader, p.replicaID.String())
+	switch u.Scheme {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	case "ws", "wss":
+		// already a websocket URL, leave as-is.
+	default:
+		return "", xerrors.Errorf("unsupported relay address scheme %q", u.Scheme)
 	}
-}
-
-func (p relayTokenProvider) SetDialOption(opts *websocket.DialOptions) {
-	if opts.HTTPHeader == nil {
-		opts.HTTPHeader = make(http.Header)
-	}
-	opts.HTTPHeader.Set(codersdk.SessionTokenHeader, p.token)
-	opts.HTTPHeader.Set(RelaySourceHeader, p.replicaID.String())
-}
-
-func (p relayTokenProvider) GetSessionToken() string {
-	return p.token
+	u.Path = fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
+	q := u.Query()
+	// Relays only need live message_part events, not the full
+	// history; pass after_id=MaxInt64 so the peer skips its snapshot.
+	q.Set("after_id", strconv.FormatInt(math.MaxInt64, 10))
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // extractSessionToken returns the session token carried by the
@@ -648,7 +867,7 @@ func extractSessionToken(header http.Header) string {
 	if header == nil {
 		return ""
 	}
-	// Cookie (browser WebSocket upgrade — most common relay case).
+	// Cookie (browser WebSocket upgrade - most common relay case).
 	if raw := header.Get(cookieHeader); raw != "" {
 		r := &http.Request{Header: http.Header{cookieHeader: {raw}}}
 		if c, err := r.Cookie(codersdk.SessionTokenCookie); err == nil && c.Value != "" {

@@ -50,10 +50,13 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
+
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -383,9 +386,17 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	const editDiffs = editFiles.map((file) =>
-		buildEditDiff(file.path, file.edits),
-	);
+	// On error, render no diff: the agent rejected the edit, so a
+	// synthetic args-derived diff would misrepresent it as applied.
+	const serverResults = parseServerEditResults(result);
+	const editDiffs = isError
+		? editFiles.map(() => null)
+		: editFiles.map((file) => {
+				const entry = serverResults?.find((d) => d.path === file.path);
+				return entry
+					? parseServerEditDiffText(entry.diff)
+					: buildEditDiff(file.path, file.edits);
+			});
 
 	return (
 		<EditFilesTool
