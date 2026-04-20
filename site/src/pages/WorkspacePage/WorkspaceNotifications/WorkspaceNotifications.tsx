@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
