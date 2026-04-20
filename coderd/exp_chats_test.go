@@ -633,6 +633,7 @@ func TestPostChats(t *testing.T) {
 		existingChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "existing-limit-chat",
@@ -664,12 +665,10 @@ func TestPostChats(t *testing.T) {
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: uuid.Nil,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "organization_id is required.", sdkErr.Message)
@@ -692,12 +691,10 @@ func TestPostChats(t *testing.T) {
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "You are not a member of the specified organization.", sdkErr.Message)
@@ -727,16 +724,93 @@ func TestPostChats(t *testing.T) {
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
 			WorkspaceID: &workspaceBuild.Workspace.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Workspace does not belong to the specified organization.", sdkErr.Message)
+	})
+}
+
+func TestPostChats_ClientType(t *testing.T) {
+	t.Parallel()
+
+	client := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	newChat := func(t *testing.T, clientType codersdk.ChatClientType) codersdk.Chat {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "client type test",
+			}},
+			ClientType: clientType,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("DefaultIsAPI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Omit ClientType entirely — should default to "api".
+		chat := newChat(t, "")
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatClientTypeAPI, got.ClientType)
+	})
+
+	t.Run("ExplicitAPI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		chat := newChat(t, codersdk.ChatClientTypeAPI)
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatClientTypeAPI, got.ClientType)
+	})
+
+	t.Run("ExplicitUI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		chat := newChat(t, codersdk.ChatClientTypeUI)
+		require.Equal(t, codersdk.ChatClientTypeUI, chat.ClientType)
+
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatClientTypeUI, got.ClientType)
+	})
+
+	t.Run("InvalidClientType", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "bad client type",
+			}},
+			ClientType: "bogus",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Invalid client_type")
 	})
 }
 
@@ -778,6 +852,7 @@ func TestListChats(t *testing.T) {
 		memberDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    firstUser.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "member chat only",
@@ -863,6 +938,7 @@ func TestListChats(t *testing.T) {
 		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    firstUser.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "member chat",
@@ -1506,6 +1582,7 @@ func TestWatchChats(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
@@ -1638,6 +1715,7 @@ func TestWatchChats(t *testing.T) {
 		childOne, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "watch child 1", ParentChatID: uuid.NullUUID{UUID: parentChat.ID, Valid: true},
@@ -1648,6 +1726,7 @@ func TestWatchChats(t *testing.T) {
 		childTwo, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "watch child 2", ParentChatID: uuid.NullUUID{UUID: parentChat.ID, Valid: true},
@@ -3615,6 +3694,252 @@ func TestGetChat(t *testing.T) {
 	})
 }
 
+func TestPatchChat(t *testing.T) {
+	t.Parallel()
+
+	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID, text string) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: text,
+				},
+			},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	getChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.GetChat(ctx, chatID)
+		require.NoError(t, err)
+		return chat
+	}
+
+	createStoredChat := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		orgID uuid.UUID,
+		modelConfigID uuid.UUID,
+		title string,
+	) codersdk.Chat {
+		t.Helper()
+
+		dbChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    orgID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return db2sdk.Chat(dbChat, nil, nil)
+	}
+	t.Run("PlanMode", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SetToPlan", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "set plan mode")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, codersdk.ChatPlanModePlan, updated.PlanMode)
+		})
+
+		t.Run("Clear", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "clear plan mode")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+			})
+			require.NoError(t, err)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: ptr.Ref(codersdk.ChatPlanMode("")),
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Empty(t, updated.PlanMode)
+		})
+
+		t.Run("RejectsInvalidValue", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid plan mode")
+			invalidPlanMode := codersdk.ChatPlanMode("invalid")
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				PlanMode: &invalidPlanMode,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid plan_mode value.", sdkErr.Message)
+		})
+	})
+
+	t.Run("WorkspaceBinding", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("BindValidWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModelConfig(t, client)
+
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"bind workspace",
+			)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.NotNil(t, updated.WorkspaceID)
+			require.Equal(t, workspaceBuild.Workspace.ID, *updated.WorkspaceID)
+		})
+
+		t.Run("WorkspaceNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModelConfig(t, client)
+
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"missing workspace",
+			)
+			workspaceID := uuid.New()
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceID,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
+		})
+
+		t.Run("RejectsCrossOrgWorkspaceBinding", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModelConfig(t, client)
+
+			secondOrg := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				OrganizationID: secondOrg.ID,
+				UserID:         firstUser.UserID,
+			})
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: secondOrg.ID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"cross org workspace binding",
+			)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Workspace does not belong to this chat's organization.", sdkErr.Message)
+		})
+
+		t.Run("ClearWorkspaceBinding", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModelConfig(t, client)
+
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := createStoredChat(
+				ctx,
+				t,
+				db,
+				firstUser.UserID,
+				firstUser.OrganizationID,
+				modelConfig.ID,
+				"clear workspace binding",
+			)
+
+			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceBuild.Workspace.ID,
+			})
+			require.NoError(t, err)
+
+			workspaceID := uuid.Nil
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				WorkspaceID: &workspaceID,
+			})
+			require.NoError(t, err)
+
+			updated := getChat(ctx, t, client, chat.ID)
+			require.Nil(t, updated.WorkspaceID)
+			require.Nil(t, updated.BuildID)
+			require.Nil(t, updated.AgentID)
+		})
+	})
+}
+
 func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 
@@ -3714,6 +4039,7 @@ func TestArchiveChat(t *testing.T) {
 		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 1",
@@ -3725,6 +4051,7 @@ func TestArchiveChat(t *testing.T) {
 		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 2",
@@ -3835,6 +4162,7 @@ func TestUnarchiveChat(t *testing.T) {
 		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 1", ParentChatID: uuid.NullUUID{UUID: parentChat.ID, Valid: true},
@@ -3845,6 +4173,7 @@ func TestUnarchiveChat(t *testing.T) {
 		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "child 2", ParentChatID: uuid.NullUUID{UUID: parentChat.ID, Valid: true},
@@ -4175,6 +4504,7 @@ func TestPostChatMessages(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    firstUser.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "member chat",
@@ -5527,6 +5857,7 @@ func TestInterruptChat(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "interrupt route test",
@@ -5608,6 +5939,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "chat with update denied",
@@ -5721,6 +6053,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "chat with lock held",
@@ -5763,6 +6096,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "pending chat without worker",
@@ -5881,6 +6215,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		noCachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "get diff status route no cache",
@@ -5895,6 +6230,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		cachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "get diff status route cached",
@@ -6004,6 +6340,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff contents with cached repository reference",
@@ -6104,6 +6441,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "delete queued message route test",
@@ -6157,6 +6495,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "delete queued invalid id",
@@ -6193,6 +6532,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "promote queued message route test",
@@ -6265,6 +6605,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "promote queued usage limit",
@@ -6341,6 +6682,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "promote queued invalid id",
@@ -6378,6 +6720,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    firstUser.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "promote queued no agents access",
@@ -6615,31 +6958,17 @@ func TestPostChatFile(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
 
-	t.Run("Success/JPEG", func(t *testing.T) {
+	t.Run("MissingFilename", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		data := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, make([]byte, 64)...)
-		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/jpeg", "test.jpg", bytes.NewReader(data))
-		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, resp.ID)
-	})
-
-	t.Run("Success/WebP", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		// WebP: RIFF + 4-byte size + WEBP + padding.
-		data := append([]byte("RIFF"), make([]byte, 4)...)
-		data = append(data, []byte("WEBP")...)
-		data = append(data, make([]byte, 64)...)
-		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/webp", "test.webp", bytes.NewReader(data))
-		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, resp.ID)
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "", bytes.NewReader(data))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Filename is required")
+		require.Contains(t, sdkErr.Detail, "Content-Disposition")
 	})
 
 	t.Run("Success/TextPlain", func(t *testing.T) {
@@ -6648,8 +6977,34 @@ func TestPostChatFile(t *testing.T) {
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		data := []byte("This is a test paste.\nWith multiple lines.\n")
+		data := []byte(`This is a test paste.
+With multiple lines.
+`)
 		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("Success/TextPlainRefinesToJSON", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "pasted-text.txt", bytes.NewReader([]byte(`{"ok":true}`)))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("Success/TextPlainRefinesToCSV", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "pasted-text.txt", bytes.NewReader([]byte(`name,count
+widgets,3
+`)))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
@@ -6660,7 +7015,7 @@ func TestPostChatFile(t *testing.T) {
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/pdf", "test.pdf", bytes.NewReader([]byte("%PDF-1.7")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "test.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -6672,18 +7027,6 @@ func TestPostChatFile(t *testing.T) {
 
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
 		requireSDKError(t, err, http.StatusBadRequest)
-	})
-
-	t.Run("ContentSniffingRejects", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		// Header says PNG but body is plain text.
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Contains(t, sdkErr.Message, "does not match")
 	})
 
 	t.Run("ContentSniffingRejectsPNGAsText", func(t *testing.T) {
@@ -6708,13 +7051,25 @@ func TestPostChatFile(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Contains(t, sdkErr.Message, "does not match")
 	})
+
+	t.Run("ContentSniffingRejectsPlainTextAsJSON", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/json", "payload.json", bytes.NewReader([]byte("not actually json")))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "does not match")
+	})
+
 	t.Run("TooLarge", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		// 10 MB + 1 byte, with valid PNG header to pass MIME check.
+		// 10 MB + 1 byte, with valid PNG header to pass media type check.
 		data := make([]byte, 10<<20+1)
 		copy(data, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
@@ -6727,7 +7082,9 @@ func TestPostChatFile(t *testing.T) {
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		data := []byte("<!DOCTYPE html>\n<html><body><p>Paste me as plain text.</p></body></html>\n")
+		data := []byte(`<!DOCTYPE html>
+<html><body><p>Paste me as plain text.</p></body></html>
+`)
 		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "snippet.txt", bytes.NewReader(data))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
@@ -6817,22 +7174,6 @@ func TestGetChatFile(t *testing.T) {
 		require.Equal(t, data, got)
 	})
 
-	t.Run("Success/TextPlain", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		data := []byte("This is a test paste.\nWith multiple lines.\n")
-		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader(data))
-		require.NoError(t, err)
-
-		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
-		require.NoError(t, err)
-		require.Equal(t, "text/plain", contentType)
-		require.Equal(t, data, got)
-	})
-
 	t.Run("CacheHeaders", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -6854,6 +7195,29 @@ func TestGetChatFile(t *testing.T) {
 		require.Contains(t, res.Header.Get("Content-Disposition"), "test.png")
 	})
 
+	t.Run("PDFServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/pdf", "report.pdf", bytes.NewReader([]byte("%PDF-1.7\n")))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/pdf", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "report.pdf", params["filename"])
+	})
+
 	t.Run("LongFilename", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -6870,7 +7234,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-		// Filename should be truncated to maxChatFileName (255) bytes.
+		// Filename should be truncated to chatfiles.MaxStoredFileNameBytes (255) bytes.
 		cd := res.Header.Get("Content-Disposition")
 		require.Contains(t, cd, "inline")
 		require.Contains(t, cd, strings.Repeat("a", 255))
@@ -6971,6 +7335,7 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "test chat",
@@ -7093,6 +7458,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           member.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "member chat",
@@ -7163,6 +7529,7 @@ func TestChatCostUsers(t *testing.T) {
 	adminChat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "admin chat",
@@ -7192,6 +7559,7 @@ func TestChatCostUsers(t *testing.T) {
 	memberChat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           member.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "member chat",
@@ -7277,6 +7645,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "date range test",
@@ -7344,6 +7713,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		OrganizationID:    firstUser.OrganizationID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           firstUser.UserID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "unpriced test",
@@ -7930,6 +8300,207 @@ func TestChatSystemPrompt(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatPlanModeInstructions(t *testing.T) {
+	t.Parallel()
+
+	adminClient, _ := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	_ = createChatModelConfig(t, adminClient)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	updateChatPlanModeInstructions := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatPlanModeInstructionsRequest) {
+		t.Helper()
+
+		err := adminClient.UpdateChatPlanModeInstructions(ctx, req)
+		require.NoError(t, err)
+	}
+
+	getChatPlanModeInstructions := func(t *testing.T, ctx context.Context) codersdk.ChatPlanModeInstructionsResponse {
+		t.Helper()
+
+		resp, err := adminClient.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		return resp
+	}
+
+	roundTripTests := []struct {
+		name    string
+		updates []string
+		want    string
+	}{
+		{
+			name: "DefaultGETReturnsEmpty",
+			want: "",
+		},
+		{
+			name:    "PUTThenGETRoundTrips",
+			updates: []string{"Use plan mode for multi-step changes."},
+			want:    "Use plan mode for multi-step changes.",
+		},
+	}
+	for _, tt := range roundTripTests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			for _, instructions := range tt.updates {
+				updateChatPlanModeInstructions(t, ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+					PlanModeInstructions: instructions,
+				})
+			}
+
+			resp := getChatPlanModeInstructions(t, ctx)
+			require.Equal(t, tt.want, resp.PlanModeInstructions)
+		})
+	}
+
+	t.Run("OversizedPayloadReturns400", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		tooLong := strings.Repeat("a", 131073)
+
+		err := adminClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: tooLong,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Plan mode instructions exceed maximum length.", sdkErr.Message)
+	})
+
+	t.Run("NonAdminGETReturns404", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.GetChatPlanModeInstructions(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatExploreModelOverride(t *testing.T) {
+	t.Parallel()
+
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	defaultModel := createChatModelConfig(t, adminClient)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	createAdditionalModel := func(t *testing.T, model string, enabled bool) codersdk.ChatModelConfig {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		contextLimit := int64(4096)
+		isDefault := false
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     defaultModel.Provider,
+			Model:        model,
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+		})
+		require.NoError(t, err)
+		if enabled {
+			return modelConfig
+		}
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		return updated
+	}
+
+	t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("AdminCanSetAndClear", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		overrideModel := createAdditionalModel(t, "gpt-4.1-mini", true)
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &overrideModel.ID,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, resp.ModelConfigID)
+		require.Equal(t, overrideModel.ID, *resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+
+		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
+		require.NoError(t, err)
+
+		resp, err = adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		require.NoError(t, db.UpsertChatExploreModelOverride(
+			dbauthz.AsSystemRestricted(ctx),
+			"not-a-uuid",
+		))
+
+		resp, err := adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.True(t, resp.HasMalformedOverride)
+
+		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
+		require.NoError(t, err)
+
+		resp, err = adminClient.GetChatExploreModelOverride(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.ModelConfigID)
+		require.False(t, resp.HasMalformedOverride)
+	})
+
+	t.Run("DisabledModelReturns400", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		disabledModel := createAdditionalModel(t, "gpt-4.1-disabled", false)
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &disabledModel.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("UnknownModelReturns400", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		unknownModelID := uuid.New()
+
+		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &unknownModelID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("NonAdminGETReturns404", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.GetChatExploreModelOverride(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("NonAdminPUTReturns403", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := memberClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
+			ModelConfigID: &defaultModel.ID,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
 func TestChatDesktopEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -8473,6 +9044,7 @@ func TestGetChatsByWorkspace(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             title,
@@ -8617,6 +9189,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    organizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelConfigID,
 			Title:             "tool-results-test", DynamicTools: pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
@@ -8724,6 +9297,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "wrong-status-test",

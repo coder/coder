@@ -345,7 +345,7 @@ func TestDevConfigValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
 	})
 
-	t.Run("PrometheusProxyConflictIgnoredNoProxy", func(t *testing.T) {
+	t.Run("PrometheusProxyProxyConflictIgnoredWithoutProxy", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
 		cfg.prometheusPort = 3010

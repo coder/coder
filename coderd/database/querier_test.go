@@ -1293,6 +1293,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
@@ -1305,6 +1306,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		_, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
@@ -1444,6 +1446,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
@@ -7184,38 +7187,55 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	})
 }
 
-func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
+func setupWorkspaceAgentQueryResources(t *testing.T, db database.Store, count int) []database.WorkspaceResource {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+	})
+
+	resources := make([]database.WorkspaceResource, 0, count)
+	for i := 0; i < count; i++ {
+		resources = append(resources, dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		}))
+	}
+
+	return resources
+}
+
+func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB, agentID uuid.UUID) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = TRUE WHERE id = $1", agentID)
+	require.NoError(t, err)
+}
+
+func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
-	// Context: https://github.com/coder/coder/pull/22196
-	t.Run("DoesNotReturnSubAgents", func(t *testing.T) {
+	t.Run("ReturnsAllMatchingRootAgents", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: A parent workspace agent with an AuthInstanceID and a
-		// sub-agent that shares the same AuthInstanceID.
 		db, _ := dbtestutil.NewDB(t)
-		org := dbgen.Organization(t, db, database.Organization{})
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			OrganizationID: org.ID,
-		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
 		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
-		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
 			},
 		})
-		// Create a sub-agent with the same AuthInstanceID (simulating
-		// the old behavior before the fix).
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
-			ResourceID: resource.ID,
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
 			AuthInstanceID: sql.NullString{
 				String: authInstanceID,
 				Valid:  true,
@@ -7224,13 +7244,89 @@ func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// When: We look up the agent by instance ID.
-		agent, err := db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
 		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newerAgent.ID, olderAgent.ID}, []uuid.UUID{agents[0].ID, agents[1].ID})
+	})
 
-		// Then: The result must be the parent agent, not the sub-agent.
-		assert.Equal(t, parentAgent.ID, agent.ID, "instance ID lookup should return the parent agent, not a sub-agent")
-		assert.False(t, agent.ParentID.Valid, "returned agent should not have a parent (should be the parent itself)")
+	t.Run("ExcludesDeletedAndSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		rootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt.Add(-time.Hour),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: rootAgent.ID, Valid: true},
+			ResourceID: resources[0].ID,
+			CreatedAt:  baseCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedRootAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedRootAgent.ID)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, rootAgent.ID, agents[0].ID)
+		assert.False(t, agents[0].ParentID.Valid)
+	})
+
+	t.Run("OrdersNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		resources := setupWorkspaceAgentQueryResources(t, db, 2)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		olderAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[0].ID,
+			CreatedAt:  olderCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		newerAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resources[1].ID,
+			CreatedAt:  newerCreatedAt,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, newerAgent.ID, agents[0].ID)
+		assert.Equal(t, olderAgent.ID, agents[1].ID)
 	})
 }
 
@@ -9805,6 +9901,7 @@ func TestInsertChatMessages(t *testing.T) {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelConfigA.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -9979,6 +10076,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-chat-" + uuid.NewString(),
@@ -10364,6 +10462,7 @@ func TestGetPRInsights(t *testing.T) {
 		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           p.UserID,
 			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
@@ -10501,6 +10600,7 @@ func TestGetPRInsights(t *testing.T) {
 		chat, err := p.Store.InsertChat(context.Background(), database.InsertChatParams{
 			OrganizationID:    p.OrgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           p.UserID,
 			LastModelConfigID: p.ModelConfigID,
 			Title:             title,
@@ -10921,6 +11021,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             title,
@@ -11106,6 +11207,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "labeled-chat",
@@ -11130,6 +11232,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "no-labels-chat",
@@ -11147,6 +11250,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "update-labels-chat",
@@ -11189,6 +11293,7 @@ func TestChatLabels(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "original-title",
@@ -11227,6 +11332,7 @@ func TestChatLabels(t *testing.T) {
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelCfg.ID, Title: tc.title,
 				Labels: pqtype.NullRawMessage{
@@ -11317,6 +11423,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-rollback-" + uuid.NewString(),
@@ -11503,6 +11610,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-finalize-" + uuid.NewString(),
@@ -11543,7 +11651,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- orphanStep: in_progress step whose run is already completed ---
-	// its own updated_at is old, so it should be finalized directly.
+	// Its own updated_at is old, so it should be finalized directly.
+	// The step must be inserted while the run is still open because
+	// InsertChatDebugStep requires finished_at IS NULL on the parent
+	// run (atomic guard against appending steps to finalized runs).
 	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
@@ -11554,7 +11665,19 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Mark the run as completed with a finished_at timestamp.
+	// Insert the step while the run is still open (finished_at IS NULL).
+	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      completedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Now mark the run as completed with a finished_at timestamp,
+	// leaving the step orphaned in in_progress state.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     completedRun.ID,
 		ChatID: completedRun.ChatID,
@@ -11563,16 +11686,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      completedRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11607,6 +11721,16 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The InsertChatDebugStep CTE atomically bumps the parent run's
+	// updated_at to NOW(). Reset it back to staleTime so the run is
+	// still caught by the age predicate in FinalizeStaleChatDebugRows.
+	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
+		ID:     cascadeRun.ID,
+		ChatID: chat.ID,
+		Now:    staleTime,
+	})
+	require.NoError(t, err)
+
 	// --- alreadyDone: completed run/step --- should NOT be touched.
 	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
@@ -11618,6 +11742,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      doneRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     doneRun.ID,
 		ChatID: doneRun.ChatID,
@@ -11626,15 +11761,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      doneRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "completed",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11646,6 +11773,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11661,6 +11789,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      errorRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "error",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     errorRun.ID,
 		ChatID: errorRun.ChatID,
@@ -11669,15 +11808,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      errorRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "error",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11689,6 +11820,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11720,7 +11852,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
-	result, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 
 	// staleRun + cascadeRun were finalized; completedRun and doneRun
@@ -11813,7 +11948,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should not have a finished_at timestamp")
 
 	// A second sweep should be a no-op.
-	result2, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, result2.RunsFinalized,
 		"second sweep should find nothing to finalize")
@@ -11859,6 +11997,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	chatA, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-guard-A-" + uuid.NewString(),
@@ -11868,6 +12007,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	chatB, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-guard-B-" + uuid.NewString(),
@@ -11924,6 +12064,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugRun should fail when chat_id does not match")
@@ -11941,6 +12082,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugStep should fail when chat_id does not match")
@@ -11989,6 +12131,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-coalesce-" + uuid.NewString(),
@@ -12026,6 +12169,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12033,9 +12177,9 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.RootChatID, updated.RootChatID,
@@ -12102,6 +12246,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-step-coalesce-" + uuid.NewString(),
@@ -12145,6 +12290,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12152,9 +12298,9 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
@@ -12225,6 +12371,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "chat-debug-null-msg-" + uuid.NewString(),
@@ -12313,6 +12460,7 @@ func TestChatHasUnread(t *testing.T) {
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "test-chat-" + uuid.NewString(),

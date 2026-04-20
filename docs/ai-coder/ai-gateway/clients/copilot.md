@@ -12,32 +12,7 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
-## Provider configuration
-
-Configure a `copilot` provider using the
-[indexed provider format](../setup.md#multiple-instances-of-the-same-provider).
-Copilot providers use OAuth app installations for authentication rather than
-static API keys.
-
-```sh
-# GitHub Copilot (Individual)
-export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
-
-# GitHub Copilot Business
-export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
-export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
-
-# GitHub Copilot Enterprise
-export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
-export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
-```
-
-The default base URL targets the individual Copilot API
-(`api.individual.githubcopilot.com`). Override `BASE_URL` for Business or
-Enterprise tiers as shown above.
+For provider configuration (admin), see [GitHub Copilot provider setup](../setup.md#github-copilot).
 
 ## Copilot CLI
 

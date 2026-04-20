@@ -1678,6 +1678,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			LastModelConfigID: modelConfigID,
 			Title:             "test-chat",
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 		})
 		require.NoError(t, err)
 		if archived {
@@ -2017,6 +2018,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					LastModelConfigID: deps.modelConfig.ID,
 					Title:             "child-chat",
 					Status:            database.ChatStatusWaiting,
+					ClientType:        database.ChatClientTypeUi,
 				})
 				require.NoError(t, err)
 

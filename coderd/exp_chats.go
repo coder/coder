@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,10 +27,12 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/chatfiles"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -47,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
@@ -379,6 +379,95 @@ func (api *API) getChatDiffStatusesByChatID(
 	return statusesByChatID, nil
 }
 
+func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
+	if mode == "" {
+		return database.NullChatPlanMode{}
+	}
+	return database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanMode(mode),
+		Valid:        true,
+	}
+}
+
+func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
+	switch mode {
+	case "", codersdk.ChatPlanModePlan:
+		return true
+	default:
+		return false
+	}
+}
+
+func parseChatExploreModelOverride(raw string) (*uuid.UUID, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		//nolint:nilnil // Empty site-config value means the override is unset.
+		return nil, nil
+	}
+	modelConfigID, err := uuid.Parse(trimmed)
+	if err != nil {
+		return nil, xerrors.Errorf("parse explore model override: %w", err)
+	}
+	return &modelConfigID, nil
+}
+
+func formatChatExploreModelOverride(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
+func validateChatExploreModelOverrideID(
+	ctx context.Context,
+	db database.Store,
+	id *uuid.UUID,
+) (int, *codersdk.Response) {
+	if id == nil {
+		return 0, nil
+	}
+	if *id == uuid.Nil {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id.",
+		}
+	}
+	//nolint:gocritic // Validation lookup uses system context to check model
+	// availability independently of the caller's read permissions.
+	_, err := db.GetEnabledChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), *id)
+	if err == nil {
+		return 0, nil
+	}
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id.",
+		}
+	}
+	return http.StatusInternalServerError, &codersdk.Response{
+		Message: "Internal error validating model config override.",
+		Detail:  err.Error(),
+	}
+}
+
+func (api *API) getChatExploreModelOverrideConfig(
+	ctx context.Context,
+) (*uuid.UUID, bool, error) {
+	raw, err := api.Database.GetChatExploreModelOverride(ctx)
+	if err != nil {
+		return nil, false, xerrors.Errorf("get explore model override: %w", err)
+	}
+	id, err := parseChatExploreModelOverride(raw)
+	if err != nil {
+		// Degrade malformed values to unset so the admin settings page
+		// remains accessible and the bad value can be cleared.
+		api.Logger.Warn(ctx, "malformed explore model override in site config, treating as unset",
+			slog.F("raw_value", raw),
+			slog.Error(err),
+		)
+		return nil, true, nil
+	}
+	return id, false, nil
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -454,6 +543,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	modelConfigID, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
+		return
+	}
+
+	if !validateChatPlanMode(req.PlanMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid plan_mode value.",
+		})
 		return
 	}
 
@@ -548,12 +644,26 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	clientType := database.ChatClientTypeApi
+	if req.ClientType != "" {
+		clientType = database.ChatClientType(req.ClientType)
+		if !clientType.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid client_type.",
+				Detail:  fmt.Sprintf("got %q, want one of %v", req.ClientType, database.AllChatClientTypeValues()),
+			})
+			return
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
+		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
+		ClientType:         clientType,
 		SystemPrompt:       req.SystemPrompt,
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
@@ -1728,7 +1838,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// archiving, pinning, and pinned-chat ordering.
+// workspace binding, archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1736,6 +1846,18 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	var planModeUpdate *database.NullChatPlanMode
+	if req.PlanMode != nil {
+		if !validateChatPlanMode(*req.PlanMode) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid plan_mode value.",
+			})
+			return
+		}
+		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
+		planModeUpdate = &resolvedPlanMode
 	}
 
 	if req.Labels != nil {
@@ -1863,6 +1985,64 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.WorkspaceID != nil {
+		workspaceID := uuid.NullUUID{}
+		workspace := database.Workspace{}
+		if *req.WorkspaceID != uuid.Nil {
+			var status int
+			var resp *codersdk.Response
+			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+			if resp != nil {
+				httpapi.Write(ctx, rw, status, *resp)
+				return
+			}
+			if workspace.OrganizationID != chat.OrganizationID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Workspace does not belong to this chat's organization.",
+				})
+				return
+			}
+		}
+
+		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chat.ID,
+			WorkspaceID: workspaceID,
+			BuildID:     uuid.NullUUID{},
+			AgentID:     uuid.NullUUID{},
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat workspace binding.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
+	if planModeUpdate != nil {
+		updatedChat, err := api.Database.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+			PlanMode: *planModeUpdate,
+			ID:       chat.ID,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat plan mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -1937,6 +2117,21 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.PlanMode != nil {
+		if !validateChatPlanMode(*req.PlanMode) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid plan_mode value.",
+			})
+			return
+		}
+	}
+
+	var sendPlanMode *database.NullChatPlanMode
+	if req.PlanMode != nil {
+		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
+		sendPlanMode = &resolvedPlanMode
+	}
+
 	busyBehavior := chatd.SendMessageBusyBehaviorQueue
 	switch req.BusyBehavior {
 	case codersdk.ChatBusyBehaviorInterrupt:
@@ -1959,6 +2154,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
 			BusyBehavior:  busyBehavior,
+			PlanMode:      sendPlanMode,
 			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
@@ -2530,6 +2726,25 @@ func (api *API) chatStartWorkspace(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
 	}
 
+	updatedToActiveVersion := false
+	if req.Transition == codersdk.WorkspaceTransitionStart {
+		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("get template: %w", err)
+		}
+
+		templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+		if templateAccessControl.RequireActiveVersion {
+			latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("get latest workspace build: %w", err)
+			}
+
+			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
+			req.TemplateVersionID = template.ActiveVersionID
+		}
+	}
+
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator.
 	syntheticKey := database.APIKey{
@@ -2549,10 +2764,25 @@ func (api *API) chatStartWorkspace(
 		audit.WorkspaceBuildBaggage{},
 	)
 	if err != nil {
+		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI.",
+				Detail:  err.Error(),
+			})
+		}
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
 
 	return apiBuild, nil
+}
+
+func isChatStartWorkspaceManualUpdateRequiredError(err error) bool {
+	var diagnosticErr *dynamicparameters.DiagnosticError
+	if errors.As(err, &diagnosticErr) {
+		return true
+	}
+
+	return errors.Is(err, wsbuilder.ErrParameterValidation)
 }
 
 func chatWorkspaceAuditStatus(err error) int {
@@ -2929,6 +3159,46 @@ type createChatWorkspaceSelection struct {
 	WorkspaceID uuid.NullUUID
 }
 
+func (api *API) validateChatWorkspaceSelection(
+	ctx context.Context,
+	r *http.Request,
+	workspaceID *uuid.UUID,
+) (
+	uuid.NullUUID,
+	database.Workspace,
+	int,
+	*codersdk.Response,
+) {
+	if workspaceID == nil {
+		return uuid.NullUUID{}, database.Workspace{}, 0, nil
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, *workspaceID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
+				Message: "Workspace not found or you do not have access to this resource",
+			}
+		}
+		return uuid.NullUUID{}, database.Workspace{}, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		}
+	}
+
+	selection := uuid.NullUUID{
+		UUID:  workspace.ID,
+		Valid: true,
+	}
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
+		return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace not found or you do not have access to this resource",
+		}
+	}
+
+	return selection, workspace, 0, nil
+}
+
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	r *http.Request,
@@ -2939,36 +3209,17 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	*codersdk.Response,
 ) {
 	selection := createChatWorkspaceSelection{}
-	if req.WorkspaceID == nil {
+	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+	if resp != nil {
+		return selection, status, resp
+	}
+	selection.WorkspaceID = workspaceID
+	if !workspaceID.Valid {
 		return selection, 0, nil
 	}
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			return selection, http.StatusBadRequest, &codersdk.Response{
-				Message: "Workspace not found or you do not have access to this resource",
-			}
-		}
-		return selection, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to get workspace.",
-			Detail:  err.Error(),
-		}
-	}
-	selection.WorkspaceID = uuid.NullUUID{
-		UUID:  workspace.ID,
-		Valid: true,
-	}
-
 	if workspace.OrganizationID != req.OrganizationID {
 		return selection, http.StatusBadRequest, &codersdk.Response{
 			Message: "Workspace does not belong to the specified organization.",
-		}
-	}
-
-	if !api.Authorize(r, policy.ActionSSH, workspace) {
-		return selection, http.StatusBadRequest, &codersdk.Response{
-			Message: "Workspace not found or you do not have access to this resource",
 		}
 	}
 
@@ -3039,48 +3290,7 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 const (
 	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
 	maxChatFileSize = 10 << 20
-	// maxChatFileName is the maximum length of an uploaded file name.
-	maxChatFileName = 255
 )
-
-// allowedChatFileMIMETypes lists the content types accepted for chat
-// file uploads. SVG is explicitly excluded because it can contain scripts.
-var allowedChatFileMIMETypes = map[string]bool{
-	"image/png":     true,
-	"image/jpeg":    true,
-	"image/gif":     true,
-	"image/webp":    true,
-	"text/plain":    true,
-	"image/svg+xml": false, // SVG can contain scripts.
-}
-
-func allowedChatFileMIMETypesStr() string {
-	var types []string
-	for t, allowed := range allowedChatFileMIMETypes {
-		if allowed {
-			types = append(types, t)
-		}
-	}
-	slices.Sort(types)
-	return strings.Join(types, ", ")
-}
-
-var (
-	webpMagicRIFF = []byte("RIFF")
-	webpMagicWEBP = []byte("WEBP")
-)
-
-// detectChatFileType detects the MIME type of the given data.
-// It extends http.DetectContentType with support for WebP, which
-// Go's standard sniffer does not recognize.
-func detectChatFileType(data []byte) string {
-	if len(data) >= 12 &&
-		bytes.Equal(data[0:4], webpMagicRIFF) &&
-		bytes.Equal(data[8:12], webpMagicWEBP) {
-		return "image/webp"
-	}
-	return http.DetectContentType(data)
-}
 
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -3148,6 +3358,122 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	instructions, err := api.Database.GetChatPlanModeInstructions(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching plan mode instructions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatPlanModeInstructionsResponse{
+		PlanModeInstructions: instructions,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
+
+	var req codersdk.UpdateChatPlanModeInstructionsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	sanitizedInstructions := chatd.SanitizePromptText(req.PlanModeInstructions)
+	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Plan mode instructions exceed maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedInstructions)),
+		})
+		return
+	}
+
+	if err := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating plan mode instructions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	modelConfigID, hasMalformedOverride, err := api.getChatExploreModelOverrideConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching Explore model override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatExploreModelOverrideResponse{
+		ModelConfigID:        modelConfigID,
+		HasMalformedOverride: hasMalformedOverride,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatExploreModelOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	status, resp := validateChatExploreModelOverrideID(ctx, api.Database, req.ModelConfigID)
+	if resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
+	}
+
+	if err := api.Database.UpsertChatExploreModelOverride(ctx, formatChatExploreModelOverride(req.ModelConfigID)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating Explore model override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -3745,61 +4071,24 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
 		contentType = mediaType
 	}
-
-	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
+	if !chatfiles.IsAllowedStoredMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
 		})
 		return
+	}
+
+	// Extract filename from Content-Disposition header if provided.
+	var filename string
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			filename = params["filename"]
+		}
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
-	br := bufio.NewReader(r.Body)
-
-	// Peek at the leading bytes to sniff the real content type
-	// before reading the entire body.
-	peek, peekErr := br.Peek(512)
-	if peekErr != nil && !errors.Is(peekErr, io.EOF) && !errors.Is(peekErr, bufio.ErrBufferFull) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read file from request.",
-			Detail:  peekErr.Error(),
-		})
-		return
-	}
-
-	// Verify the actual content matches an allowed file type so that
-	// a client cannot spoof Content-Type to serve active content.
-	detected := detectChatFileType(peek)
-	if mediaType, _, err := mime.ParseMediaType(detected); err == nil {
-		detected = mediaType
-	}
-	if contentType == "text/plain" && strings.HasPrefix(detected, "text/") {
-		detected = "text/plain"
-	}
-	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
-		})
-		return
-	}
-	// The mismatch check below is security-critical: it prevents a text
-	// body from being uploaded under an image Content-Type (or vice
-	// versa) now that both text/plain and image types are in the
-	// allowlist. Combined with the X-Content-Type-Options: nosniff
-	// header applied globally, this ensures browsers respect the
-	// stored MIME type.
-	if detected != contentType {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "File content type does not match Content-Type header.",
-			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
-		})
-		return
-	}
-
-	// Read the full body now that we know the type is valid.
-	data, err := io.ReadAll(br)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -3816,27 +4105,43 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract filename from Content-Disposition header if provided.
-	var filename string
-	if cd := r.Header.Get("Content-Disposition"); cd != "" {
-		if _, params, err := mime.ParseMediaType(cd); err == nil {
-			filename = params["filename"]
-			if len(filename) > maxChatFileName {
-				// Truncate at rune boundary to avoid splitting
-				// multi-byte UTF-8 characters.
-				var truncated []byte
-				for _, r := range filename {
-					encoded := []byte(string(r))
-					if len(truncated)+len(encoded) > maxChatFileName {
-						break
-					}
-					truncated = append(truncated, encoded...)
-				}
-				filename = string(truncated)
-			}
+	// Verify the actual content matches an allowed file type so that
+	// a client cannot spoof Content-Type to serve active content.
+	filename, detected, err := chatfiles.PrepareStoredFile(filename, filename, data)
+	if err != nil {
+		switch {
+		case errors.Is(err, chatfiles.ErrStoredFileNameRequired):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Filename is required.",
+				Detail:  "Provide a filename in the Content-Disposition header.",
+			})
+		case errors.Is(err, chatfiles.ErrUnsupportedStoredFileType):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unsupported file type.",
+				Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid file.",
+				Detail:  err.Error(),
+			})
 		}
+		return
 	}
-
+	// The compatibility check below is security-critical: it keeps exact
+	// media-type matching by default while allowing safe text/plain
+	// refinements such as JSON, CSV, and Markdown now that upload
+	// classification can return richer stored media types. Combined with
+	// the X-Content-Type-Options: nosniff header applied globally, this
+	// still prevents clients from smuggling binary or active content under
+	// a safer declared Content-Type.
+	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "File content type does not match Content-Type header.",
+			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
+		})
+		return
+	}
 	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        apiKey.UserID,
 		OrganizationID: orgID,
@@ -3883,10 +4188,14 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
+	disposition := "attachment"
+	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
+		disposition = "inline"
+	}
 	if chatFile.Name != "" {
-		rw.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": chatFile.Name}))
+		rw.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": chatFile.Name}))
 	} else {
-		rw.Header().Set("Content-Disposition", "inline")
+		rw.Header().Set("Content-Disposition", disposition)
 	}
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
@@ -3956,7 +4265,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.

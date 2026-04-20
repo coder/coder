@@ -90,6 +90,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
+	// Fetch user secrets for injection into the agent manifest.
+	// This runs after the errgroup because it needs workspace.OwnerID.
+	//nolint:gocritic // System context needed to read secrets for the workspace owner.
+	userSecrets, err := a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting user secrets: %w", err)
+	}
+
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
@@ -141,6 +149,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
+		Secrets:       dbUserSecretsToProto(userSecrets),
 	}, nil
 }
 
@@ -262,6 +271,24 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 			ConfigPath:      dc.ConfigPath,
 			SubagentId:      subagentID,
 		}
+	}
+	return ret
+}
+
+func dbUserSecretsToProto(secrets []database.UserSecret) []*agentproto.WorkspaceSecret {
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
+	for _, s := range secrets {
+		// Only include secrets that have an environment variable
+		// name or file path set. Secrets with neither are not
+		// injected at runtime.
+		if s.EnvName == "" && s.FilePath == "" {
+			continue
+		}
+		ret = append(ret, &agentproto.WorkspaceSecret{
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Value:    []byte(s.Value),
+		})
 	}
 	return ret
 }

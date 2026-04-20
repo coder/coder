@@ -402,10 +402,12 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    plan_mode,
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -417,10 +419,12 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -513,6 +517,17 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatPlanModeByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    plan_mode = sqlc.narg('plan_mode')::chat_plan_mode
 WHERE
     id = @id::uuid
 RETURNING
@@ -919,6 +934,28 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: GetChatDiffStatusSummary :one
+-- Returns aggregate PR counts across all agent chats for telemetry.
+-- Deduplicates by PR URL so forked chats referencing the same pull
+-- request are counted once (using the most recently refreshed state).
+-- Total is derived from the three recognized state buckets and
+-- always equals open + merged + closed; other non-NULL states are
+-- intentionally excluded from these aggregates.
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+)
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM deduped;
+
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
 -- Only counts assistant-role messages.
@@ -1283,12 +1320,14 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
-FROM chats
-WHERE updated_at > @updated_after;
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created

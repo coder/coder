@@ -67,6 +67,7 @@ export interface AIBridgeConfig {
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
 	readonly send_actor_headers: boolean;
+	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider rate limits (429, 503, 529 overloaded).
@@ -1235,6 +1236,7 @@ export interface Chat {
 	readonly last_model_config_id: string;
 	readonly title: string;
 	readonly status: ChatStatus;
+	readonly plan_mode?: ChatPlanMode;
 	readonly last_error: string | null;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
@@ -1258,12 +1260,18 @@ export interface Chat {
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
 	readonly warnings?: readonly string[];
+	readonly client_type: ChatClientType;
 }
 
 // From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+
+// From codersdk/chats.go
+export type ChatClientType = "api" | "ui";
+
+export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
 
 // From codersdk/chats.go
 /**
@@ -1576,6 +1584,20 @@ export interface ChatDiffStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatExploreModelOverrideResponse is the response body for the Explore
+ * subagent model override configuration endpoint.
+ */
+export interface ChatExploreModelOverrideResponse {
+	readonly model_config_id?: string;
+	/**
+	 * HasMalformedOverride reports whether the saved override is malformed and
+	 * is currently being treated as unset.
+	 */
+	readonly has_malformed_override: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -1592,6 +1614,7 @@ export interface ChatFileMetadata {
 export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
+	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -2021,6 +2044,20 @@ export interface ChatModelVercelProviderOptions {
 export interface ChatModelsResponse {
 	readonly providers: readonly ChatModelProvider[];
 }
+
+// From codersdk/chats.go
+export type ChatPlanMode = "plan";
+
+// From codersdk/chats.go
+/**
+ * ChatPlanModeInstructionsResponse is the response body for the
+ * plan mode instructions configuration endpoint.
+ */
+export interface ChatPlanModeInstructionsResponse {
+	readonly plan_mode_instructions: string;
+}
+
+export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
@@ -2602,6 +2639,11 @@ export interface CreateChatMessageRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
 	readonly busy_behavior?: ChatBusyBehavior;
+	/**
+	 * PlanMode switches the chat's persistent plan mode.
+	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 */
+	readonly plan_mode?: ChatPlanMode;
 }
 
 // From codersdk/chats.go
@@ -2663,6 +2705,8 @@ export interface CreateChatRequest {
 	 * subject to change.
 	 */
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
+	readonly plan_mode?: ChatPlanMode;
+	readonly client_type?: ChatClientType;
 }
 
 // From codersdk/users.go
@@ -7554,6 +7598,15 @@ export interface UpdateChatDesktopEnabledRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatExploreModelOverrideRequest is the request body for updating the
+ * Explore subagent model override configuration endpoint.
+ */
+export interface UpdateChatExploreModelOverrideRequest {
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
@@ -7565,6 +7618,15 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatPlanModeInstructionsRequest is the request body for
+ * updating the plan mode instructions configuration.
+ */
+export interface UpdateChatPlanModeInstructionsRequest {
+	readonly plan_mode_instructions: string;
 }
 
 // From codersdk/chats.go
@@ -7588,6 +7650,7 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	readonly workspace_id?: string;
 	/**
 	 * PinOrder controls the chat's pinned state and position.
 	 * - nil: no change to pin state.
@@ -7601,6 +7664,11 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+	/**
+	 * PlanMode switches the chat's persistent plan mode.
+	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 */
+	readonly plan_mode?: ChatPlanMode;
 }
 
 // From codersdk/chats.go

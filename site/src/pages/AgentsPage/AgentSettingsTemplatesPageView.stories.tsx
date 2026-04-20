@@ -60,6 +60,39 @@ export const TemplateAllowlist: Story = {
 			expect(saveBtn).toBeDisabled();
 		});
 
+		await step("search filters by display name", async () => {
+			const input = canvas.getByPlaceholderText("Select templates...");
+			await userEvent.click(input);
+
+			// Type a partial display name.
+			await userEvent.type(input, "Docker");
+
+			// The matching template should be visible.
+			await waitFor(() => {
+				expect(
+					canvas.getByRole("option", { name: "Docker Development" }),
+				).toBeVisible();
+			});
+
+			// A non-matching template should not be visible.
+			await waitFor(() => {
+				expect(
+					canvas.queryByRole("option", { name: "Kubernetes Production" }),
+				).not.toBeInTheDocument();
+			});
+
+			// Clear the search and verify the full list returns.
+			await userEvent.clear(input);
+			await waitFor(() => {
+				expect(
+					canvas.getByRole("option", { name: "Kubernetes Production" }),
+				).toBeVisible();
+			});
+
+			// Close dropdown by pressing Escape so the next step starts clean.
+			await userEvent.keyboard("{Escape}");
+		});
+
 		await step("select one template and save", async () => {
 			const input = canvas.getByPlaceholderText("Select templates...");
 			await userEvent.click(input);

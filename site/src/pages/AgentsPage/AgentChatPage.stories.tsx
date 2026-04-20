@@ -132,6 +132,7 @@ const baseChatFields = {
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
 } as const;
 
@@ -229,6 +230,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
@@ -606,6 +608,45 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+export const PlanModeFromChatState: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Plan mode persists",
+				status: "completed",
+				plan_mode: "plan",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+
+		expect(await canvas.findByText("Planning")).toBeVisible();
+
+		await user.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1);
+		if (!toggle) {
+			throw new Error("Plan mode toggle did not render.");
+		}
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+		await user.click(toggle);
+
+		await waitFor(() => {
+			expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
+		});
 	},
 };
 

@@ -2,6 +2,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
+import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
@@ -19,6 +20,9 @@ interface AgentSettingsBehaviorPageViewProps {
 
 	// Raw query data
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
+	planModeInstructionsData:
+		| TypesGen.ChatPlanModeInstructionsResponse
+		| undefined;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
@@ -48,6 +52,13 @@ interface AgentSettingsBehaviorPageViewProps {
 	) => void;
 	isSavingSystemPrompt: boolean;
 	isSaveSystemPromptError: boolean;
+
+	onSavePlanModeInstructions: (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingPlanModeInstructions: boolean;
+	isSavePlanModeInstructionsError: boolean;
 
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
@@ -83,6 +94,7 @@ export const AgentSettingsBehaviorPageView: FC<
 > = ({
 	canSetSystemPrompt,
 	systemPromptData,
+	planModeInstructionsData,
 	userPromptData,
 	desktopEnabledData,
 	workspaceTTLData,
@@ -102,6 +114,9 @@ export const AgentSettingsBehaviorPageView: FC<
 	onSaveSystemPrompt,
 	isSavingSystemPrompt,
 	isSaveSystemPromptError,
+	onSavePlanModeInstructions,
+	isSavingPlanModeInstructions,
+	isSavePlanModeInstructionsError,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -115,15 +130,15 @@ export const AgentSettingsBehaviorPageView: FC<
 	isSavingRetentionDays,
 	isSaveRetentionDaysError,
 }) => {
-	const isAnyPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isAnyPromptSaving =
+		isSavingSystemPrompt || isSavingUserPrompt || isSavingPlanModeInstructions;
 
 	return (
-		<>
+		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Behavior"
 				description="Custom instructions that shape how the agent responds in your conversations."
 			/>
-
 			<PersonalInstructionsSettings
 				userPromptData={userPromptData}
 				onSaveUserPrompt={onSaveUserPrompt}
@@ -131,11 +146,7 @@ export const AgentSettingsBehaviorPageView: FC<
 				isSaveUserPromptError={isSaveUserPromptError}
 				isAnyPromptSaving={isAnyPromptSaving}
 			/>
-
-			<hr className="my-5 border-0 border-t border-solid border-border" />
 			<ChatFullWidthSettings />
-
-			<hr className="my-5 border-0 border-t border-solid border-border" />
 			<UserCompactionThresholdSettings
 				modelConfigs={modelConfigsData ?? []}
 				modelConfigsError={modelConfigsError}
@@ -150,22 +161,25 @@ export const AgentSettingsBehaviorPageView: FC<
 			{/* ── Admin-only settings ── */}
 			{canSetSystemPrompt && (
 				<>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<SystemInstructionsSettings
 						systemPromptData={systemPromptData}
 						onSaveSystemPrompt={onSaveSystemPrompt}
+						isSavingSystemPrompt={isSavingSystemPrompt}
 						isSaveSystemPromptError={isSaveSystemPromptError}
 						isAnyPromptSaving={isAnyPromptSaving}
 					/>
-					<hr className="my-5 border-0 border-t border-solid border-border" />
+					<PlanModeInstructionsSettings
+						planModeInstructionsData={planModeInstructionsData}
+						onSavePlanModeInstructions={onSavePlanModeInstructions}
+						isSavePlanModeInstructionsError={isSavePlanModeInstructionsError}
+						isAnyPromptSaving={isAnyPromptSaving}
+					/>
 					<VirtualDesktopSettings
 						desktopEnabledData={desktopEnabledData}
 						onSaveDesktopEnabled={onSaveDesktopEnabled}
 						isSavingDesktopEnabled={isSavingDesktopEnabled}
 						isSaveDesktopEnabledError={isSaveDesktopEnabledError}
 					/>
-
-					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<WorkspaceAutostopSettings
 						workspaceTTLData={workspaceTTLData}
 						isWorkspaceTTLLoading={isWorkspaceTTLLoading}
@@ -174,8 +188,6 @@ export const AgentSettingsBehaviorPageView: FC<
 						isSavingWorkspaceTTL={isSavingWorkspaceTTL}
 						isSaveWorkspaceTTLError={isSaveWorkspaceTTLError}
 					/>
-
-					<hr className="my-5 border-0 border-t border-solid border-border" />
 					<RetentionPeriodSettings
 						retentionDaysData={retentionDaysData}
 						isRetentionDaysLoading={isRetentionDaysLoading}
@@ -186,6 +198,6 @@ export const AgentSettingsBehaviorPageView: FC<
 					/>
 				</>
 			)}
-		</>
+		</div>
 	);
 };

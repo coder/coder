@@ -341,7 +341,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 			{...clickableProps}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
-				checked ? "bg-muted hover:bg-muted" : undefined,
+				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
 				clickableProps.className,
 			])}
 		>

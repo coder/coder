@@ -59,7 +59,6 @@
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
 		"@mui/system": "5.18.0",
-		"@mui/x-tree-view": "7.29.10",
 		"@novnc/novnc": "^1.5.0",
 		"@pierre/diffs": "1.1.0-beta.19",
 		"@tanstack/react-query-devtools": "5.77.0",
@@ -70,7 +69,7 @@
 		"@xterm/addon-webgl": "0.18.0",
 		"@xterm/xterm": "5.5.0",
 		"ansi-to-html": "0.7.2",
-		"axios": "1.13.2",
+		"axios": "1.15.0",
 		"chroma-js": "2.6.0",
 		"class-variance-authority": "0.7.1",
 		"clsx": "2.1.1",
@@ -170,7 +169,7 @@
 		"knip": "5.71.0",
 		"msw": "2.4.8",
 		"postcss": "8.5.6",
-		"protobufjs": "7.5.4",
+		"protobufjs": "7.5.5",
 		"resize-observer-polyfill": "1.5.1",
 		"rollup-plugin-visualizer": "7.0.1",
 		"rxjs": "7.8.2",
@@ -195,7 +194,7 @@
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
-		"node": ">=18.0.0 <23.0.0"
+		"node": ">=18.0.0 <25.0.0"
 	},
 	"pnpm": {
 		"overrides": {

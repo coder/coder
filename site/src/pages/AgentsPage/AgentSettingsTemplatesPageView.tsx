@@ -80,7 +80,7 @@ export const AgentSettingsTemplatesPageView: FC<
 	};
 
 	return (
-		<div className="space-y-6">
+		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Templates"
 				description="Restrict which templates agents can use to create workspaces. When no templates are selected, all templates are available."

@@ -4,6 +4,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -11,10 +12,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `document`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.AuthenticateResponse
 
@@ -34,6 +36,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -41,10 +44,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `encoding`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -90,15 +94,17 @@
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `json_web_token` | string | true     |              |             |
+| Name             | Type   | Required | Restrictions | Description                                                                                                                                      |
+|------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `json_web_token` | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.Log
 
@@ -431,6 +437,7 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
@@ -476,6 +483,7 @@
 
 | Name                                | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                 |
 |-------------------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).                                                       |
@@ -1245,6 +1253,7 @@
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
@@ -3279,6 +3288,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -3868,6 +3878,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"
