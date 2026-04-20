@@ -95,6 +95,12 @@ type Chat struct {
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
 	ClientType          ChatClientType    `json:"client_type"`
+	// Children holds child (subagent) chats nested under this root
+	// chat. Always initialized to an empty slice so the JSON field
+	// is present as []. Child chats cannot create their own
+	// subagents, so nesting depth is capped at 1 and this slice is
+	// always empty for child chats.
+	Children []Chat `json:"children"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -212,6 +218,7 @@ type ChatMessagePart struct {
 	URL               string              `json:"url" variants:"source"`
 	Title             string              `json:"title,omitempty" variants:"source?"`
 	MediaType         string              `json:"media_type" variants:"file"`
+	Name              string              `json:"name,omitempty" variants:"file?"`
 	Data              []byte              `json:"data,omitempty" variants:"file?"`
 	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
 	FileName          string              `json:"file_name" variants:"file-reference"`
@@ -327,11 +334,12 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 }
 
 // ChatMessageFile builds a file chat message part.
-func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+func ChatMessageFile(fileID uuid.UUID, mediaType string, name string) ChatMessagePart {
 	return ChatMessagePart{
 		Type:      ChatMessagePartTypeFile,
 		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
 		MediaType: mediaType,
+		Name:      name,
 	}
 }
 

@@ -54,6 +54,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -110,13 +111,18 @@ type Story = StoryObj<typeof AgentsSidebar>;
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-1", title: "Root agent" }),
 			buildChat({
-				id: "child-running",
-				title: "Running child",
-				status: "running",
-				parent_chat_id: "root-1",
-				root_chat_id: "root-1",
+				id: "root-1",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-running",
+						title: "Running child",
+						status: "running",
+						parent_chat_id: "root-1",
+						root_chat_id: "root-1",
+					}),
+				],
 			}),
 		],
 	},
@@ -140,13 +146,18 @@ export const RunningDelegatedChat: Story = {
 export const PendingDelegatedChat: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-pending", title: "Root agent" }),
 			buildChat({
-				id: "child-pending",
-				title: "Pending child",
-				status: "pending",
-				parent_chat_id: "root-pending",
-				root_chat_id: "root-pending",
+				id: "root-pending",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-pending",
+						title: "Pending child",
+						status: "pending",
+						parent_chat_id: "root-pending",
+						root_chat_id: "root-pending",
+					}),
+				],
 			}),
 		],
 	},
@@ -170,12 +181,17 @@ export const PendingDelegatedChat: Story = {
 export const ExpandCollapse: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-2", title: "Root for collapse" }),
 			buildChat({
-				id: "child-collapse",
-				title: "Nested child",
-				parent_chat_id: "root-2",
-				root_chat_id: "root-2",
+				id: "root-2",
+				title: "Root for collapse",
+				children: [
+					buildChat({
+						id: "child-collapse",
+						title: "Nested child",
+						parent_chat_id: "root-2",
+						root_chat_id: "root-2",
+					}),
+				],
 			}),
 		],
 	},
@@ -212,12 +228,14 @@ export const RunningChatPreservesSpinner: Story = {
 				id: "root-running",
 				title: "Running root agent",
 				status: "running",
-			}),
-			buildChat({
-				id: "child-of-running",
-				title: "Child of running",
-				parent_chat_id: "root-running",
-				root_chat_id: "root-running",
+				children: [
+					buildChat({
+						id: "child-of-running",
+						title: "Child of running",
+						parent_chat_id: "root-running",
+						root_chat_id: "root-running",
+					}),
+				],
 			}),
 		],
 	},
@@ -257,13 +275,15 @@ export const IdleParentWithRunningChild: Story = {
 				id: "idle-parent",
 				title: "Idle parent agent",
 				status: "waiting",
-			}),
-			buildChat({
-				id: "running-child",
-				title: "Running sub-agent",
-				status: "running",
-				parent_chat_id: "idle-parent",
-				root_chat_id: "idle-parent",
+				children: [
+					buildChat({
+						id: "running-child",
+						title: "Running sub-agent",
+						status: "running",
+						parent_chat_id: "idle-parent",
+						root_chat_id: "idle-parent",
+					}),
+				],
 			}),
 		],
 	},
@@ -289,6 +309,10 @@ export const IdleParentWithRunningChild: Story = {
 };
 
 export const ActiveChatAncestryExpanded: Story = {
+	// This story uses the flat-sibling shape (parent_chat_id on each
+	// entry) rather than embedded children. It intentionally
+	// exercises the defensive fallback loop in buildChatTree for
+	// stale cache data from before root-only pagination landed.
 	args: {
 		chats: [
 			buildChat({ id: "root-active", title: "Active root" }),
@@ -329,6 +353,57 @@ export const ActiveChatAncestryExpanded: Story = {
 		await expect(
 			canvas.getByTestId("agents-tree-toggle-child-active"),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+export const MixedCacheDoesNotDuplicateChild: Story = {
+	// Simulates the rollout window where a stale cache entry for a child
+	// chat still appears as a flat sibling in the paginated list while
+	// the same child is also embedded under its parent. Without the
+	// guard in buildChatTree (`if (!parentById.has(chat.id))` around
+	// setting the parent link to undefined), the flat entry would
+	// overwrite the embedded parent link and the defensive fallback
+	// would re-add the child to its parent's children list, producing
+	// a React duplicate-key warning and double-render.
+	args: {
+		chats: [
+			buildChat({
+				id: "mixed-root",
+				title: "Mixed root",
+				children: [
+					buildChat({
+						id: "mixed-child",
+						title: "Mixed child",
+						parent_chat_id: "mixed-root",
+						root_chat_id: "mixed-root",
+					}),
+				],
+			}),
+			// Stale flat entry for the same child still present in the
+			// cache. It must not cause a duplicate render.
+			buildChat({
+				id: "mixed-child",
+				title: "Mixed child",
+				parent_chat_id: "mixed-root",
+				root_chat_id: "mixed-root",
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/mixed-child",
+				pathParams: { agentId: "mixed-child" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Mixed root")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Mixed child")).toHaveLength(1);
+		});
 	},
 };
 

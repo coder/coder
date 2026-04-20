@@ -64,19 +64,10 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 	return uuid.Parse(envelope.Data.FileID)
 }
 
-// ConvertMessages converts persisted chat messages into LLM prompt
-// messages without resolving file references from storage. Inline
-// file data is preserved when present (backward compat).
-func ConvertMessages(
-	messages []database.ChatMessage,
-) ([]fantasy.Message, error) {
-	return ConvertMessagesWithFiles(context.Background(), messages, nil, slog.Logger{})
-}
-
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
-// prompt messages, resolving file references via the provided
-// resolver. When resolver is nil, file blocks without inline data
-// are passed through as-is (same behavior as ConvertMessages).
+// prompt messages, resolving user file references via the provided
+// resolver. Persisted file references without bytes are omitted from
+// the prompt instead of being replayed back to the model.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -85,7 +76,8 @@ func ConvertMessagesWithFiles(
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
-	// resolution.
+	// resolution. Assistant-side file attachments remain persisted chat
+	// metadata and are intentionally not replayed to the model.
 	type parsedMessage struct {
 		role  codersdk.ChatMessageRole
 		parts []codersdk.ChatMessagePart
@@ -162,7 +154,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(logger, pm.parts, resolved),
+				partsToMessageParts(logger, pm.parts, nil),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -186,7 +178,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(logger, pm.parts, resolved)
+			toolParts := partsToMessageParts(logger, pm.parts, nil)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -1337,6 +1329,13 @@ func partsToMessageParts(
 						mediaType = fd.MediaType
 					}
 				}
+			}
+			if len(data) == 0 {
+				// File parts without bytes are persistence metadata, not
+				// prompt content. User uploads should have been resolved
+				// above; assistant tool attachments intentionally are not
+				// replayed into later model turns.
+				continue
 			}
 			// Providers only accept a small set of MIME types in file
 			// content blocks, typically images and PDFs. A synthetic

@@ -2046,7 +2046,6 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
 		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
 			WorkspaceID: workspace.ID,
-			OwnerID:     workspace.OwnerID,
 			Branch:      gitRef.Branch,
 			Origin:      gitRef.RemoteOrigin,
 			ChatID:      gitRef.ChatID,
@@ -2201,7 +2200,6 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
 		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
 			WorkspaceID: workspace.ID,
-			OwnerID:     workspace.OwnerID,
 			Branch:      gitRef.Branch,
 			Origin:      gitRef.RemoteOrigin,
 			ChatID:      gitRef.ChatID,

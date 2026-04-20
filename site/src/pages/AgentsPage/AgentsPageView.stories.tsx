@@ -143,6 +143,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
