@@ -603,7 +603,6 @@ func TestExpAgents(t *testing.T) {
 			model.catalog = &catalog
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.chat = &chat
-			model.chat.gitChanges = []codersdk.ChatGitChange{}
 
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
@@ -837,7 +836,6 @@ func TestExpAgents(t *testing.T) {
 				{name: "Draft/chatOpenedMsg", msg: chatOpenedMsg{generation: 1, chatID: uuid.New(), chat: testChat(codersdk.ChatStatusCompleted)}, draft: true},
 				{name: "Draft/chatHistoryMsg", msg: chatHistoryMsg{generation: 1, chatID: uuid.New(), messages: []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"})}}, draft: true},
 				{name: "Draft/chatStreamEventMsg", msg: chatStreamEventMsg{generation: 1, chatID: uuid.New(), event: testTextPartEvent("stale")}, draft: true},
-				{name: "Draft/gitChangesMsg", msg: gitChangesMsg{generation: 1, chatID: uuid.New()}, draft: true},
 				{name: "Draft/diffContentsMsg", msg: diffContentsMsg{generation: 1, chatID: uuid.New()}, draft: true},
 			}
 			for _, tt := range tests {
@@ -2094,7 +2092,6 @@ func TestExpAgents(t *testing.T) {
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.setChat(chat)
 			model.chat.messages = overflowingMessages(10)
-			model.chat.gitChanges = []codersdk.ChatGitChange{}
 			diff := codersdk.ChatDiffContents{ChatID: chat.ID, Diff: "diff --git a/file b/file"}
 			model.chat.diffContents = &diff
 			model.chat.rebuildBlocks()

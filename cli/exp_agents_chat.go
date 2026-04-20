@@ -304,7 +304,6 @@ type chatViewModel struct {
 	interrupting    bool
 
 	diffStatus   *codersdk.ChatDiffStatus
-	gitChanges   []codersdk.ChatGitChange
 	diffContents *codersdk.ChatDiffContents
 	diffErr      error
 
@@ -471,7 +470,6 @@ func (m *chatViewModel) setChat(chat codersdk.Chat) {
 	m.activeChatID = chat.ID
 	m.chatStatus = chat.Status
 	m.diffStatus = chat.DiffStatus
-	m.gitChanges = nil
 	m.diffContents = nil
 	m.diffErr = nil
 }
@@ -1166,17 +1164,6 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		if m.modelPickerCursor >= len(m.modelPickerFlat) {
 			m.modelPickerCursor = max(len(m.modelPickerFlat)-1, 0)
 		}
-		return m, nil
-
-	case gitChangesMsg:
-		if !m.matchesGeneration(msg.generation) {
-			return m, nil
-		}
-		if msg.err != nil {
-			m.diffErr = msg.err
-			return m, nil
-		}
-		m.gitChanges = msg.changes
 		return m, nil
 
 	case diffContentsMsg:

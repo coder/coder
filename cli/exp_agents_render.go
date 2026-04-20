@@ -310,13 +310,6 @@ func diffMetadataLines(diff codersdk.ChatDiffContents) []string {
 	return lines
 }
 
-func resolvedChatDiffChanges(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) []codersdk.ChatGitChange {
-	if len(changes) > 0 {
-		return changes
-	}
-	return parseChatGitChangesFromUnifiedDiff(diff)
-}
-
 func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []codersdk.ChatGitChange {
 	rawDiff := sanitizeTerminalRenderableText(diff.Diff)
 	if strings.TrimSpace(rawDiff) == "" {
@@ -551,8 +544,8 @@ func stripUnifiedDiffPrefix(path string) string {
 	}
 }
 
-func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
-	changes = resolvedChatDiffChanges(diff, changes)
+func renderChatDiffSummary(diff codersdk.ChatDiffContents) string {
+	changes := parseChatGitChangesFromUnifiedDiff(diff)
 	if len(changes) == 0 {
 		return "No changes detected."
 	}
@@ -612,13 +605,13 @@ func styleUnifiedDiffLine(styles tuiStyles, line string) string {
 	}
 }
 
-func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
+func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
 	if meta := diffMetadataLines(diff); len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
-	summary := renderChatDiffSummary(diff, changes)
+	summary := renderChatDiffSummary(diff)
 	diffBody := renderStyledDiffBody(styles, diff.Diff)
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4

@@ -555,10 +555,9 @@ func TestExpAgentsRender(t *testing.T) {
 		branch := "feature/chat-ui"
 		prURL := "https://example.com/pulls/123"
 		for _, tt := range []struct {
-			name    string
-			diff    codersdk.ChatDiffContents
-			changes []codersdk.ChatGitChange
-			assert  func(t *testing.T, output string)
+			name   string
+			diff   codersdk.ChatDiffContents
+			assert func(t *testing.T, output string)
 		}{
 			{name: "ShowsMetadataWhenPresent", diff: codersdk.ChatDiffContents{Branch: &branch, PullRequestURL: &prURL}, assert: func(t *testing.T, output string) {
 				require.Contains(t, output, "Branch: feature/chat-ui")
@@ -576,7 +575,7 @@ func TestExpAgentsRender(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				var output string
-				require.NotPanics(t, func() { output = plainText(renderDiffDrawer(styles, tt.diff, tt.changes, 90, 20)) })
+				require.NotPanics(t, func() { output = plainText(renderDiffDrawer(styles, tt.diff, 90, 20)) })
 				tt.assert(t, output)
 			})
 		}
@@ -768,10 +767,6 @@ func TestExpAgentsRender(t *testing.T) {
 		rawOutput := renderDiffDrawer(
 			styles,
 			codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+safe\x1b]52;c;clipboard\x07line"},
-			[]codersdk.ChatGitChange{{
-				FilePath:   "a.txt\x1b]52;c;clipboard\x07",
-				ChangeType: "modified",
-			}},
 			90,
 			20,
 		)
