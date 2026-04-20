@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/aisdk-go"
@@ -61,38 +62,20 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	return userClient, r.Workspace, r.AgentToken
 }
 
-type recordingAgentDialer struct {
+type recordingAgentConnFunc struct {
 	conn    workspacesdk.AgentConn
+	err     error
 	agentID uuid.UUID
 	calls   int
-	options *workspacesdk.DialAgentOptions
 }
 
-func (d *recordingAgentDialer) DialAgent(_ context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error) {
+func (d *recordingAgentConnFunc) AgentConn(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	d.calls++
 	d.agentID = agentID
-	if options != nil {
-		optsCopy := *options
-		d.options = &optsCopy
+	if d.err != nil {
+		return nil, nil, d.err
 	}
-	return d.conn, nil
-}
-
-type lsOnlyAgentConn struct {
-	workspacesdk.AgentConn
-	response   workspacesdk.LSResponse
-	path       string
-	closeCalls int
-}
-
-func (c *lsOnlyAgentConn) LS(_ context.Context, path string, _ workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
-	c.path = path
-	return c.response, nil
-}
-
-func (c *lsOnlyAgentConn) Close() error {
-	c.closeCalls++
-	return nil
+	return d.conn, nil, nil
 }
 
 // These tests are dependent on the state of the coder server.
@@ -631,7 +614,7 @@ func TestTools(t *testing.T) {
 		}, res.Contents)
 	})
 
-	t.Run("WorkspaceLSUsesInjectedDialer", func(t *testing.T) {
+	t.Run("WorkspaceToolsUseInjectedAgentConnFunc", func(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
@@ -643,34 +626,101 @@ func TestTools(t *testing.T) {
 		require.NotEmpty(t, ws.LatestBuild.Resources)
 		require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
 		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+		sentinelErr := xerrors.New("injected agent connection function used")
 
-		stubConn := &lsOnlyAgentConn{
-			response: workspacesdk.LSResponse{
-				Contents: []workspacesdk.LSFile{{
-					AbsolutePathString: "/tmp/from-dialer",
-					IsDir:              false,
-				}},
+		tests := []struct {
+			name string
+			run  func(t *testing.T, tb toolsdk.Deps) error
+		}{
+			{
+				name: "WorkspaceLS",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceReadFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceWriteFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Content:   []byte("hello from agent connection function"),
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Edits: []workspacesdk.FileEdit{{
+							Search:  "hello",
+							Replace: "goodbye",
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFiles",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+						Workspace: workspace.Name,
+						Files: []workspacesdk.FileEdits{{
+							Path: "/tmp/file",
+							Edits: []workspacesdk.FileEdit{{
+								Search:  "hello",
+								Replace: "goodbye",
+							}},
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceBash",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+						Workspace: workspace.Name,
+						Command:   "echo hello",
+					})
+					return err
+				},
 			},
 		}
-		dialer := &recordingAgentDialer{conn: stubConn}
-		tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentDialer(dialer))
-		require.NoError(t, err)
 
-		res, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
-			Workspace: workspace.Name,
-			Path:      "/tmp",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []toolsdk.WorkspaceLSFile{{
-			Path:  "/tmp/from-dialer",
-			IsDir: false,
-		}}, res.Contents)
-		require.Equal(t, 1, dialer.calls)
-		require.Equal(t, agentID, dialer.agentID)
-		require.NotNil(t, dialer.options)
-		require.False(t, dialer.options.BlockEndpoints)
-		require.Equal(t, "/tmp", stubConn.path)
-		require.Equal(t, 1, stubConn.closeCalls)
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				agentConnFn := &recordingAgentConnFunc{err: sentinelErr}
+				tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentConnFunc(agentConnFn.AgentConn))
+				require.NoError(t, err)
+
+				err = tt.run(t, tb)
+				require.ErrorIs(t, err, sentinelErr)
+				require.ErrorContains(t, err, "failed to dial agent")
+				require.Equal(t, 1, agentConnFn.calls)
+				require.Equal(t, agentID, agentConnFn.agentID)
+			})
+		}
 	})
 
 	t.Run("WorkspaceReadFile", func(t *testing.T) {

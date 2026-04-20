@@ -6,7 +6,69 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 )
+
+type closeTrackingAgentConn struct {
+	AgentConn
+	closeCalls int
+	closeErr   error
+}
+
+func (c *closeTrackingAgentConn) Close() error {
+	c.closeCalls++
+	return c.closeErr
+}
+
+func TestWrapAgentConn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil conn runs close func", func(t *testing.T) {
+		t.Parallel()
+
+		closeCalls := 0
+		wrapped := WrapAgentConn(nil, func() error {
+			closeCalls++
+			return nil
+		})
+
+		require.Nil(t, wrapped)
+		require.Equal(t, 1, closeCalls)
+	})
+
+	t.Run("nil close func still wraps conn", func(t *testing.T) {
+		t.Parallel()
+
+		baseConn := &closeTrackingAgentConn{}
+		wrapped := WrapAgentConn(baseConn, nil)
+		require.NotNil(t, wrapped)
+		require.NoError(t, wrapped.Close())
+		require.Equal(t, 1, baseConn.closeCalls)
+	})
+
+	t.Run("close is idempotent and joins errors", func(t *testing.T) {
+		t.Parallel()
+
+		baseErr := xerrors.New("close conn")
+		releaseErr := xerrors.New("release conn")
+		baseConn := &closeTrackingAgentConn{closeErr: baseErr}
+		releaseCalls := 0
+		wrapped := WrapAgentConn(baseConn, func() error {
+			releaseCalls++
+			return releaseErr
+		})
+
+		err := wrapped.Close()
+		require.ErrorIs(t, err, baseErr)
+		require.ErrorIs(t, err, releaseErr)
+
+		err = wrapped.Close()
+		require.ErrorIs(t, err, baseErr)
+		require.ErrorIs(t, err, releaseErr)
+		require.Equal(t, 1, baseConn.closeCalls)
+		require.Equal(t, 1, releaseCalls)
+	})
+}
 
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()

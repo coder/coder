@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -64,6 +65,16 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	for _, opt := range opts {
 		opt(&d)
 	}
+	if d.agentConnFn == nil && d.coderClient != nil {
+		workspaceClient := workspacesdk.New(d.coderClient)
+		d.agentConnFn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			conn, err := workspaceClient.DialAgent(ctx, agentID, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			return conn, nil, nil
+		}
+	}
 	// Allow nil client for unauthenticated operation
 	// This enables tools that don't require user authentication to function
 	return d, nil
@@ -73,7 +84,7 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 type Deps struct {
 	coderClient *codersdk.Client
 	report      func(ReportTaskArgs) error
-	agentDialer workspacesdk.AgentDialer
+	agentConnFn workspacesdk.AgentConnFunc
 }
 
 func (d Deps) ServerURL() string {
@@ -89,12 +100,53 @@ func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	}
 }
 
-// WithAgentDialer overrides how workspace tools open logical connections to
+// WithAgentConnFunc overrides how workspace tools open logical connections to
 // workspace agents.
-func WithAgentDialer(dialer workspacesdk.AgentDialer) func(*Deps) {
+func WithAgentConnFunc(agentConnFn workspacesdk.AgentConnFunc) func(*Deps) {
 	return func(d *Deps) {
-		d.agentDialer = dialer
+		d.agentConnFn = agentConnFn
 	}
+}
+
+// openAgentConn opens a ready workspace agent session for workspace inputs in
+// [owner/]workspace[.agent] format.
+func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
+	if deps.coderClient == nil {
+		return nil, xerrors.New("workspace tools require an authenticated client")
+	}
+
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         deps.coderClient.WorkspaceAgent,
+		FetchLogs:     deps.coderClient.WorkspaceAgentLogsAfter,
+		// Always wait for startup scripts.
+		Wait: true,
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	conn, release, err := deps.agentConnFn(ctx, workspaceAgent.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	wrappedConn := workspacesdk.WrapAgentConn(conn, func() error {
+		if release != nil {
+			release()
+		}
+		return nil
+	})
+	if wrappedConn == nil {
+		return nil, xerrors.New("agent connection function returned nil connection")
+	}
+
+	return wrappedConn, nil
 }
 
 // HandlerFunc is a typed function that handles a tool call.
@@ -1509,7 +1561,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
-		conn, err := newWorkspaceRuntime(deps).openAgentConn(ctx, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceLSResponse{}, err
 		}
@@ -1575,7 +1627,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := newWorkspaceRuntime(deps).openAgentConn(ctx, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
@@ -1649,7 +1701,7 @@ content you are trying to write, then re-encode it properly.
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := newWorkspaceRuntime(deps).openAgentConn(ctx, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1724,7 +1776,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := newWorkspaceRuntime(deps).openAgentConn(ctx, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err
 		}
@@ -1808,7 +1860,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := newWorkspaceRuntime(deps).openAgentConn(ctx, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err
 		}

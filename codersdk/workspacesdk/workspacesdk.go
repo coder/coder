@@ -175,10 +175,9 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
-// AgentDialer opens logical connections to workspace agents.
-type AgentDialer interface {
-	DialAgent(ctx context.Context, agentID uuid.UUID, options *DialAgentOptions) (AgentConn, error)
-}
+// AgentConnFunc returns a new connection to the specified agent. If release is
+// non-nil, callers must invoke it after they are done with the AgentConn.
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (_ AgentConn, release func(), _ error)
 
 // @typescript-ignore DialAgentOptions
 type DialAgentOptions struct {

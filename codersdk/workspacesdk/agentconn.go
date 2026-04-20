@@ -45,10 +45,19 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 }
 
 // WrapAgentConn returns an AgentConn that delegates every operation to conn and
-// applies closeFunc when the logical agent session is closed.
+// applies closeFunc exactly once when the logical session is closed.
+//
+// If conn is nil, any provided closeFunc is invoked immediately so logical
+// session cleanup is not silently dropped.
 func WrapAgentConn(conn AgentConn, closeFunc func() error) AgentConn {
-	if conn == nil || closeFunc == nil {
-		return conn
+	if conn == nil {
+		if closeFunc != nil {
+			_ = closeFunc()
+		}
+		return nil
+	}
+	if closeFunc == nil {
+		closeFunc = func() error { return nil }
 	}
 	return &wrappedAgentConn{AgentConn: conn, closeFunc: closeFunc}
 }
@@ -56,10 +65,17 @@ func WrapAgentConn(conn AgentConn, closeFunc func() error) AgentConn {
 type wrappedAgentConn struct {
 	AgentConn
 	closeFunc func() error
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (c *wrappedAgentConn) Close() error {
-	return errors.Join(c.closeFunc(), c.AgentConn.Close())
+	c.closeOnce.Do(func() {
+		// Close the underlying connection before releasing the logical session so
+		// the lease remains held until teardown is complete.
+		c.closeErr = errors.Join(c.AgentConn.Close(), c.closeFunc())
+	})
+	return c.closeErr
 }
 
 const (

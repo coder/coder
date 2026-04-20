@@ -1,21 +1,15 @@
 package coderd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/mcp"
-	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 type MCPToolset string
@@ -24,32 +18,6 @@ const (
 	MCPToolsetStandard MCPToolset = "standard"
 	MCPToolsetChatGPT  MCPToolset = "chatgpt"
 )
-
-type sharedTailnetAgentDialer struct {
-	provider workspaceapps.AgentProvider
-}
-
-func (d sharedTailnetAgentDialer) DialAgent(ctx context.Context, agentID uuid.UUID, _ *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error) {
-	if d.provider == nil {
-		return nil, xerrors.New("agent provider is unavailable")
-	}
-
-	conn, release, err := d.provider.AgentConn(ctx, agentID)
-	if err != nil {
-		return nil, err
-	}
-	if conn == nil {
-		return nil, xerrors.New("agent provider returned nil connection")
-	}
-	if release == nil {
-		return nil, xerrors.New("agent provider returned nil release function")
-	}
-
-	return workspacesdk.WrapAgentConn(conn, func() error {
-		release()
-		return nil
-	}), nil
-}
 
 // mcpHTTPHandler creates the MCP HTTP transport handler
 // It supports a "toolset" query parameter to select the set of tools to register.
@@ -67,8 +35,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 		// Extract the original session token from the request
 		authenticatedClient := codersdk.New(api.AccessURL,
 			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)))
-		dialer := sharedTailnetAgentDialer{provider: api.agentProvider}
-		toolOpt := toolsdk.WithAgentDialer(dialer)
+		toolOpt := toolsdk.WithAgentConnFunc(api.agentProvider.AgentConn)
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))
 		// Default to standard toolset if no toolset is specified.
 		if toolset == "" {
