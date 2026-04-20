@@ -229,9 +229,20 @@ func buildSpawnSubagentDescription(
 }
 
 func formatSubagentDefinitions(defs []subagentDefinition) string {
+	return formatSubagentDefinitionsWithDescriptionOverrides(defs, nil)
+}
+
+func formatSubagentDefinitionsWithDescriptionOverrides(
+	defs []subagentDefinition,
+	descriptionOverrides map[string]string,
+) string {
 	parts := make([]string, 0, len(defs))
 	for _, def := range defs {
-		parts = append(parts, def.id+" ("+def.description+")")
+		description := def.description
+		if override, ok := descriptionOverrides[def.id]; ok {
+			description = override
+		}
+		parts = append(parts, def.id+" ("+description+")")
 	}
 	return strings.Join(parts, ", ")
 }
@@ -244,13 +255,20 @@ func defaultSystemPromptPlanningGuidance() string {
 }
 
 func planningOverlaySubagentGuidance() string {
+	planModeDescriptions := map[string]string{
+		subagentTypeGeneral: "delegated investigation, planning support, and non-mutating exploration",
+	}
+
 	return "Use read_file, execute, process_output, list_templates, read_template, and " +
 		spawnSubagentToolName + " to gather context. In Plan Mode, " +
 		spawnSubagentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Allowed subagent_type " +
 		"values in Plan Mode: " +
-		formatSubagentDefinitions(subagentDefinitionsByID(
-			subagentTypeGeneral,
-			subagentTypeExplore,
-		)) + "."
+		formatSubagentDefinitionsWithDescriptionOverrides(
+			subagentDefinitionsByID(
+				subagentTypeGeneral,
+				subagentTypeExplore,
+			),
+			planModeDescriptions,
+		) + "."
 }

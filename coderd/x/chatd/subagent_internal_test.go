@@ -768,6 +768,18 @@ func TestSpawnSubagent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
+func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing.T) {
+	t.Parallel()
+
+	guidance := planningOverlaySubagentGuidance()
+
+	require.Contains(t, guidance, subagentTypeGeneral)
+	require.Contains(t, guidance, subagentTypeExplore)
+	require.NotContains(t, guidance, subagentTypeComputerUse)
+	require.NotContains(t, guidance, "modify")
+	require.NotContains(t, guidance, "may inspect or modify workspace files")
+}
+
 func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 	t.Parallel()
 
