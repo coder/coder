@@ -232,6 +232,40 @@ export const UserMessageWithFileIdImage: Story = {
 	},
 };
 
+/** File-id images that 404 render an expired placeholder. */
+export const UserMessageWithExpiredImage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "This upload has expired" },
+					{
+						type: "file",
+						media_type: "image/png",
+						file_id: "storybook-expired-image",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		image.dispatchEvent(new Event("error"));
+		expect(
+			await canvas.findByRole("img", { name: "Image expired" }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Image expired")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const UserMessageWithTextAttachment: Story = {
 	args: {
 		...defaultArgs,

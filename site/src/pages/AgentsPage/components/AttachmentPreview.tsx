@@ -1,5 +1,5 @@
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import { type FC, useEffect, useRef } from "react";
+import { type FC, type ReactEventHandler, useEffect, useRef } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -23,7 +23,8 @@ export const ImageThumbnail: FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-}> = ({ previewUrl, name, className }) => (
+	onError?: ReactEventHandler<HTMLImageElement>;
+}> = ({ previewUrl, name, className, onError }) => (
 	<img
 		src={previewUrl}
 		alt={name}
@@ -31,6 +32,7 @@ export const ImageThumbnail: FC<{
 			"h-16 w-16 rounded-md border border-border-default object-cover",
 			className,
 		)}
+		onError={onError}
 	/>
 );
 

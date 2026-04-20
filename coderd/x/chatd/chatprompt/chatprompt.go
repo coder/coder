@@ -66,8 +66,9 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
 // prompt messages, resolving user file references via the provided
-// resolver. Persisted file references without bytes are omitted from
-// the prompt instead of being replayed back to the model.
+// resolver. Missing user attachments become text placeholders;
+// assistant-side file metadata without bytes is not replayed to the
+// model.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -76,8 +77,8 @@ func ConvertMessagesWithFiles(
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
-	// resolution. Assistant-side file attachments remain persisted chat
-	// metadata and are intentionally not replayed to the model.
+	// resolution. Assistant-side file attachments remain persisted
+	// chat metadata and are intentionally not replayed to the model.
 	type parsedMessage struct {
 		role  codersdk.ChatMessageRole
 		parts []codersdk.ChatMessagePart
@@ -122,6 +123,9 @@ func ConvertMessagesWithFiles(
 		resolved, err = resolver(ctx, allFileIDs)
 		if err != nil {
 			return nil, xerrors.Errorf("resolve chat files: %w", err)
+		}
+		if resolved == nil {
+			resolved = map[uuid.UUID]FileData{}
 		}
 	}
 
@@ -1191,6 +1195,25 @@ func formatSyntheticPasteText(name string, body []byte) string {
 	return sb.String()
 }
 
+func formatMissingAttachmentText(mediaType string) string {
+	const missingAttachmentPrefix = "[missing-attachment] The user attached a file here, but the content has expired and is no longer available."
+	const missingAttachmentSuffix = " If you need to inspect it, ask the user to re-upload."
+
+	if parsedMediaType, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsedMediaType
+	}
+	mediaType = strings.TrimSpace(mediaType)
+	if mediaType == "" || mediaType == "application/octet-stream" {
+		return missingAttachmentPrefix + missingAttachmentSuffix
+	}
+	return fmt.Sprintf(
+		"%s Reported MIME type: %s.%s",
+		missingAttachmentPrefix,
+		mediaType,
+		missingAttachmentSuffix,
+	)
+}
+
 // fileReferencePartToText formats a file-reference SDK part as
 // plain text for LLM consumption. LLMs don't understand
 // file-reference natively, so we convert to a readable text
@@ -1354,13 +1377,7 @@ func partsToMessageParts(
 					}
 				}
 			}
-			if len(data) == 0 {
-				// File parts without bytes are persistence metadata, not
-				// prompt content. User uploads should have been resolved
-				// above; assistant tool attachments intentionally are not
-				// replayed into later model turns.
-				continue
-			}
+			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
 			// Providers only accept a small set of MIME types in file
 			// content blocks, typically images and PDFs. A synthetic
 			// paste sent as a text/plain FilePart is dropped or rejected,
@@ -1369,14 +1386,32 @@ func partsToMessageParts(
 			if isSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
-					ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+					ProviderOptions: opts,
 				})
+				continue
+			}
+			if len(data) == 0 {
+				if part.FileID.Valid && resolved != nil {
+					logger.Warn(context.Background(),
+						"chat file unavailable, replacing file part with text placeholder",
+						slog.F("file_id", part.FileID.UUID),
+						slog.F("media_type", mediaType),
+					)
+					result = append(result, fantasy.TextPart{
+						Text:            formatMissingAttachmentText(mediaType),
+						ProviderOptions: opts,
+					})
+				}
+				// File parts without bytes are persistence metadata, not
+				// prompt content. Assistant tool attachments stay out of
+				// later model turns; replayed user uploads fall back to
+				// the placeholder above when their backing file is gone.
 				continue
 			}
 			result = append(result, fantasy.FilePart{
 				Data:            data,
 				MediaType:       mediaType,
-				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case codersdk.ChatMessagePartTypeFileReference:
 			// LLMs don't understand file-reference natively.

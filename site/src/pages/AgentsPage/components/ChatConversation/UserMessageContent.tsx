@@ -1,4 +1,4 @@
-import { FileTextIcon } from "lucide-react";
+import { AlertTriangleIcon, FileTextIcon } from "lucide-react";
 import { type FC, Fragment, useEffect, useRef, useState } from "react";
 import { cn } from "#/utils/cn";
 import {
@@ -95,6 +95,52 @@ const TextAttachmentButton: FC<{
 	);
 };
 
+const ExpiredImagePlaceholder: FC = () => {
+	return (
+		<div
+			role="img"
+			aria-label="Image expired"
+			className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-secondary px-1 text-center text-2xs text-content-secondary"
+		>
+			<AlertTriangleIcon
+				className="h-4 w-4 shrink-0 text-content-warning"
+				aria-hidden="true"
+			/>
+			<span className="leading-tight">Image expired</span>
+		</div>
+	);
+};
+
+const ImageFileBlock: FC<{
+	src: string;
+	onImageClick?: (src: string) => void;
+}> = ({ src, onImageClick }) => {
+	const [loadError, setLoadError] = useState(false);
+
+	if (loadError) {
+		return <ExpiredImagePlaceholder />;
+	}
+
+	return (
+		<button
+			type="button"
+			aria-label="View image"
+			className="inline-block rounded-md border-0 bg-transparent p-0"
+			onClick={(event) => {
+				event.stopPropagation();
+				onImageClick?.(src);
+			}}
+		>
+			<ImageThumbnail
+				previewUrl={src}
+				name="Attached image"
+				className="cursor-pointer transition-opacity hover:opacity-80"
+				onError={() => setLoadError(true)}
+			/>
+		</button>
+	);
+};
+
 export const FileBlock: FC<{
 	block: UserFileRenderBlock;
 	onImageClick?: (src: string) => void;
@@ -124,23 +170,7 @@ export const FileBlock: FC<{
 	const src = block.file_id
 		? `/api/experimental/chats/files/${block.file_id}`
 		: `data:${block.media_type};base64,${block.data}`;
-	return (
-		<button
-			type="button"
-			aria-label="View image"
-			className="inline-block rounded-md border-0 bg-transparent p-0"
-			onClick={(event) => {
-				event.stopPropagation();
-				onImageClick?.(src);
-			}}
-		>
-			<ImageThumbnail
-				previewUrl={src}
-				name="Attached image"
-				className="cursor-pointer transition-opacity hover:opacity-80"
-			/>
-		</button>
-	);
+	return <ImageFileBlock src={src} onImageClick={onImageClick} />;
 };
 
 const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
