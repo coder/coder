@@ -784,6 +784,7 @@ func New(options *Options) *API {
 			SubscribeFn:                    options.ChatSubscribeFn,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
 			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
@@ -1187,6 +1188,10 @@ func New(options *Options) *API {
 				r.Put("/explore-model-override", api.putChatExploreModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
+				r.Get("/debug-logging", api.getChatDebugLogging)
+				r.Put("/debug-logging", api.putChatDebugLogging)
+				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
+				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1252,10 +1257,15 @@ func New(options *Options) *API {
 				r.Post("/interrupt", api.interruptChat)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
+				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
+				})
+				r.Route("/debug", func(r chi.Router) {
+					r.Get("/runs", api.getChatDebugRuns)
+					r.Get("/runs/{debugRun}", api.getChatDebugRun)
 				})
 			})
 		})
@@ -2002,29 +2012,50 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(
-		options.Telemetry.Enabled(), func() []*proxyhealth.ProxyHost {
-			if api.DeploymentValues.Dangerous.AllowAllCors {
-				// In this mode, allow all external requests.
-				return []*proxyhealth.ProxyHost{
-					{
-						Host:    "*",
-						AppHost: "*",
-					},
-				}
-			}
-			// Always add the primary, since the app host may be on a sub-domain.
-			proxies := []*proxyhealth.ProxyHost{
+	cspProxyHosts := func() []*proxyhealth.ProxyHost {
+		if api.DeploymentValues.Dangerous.AllowAllCors {
+			// In this mode, allow all external requests.
+			return []*proxyhealth.ProxyHost{
 				{
-					Host:    api.AccessURL.Host,
-					AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+					Host:    "*",
+					AppHost: "*",
 				},
 			}
-			if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
-				proxies = append(proxies, (*f)()...)
-			}
-			return proxies
-		}, additionalCSPHeaders)
+		}
+		// Always add the primary, since the app host may be on a sub-domain.
+		proxies := []*proxyhealth.ProxyHost{
+			{
+				Host:    api.AccessURL.Host,
+				AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+			},
+		}
+		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
+			proxies = append(proxies, (*f)()...)
+		}
+		return proxies
+	}
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, additionalCSPHeaders)
+
+	// Embed routes (e.g. VS Code extension chat) are designed to be
+	// loaded inside iframes, so they must not include frame-ancestors
+	// in their CSP. The CSP wildcard '*' only matches network schemes
+	// (http, https, ws, wss) and cannot cover custom schemes like
+	// vscode-webview://, so the only way to allow all embedders is
+	// to omit the directive entirely. If the operator explicitly
+	// configured frame-ancestors via CODER_ADDITIONAL_CSP_POLICY,
+	// respect that setting.
+
+	embedCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(additionalCSPHeaders))
+	for k, v := range additionalCSPHeaders {
+		embedCSPHeaders[k] = v
+	}
+	if _, ok := additionalCSPHeaders[httpmw.CSPFrameAncestors]; !ok {
+		embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{}
+	}
+	embedCSPMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, embedCSPHeaders)
+	embedHandler := embedCSPMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg)))
+	r.Get("/agents/{agentId}/embed", embedHandler.ServeHTTP)
+	r.Get("/agents/{agentId}/embed/*", embedHandler.ServeHTTP)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on

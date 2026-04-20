@@ -69,6 +69,13 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -95,6 +102,7 @@ import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -127,7 +135,8 @@ interface AgentsSidebarProps {
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	onProposeTitle?: (chatId: string) => Promise<string>;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -157,6 +166,7 @@ const statusConfig = {
 
 type ChatTree = {
 	readonly rootIds: readonly string[];
+	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
@@ -263,45 +273,54 @@ const getParentChatID = (chat: Chat): string | undefined => {
 	return asNonEmptyString(chat.parent_chat_id);
 };
 
-const getRootChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString(chat.root_chat_id);
-};
-
 const buildChatTree = (chats: readonly Chat[]): ChatTree => {
-	const orderById = new Map<string, number>();
 	const chatById = new Map<string, Chat>();
 	const parentById = new Map<string, string | undefined>();
 	const childrenById = new Map<string, string[]>();
 
-	for (const [index, chat] of chats.entries()) {
-		orderById.set(chat.id, index);
+	// The paginated list now contains only root chats. Children
+	// are embedded in each root's `children` field.
+	for (const chat of chats) {
 		chatById.set(chat.id, chat);
 		childrenById.set(chat.id, []);
-	}
-
-	for (const chat of chats) {
-		let parentID = getParentChatID(chat);
-		if (!parentID || parentID === chat.id || !chatById.has(parentID)) {
-			parentID = undefined;
+		// Guard against stale cache entries: if a flat child
+		// entry appears in `chats` after its embedded parent has
+		// already set its parent link, do not overwrite the link
+		// with `undefined`. Without this, the defensive fallback
+		// below re-adds the child to its parent's list, producing
+		// a duplicate key in React rendering.
+		if (!parentById.has(chat.id)) {
+			parentById.set(chat.id, undefined);
 		}
 
-		if (!parentID) {
-			const rootID = getRootChatID(chat);
-			if (rootID && rootID !== chat.id && chatById.has(rootID)) {
-				parentID = rootID;
+		if (chat.children) {
+			for (const child of chat.children) {
+				chatById.set(child.id, child);
+				parentById.set(child.id, chat.id);
+				childrenById.get(chat.id)?.push(child.id);
+				// Children cannot have their own children (depth
+				// capped at 1), but initialize the map entry for
+				// uniform lookup.
+				childrenById.set(child.id, []);
 			}
 		}
-
-		parentById.set(chat.id, parentID);
-		if (parentID) {
-			childrenById.get(parentID)?.push(chat.id);
-		}
 	}
 
-	for (const children of childrenById.values()) {
-		children.sort((leftID, rightID) => {
-			return (orderById.get(leftID) ?? 0) - (orderById.get(rightID) ?? 0);
-		});
+	// Defensive fallback for cached data during rollout: if any
+	// chat has a parent_chat_id that points to a chat in the list
+	// but was not embedded, build the link. This handles stale
+	// cache entries from before the backend change.
+	for (const chat of chats) {
+		const parentID = getParentChatID(chat);
+		if (
+			parentID &&
+			parentID !== chat.id &&
+			chatById.has(parentID) &&
+			!parentById.get(chat.id)
+		) {
+			parentById.set(chat.id, parentID);
+			childrenById.get(parentID)?.push(chat.id);
+		}
 	}
 
 	const rootIds = chats
@@ -310,6 +329,7 @@ const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 
 	return {
 		rootIds,
+		chatById,
 		childrenById,
 		parentById,
 	};
@@ -325,10 +345,17 @@ const collectVisibleChatIDs = ({
 	readonly tree: ChatTree;
 }): Set<string> => {
 	if (!search) {
-		return new Set(chats.map((chat) => chat.id));
+		const allIDs = new Set(chats.map((chat) => chat.id));
+		for (const chat of chats) {
+			for (const child of chat.children ?? []) {
+				allIDs.add(child.id);
+			}
+		}
+		return allIDs;
 	}
 
-	const matchedChatIDs = chats
+	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
+	const matchedChatIDs = allChats
 		.filter((chat) => chat.title.toLowerCase().includes(search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
@@ -385,7 +412,7 @@ interface ChatTreeContextValue {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onRegenerateTitle: (chatId: string) => void;
+	readonly onOpenRenameDialog?: (chat: Chat) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -423,7 +450,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -465,212 +492,232 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	return (
-		<div className="flex min-w-0 flex-col">
-			<div
-				data-testid={`agents-tree-node-${chat.id}`}
-				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-					isChildNode &&
-						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-				)}
-			>
-				<div
-					className={cn(
-						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-						hasChildren && "cursor-pointer",
-					)}
+	const renderMenuItems = ({
+		Item,
+		Separator,
+	}: {
+		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
+		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
+	}) => (
+		<>
+			{!chat.archived && !isChildNode && (
+				<Item
+					onSelect={() =>
+						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+					}
 				>
-					<div
-						className={cn(
-							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
-						)}
-					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
-					</div>
-					{hasChildren && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => toggleExpanded(chatID)}
-							className={cn(
-								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								"[@media(hover:hover)]:group-hover/icon:visible",
-							)}
-							data-testid={`agents-tree-toggle-${chat.id}`}
-							aria-label={isExpanded ? "Collapse" : "Expand"}
-							aria-expanded={isExpanded}
-						>
-							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						</Button>
-					)}
-				</div>
-				<NavLink
-					to={`/agents/${chat.id}`}
-					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-				>
-					{({ isActive }) => (
+					{chat.pin_order > 0 ? (
 						<>
-							<div className="min-w-0 flex-1 overflow-hidden text-left">
-								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-									<span
-										aria-busy={isRegeneratingThisChat}
-										className={cn(
-											"block flex-1 truncate text-[13px] text-content-primary",
-											isActive && "font-medium",
-											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
-											isRegeneratingThisChat && "animate-pulse",
-										)}
-									>
-										{chat.title}
-									</span>
-									{chat.has_unread && !isActiveChat && (
-										<span className="sr-only">(unread)</span>
-									)}
-									{isRegeneratingThisChat && (
-										<span className="sr-only" role="status">
-											Regenerating title…
-										</span>
-									)}
-								</div>
-								<div className="flex min-w-0 items-center gap-1.5">
-									{hasLinkedDiffStatus && hasLineStats && (
-										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-											title={`${filesChangedLabel}, +${additions} -${deletions}`}
-										>
-											<span className="text-git-added-bright">
-												+{additions}
-											</span>
-											<span className="text-git-deleted-bright">
-												&minus;{deletions}
-											</span>
-										</span>
-									)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
-										)}
-										title={subtitle}
-									>
-										{subtitle}
-									</div>
-								</div>
-							</div>
+							<PinOffIcon className="h-3.5 w-3.5" />
+							Unpin agent
 						</>
-					)}
-				</NavLink>
-				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-					{isArchivingThisChat ? (
-						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
 						<>
-							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
-										data-testid={`unread-indicator-${chat.id}`}
-										aria-hidden="true"
-									/>
-								) : (
-									shortRelativeTime(chat.updated_at)
-								)}
-							</span>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
-									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									{!chat.archived && !isChildNode && (
-										<DropdownMenuItem
-											onSelect={() =>
-												chat.pin_order > 0
-													? onUnpinAgent(chat.id)
-													: onPinAgent(chat.id)
-											}
-										>
-											{chat.pin_order > 0 ? (
-												<>
-													<PinOffIcon className="h-3.5 w-3.5" />
-													Unpin agent
-												</>
-											) : (
-												<>
-													<PinIcon className="h-3.5 w-3.5" />
-													Pin agent
-												</>
-											)}
-										</DropdownMenuItem>
-									)}
-									{chat.archived ? (
-										<DropdownMenuItem
-											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
-										>
-											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-											Unarchive agent
-										</DropdownMenuItem>
-									) : (
-										<>
-											<DropdownMenuItem
-												disabled={isRegeneratingThisChat}
-												onSelect={() => onRegenerateTitle(chat.id)}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
-											>
-												<ArchiveIcon className="h-3.5 w-3.5" />
-												Archive agent
-											</DropdownMenuItem>
-											{workspaceId && (
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
-												>
-													<Trash2Icon className="h-3.5 w-3.5" />
-													Archive & delete workspace
-												</DropdownMenuItem>
-											)}
-										</>
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
+							<PinIcon className="h-3.5 w-3.5" />
+							Pin agent
 						</>
 					)}
-				</div>
-			</div>
+				</Item>
+			)}
+			{chat.archived ? (
+				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+					<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+					Unarchive agent
+				</Item>
+			) : (
+				<>
+					{onOpenRenameDialog && (
+						<Item onSelect={() => onOpenRenameDialog(chat)}>
+							<SquarePenIcon className="h-3.5 w-3.5" />
+							Rename chat
+						</Item>
+					)}
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						disabled={isArchiving}
+						onSelect={() => onArchiveAgent(chat.id)}
+					>
+						<ArchiveIcon className="h-3.5 w-3.5" />
+						Archive agent
+					</Item>
+					{workspaceId && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							disabled={isArchiving}
+							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+						>
+							<Trash2Icon className="h-3.5 w-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+				</>
+			)}
+		</>
+	);
+
+	return (
+		<div className="flex min-w-0 flex-col">
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div
+						data-testid={`agents-tree-node-${chat.id}`}
+						className={cn(
+							"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							isChildNode &&
+								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+						)}
+					>
+						<div
+							className={cn(
+								"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+								hasChildren && "cursor-pointer",
+							)}
+						>
+							<div
+								className={cn(
+									"flex h-5 w-5 items-center justify-center rounded-md",
+									hasChildren &&
+										"[@media(hover:hover)]:group-hover/icon:invisible",
+								)}
+							>
+								<StatusIcon
+									data-testid={
+										isDelegatedExecuting
+											? `agents-tree-executing-${chat.id}`
+											: undefined
+									}
+									className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+								/>
+							</div>
+							{hasChildren && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={() => toggleExpanded(chatID)}
+									className={cn(
+										"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+										"[@media(hover:hover)]:group-hover/icon:visible",
+									)}
+									data-testid={`agents-tree-toggle-${chat.id}`}
+									aria-label={isExpanded ? "Collapse" : "Expand"}
+									aria-expanded={isExpanded}
+								>
+									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+								</Button>
+							)}
+						</div>
+						<NavLink
+							to={`/agents/${chat.id}`}
+							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+						>
+							{({ isActive }) => (
+								<>
+									<div className="min-w-0 flex-1 overflow-hidden text-left">
+										<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+											<span
+												aria-busy={isRegeneratingThisChat}
+												className={cn(
+													"block flex-1 truncate text-[13px] text-content-primary",
+													isActive && "font-medium",
+													isRegeneratingThisChat && "animate-pulse",
+												)}
+											>
+												{chat.title}
+											</span>
+											{chat.has_unread && !isActiveChat && (
+												<span className="sr-only">(unread)</span>
+											)}
+											{isRegeneratingThisChat && (
+												<span className="sr-only" role="status">
+													Regenerating title…
+												</span>
+											)}
+										</div>
+										<div className="flex min-w-0 items-center gap-1.5">
+											{hasLinkedDiffStatus && hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
+												</span>
+											)}
+											<div
+												className={cn(
+													"min-w-0 overflow-hidden text-[13px] leading-4",
+													errorReason
+														? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+														: "truncate text-content-secondary",
+												)}
+												title={subtitle}
+											>
+												{subtitle}
+											</div>
+										</div>
+									</div>
+								</>
+							)}
+						</NavLink>
+						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<>
+									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										{chat.has_unread && !isActiveChat ? (
+											<span
+												className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										) : (
+											shortRelativeTime(chat.updated_at)
+										)}
+									</span>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisIcon className="h-3.5 w-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+										>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</>
+							)}
+						</div>
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+					{renderMenuItems({
+						Item: ContextMenuItem,
+						Separator: ContextMenuSeparator,
+					})}
+				</ContextMenuContent>
+			</ContextMenu>
 
 			{hasChildren && isExpanded && (
 				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
@@ -742,7 +789,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onReorderPinnedAgent,
-		onRegenerateTitle,
+		onRenameTitle,
+		onProposeTitle,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -778,9 +826,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	const chatTree = buildChatTree(chats);
-	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
 		search: normalizedSearch,
@@ -973,7 +1022,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog: onRenameTitle ? setChatPendingRename : undefined,
 	};
 
 	const subNavTitle = "Settings";
@@ -1331,6 +1380,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</nav>
 				)}
 			</div>
+			{onRenameTitle && (
+				<RenameChatDialog
+					chat={chatPendingRename}
+					onRename={onRenameTitle}
+					onPropose={onProposeTitle}
+					onOpenChange={(open) => {
+						if (!open) setChatPendingRename(null);
+					}}
+				/>
+			)}
 		</div>
 	);
 };
