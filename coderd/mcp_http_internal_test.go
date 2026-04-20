@@ -1,4 +1,3 @@
-//nolint:testpackage // This test exercises the internal MCP dialer adapter.
 package coderd
 
 import (

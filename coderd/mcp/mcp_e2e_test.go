@@ -226,7 +226,6 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	defer closer.Close()
 
 	user := coderdtest.CreateFirstUser(t, coderClient)
-	// nolint:gocritic // This is an external e2e test setup helper.
 	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 		Name:           "myworkspace",
 		OrganizationID: user.OrganizationID,
