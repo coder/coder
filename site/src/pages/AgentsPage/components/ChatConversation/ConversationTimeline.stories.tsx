@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	spyOn,
+	userEvent,
+	within,
+} from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -81,7 +88,12 @@ const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
 	],
 ]);
 
-const mockTextAttachmentFetch = () => {
+const IMAGE_ATTACHMENT_STATUSES = new Map<string, number>([
+	["storybook-expired-image", 404],
+	["storybook-failed-image", 500],
+]);
+
+const mockAttachmentFetch = () => {
 	const originalFetch = globalThis.fetch;
 	spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
 		const url =
@@ -94,6 +106,12 @@ const mockTextAttachmentFetch = () => {
 		for (const [fileId, content] of TEXT_ATTACHMENT_RESPONSES) {
 			if (url.endsWith(fileId)) {
 				return new Response(content, { status: 200 });
+			}
+		}
+
+		for (const [fileId, status] of IMAGE_ATTACHMENT_STATUSES) {
+			if (url.endsWith(fileId)) {
+				return new Response("", { status });
 			}
 		}
 
@@ -119,7 +137,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		),
 	],
 	beforeEach: () => {
-		mockTextAttachmentFetch();
+		mockAttachmentFetch();
 	},
 };
 export default meta;
@@ -232,7 +250,7 @@ export const UserMessageWithFileIdImage: Story = {
 	},
 };
 
-/** File-id images that 404 render an expired placeholder. */
+/** File-id images that probe as 404 render an expired placeholder. */
 export const UserMessageWithExpiredImage: Story = {
 	args: {
 		...defaultArgs,
@@ -255,11 +273,84 @@ export const UserMessageWithExpiredImage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
-		image.dispatchEvent(new Event("error"));
+		fireEvent.error(image);
 		expect(
 			await canvas.findByRole("img", { name: "Image expired" }),
 		).toBeInTheDocument();
 		expect(canvas.getByText("Image expired")).toBeInTheDocument();
+		expect(canvas.getByText("This upload has expired")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** File-id images that fail with a non-404 status render a generic failure tile. */
+export const UserMessageWithFailedRemoteImage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "This image failed to load" },
+					{
+						type: "file",
+						media_type: "image/png",
+						file_id: "storybook-failed-image",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		expect(
+			await canvas.findByRole("img", { name: "Image failed to load" }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Image failed to load")).toBeInTheDocument();
+		expect(canvas.getByText("This image failed to load")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Invalid inline image data skips the probe and renders the generic failure tile. */
+export const UserMessageWithInvalidInlineImage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Inline image data is corrupt" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: "not-valid-base64",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		expect(
+			await canvas.findByRole("img", { name: "Image failed to load" }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Image failed to load")).toBeInTheDocument();
+		expect(
+			canvas.getByText("Inline image data is corrupt"),
+		).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View image" }),
 		).not.toBeInTheDocument();

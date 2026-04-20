@@ -15,6 +15,20 @@ import type {
 	UserInlineRenderBlock,
 } from "./messageHelpers";
 
+type ChatImageSource =
+	| { kind: "file"; fileId: string; src: string }
+	| { kind: "inline"; src: string };
+
+type ImageFailureState = "idle" | "probing" | "expired" | "failed";
+
+const classifyRemoteImageFailure = async (
+	src: string,
+	signal?: AbortSignal,
+): Promise<Extract<ImageFailureState, "expired" | "failed">> => {
+	const response = await fetch(src, { signal });
+	return response.status === 404 ? "expired" : "failed";
+};
+
 const InlineTextAttachmentButton: FC<{
 	content: string;
 	onPreview?: (content: string) => void;
@@ -95,30 +109,42 @@ const TextAttachmentButton: FC<{
 	);
 };
 
-const ExpiredImagePlaceholder: FC = () => {
+const getImageFallbackLabel = (state: Exclude<ImageFailureState, "idle">) =>
+	state === "expired" ? "Image expired" : "Image failed to load";
+
+const ImageFallbackTile: FC<{
+	state: Exclude<ImageFailureState, "idle">;
+}> = ({ state }) => {
+	const label = getImageFallbackLabel(state);
+
 	return (
 		<div
 			role="img"
-			aria-label="Image expired"
-			className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-secondary px-1 text-center text-2xs text-content-secondary"
+			aria-label={label}
+			className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-tertiary px-1 text-center text-2xs text-content-secondary"
 		>
 			<AlertTriangleIcon
-				className="h-4 w-4 shrink-0 text-content-warning"
+				className="size-icon-sm shrink-0 text-content-warning"
 				aria-hidden="true"
 			/>
-			<span className="leading-tight">Image expired</span>
+			<span className="leading-tight">{label}</span>
 		</div>
 	);
 };
 
-const ImageFileBlock: FC<{
-	src: string;
+const ChatImageBlock: FC<{
+	source: ChatImageSource;
 	onImageClick?: (src: string) => void;
-}> = ({ src, onImageClick }) => {
-	const [loadError, setLoadError] = useState(false);
+}> = ({ source, onImageClick }) => {
+	const [failureState, setFailureState] = useState<ImageFailureState>("idle");
+	const probeControllerRef = useRef<AbortController | null>(null);
 
-	if (loadError) {
-		return <ExpiredImagePlaceholder />;
+	useEffect(() => {
+		return () => probeControllerRef.current?.abort();
+	}, []);
+
+	if (failureState !== "idle") {
+		return <ImageFallbackTile state={failureState} />;
 	}
 
 	return (
@@ -128,14 +154,43 @@ const ImageFileBlock: FC<{
 			className="inline-block rounded-md border-0 bg-transparent p-0"
 			onClick={(event) => {
 				event.stopPropagation();
-				onImageClick?.(src);
+				onImageClick?.(source.src);
 			}}
 		>
 			<ImageThumbnail
-				previewUrl={src}
+				previewUrl={source.src}
 				name="Attached image"
 				className="cursor-pointer transition-opacity hover:opacity-80"
-				onError={() => setLoadError(true)}
+				onError={() => {
+					if (source.kind !== "file") {
+						setFailureState("failed");
+						return;
+					}
+
+					probeControllerRef.current?.abort();
+					const controller = new AbortController();
+					probeControllerRef.current = controller;
+					setFailureState("probing");
+
+					void classifyRemoteImageFailure(source.src, controller.signal)
+						.then((nextState) => {
+							if (probeControllerRef.current !== controller) {
+								return;
+							}
+							probeControllerRef.current = null;
+							setFailureState(nextState);
+						})
+						.catch((error) => {
+							if (probeControllerRef.current !== controller) {
+								return;
+							}
+							probeControllerRef.current = null;
+							if (error instanceof Error && error.name === "AbortError") {
+								return;
+							}
+							setFailureState("failed");
+						});
+				}}
 			/>
 		</button>
 	);
@@ -167,10 +222,17 @@ export const FileBlock: FC<{
 	if (!block.media_type.startsWith("image/")) {
 		return null;
 	}
-	const src = block.file_id
-		? `/api/experimental/chats/files/${block.file_id}`
-		: `data:${block.media_type};base64,${block.data}`;
-	return <ImageFileBlock src={src} onImageClick={onImageClick} />;
+	const source: ChatImageSource = block.file_id
+		? {
+				kind: "file",
+				fileId: block.file_id,
+				src: `/api/experimental/chats/files/${block.file_id}`,
+			}
+		: {
+				kind: "inline",
+				src: `data:${block.media_type};base64,${block.data ?? ""}`,
+			};
+	return <ChatImageBlock source={source} onImageClick={onImageClick} />;
 };
 
 const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
