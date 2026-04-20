@@ -52,6 +52,10 @@ archived for `retention_days`, before it is deleted. The two windows
 stack additively, so with defaults a conversation lives for at least
 120 days from its last message before it is permanently removed.
 
+Auto-archive (like manual archive) resets the per-chat retention
+clock, so the full `retention_days` runs from the tick that archived
+the chat, not from its last message.
+
 Setting either value to `0` disables that step. Setting
 `auto_archive_days` to `0` means inactive chats are never
 auto-archived (users still archive manually). Setting
