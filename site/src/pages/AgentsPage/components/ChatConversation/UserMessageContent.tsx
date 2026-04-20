@@ -1,5 +1,10 @@
 import { AlertTriangleIcon, FileTextIcon } from "lucide-react";
 import { type FC, Fragment, useEffect, useRef, useState } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
@@ -117,7 +122,7 @@ const ImageFallbackTile: FC<{
 }> = ({ state }) => {
 	const label = getImageFallbackLabel(state);
 
-	return (
+	const tile = (
 		<div
 			role="img"
 			aria-label={label}
@@ -129,6 +134,23 @@ const ImageFallbackTile: FC<{
 			/>
 			<span className="leading-tight">{label}</span>
 		</div>
+	);
+
+	// Only "expired" gets a tooltip: the retention explanation is specific
+	// to attachments that were purged. A transient "failed to load" has no
+	// extra context worth surfacing.
+	if (state !== "expired") {
+		return tile;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{tile}</TooltipTrigger>
+			<TooltipContent side="top" className="max-w-xs">
+				Chat attachments are deleted after the retention window set for this
+				deployment.
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
