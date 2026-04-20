@@ -1,5 +1,6 @@
 import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
 type NumberedPageButtonProps = {
 	pageNumber: number;
@@ -68,13 +69,16 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 }) => {
 	return (
 		<Button
-			variant={highlighted ? "default" : "outline"}
+			variant="subtle"
 			size="icon"
 			aria-label={ariaLabel}
 			name={name}
 			disabled={disabled}
 			onClick={onClick}
-			className="min-w-8 w-auto"
+			className={cn(
+				"min-w-8 w-auto",
+				highlighted && "bg-surface-secondary text-content-primary",
+			)}
 		>
 			{children}
 		</Button>

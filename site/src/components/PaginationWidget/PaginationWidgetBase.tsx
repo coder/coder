@@ -40,7 +40,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div className="flex flex-row items-center justify-center px-5 gap-x-1.5">
+		<div className="flex flex-row items-center justify-center px-5 gap-x-2">
 			<PaginationNavButton
 				disabled={isPrevDisabled}
 				aria-label="Previous page"
