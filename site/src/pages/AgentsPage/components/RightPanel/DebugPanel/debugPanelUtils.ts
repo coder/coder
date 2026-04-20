@@ -780,7 +780,12 @@ const coerceToolCall = (value: unknown): ToolCallPart | null => {
 		toCodeContent(pickField(fn, "arguments", "input")) ??
 		toCodeContent(pickField(parsed, "arguments", "input"));
 	return {
-		id: toOptionalString(pickField(parsed, "id", "tool_call_id", "toolCallId")),
+		// Normalize an empty `tool_call_id` to `undefined` so downstream
+		// dedup and React key logic treat it as "no id" rather than
+		// colliding on the same empty string.
+		id:
+			toOptionalString(pickField(parsed, "id", "tool_call_id", "toolCallId")) ||
+			undefined,
 		name,
 		arguments: args,
 	};
@@ -1031,10 +1036,15 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 				if (!name) {
 					continue;
 				}
+				// Treat an empty `tool_call_id` as "no id" so distinct streamed
+				// calls don't collide on the same Map key during dedup. Go's
+				// zero value for string is `""` and `ChatStreamToolCall`
+				// serializes without `omitempty`, so unset IDs arrive as `""`.
 				const toolCall: ToolCallPart = {
-					id: toOptionalString(
-						pickField(part, "tool_call_id", "toolCallId", "id"),
-					),
+					id:
+						toOptionalString(
+							pickField(part, "tool_call_id", "toolCallId", "id"),
+						) || undefined,
 					name,
 					arguments: toCodeContent(pickField(part, "arguments", "input")),
 				};

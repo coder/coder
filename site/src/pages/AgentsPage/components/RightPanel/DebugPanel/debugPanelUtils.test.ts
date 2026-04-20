@@ -134,6 +134,42 @@ describe("coerceStepResponse", () => {
 		]);
 	});
 
+	it("keeps distinct tool calls with empty tool_call_ids instead of collapsing them", () => {
+		// Go's zero value for string is "" and ChatStreamToolCall.tool_call_id
+		// has no `omitempty`, so unset IDs marshal as "" on the wire. Treat
+		// them as "no id" so two distinct calls don't collide on the same
+		// dedup Map key.
+		const response = coerceStepResponse({
+			content: [
+				{
+					type: "tool_call",
+					tool_call_id: "",
+					tool_name: "search_docs",
+					arguments: '{"query":"a"}',
+				},
+				{
+					type: "tool_call",
+					tool_call_id: "",
+					tool_name: "calc",
+					arguments: '{"op":"add"}',
+				},
+			],
+		});
+
+		expect(response.toolCalls).toEqual([
+			{
+				id: undefined,
+				name: "search_docs",
+				arguments: '{\n  "query": "a"\n}',
+			},
+			{
+				id: undefined,
+				name: "calc",
+				arguments: '{\n  "op": "add"\n}',
+			},
+		]);
+	});
+
 	it("keeps per-call entries when multiple distinct tool calls are emitted", () => {
 		const response = coerceStepResponse({
 			content: [
