@@ -1443,7 +1443,7 @@ session_page AS (
 	GROUP BY
 		ai.session_id, ai.initiator_id
 	HAVING
-		-- Cursor pagination: uses a composite (sort_at, session_id) cursor to
+		-- Cursor pagination: uses a composite (last_active_at, session_id) cursor to
 		-- support keyset pagination. The less-than comparison matches the DESC
 		-- sort order so rows after the cursor come later in results. The cursor
 		-- value comes from cursor_pos to guarantee single evaluation.
