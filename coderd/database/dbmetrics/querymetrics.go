@@ -424,7 +424,7 @@ func (m queryMetricsStore) DeleteChatDebugDataAfterMessageID(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m queryMetricsStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID database.DeleteChatDebugDataByChatIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatDebugDataByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("DeleteChatDebugDataByChatID").Observe(time.Since(start).Seconds())
@@ -1456,6 +1456,14 @@ func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChildChatsByParentIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChildChatsByParentIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChildChatsByParentIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
@@ -1797,6 +1805,14 @@ func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Cont
 	r0, r1 := m.s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuildByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceBuildByWorkspaceID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuildWithStatusByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceBuildWithStatusByWorkspaceID").Inc()
 	return r0, r1
 }
 
@@ -4453,6 +4469,14 @@ func (m queryMetricsStore) UpdateChatStatusPreserveUpdatedAt(ctx context.Context
 	r0, r1 := m.s.UpdateChatStatusPreserveUpdatedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatusPreserveUpdatedAt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatusPreserveUpdatedAt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatTitleByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatTitleByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTitleByID").Inc()
 	return r0, r1
 }
 

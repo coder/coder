@@ -483,6 +483,122 @@ func TestChatDebugStep_JSONNullYieldsEmptyStructures(t *testing.T) {
 	require.Empty(t, sdk.Metadata, "JSON literal null must produce empty map")
 }
 
+func TestChatDebugRunDetail(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(5 * time.Second)
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
+	modelConfigID := uuid.New()
+	triggerMessageID := int64(7)
+	historyTipMessageID := int64(11)
+
+	run := database.ChatDebugRun{
+		ID:                  uuid.New(),
+		ChatID:              uuid.New(),
+		RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: triggerMessageID, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: historyTipMessageID, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: "gpt-4o", Valid: true},
+		Summary:             json.RawMessage(`{"step_count":2}`),
+		StartedAt:           startedAt,
+		UpdatedAt:           finishedAt,
+		FinishedAt:          sql.NullTime{Time: finishedAt, Valid: true},
+	}
+	steps := []database.ChatDebugStep{
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        1,
+			Operation:         "stream",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        2,
+			Operation:         "generate",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, steps)
+
+	require.Equal(t, run.ID, sdk.ID)
+	require.Equal(t, run.ChatID, sdk.ChatID)
+	require.NotNil(t, sdk.RootChatID)
+	require.Equal(t, rootChatID, *sdk.RootChatID)
+	require.NotNil(t, sdk.ParentChatID)
+	require.Equal(t, parentChatID, *sdk.ParentChatID)
+	require.NotNil(t, sdk.ModelConfigID)
+	require.Equal(t, modelConfigID, *sdk.ModelConfigID)
+	require.NotNil(t, sdk.TriggerMessageID)
+	require.Equal(t, triggerMessageID, *sdk.TriggerMessageID)
+	require.NotNil(t, sdk.HistoryTipMessageID)
+	require.Equal(t, historyTipMessageID, *sdk.HistoryTipMessageID)
+	require.Equal(t, codersdk.ChatDebugRunKindChatTurn, sdk.Kind)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.NotNil(t, sdk.Provider)
+	require.Equal(t, "openai", *sdk.Provider)
+	require.NotNil(t, sdk.Model)
+	require.Equal(t, "gpt-4o", *sdk.Model)
+	require.Equal(t, map[string]any{"step_count": float64(2)}, sdk.Summary)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.NotNil(t, sdk.FinishedAt)
+	require.Equal(t, finishedAt, *sdk.FinishedAt)
+	require.Len(t, sdk.Steps, 2)
+	require.Equal(t, steps[0].ID, sdk.Steps[0].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationStream, sdk.Steps[0].Operation)
+	require.Equal(t, steps[1].ID, sdk.Steps[1].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationGenerate, sdk.Steps[1].Operation)
+}
+
+func TestChatDebugRunDetail_NullableFieldsNil(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "in_progress",
+		Summary:   json.RawMessage(`{}`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, nil)
+
+	require.Nil(t, sdk.RootChatID, "NULL RootChatID should map to nil")
+	require.Nil(t, sdk.ParentChatID, "NULL ParentChatID should map to nil")
+	require.Nil(t, sdk.ModelConfigID, "NULL ModelConfigID should map to nil")
+	require.Nil(t, sdk.TriggerMessageID, "NULL TriggerMessageID should map to nil")
+	require.Nil(t, sdk.HistoryTipMessageID, "NULL HistoryTipMessageID should map to nil")
+	require.Nil(t, sdk.Provider, "NULL Provider should map to nil")
+	require.Nil(t, sdk.Model, "NULL Model should map to nil")
+	require.Nil(t, sdk.FinishedAt, "NULL FinishedAt should map to nil")
+	require.NotNil(t, sdk.Steps, "nil steps slice should serialize as empty array")
+	require.Empty(t, sdk.Steps)
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 
@@ -856,7 +972,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRows (which joins the
+	// HasUnread is populated by ChatRowsWithChildren (which joins the
 	// read-cursor query), not by Chat. Warnings is a transient
 	// field populated by handlers, not the converter. Both are
 	// expected to remain zero here.

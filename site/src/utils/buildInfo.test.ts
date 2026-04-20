@@ -1,5 +1,5 @@
 import type { BuildInfoResponse } from "#/api/typesGenerated";
-import { isDevBuild, isRcBuild } from "./buildInfo";
+import { getPrereleaseFlag } from "./buildInfo";
 
 const baseBuildInfo: BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -13,88 +13,97 @@ const baseBuildInfo: BuildInfoResponse = {
 	telemetry: false,
 };
 
-describe("isDevBuild", () => {
-	it("returns true for -devel versions", () => {
+describe("getPrereleaseFlag", () => {
+	it("returns devel for -devel versions", () => {
 		expect(
-			isDevBuild({ ...baseBuildInfo, version: "v2.16.0-devel+abc123" }),
-		).toBe(true);
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.16.0-devel+abc123",
+			}),
+		).toBe("devel");
 	});
 
-	it("returns true for bare -devel versions", () => {
-		expect(isDevBuild({ ...baseBuildInfo, version: "v2.32.0-devel" })).toBe(
-			true,
-		);
-	});
-
-	it("returns true for v0.0.0", () => {
-		expect(isDevBuild({ ...baseBuildInfo, version: "v0.0.0" })).toBe(true);
-	});
-
-	it("returns false for release versions", () => {
-		expect(isDevBuild({ ...baseBuildInfo, version: "v2.16.0" })).toBe(false);
-	});
-
-	it("returns false for RC versions", () => {
-		expect(isDevBuild({ ...baseBuildInfo, version: "v2.32.0-rc.1" })).toBe(
-			false,
-		);
-	});
-
-	it("returns true for combined rc+devel versions", () => {
+	it("returns devel for bare -devel versions", () => {
 		expect(
-			isDevBuild({
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-devel",
+			}),
+		).toBe("devel");
+	});
+
+	it("returns devel for v0.0.0", () => {
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v0.0.0",
+			}),
+		).toBe("devel");
+	});
+
+	it("returns undefined for release versions", () => {
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.16.0",
+			}),
+		).toBeUndefined();
+	});
+
+	it("returns rc for RC versions", () => {
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-rc.1",
+			}),
+		).toBe("rc");
+	});
+
+	it("returns devel when version contains both rc and -devel (devel wins)", () => {
+		expect(
+			getPrereleaseFlag({
 				...baseBuildInfo,
 				version: "v2.33.0-rc.1-devel+727ec00f7",
 			}),
-		).toBe(true);
+		).toBe("devel");
 	});
 
-	it("returns false for empty version", () => {
-		expect(isDevBuild({ ...baseBuildInfo, version: "" })).toBe(false);
-	});
-});
-
-describe("isRcBuild", () => {
-	it("returns true for -rc.0 versions", () => {
-		expect(isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc.0" })).toBe(true);
-	});
-
-	it("returns true for -rc.1 with build metadata", () => {
+	it("returns undefined for empty version", () => {
 		expect(
-			isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc.1+abc123" }),
-		).toBe(true);
-	});
-
-	it("returns true for higher RC numbers", () => {
-		expect(isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc.12" })).toBe(
-			true,
-		);
-	});
-
-	it("returns false for release versions", () => {
-		expect(isRcBuild({ ...baseBuildInfo, version: "v2.16.0" })).toBe(false);
-	});
-
-	it("returns false for devel versions", () => {
-		expect(
-			isRcBuild({ ...baseBuildInfo, version: "v2.16.0-devel+abc123" }),
-		).toBe(false);
-	});
-
-	it("returns false for empty version", () => {
-		expect(isRcBuild({ ...baseBuildInfo, version: "" })).toBe(false);
-	});
-
-	it("returns false for versions with rc but no dot", () => {
-		expect(isRcBuild({ ...baseBuildInfo, version: "v2.32.0-rc" })).toBe(false);
-	});
-
-	it("returns true for combined rc+devel versions", () => {
-		expect(
-			isRcBuild({
+			getPrereleaseFlag({
 				...baseBuildInfo,
-				version: "v2.33.0-rc.1-devel+727ec00f7",
+				version: "",
 			}),
-		).toBe(true);
+		).toBeUndefined();
+	});
+
+	it("returns rc for -rc.0 and build metadata", () => {
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-rc.0",
+			}),
+		).toBe("rc");
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-rc.1+abc123",
+			}),
+		).toBe("rc");
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-rc.12",
+			}),
+		).toBe("rc");
+	});
+
+	it("returns undefined when rc segment lacks a dot", () => {
+		expect(
+			getPrereleaseFlag({
+				...baseBuildInfo,
+				version: "v2.32.0-rc",
+			}),
+		).toBeUndefined();
 	});
 });

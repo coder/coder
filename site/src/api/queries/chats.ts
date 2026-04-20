@@ -102,6 +102,90 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
+/**
+ * Adds a child chat to its parent's `children` array across all
+ * infinite chat query caches. If the parent is not in any loaded page,
+ * the child is silently dropped (it will appear when the parent loads).
+ */
+export const addChildToParentInCache = (
+	queryClient: QueryClient,
+	child: TypesGen.Chat,
+	parentId: string,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (c.id !== parentId) return c;
+			// Avoid duplicates.
+			if (c.children?.some((ch) => ch.id === child.id)) return c;
+			changed = true;
+			return { ...c, children: [child, ...(c.children ?? [])] };
+		});
+		return changed ? next : chats;
+	});
+};
+
+/**
+ * Updates a child chat within its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * updated, false otherwise.
+ */
+export const updateChildInParentCache = (
+	queryClient: QueryClient,
+	updater: (child: TypesGen.Chat) => TypesGen.Chat,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			let childChanged = false;
+			const nextChildren = c.children.map((ch) => {
+				if (ch.id !== childId) return ch;
+				const updated = updater(ch);
+				if (updated !== ch) {
+					childChanged = true;
+					found = true;
+				}
+				return updated;
+			});
+			if (!childChanged) return c;
+			changed = true;
+			return { ...c, children: nextChildren };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
+/**
+ * Removes a child chat from its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * removed, false otherwise. Used when a child is archived individually
+ * (the sidebar hides children whose archive state differs from the
+ * parent) and when a `deleted` pubsub event arrives for a child chat.
+ */
+export const removeChildFromParentInCache = (
+	queryClient: QueryClient,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			const filtered = c.children.filter((ch) => ch.id !== childId);
+			if (filtered.length === c.children.length) return c;
+			found = true;
+			changed = true;
+			return { ...c, children: filtered };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 	let maxPinOrder = 0;
 	const queries = queryClient.getQueriesData<
@@ -309,11 +393,15 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Flip archived flag in the flat root list; strip the
+		// chat from any parent's embedded children (individual
+		// child archive).
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
 			),
 		);
+		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
@@ -729,6 +817,38 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 		_data: TypesGen.Chat | undefined,
 		_error: unknown,
 		chatId: string,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+type UpdateChatTitleVariables = {
+	chatId: string;
+	title: string;
+};
+
+export const updateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
+		API.experimental.updateChat(chatId, { title }),
+
+	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
+		queryClient.setQueryData<TypesGen.Chat | undefined>(
+			chatKey(chatId),
+			(chat) => (chat ? { ...chat, title } : chat),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		);
+	},
+
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatTitleVariables,
 	) => {
 		await invalidateChatListQueries(queryClient);
 		await queryClient.invalidateQueries({

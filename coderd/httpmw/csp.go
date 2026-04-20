@@ -142,6 +142,22 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 				cspSrcs.Append(directive, values...)
 			}
 
+			// Default to 'self' to prevent clickjacking unless
+			// explicitly overridden via staticAdditions (e.g. for
+			// embeddable routes).
+			//
+			// An explicit empty value means "omit frame-ancestors
+			// entirely", which is needed for embed routes where
+			// non-network-scheme parents (e.g. vscode-webview://)
+			// must be able to frame the page. The CSP wildcard '*'
+			// only matches network schemes (http, https, ws, wss)
+			// so it cannot cover custom schemes.
+			if vals, ok := cspSrcs[CSPFrameAncestors]; !ok {
+				cspSrcs[CSPFrameAncestors] = []string{"'self'"}
+			} else if len(vals) == 0 {
+				delete(cspSrcs, CSPFrameAncestors)
+			}
+
 			var csp strings.Builder
 			for src, vals := range cspSrcs {
 				_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))

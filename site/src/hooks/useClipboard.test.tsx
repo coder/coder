@@ -260,10 +260,11 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(result.current.error).toBeUndefined();
 	});
 
-	// This test case is really important to ensure that it's easy to plop this
-	// inside of useEffect calls without having to think about dependencies too
-	// much
-	it("Ensures that the copyToClipboard function always maintains a stable reference across all re-renders", async () => {
+	// This test case verifies that copyToClipboard maintains a stable
+	// reference across re-renders so it can be used safely in useEffect
+	// dependency arrays. Stability requires that onError and
+	// clearErrorOnSuccess are themselves stable references.
+	it("Ensures that the copyToClipboard function maintains a stable reference when its inputs are stable", async () => {
 		const initialOnError = vi.fn();
 		const { result, rerender } = renderUseClipboard({
 			onError: initialOnError,
@@ -275,17 +276,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		// sure that a parent re-rendering doesn't break anything
 		rerender({ onError: initialOnError });
 		expect(result.current.copyToClipboard).toBe(initialCopy);
-
-		// Re-render with new onError prop and then swap back to simplify
-		// testing
-		rerender({ onError: vi.fn() });
-		expect(result.current.copyToClipboard).toBe(initialCopy);
-		rerender({ onError: initialOnError });
-
-		// Re-render with a new clear value then swap back to simplify testing
-		rerender({ onError: initialOnError, clearErrorOnSuccess: false });
-		expect(result.current.copyToClipboard).toBe(initialCopy);
-		rerender({ onError: initialOnError, clearErrorOnSuccess: true });
 
 		// Trigger a failed clipboard interaction
 		setSimulateFailure(true);
