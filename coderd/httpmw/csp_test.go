@@ -12,6 +12,45 @@ import (
 	"github.com/coder/coder/v2/coderd/proxyhealth"
 )
 
+func TestCSPFrameAncestors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefaultSelf", func(t *testing.T) {
+		t.Parallel()
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		rw := httptest.NewRecorder()
+
+		httpmw.CSPHeaders(false, func() []*proxyhealth.ProxyHost {
+			return nil
+		}, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+
+		csp := rw.Header().Get("Content-Security-Policy")
+		require.Contains(t, csp, "frame-ancestors 'self'")
+	})
+
+	t.Run("OverrideViaStaticAdditions", func(t *testing.T) {
+		t.Parallel()
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		rw := httptest.NewRecorder()
+
+		httpmw.CSPHeaders(false, func() []*proxyhealth.ProxyHost {
+			return nil
+		}, map[httpmw.CSPFetchDirective][]string{
+			httpmw.CSPFrameAncestors: {"*"},
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+
+		csp := rw.Header().Get("Content-Security-Policy")
+		require.Contains(t, csp, "frame-ancestors *")
+		require.NotContains(t, csp, "frame-ancestors 'self'")
+	})
+}
+
 func TestCSP(t *testing.T) {
 	t.Parallel()
 
