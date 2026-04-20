@@ -995,6 +995,12 @@ scrape_configs:
 	}
 	_ = tmpFile.Close()
 
+	// The Prometheus container runs as nobody, so the file must be
+	// world-readable. os.CreateTemp creates files with mode 0600.
+	if err := os.Chmod(tmpFile.Name(), 0o644); err != nil {
+		return false, xerrors.Errorf("chmod prometheus config: %w", err)
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "run", //nolint:gosec // args are all controlled constants or our own temp file path
 		"--rm",
 		"--name", "coder-prometheus",
