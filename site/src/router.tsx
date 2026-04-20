@@ -214,6 +214,12 @@ const AISettingsProvidersPage = lazy(
 			"./pages/DeploymentSettingsPage/AISettingsPage/AISettingsProvidersPage"
 		),
 );
+const AISettingsAddProviderPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/AISettingsPage/AISettingsAddProviderPage"
+		),
+);
 const AISettingsKeysPage = lazy(
 	() =>
 		import("./pages/DeploymentSettingsPage/AISettingsPage/AISettingsKeysPage"),
@@ -672,7 +678,10 @@ export const router = createBrowserRouter(
 								element={<AISettingsUsageStatsPage />}
 							/>
 							<Route path="models" element={<AISettingsModelsPage />} />
-							<Route path="providers" element={<AISettingsProvidersPage />} />
+							<Route path="providers">
+								<Route index element={<AISettingsProvidersPage />} />
+								<Route path="add" element={<AISettingsAddProviderPage />} />
+							</Route>
 							<Route path="keys" element={<AISettingsKeysPage />} />
 						</Route>
 					</Route>
