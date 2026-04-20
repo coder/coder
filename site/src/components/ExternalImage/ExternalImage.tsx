@@ -9,7 +9,7 @@ export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
 	return (
 		// biome-ignore lint/a11y/useAltText: alt should be passed in as a prop
 		<img
-			css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+			style={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
 			{...props}
 		/>
 	);
