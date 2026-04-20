@@ -984,11 +984,15 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
-export const interruptChat = (_queryClient: QueryClient, chatId: string) => ({
+export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the status change via setChatStatus, and the global
-	// watchChats() WebSocket updates the sidebar.
+	onSuccess: () => {
+		// Chat status and sidebar state are covered by the per-chat
+		// and watchChats() WebSockets, but the Debug panel uses polling.
+		// Kick its list query so the run flips to "interrupted" without
+		// waiting for the next poll cycle.
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 export const deleteChatQueuedMessage = (

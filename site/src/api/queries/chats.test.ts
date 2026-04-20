@@ -1179,15 +1179,18 @@ describe("mutation invalidation scope", () => {
 		);
 	});
 
-	it("interruptChat does not invalidate unrelated queries", async () => {
+	it("interruptChat invalidates debug runs without touching unrelated queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// interruptChat has no onSuccess handler — the WebSocket
-		// delivers status changes in real-time.
 		const mutation = interruptChat(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		await mutation.onSuccess?.();
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
 
 		for (const { label, key } of unrelatedKeys(chatId)) {
 			const state = queryClient.getQueryState(key);
