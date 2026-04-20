@@ -212,6 +212,29 @@ coder:
   # - name: "my-volume"
   #   mountPath: "/mnt/my-volume"
 
+
+  # workloadType controls the kind of compute object created.
+  # Valid values: "Deployment" (default) or "StatefulSet".
+  # Changing this on an existing release is a destructive operation.
+  workloadType: Deployment
+
+  # persistence configures persistent storage for the coder pod(s).
+  # Only valid when workloadType is "StatefulSet".
+  # This is used for persisting Terraform provider downloads only.
+  persistence:
+    # enabled must be false unless workloadType is StatefulSet.
+    enabled: false
+    # storageClassName: use "" to use the cluster default StorageClass.
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    annotations: {}
+    labels: {}
+    # existingClaim: if set, use this pre-existing PVC instead of creating
+    # volumeClaimTemplates. Cannot be used with replicaCount > 1.
+    existingClaim: ""
+
   # coder.tls -- The TLS configuration for Coder.
   tls:
     # coder.tls.secretNames -- A list of TLS server certificate secrets to mount

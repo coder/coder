@@ -162,4 +162,62 @@ livenessProbe:
   failureThreshold: {{ .Values.coder.livenessProbe.failureThreshold }}
   {{- end }}
 {{- end }}
+{{- if .Values.coder.persistence.enabled }}
+volumeMounts:
+- name: data
+  mountPath: /home/coder/.cache/coder
 {{- end }}
+{{- end }}
+
+{{/*
+Validate workload-type and persistence settings.
+*/}}
+{{- define "coder.validateWorkload" -}}
+{{- $type := .Values.coder.workloadType | default "Deployment" -}}
+{{- if and (ne $type "Deployment") (ne $type "StatefulSet") -}}
+  {{- fail (printf "coder.workloadType must be 'Deployment' or 'StatefulSet', got: %s" $type) -}}
+{{- end -}}
+{{- if and .Values.coder.persistence.enabled (ne $type "StatefulSet") -}}
+  {{- fail "coder.persistence.enabled=true requires coder.workloadType=StatefulSet" -}}
+{{- end -}}
+{{- if and .Values.coder.persistence.enabled .Values.coder.persistence.existingClaim (gt (int .Values.coder.replicaCount) 1) -}}
+  {{- fail "coder.persistence.existingClaim cannot be used with replicaCount > 1" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+StatefulSet override — injects containers and optional volumeClaimTemplates / volumes.
+*/}}
+{{- define "coder.statefulset" -}}
+spec:
+  {{- if and .Values.coder.persistence.enabled (not .Values.coder.persistence.existingClaim) }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      {{- with .Values.coder.persistence.annotations }}
+      annotations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coder.persistence.labels }}
+      labels: {{ toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      accessModes: {{ toYaml .Values.coder.persistence.accessModes | nindent 8 }}
+      {{- with .Values.coder.persistence.storageClassName }}
+      storageClassName: {{ . | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.coder.persistence.size }}
+  {{- end }}
+  template:
+    spec:
+      {{- if and .Values.coder.persistence.enabled .Values.coder.persistence.existingClaim }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ .Values.coder.persistence.existingClaim | quote }}
+      {{- end }}
+      containers:
+      -
+{{ include "libcoder.containerspec" (list . "coder.containerspec") | indent 8 }}
+{{- end -}}

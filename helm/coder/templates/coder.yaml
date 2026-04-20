@@ -3,5 +3,12 @@
 {{ include "libcoder.serviceaccount" (list . "coder.serviceaccount") }}
 {{- end }}
 
+{{/* Validate workload settings */}}
+{{- include "coder.validateWorkload" . }}
+
 ---
+{{- if eq (.Values.coder.workloadType | default "Deployment") "StatefulSet" }}
+{{ include "libcoder.statefulset" (list . "coder.statefulset") }}
+{{- else }}
 {{ include "libcoder.deployment" (list . "coder.deployment") }}
+{{- end }}
