@@ -73,7 +73,7 @@ func fetchLocalChatDiffContents(
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
-	conn.SetReadLimit(1 << 22)
+	conn.SetReadLimit(1 << 22) // 4MiB
 
 	stream := wsjson.NewStream[
 		codersdk.WorkspaceAgentGitServerMessage,
@@ -111,6 +111,13 @@ func fetchLocalChatDiffContents(
 	}
 }
 
+// dialChatGit opens the chat git-watcher WebSocket. We dial the socket
+// manually instead of using codersdk.Client.Dial because that helper
+// closes the HTTP response body before surfacing the error, which
+// prevents codersdk.ReadBodyAsError from extracting the status code and
+// message that shouldIgnoreLocalDiffFallbackError needs to decide
+// whether to degrade to the empty remote diff. Keep this handrolled
+// path as long as the shared helper has that limitation.
 func dialChatGit(
 	ctx context.Context,
 	client *codersdk.ExperimentalClient,
@@ -194,26 +201,23 @@ func shouldIgnoreLocalDiffFallbackError(err error) bool {
 	switch sdkErr.StatusCode() {
 	case http.StatusNotFound:
 		return true
+	case http.StatusForbidden:
+		// authorizeChatWorkspaceExec returns 403 when the chat owner's
+		// workspace permissions have been revoked. The remote diff
+		// endpoint (getChatDiffContents) does not re-check workspace
+		// permissions, so degrade to its empty response the same way
+		// we do for the 400 variants below.
+		return true
 	case http.StatusBadRequest:
-		message := strings.ToLower(strings.TrimSpace(sdkErr.Message))
 		// These correspond to the 400 responses from watchChatGit in
 		// coderd/exp_chats.go when the chat cannot be observed through
 		// a workspace agent (no workspace bound, workspace deleted, no
 		// agents, or an agent that is not yet connected). Each should
 		// fall back to the empty remote diff the same way a missing
 		// chat (404) does instead of surfacing a hard error.
-		ignorable := []string{
-			"chat has no workspace to watch",
-			"chat workspace not found",
-			"chat workspace has no agents",
-			"agent state is ",
-		}
-		for _, phrase := range ignorable {
-			if strings.Contains(message, phrase) {
-				return true
-			}
-		}
-		return false
+		// codersdk.IsChatGitWatchFallbackMessage keeps this list
+		// mechanically linked to the server-side messages.
+		return codersdk.IsChatGitWatchFallbackMessage(sdkErr.Message)
 	default:
 		return false
 	}
