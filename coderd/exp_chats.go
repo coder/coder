@@ -114,13 +114,6 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
-// publishChatTitleChange publishes a title_change pubsub event on the
-// owner's chat watch channel. It is a no-op when ps is nil (tests that
-// wire chatd without a pubsub) and logs without returning errors so
-// callers can treat it as best-effort. Kept as a fallback for paths
-// that update a chat title outside of chatd; callers with a running
-// chatd should prefer (*chatd.Server).PublishTitleChange so the
-// pubsub contract stays owned by chatd.
 func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
 	if ps == nil {
 		return
@@ -1871,23 +1864,12 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// applyChatTitleUpdate validates and persists a chat title update on
-// behalf of patchChat. It returns the chat after the update (or the
-// unchanged chat when nothing changed) and a boolean "handled" flag
-// that is true when the helper has already written a response to rw
-// (validation error, not-found, conflict, etc.) and the caller must
-// stop processing the PATCH.
-//
-// Unlike pin/unpin, the rename path intentionally permits archived
-// chats. Renaming is non-destructive and the UI's archived list is
-// easier to use when users can relabel stale archived chats.
 func (api *API) applyChatTitleUpdate(
 	ctx context.Context,
 	rw http.ResponseWriter,
 	chat database.Chat,
 	rawTitle string,
 ) (database.Chat, bool) {
-	// Reject whitespace-only titles as empty.
 	trimmedTitle := strings.TrimSpace(rawTitle)
 	if trimmedTitle == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1895,9 +1877,6 @@ func (api *API) applyChatTitleUpdate(
 		})
 		return chat, true
 	}
-	// Keep the limit in sync with the client-side maxLength on the
-	// rename input. Counting runes avoids rejecting multi-byte
-	// characters that would fit comfortably in the UI.
 	const maxChatTitleRunes = 200
 	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1905,29 +1884,23 @@ func (api *API) applyChatTitleUpdate(
 		})
 		return chat, true
 	}
-	// No-op on same-title updates: skip the write entirely so we
-	// don't bump updated_at or fan a redundant title_change event
-	// out to every watching client on this owner.
 	if trimmedTitle == chat.Title {
 		return chat, false
 	}
 
-	// Route through chatDaemon when available so the rename shares
-	// the manual-title lock with RegenerateChatTitle and
-	// maybeGenerateChatTitle. The daemon uses UpdateChatTitleByID
-	// which preserves updated_at so an out-of-band rename does not
-	// reorder the sidebar.
 	var (
 		updatedChat database.Chat
+		wrote       bool
 		err         error
 	)
 	if api.chatDaemon != nil {
-		updatedChat, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+		updatedChat, wrote, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
 	} else {
 		updatedChat, err = api.Database.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: trimmedTitle,
 		})
+		wrote = err == nil
 	}
 	if err != nil {
 		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
@@ -1946,13 +1919,7 @@ func (api *API) applyChatTitleUpdate(
 		})
 		return chat, true
 	}
-	// Publish on the handler side so chatd's Rename helper can stay
-	// symmetric with archive/unarchive (database writes there; handler
-	// broadcasts). RenameChatTitle re-reads under the lock and may
-	// return the pre-update row unchanged when a concurrent writer
-	// landed the same title first; skip the publish in that case so
-	// watchers don't see spurious title_change events.
-	if updatedChat.Title != chat.Title {
+	if wrote {
 		if api.chatDaemon != nil {
 			api.chatDaemon.PublishTitleChange(updatedChat)
 		} else {
@@ -1962,12 +1929,8 @@ func (api *API) applyChatTitleUpdate(
 	return updatedChat, false
 }
 
-// patchChat updates a chat resource. Supports updating the title,
-// labels, workspace binding, archiving, pinning, and pinned-chat
-// ordering. Each sub-update is an independent mutation; if a later
-// step fails with 500 the earlier successful updates have already
-// committed and broadcast. Clients that need atomic multi-field
-// changes should issue a single sub-update per request.
+// patchChat updates a chat resource. Supports updating labels,
+// workspace binding, archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2752,11 +2715,6 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
-// EXPERIMENTAL: proposeChatTitle generates a title suggestion from the
-// chat's visible messages without persisting it. The rename dialog
-// uses this so Generate + Cancel is safe (no server-side change until
-// the user saves).
-//
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

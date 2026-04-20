@@ -4022,10 +4022,6 @@ func TestPatchChat(t *testing.T) {
 		t.Run("LengthBoundaries", func(t *testing.T) {
 			t.Parallel()
 
-			// The server limit is 200 runes after trim. Lock that
-			// behavior down across ASCII and multi-byte inputs so a
-			// regression back to byte counting is caught here rather
-			// than as a production surprise.
 			cases := []struct {
 				name     string
 				title    string
@@ -4044,9 +4040,6 @@ func TestPatchChat(t *testing.T) {
 					expectOK: false,
 				},
 				{
-					// 200 runes of a 2-byte UTF-8 character is 400
-					// bytes. The server counts runes, not bytes, so
-					// this must be accepted.
 					name:     "ExactlyMaxMultiByte",
 					title:    strings.Repeat("é", 200),
 					expectOK: true,
@@ -4058,8 +4051,6 @@ func TestPatchChat(t *testing.T) {
 					expectOK: false,
 				},
 				{
-					// Trimmed payload fits inside the limit even
-					// though the submitted string is much longer.
 					name:     "TrimsDownToMax",
 					title:    "   " + strings.Repeat("a", 200) + "   ",
 					expectOK: true,
@@ -4095,10 +4086,6 @@ func TestPatchChat(t *testing.T) {
 		t.Run("PreservesUpdatedAt", func(t *testing.T) {
 			t.Parallel()
 
-			// User-driven renames must not reorder older chats to the
-			// top of the sidebar. The chat list is ordered by
-			// updated_at DESC, so the rename query must preserve the
-			// existing updated_at timestamp.
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			clientRaw := coderdtest.New(t, &coderdtest.Options{
@@ -4112,10 +4099,6 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
 
-			// Wait for background title generation triggered by
-			// createChat to settle before backdating; otherwise the
-			// async path may update updated_at after our UPDATE and
-			// race with the assertion.
 			require.Eventually(t, func() bool {
 				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 				if getErr != nil {
@@ -4125,9 +4108,6 @@ func TestPatchChat(t *testing.T) {
 					c.Status != database.ChatStatusRunning
 			}, testutil.WaitShort, testutil.IntervalFast)
 
-			// Back-date updated_at to something clearly older than
-			// "just now" so the assertion is not sensitive to clock
-			// drift between the test process and postgres.
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
 				"UPDATE chats SET updated_at = $1 WHERE id = $2",
@@ -4149,8 +4129,6 @@ func TestPatchChat(t *testing.T) {
 		t.Run("NoOpWhenTitleUnchanged", func(t *testing.T) {
 			t.Parallel()
 
-			// Submitting the same title must neither bump updated_at
-			// nor fan out a title_change event to watching clients.
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			clientRaw := coderdtest.New(t, &coderdtest.Options{
@@ -4164,10 +4142,6 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "steady title")
 
-			// Wait for background title generation triggered by
-			// createChat to settle before backdating; otherwise the
-			// async path may update updated_at after our UPDATE and
-			// race with the assertion.
 			require.Eventually(t, func() bool {
 				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 				if getErr != nil {
@@ -4177,10 +4151,6 @@ func TestPatchChat(t *testing.T) {
 					c.Status != database.ChatStatusRunning
 			}, testutil.WaitShort, testutil.IntervalFast)
 
-			// Force-set the chat's title to a known value under a
-			// backdated updated_at. We can't use client.UpdateChat here
-			// because that is the very path under test; update
-			// directly to seed the baseline.
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
 				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
@@ -4213,10 +4183,6 @@ func TestPatchChat(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close(websocket.StatusNormalClosure, "done")
 
-			// Kick off the rename on a short delay so the WebSocket
-			// subscription is active when the publish fires. Loop the
-			// publish if necessary by re-reading until we observe the
-			// event we care about.
 			go func() {
 				_ = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 					Title: ptr.Ref("announced name"),
@@ -6539,12 +6505,6 @@ func TestProposeChatTitle(t *testing.T) {
 	t.Run("DoesNotPersistTitleOrBumpUpdatedAt", func(t *testing.T) {
 		t.Parallel()
 
-		// The propose endpoint is the Generate button inside the rename
-		// dialog. It must not persist any title or bump updated_at; the
-		// rename dialog performs a separate PATCH on Save. We can't
-		// exercise a successful generation here because the test
-		// environment has no real provider API key, but we can assert
-		// that the failure path does not write either.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -6558,9 +6518,6 @@ func TestProposeChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Wait for background title generation started by createChat
-		// to settle before taking the baseline. Otherwise the async
-		// path may update the chat concurrently with this test.
 		require.Eventually(t, func() bool {
 			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 			if getErr != nil {
@@ -6573,9 +6530,6 @@ func TestProposeChatTitle(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.ProposeChatTitle(ctx, chat.ID)
-		// Generation fails in tests (no real API key); the handler
-		// surfaces this as 500. The important assertion is below — no
-		// persistence regardless of outcome.
 		requireSDKError(t, err, http.StatusInternalServerError)
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)

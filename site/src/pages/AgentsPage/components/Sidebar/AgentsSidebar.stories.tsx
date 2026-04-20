@@ -660,6 +660,89 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 	},
 };
 
+export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-a",
+				title: "Chat A",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "rename-generate-b",
+				title: "Chat B",
+				updated_at: recentTimestamp,
+			}),
+		],
+		// Delay A's proposal so it resolves after the user has
+		// cancelled A's dialog and switched to editing Chat B.
+		// Without the target-chat guard, this late response would
+		// overwrite B's in-progress edit.
+		onProposeTitle: fn((chatId: string) => {
+			if (chatId === "rename-generate-a") {
+				return new Promise<string>((resolve) => {
+					setTimeout(() => resolve("Late suggestion for A"), 150);
+				});
+			}
+			return Promise.resolve(`Proposal for ${chatId}`);
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		// Open Chat A's rename dialog and start Generate. The stub
+		// holds the response so it remains pending through the cancel
+		// and reopen below.
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open actions for Chat A" }),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		// Cancel A's dialog while the proposal is still in flight. The
+		// pending promise for A will resolve during the steps below.
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Open Chat B's dialog and type an edit. Generate is not
+		// invoked here — we only want to catch A's late response
+		// trying to clobber B's input.
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open actions for Chat B" }),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		const inputB = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		expect(inputB).toHaveValue("Chat B");
+		await userEvent.clear(inputB);
+		await userEvent.type(inputB, "User edit for B");
+
+		// Wait past A's stubbed delay. If the late response were
+		// applied, the input would now contain "Late suggestion for
+		// A"; the target-chat guard must drop it instead.
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		expect(inputB).toHaveValue("User edit for B");
+		// The error alert must also remain absent — the guard covers
+		// the rejected-promise branch symmetrically.
+		expect(body.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
 		chats: [

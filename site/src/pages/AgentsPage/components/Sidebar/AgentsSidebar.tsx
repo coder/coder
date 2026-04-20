@@ -827,6 +827,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		string | null
 	>(null);
 	const renameInputRef = useRef<HTMLInputElement | null>(null);
+	// Tracks which chat the rename dialog is currently editing, so an
+	// in-flight Generate request can be ignored if the dialog has
+	// since been closed or switched to a different chat. Without this
+	// guard, a late response for chat A would overwrite the input or
+	// error state of chat B's dialog (close during Generate is
+	// allowed — only Save blocks close).
+	const activeRenameChatIdRef = useRef<string | null>(null);
 	// useId() keeps the rename input and error IDs unique across
 	// instances. The sidebar may mount on multiple routes, and the
 	// error ID is also referenced by aria-describedby — using hard-
@@ -1009,30 +1016,45 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
 	const handleOpenRenameDialog = (chat: Chat) => {
+		activeRenameChatIdRef.current = chat.id;
 		setChatPendingRename(chat);
 		setRenameTitle(chat.title);
 		setGenerateRenameTitleError(null);
+		// Reset any lingering Generate flag from a previous dialog
+		// session that was closed while a request was in flight.
+		setIsGeneratingRenameTitle(false);
 	};
 	const closeRenameDialog = () => {
 		// Only block close on an in-flight Save. An in-flight Generate is
 		// safe to abandon — the proposal does not persist on the server,
 		// so cancelling simply discards the suggestion we haven't shown
-		// yet.
+		// yet. The activeRenameChatIdRef check in handleGenerateRenameTitle
+		// prevents the late response from touching the next dialog's state.
 		if (isRenamingChat) {
 			return;
 		}
+		activeRenameChatIdRef.current = null;
 		setChatPendingRename(null);
 		setRenameTitle("");
 		setGenerateRenameTitleError(null);
+		setIsGeneratingRenameTitle(false);
 	};
 	const handleGenerateRenameTitle = async () => {
 		if (!chatPendingRename || !onProposeTitle) {
 			return;
 		}
+		// Capture the chat id the request is for. After the await, the
+		// dialog may have been closed or reopened on a different chat;
+		// applying the result in that case would clobber unrelated
+		// input/error state.
+		const requestedChatId = chatPendingRename.id;
 		setIsGeneratingRenameTitle(true);
 		setGenerateRenameTitleError(null);
 		try {
-			const newTitle = await onProposeTitle(chatPendingRename.id);
+			const newTitle = await onProposeTitle(requestedChatId);
+			if (activeRenameChatIdRef.current !== requestedChatId) {
+				return;
+			}
 			setRenameTitle(newTitle);
 			requestAnimationFrame(() => {
 				renameInputRef.current?.focus();
@@ -1040,6 +1062,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			});
 			setIsGeneratingRenameTitle(false);
 		} catch (error) {
+			if (activeRenameChatIdRef.current !== requestedChatId) {
+				return;
+			}
 			// Parent also surfaces a toast; the inline message gives
 			// immediate in-context feedback while the dialog is open.
 			setGenerateRenameTitleError(
