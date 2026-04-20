@@ -2448,6 +2448,7 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 // GetChatMessages.
 type ChatMessagesPaginationOptions struct {
 	BeforeID int64
+	AfterID  int64
 	Limit    int
 }
 
@@ -2459,6 +2460,9 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 			q := r.URL.Query()
 			if opts.BeforeID > 0 {
 				q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.AfterID > 0 {
+				q.Set("after_id", strconv.FormatInt(opts.AfterID, 10))
 			}
 			if opts.Limit > 0 {
 				q.Set("limit", strconv.Itoa(opts.Limit))

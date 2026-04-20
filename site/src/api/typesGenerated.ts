@@ -1790,6 +1790,7 @@ export interface ChatMessageUsage {
  */
 export interface ChatMessagesPaginationOptions {
 	readonly BeforeID: number;
+	readonly AfterID: number;
 	readonly Limit: number;
 }
 

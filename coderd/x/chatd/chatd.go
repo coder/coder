@@ -2252,6 +2252,7 @@ func (p *Server) regenerateChatTitleWithStore(
 		database.GetChatMessagesByChatIDDescPaginatedParams{
 			ChatID:   chat.ID,
 			BeforeID: 0,
+			AfterID:  0,
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	)

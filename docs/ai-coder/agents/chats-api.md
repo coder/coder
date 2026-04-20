@@ -241,7 +241,19 @@ absent when all files are linked successfully.
 
 `GET /api/experimental/chats/{chat}/messages`
 
-Returns the messages and queued messages for a chat.
+Returns messages for a chat in descending ID order (newest first).
+
+| Query parameter | Type    | Required | Description                                 |
+|-----------------|---------|----------|---------------------------------------------|
+| `before_id`     | `int64` | no       | Only return messages with `id < before_id`. |
+| `after_id`      | `int64` | no       | Only return messages with `id > after_id`.  |
+| `limit`         | `int32` | no       | Page size, 1–200. Defaults to 50.           |
+
+`queued_messages` is only populated on the initial load (no
+cursor). Pass either cursor to page through history or to poll
+for new messages without receiving the queued snapshot on every
+request. The `has_more` flag indicates more rows exist beyond
+this page in the same direction.
 
 ### List models
 

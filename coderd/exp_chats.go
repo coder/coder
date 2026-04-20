@@ -1581,6 +1581,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
+	afterID := parser.PositiveInt64(queryParams, 0, "after_id")
 	limit := parser.PositiveInt32(queryParams, 50, "limit")
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1599,6 +1600,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
 		ChatID:   chatID,
 		BeforeID: beforeID,
+		AfterID:  afterID,
 		LimitVal: limit + 1,
 	})
 	if err != nil {
@@ -1614,9 +1616,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		messages = messages[:limit]
 	}
 
-	// Only fetch queued messages on the first page (no cursor).
+	// Queued messages are only meaningful for the initial top-of-history
+	// load. Suppress them whenever any cursor is set so polling callers do
+	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
-	if beforeID == 0 {
+	if beforeID == 0 && afterID == 0 {
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
