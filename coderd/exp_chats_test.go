@@ -4401,8 +4401,7 @@ func TestPatchChat(t *testing.T) {
 			}()
 
 			var received codersdk.ChatWatchEvent
-			deadline := time.Now().Add(testutil.WaitLong)
-			for time.Now().Before(deadline) {
+			for {
 				if err := wsjson.Read(ctx, conn, &received); err != nil {
 					break
 				}

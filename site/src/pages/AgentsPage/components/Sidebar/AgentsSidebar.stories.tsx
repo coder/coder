@@ -760,7 +760,9 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Open actions for Chat B" }),
+			await canvas.findByRole("button", {
+				name: "Open actions for Chat B",
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Rename chat" }),
@@ -819,7 +821,9 @@ export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
 			await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
 			await userEvent.click(
-				canvas.getByRole("button", { name: "Open actions for Chat same" }),
+				await canvas.findByRole("button", {
+					name: "Open actions for Chat same",
+				}),
 			);
 			await userEvent.click(
 				await body.findByRole("menuitem", { name: "Rename chat" }),
