@@ -27,16 +27,25 @@ export function useActiveFileTracking({
 	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
 
 	const [viewportHeight, setViewportHeight] = useState(0);
+
+	// viewportRef is a stable RefObject whose identity never changes, so
+	// an effect that depends on it won't re-run when .current transitions
+	// from null to the actual DOM node (e.g. after a loading state).
+	// Keep a state mirror that flips exactly once when the element mounts.
+	const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
 	useEffect(() => {
-		const viewport = viewportRef.current;
-		if (!viewport) return;
-		setViewportHeight(viewport.clientHeight);
+		setViewportEl(viewportRef.current);
+	});
+
+	useEffect(() => {
+		if (!viewportEl) return;
+		setViewportHeight(viewportEl.clientHeight);
 		const ro = new ResizeObserver(([entry]) => {
 			setViewportHeight(Math.round(entry.contentRect.height));
 		});
-		ro.observe(viewport);
+		ro.observe(viewportEl);
 		return () => ro.disconnect();
-	}, [viewportRef]);
+	}, [viewportEl]);
 
 	const sortedFilesRef = useRef(sortedFiles);
 	useEffect(() => {
@@ -55,8 +64,7 @@ export function useActiveFileTracking({
 
 	useEffect(() => {
 		if (!enabled || fileListKey === "" || viewportHeight === 0) return;
-		const viewport = viewportRef.current;
-		if (!viewport) return;
+		if (!viewportEl) return;
 
 		const bottomMargin = Math.round(viewportHeight * 0.95);
 
@@ -82,7 +90,8 @@ export function useActiveFileTracking({
 				}
 			},
 			{
-				root: viewport,
+				root: viewportEl,
+				// Observe only the top ~5% strip of the viewport height.
 				rootMargin: `0px 0px -${bottomMargin}px 0px`,
 				threshold: 0,
 			},
@@ -93,7 +102,7 @@ export function useActiveFileTracking({
 		}
 
 		return () => observer.disconnect();
-	}, [enabled, fileListKey, viewportRef, viewportHeight]);
+	}, [enabled, fileListKey, viewportEl, viewportHeight]);
 
 	const handleFileClick = (name: string) => {
 		const el = fileRefs.current.get(name);
