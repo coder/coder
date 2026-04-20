@@ -1595,10 +1595,8 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 }
 
 func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.AutoArchiveInactiveChatsParams) ([]database.AutoArchiveInactiveChatsRow, error) {
-	// System-level write performed by dbpurge. Both policy.ActionRead
-	// (for chat_messages in the LATERAL subquery) and policy.ActionUpdate
-	// (for the UPDATE) are covered by subjectSystemRestricted's
-	// ResourceChat permissions.
+	// Background write by dbpurge; ActionRead on chat_messages is covered
+	// by the ResourceChat grant on subjectDBPurge.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
