@@ -177,7 +177,7 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 
 // AgentConnFunc returns a new connection to the specified agent. If release is
 // non-nil, callers must invoke it after they are done with the AgentConn.
-type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (_ AgentConn, release func(), _ error)
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (conn AgentConn, release func(), err error)
 
 // @typescript-ignore DialAgentOptions
 type DialAgentOptions struct {
