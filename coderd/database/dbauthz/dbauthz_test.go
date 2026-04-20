@@ -463,16 +463,17 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("DeleteChatDebugDataAfterMessageID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.DeleteChatDebugDataAfterMessageIDParams{ChatID: chat.ID, MessageID: 123}
+		arg := database.DeleteChatDebugDataAfterMessageIDParams{ChatID: chat.ID, StartedBefore: dbtime.Now(), MessageID: 123}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().DeleteChatDebugDataAfterMessageID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("DeleteChatDebugDataByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.DeleteChatDebugDataByChatIDParams{ChatID: chat.ID, StartedBefore: dbtime.Now()}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatDebugDataByChatID(gomock.Any(), chat.ID).Return(int64(1), nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+		dbm.EXPECT().DeleteChatDebugDataByChatID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("FinalizeStaleChatDebugRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		now := dbtime.Now()
@@ -820,6 +821,27 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because SQLFilter.
 		check.Args(params).Asserts()
 	}))
+	s.Run("GetChildChatsByParentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		parentA := testutil.Fake(s.T(), faker, database.Chat{})
+		parentB := testutil.Fake(s.T(), faker, database.Chat{})
+		childA := testutil.Fake(s.T(), faker, database.Chat{
+			ParentChatID: uuid.NullUUID{UUID: parentA.ID, Valid: true},
+		})
+		childB := testutil.Fake(s.T(), faker, database.Chat{
+			ParentChatID: uuid.NullUUID{UUID: parentB.ID, Valid: true},
+		})
+		parentIDs := []uuid.UUID{parentA.ID, parentB.ID}
+		params := database.GetChildChatsByParentIDsParams{
+			ParentIds: parentIDs,
+			Archived:  sql.NullBool{Bool: false, Valid: true},
+		}
+		rows := []database.GetChildChatsByParentIDsRow{
+			{Chat: childA},
+			{Chat: childB},
+		}
+		dbm.EXPECT().GetChildChatsByParentIDs(gomock.Any(), params).Return(rows, nil).AnyTimes()
+		check.Args(params).Asserts(childA, policy.ActionRead, childB, policy.ActionRead).Returns(rows)
+	}))
 	s.Run("GetAuthorizedChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}
 		dbm.EXPECT().GetAuthorizedChats(gomock.Any(), params, gomock.Any()).Return([]database.GetChatsRow{}, nil).AnyTimes()
@@ -959,6 +981,16 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatByID(gomock.Any(), arg).Return(chat, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("UpdateChatTitleByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: "Updated title",
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatTitleByID(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
 	s.Run("UpdateChatLabelsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

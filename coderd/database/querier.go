@@ -102,8 +102,16 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes debug runs (and their cascaded steps) whose message IDs
+	// exceed the cutoff. The started_before bound prevents retried
+	// cleanup from deleting runs created by a replacement turn that
+	// raced ahead of the retry window.
 	DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error)
-	DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
+	// The started_before bound prevents retried cleanup from deleting
+	// runs created by a replacement turn that races ahead of the retry
+	// window (for example, after an unarchive races with a pending
+	// archive-cleanup retry).
+	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -349,6 +357,11 @@ type sqlcQuerier interface {
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
+	// Fetches child chats of the given parents, optionally filtered by
+	// archive state (NULL = all, true/false = match). The archive
+	// invariant (parent archived implies child archived) is enforced
+	// at write time, not here.
+	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -1044,6 +1057,7 @@ type sqlcQuerier interface {
 	UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error)
+	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

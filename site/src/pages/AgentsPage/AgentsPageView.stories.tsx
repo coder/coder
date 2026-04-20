@@ -143,6 +143,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -263,7 +264,9 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestArchiveAndDeleteWorkspace: fn(),
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
-	onRegenerateTitle: fn(),
+	onRegenerateTitle: fn(async () => "Generated title"),
+	onProposeTitle: fn(async () => "Proposed title"),
+	onRenameTitle: fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,

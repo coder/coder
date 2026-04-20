@@ -581,7 +581,8 @@ func TestService_DeleteByChatID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	deleted, err := fixture.svc.DeleteByChatID(fixture.ctx, fixture.chat.ID)
+	deleted, err := fixture.svc.DeleteByChatID(fixture.ctx, fixture.chat.ID,
+		time.Now().Add(time.Minute))
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
 
@@ -640,7 +641,7 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 	require.NoError(t, err)
 
 	deleted, err := fixture.svc.DeleteAfterMessageID(fixture.ctx, fixture.chat.ID,
-		threshold.ID)
+		threshold.ID, time.Now().Add(time.Minute))
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
 
@@ -824,6 +825,192 @@ func TestService_FinalizeStale_NoChangesDoesNotBroadcast(t *testing.T) {
 	}
 
 	_ = chat // keep seeded chat usage explicit for test readability.
+}
+
+func TestClassifyError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want chatdebug.Status
+	}{
+		{"nil", nil, chatdebug.StatusCompleted},
+		{"context.Canceled", context.Canceled, chatdebug.StatusInterrupted},
+		// Wrapped context.Canceled must still classify as interrupted so
+		// callers that decorate cancellation errors do not flip to
+		// StatusError.
+		{
+			"wrapped context.Canceled",
+			xerrors.Errorf("canceled mid-stream: %w", context.Canceled),
+			chatdebug.StatusInterrupted,
+		},
+		{"generic error", xerrors.New("boom"), chatdebug.StatusError},
+		// context.DeadlineExceeded is not context.Canceled and is not
+		// special-cased by ClassifyError, so it must fall through to
+		// StatusError. This pins the priority ordering in the switch.
+		{
+			"context.DeadlineExceeded",
+			context.DeadlineExceeded, chatdebug.StatusError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatdebug.ClassifyError(tt.err))
+		})
+	}
+}
+
+func TestService_FinalizeRun_FallsBackToSeedSummary(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+
+	runID := uuid.New()
+	chatID := uuid.New()
+	seed := map[string]any{"first_message": "hello"}
+
+	// Force AggregateRunSummary to fail by returning an error from the
+	// step fetch it depends on. FinalizeRun must log the warning and
+	// continue with the caller-supplied SeedSummary.
+	db.EXPECT().
+		GetChatDebugStepsByRunID(gomock.Any(), runID).
+		Return(nil, xerrors.New("boom"))
+
+	db.EXPECT().
+		UpdateChatDebugRun(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.Equal(t, runID, arg.ID)
+			require.Equal(t, chatID, arg.ChatID)
+			require.True(t, arg.Summary.Valid)
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(arg.Summary.RawMessage, &got))
+			require.Equal(t, "hello", got["first_message"])
+			return database.ChatDebugRun{
+				ID:     runID,
+				ChatID: chatID,
+			}, nil
+		})
+
+	err := svc.FinalizeRun(context.Background(), chatdebug.FinalizeRunParams{
+		RunID:       runID,
+		ChatID:      chatID,
+		Status:      chatdebug.StatusCompleted,
+		SeedSummary: seed,
+	})
+	require.NoError(t, err)
+}
+
+func TestService_FinalizeRun_ReturnsWrappedUpdateError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+
+	runID := uuid.New()
+	chatID := uuid.New()
+
+	db.EXPECT().
+		GetChatDebugStepsByRunID(gomock.Any(), runID).
+		Return(nil, nil)
+	db.EXPECT().
+		UpdateChatDebugRun(gomock.Any(), gomock.Any()).
+		Return(database.ChatDebugRun{}, xerrors.New("update failed"))
+
+	err := svc.FinalizeRun(context.Background(), chatdebug.FinalizeRunParams{
+		RunID:  runID,
+		ChatID: chatID,
+		Status: chatdebug.StatusCompleted,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "update debug run")
+	require.Contains(t, err.Error(), "update failed")
+}
+
+func TestService_FinalizeRun_CustomTimeoutAppliesToDBCalls(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+
+	runID := uuid.New()
+	chatID := uuid.New()
+	customTimeout := 123 * time.Millisecond
+	// Allow for scheduling jitter but ensure the custom timeout is
+	// honored rather than the 5s default. Both DB calls receive the
+	// same timeout-bounded context.
+	maxRemaining := customTimeout + 50*time.Millisecond
+
+	db.EXPECT().
+		GetChatDebugStepsByRunID(gomock.Any(), runID).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID) ([]database.ChatDebugStep, error) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok, "FinalizeRun must apply its Timeout to aggregation context")
+			require.LessOrEqual(t, time.Until(deadline), maxRemaining)
+			return nil, nil
+		})
+	db.EXPECT().
+		UpdateChatDebugRun(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok, "FinalizeRun must apply its Timeout to update context")
+			require.LessOrEqual(t, time.Until(deadline), maxRemaining)
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		})
+
+	err := svc.FinalizeRun(context.Background(), chatdebug.FinalizeRunParams{
+		RunID:   runID,
+		ChatID:  chatID,
+		Status:  chatdebug.StatusCompleted,
+		Timeout: customTimeout,
+	})
+	require.NoError(t, err)
+}
+
+func TestService_FinalizeRun_DetachesFromParentCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+
+	runID := uuid.New()
+	chatID := uuid.New()
+
+	// FinalizeRun uses context.WithoutCancel so a canceled parent must
+	// not propagate to the DB calls. Verify both calls see a live
+	// context with the FinalizeRun-owned deadline.
+	parentCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	db.EXPECT().
+		GetChatDebugStepsByRunID(gomock.Any(), runID).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID) ([]database.ChatDebugStep, error) {
+			require.NoError(t, ctx.Err(),
+				"aggregation context must not inherit parent cancellation")
+			_, ok := ctx.Deadline()
+			require.True(t, ok)
+			return nil, nil
+		})
+	db.EXPECT().
+		UpdateChatDebugRun(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.NoError(t, ctx.Err(),
+				"update context must not inherit parent cancellation")
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		})
+
+	err := svc.FinalizeRun(parentCtx, chatdebug.FinalizeRunParams{
+		RunID:  runID,
+		ChatID: chatID,
+		Status: chatdebug.StatusCompleted,
+	})
+	require.NoError(t, err)
 }
 
 func TestService_PublishesEvents(t *testing.T) {

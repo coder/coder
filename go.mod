@@ -324,7 +324,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/go-chi/hostrouter v0.3.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -504,7 +504,7 @@ require (
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.2
+	github.com/coder/aibridge v1.1.3-0.20260420072253-d474d6813420
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8

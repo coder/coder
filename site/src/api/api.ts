@@ -3171,6 +3171,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
+		const response = await this.axios.post<{ title: string }>(
+			`/api/experimental/chats/${chatId}/title/propose`,
+		);
+		return response.data;
+	};
+
 	createChatMessage = async (
 		chatId: string,
 		req: CreateChatMessageRequestWithClearablePlanMode,

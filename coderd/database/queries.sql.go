@@ -2905,19 +2905,23 @@ WITH affected_runs AS (
     SELECT DISTINCT run.id
     FROM chat_debug_runs run
     WHERE run.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            run.history_tip_message_id > $2::bigint
-            OR run.trigger_message_id > $2::bigint
+            run.history_tip_message_id > $3::bigint
+            OR run.trigger_message_id > $3::bigint
         )
 
     UNION
 
     SELECT DISTINCT step.run_id AS id
     FROM chat_debug_steps step
+    JOIN chat_debug_runs run ON run.id = step.run_id
+        AND run.chat_id = step.chat_id
     WHERE step.chat_id = $1::uuid
+        AND run.started_at < $2::timestamptz
         AND (
-            step.assistant_message_id > $2::bigint
-            OR step.history_tip_message_id > $2::bigint
+            step.assistant_message_id > $3::bigint
+            OR step.history_tip_message_id > $3::bigint
         )
 )
 DELETE FROM chat_debug_runs
@@ -2926,12 +2930,17 @@ WHERE chat_id = $1::uuid
 `
 
 type DeleteChatDebugDataAfterMessageIDParams struct {
-	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
-	MessageID int64     `db:"message_id" json:"message_id"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+	MessageID     int64     `db:"message_id" json:"message_id"`
 }
 
+// Deletes debug runs (and their cascaded steps) whose message IDs
+// exceed the cutoff. The started_before bound prevents retried
+// cleanup from deleting runs created by a replacement turn that
+// raced ahead of the retry window.
 func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.MessageID)
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataAfterMessageID, arg.ChatID, arg.StartedBefore, arg.MessageID)
 	if err != nil {
 		return 0, err
 	}
@@ -2941,10 +2950,20 @@ func (q *sqlQuerier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg 
 const deleteChatDebugDataByChatID = `-- name: DeleteChatDebugDataByChatID :execrows
 DELETE FROM chat_debug_runs
 WHERE chat_id = $1::uuid
+    AND started_at < $2::timestamptz
 `
 
-func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, chatID)
+type DeleteChatDebugDataByChatIDParams struct {
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+}
+
+// The started_before bound prevents retried cleanup from deleting
+// runs created by a replacement turn that races ahead of the retry
+// window (for example, after an unarchive races with a pending
+// archive-cleanup retry).
+func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatDebugDataByChatID, arg.ChatID, arg.StartedBefore)
 	if err != nil {
 		return 0, err
 	}
@@ -6620,6 +6639,11 @@ WHERE
         WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -6824,6 +6848,95 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 			&i.LastModelConfigID,
 			&i.ClientType,
 			&i.PullRequestState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
+SELECT
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY($1 :: uuid[])
+    AND CASE
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC
+`
+
+type GetChildChatsByParentIDsParams struct {
+	ParentIds []uuid.UUID  `db:"parent_ids" json:"parent_ids"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+}
+
+type GetChildChatsByParentIDsRow struct {
+	Chat      Chat `db:"chat" json:"chat"`
+	HasUnread bool `db:"has_unread" json:"has_unread"`
+}
+
+// Fetches child chats of the given parents, optionally filtered by
+// archive state (NULL = all, true/false = match). The archive
+// invariant (parent archived implies child archived) is enforced
+// at write time, not here.
+func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(arg.ParentIds), arg.Archived)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChildChatsByParentIDsRow
+	for rows.Next() {
+		var i GetChildChatsByParentIDsRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.LastInjectedContext,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.HasUnread,
 		); err != nil {
 			return nil, err
 		}
@@ -8419,6 +8532,60 @@ func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg 
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.LastInjectedContext,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
+	)
+	return i, err
+}
+
+const updateChatTitleByID = `-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = $1::text
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type
+`
+
+type UpdateChatTitleByIDParams struct {
+	Title string    `db:"title" json:"title"`
+	ID    uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatTitleByID, arg.Title, arg.ID)
 	var i Chat
 	err := row.Scan(
 		&i.ID,
