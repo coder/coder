@@ -1,0 +1,92 @@
+{
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": [
+        "src/index.tsx",
+        "src/serviceWorker.ts"
+      ],
+      "devEntryPoints": [
+        "e2e/**",
+        "jest.*",
+        "test/**",
+        "**/*.test.*",
+        "*.d.ts",
+        "**/*.jest.*",
+        "*.config.*",
+        ".storybook/**",
+        "**/*.stories.*",
+        "__mocks__",
+        "*Mock*",
+        "scripts/**"
+      ],
+      "moduleBoundaries": [],
+      "circularImportsDetection": {
+        "enabled": true,
+        "algorithm": "SCC",
+        "ignoreTypeImports": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "filesWithModules": [
+          "jest.config.ts",
+          "jest.setup.ts",
+          "jest.polyfills.js",
+          "postcss.config.js",
+          "tailwind.config.js",
+          "vite.config.mts",
+          ".storybook/main.ts",
+          "scripts/check-compiler.mjs",
+        ],
+        // Transitive dependencies that are used indirectly:
+        // - @swc/core: used by @swc/jest (in jest.config.ts)
+        // - jest-environment-jsdom: used by jest-fixed-jsdom (in jest.config.ts)
+        // - postcss: used by tailwindcss and build tools (in postcss.config.js)
+        "excludeModules": [
+          "@swc/core",
+          "jest-environment-jsdom",
+          "postcss",
+          "@types/react-virtualized-auto-sizer",
+          "ts-proto"
+        ]
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "ignore": {
+          "src/api/errors.ts": [
+            "isApiErrorResponse"
+          ],
+          "src/components/ContextMenu/ContextMenu.tsx": [
+            "ContextMenuGroup",
+            "ContextMenuRadioGroup"
+          ]
+        },
+        "ignoreFiles": [
+          "src/api/chatModelOptions.ts"
+        ],
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "prodEntryPoints": [
+          "src/index.tsx",
+          "src/serviceWorker.ts"
+        ],
+      },
+      "restrictedImportsDetection": {
+        "enabled": false
+      }
+    }
+  ]
+}

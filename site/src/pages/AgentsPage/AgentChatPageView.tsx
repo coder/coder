@@ -22,7 +22,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import type { useChatStore } from "./components/ChatConversation/useChatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";

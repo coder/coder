@@ -21,8 +21,8 @@ import {
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	useChatSelector,
-	type useChatStore,
 } from "./ChatConversation/chatStore";
+import type { useChatStore } from "./ChatConversation/useChatStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildComputerUseSubagentIds,

@@ -39,3 +39,4 @@ if ("serviceWorker" in navigator) {
 
 const root = createRoot(element);
 root.render(<App />);
+

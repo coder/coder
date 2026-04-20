@@ -13,14 +13,14 @@ export const pricingFieldNames = new Set<string>(pricingFieldNameList);
 
 type PricingFieldName = (typeof pricingFieldNameList)[number];
 
-export const defaultPricingByFieldName = {
+const defaultPricingByFieldName = {
 	"cost.input_price_per_million_tokens": "0",
 	"cost.output_price_per_million_tokens": "0",
 	"cost.cache_read_price_per_million_tokens": "0",
 	"cost.cache_write_price_per_million_tokens": "0",
 } as const satisfies Record<PricingFieldName, string>;
 
-export const pricingPlaceholderByFieldName = {
+const pricingPlaceholderByFieldName = {
 	"cost.input_price_per_million_tokens": "0",
 	"cost.output_price_per_million_tokens": "0",
 	"cost.cache_read_price_per_million_tokens": "0",

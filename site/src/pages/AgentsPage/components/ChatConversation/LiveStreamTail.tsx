@@ -13,8 +13,9 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	type useChatStore,
 } from "./chatStore";
+import type { useChatStore } from "./useChatStore";
+
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";

@@ -47,8 +47,8 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	useChatStore,
 } from "./chatStore";
+import {  useChatStore } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),

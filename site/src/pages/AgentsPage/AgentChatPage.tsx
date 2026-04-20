@@ -63,8 +63,9 @@ import {
 	type ChatStoreState,
 	selectChatStatus,
 	useChatSelector,
-	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import {  useChatStore } from "./components/ChatConversation/useChatStore";
+
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
