@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,11 +12,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +28,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/chatfiles"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -111,6 +110,30 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 		return true
 	}
 	return false
+}
+
+func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
+	if ps == nil {
+		return
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindTitleChange,
+		Chat: db2sdk.Chat(chat, nil, nil),
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
 }
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
@@ -338,13 +361,39 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract the Chat objects for diff status lookup.
-	dbChats := make([]database.Chat, len(chatRows))
+	// Collect root chat IDs so we can fetch their children.
+	rootIDs := make([]uuid.UUID, len(chatRows))
 	for i, row := range chatRows {
-		dbChats[i] = row.Chat
+		rootIDs[i] = row.Chat.ID
 	}
 
-	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, dbChats)
+	// Embed children matching the caller's archive filter so
+	// sidebar views don't surface state-mismatched rows.
+	var childRows []database.GetChildChatsByParentIDsRow
+	if len(rootIDs) > 0 {
+		childRows, err = api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: rootIDs,
+			Archived:  searchParams.Archived,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to list child chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Collect all chat objects (root + child) for diff status lookup.
+	allChats := make([]database.Chat, 0, len(chatRows)+len(childRows))
+	for _, row := range chatRows {
+		allChats = append(allChats, row.Chat)
+	}
+	for _, row := range childRows {
+		allChats = append(allChats, row.Chat)
+	}
+
+	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, allChats)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -353,7 +402,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRows(chatRows, diffStatusesByChatID))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -1508,7 +1557,41 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
+	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+
+	// For root chats, embed children so callers get a complete
+	// tree in a single response.
+	if !chat.ParentChatID.Valid {
+		// Embed children matching the parent's archive state.
+		childRows, err := api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{chat.ID},
+			Archived:  sql.NullBool{Bool: chat.Archived, Valid: true},
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch child chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// Look up diff statuses for children.
+		childChats := make([]database.Chat, len(childRows))
+		for i, row := range childRows {
+			childChats[i] = row.Chat
+		}
+		childDiffStatuses, err := api.getChatDiffStatusesByChatID(ctx, childChats)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch child chat diff statuses.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1576,6 +1659,57 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// authorizeChatWorkspaceExec enforces the workspace-level permissions
+// shared by the chat stream endpoints that proxy a live websocket into
+// the workspace agent (currently /stream/git and /stream/desktop).
+//
+// The chat row only authorizes the chat owner, so callers also need
+// exec-level access (ApplicationConnect or SSH) to the bound workspace.
+// The chat owner's workspace permissions may have been revoked after
+// the chat was bound; skipping this check enabled CODAGT-184.
+//
+// On any failure the response is written and ok=false is returned.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) authorizeChatWorkspaceExec(
+	rw http.ResponseWriter,
+	r *http.Request,
+	chat database.Chat,
+	noWorkspaceMessage string,
+) (database.Workspace, bool) {
+	ctx := r.Context()
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: noWorkspaceMessage,
+		})
+		return database.Workspace{}, false
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace not found.",
+		})
+		return database.Workspace{}, false
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat workspace.",
+			Detail:  err.Error(),
+		})
+		return database.Workspace{}, false
+	}
+
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return database.Workspace{}, false
+	}
+
+	return workspace, true
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1586,10 +1720,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace to watch.",
-		})
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace to watch."); !ok {
 		return
 	}
 
@@ -1734,23 +1865,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_desktop").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace.",
-		})
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
-		})
-		return
-	}
-	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
-		!api.Authorize(r, policy.ActionSSH, workspace) {
-		httpapi.Forbidden(rw)
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace."); !ok {
 		return
 	}
 
@@ -1839,6 +1954,86 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
+func (api *API) applyChatTitleUpdate(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+	rawTitle string,
+) (database.Chat, bool) {
+	trimmedTitle := strings.TrimSpace(rawTitle)
+	if trimmedTitle == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Title cannot be empty.",
+		})
+		return chat, true
+	}
+	const maxChatTitleRunes = 200
+	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+		})
+		return chat, true
+	}
+	if trimmedTitle == chat.Title {
+		return chat, false
+	}
+
+	var (
+		updatedChat database.Chat
+		wrote       bool
+		err         error
+	)
+	if api.chatDaemon != nil {
+		updatedChat, wrote, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+	} else {
+		err = api.Database.InTx(func(tx database.Store) error {
+			currentChat, txErr := tx.GetChatByID(ctx, chat.ID)
+			if txErr != nil {
+				return txErr
+			}
+			if trimmedTitle == currentChat.Title {
+				updatedChat = currentChat
+				wrote = false
+				return nil
+			}
+			updatedChat, txErr = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID:    chat.ID,
+				Title: trimmedTitle,
+			})
+			if txErr != nil {
+				return txErr
+			}
+			wrote = true
+			return nil
+		}, nil)
+	}
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return chat, true
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return chat, true
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat title.",
+			Detail:  err.Error(),
+		})
+		return chat, true
+	}
+	if wrote {
+		if api.chatDaemon != nil {
+			api.chatDaemon.PublishTitleChange(updatedChat)
+		} else {
+			publishChatTitleChange(api.Logger, api.Pubsub, updatedChat)
+		}
+	}
+	return updatedChat, false
+}
+
 // patchChat updates a chat resource. Supports updating labels,
 // workspace binding, archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
@@ -1862,6 +2057,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
+	if req.Title != nil {
+		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
+		if handled {
+			return
+		}
+		chat = updatedChat
+	}
 	if req.Labels != nil {
 		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1909,6 +2111,16 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Archive invariant is one-way: parent archived implies
+		// child archived. Parent archive/unarchive cascade via
+		// root_chat_id; individual child archive is permitted;
+		// child unarchive while the parent is archived is rejected
+		// (enforced atomically in chatd.Server.UnarchiveChat).
+		if chat.ParentChatID.Valid && !archived {
+			if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
+				return
+			}
+		}
 		var err error
 		// Use chatDaemon when available so it can interrupt active
 		// processing before broadcasting archive state. Fall back to
@@ -1927,6 +2139,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err != nil {
+			if errors.Is(err, chatd.ErrChildUnarchiveParentArchived) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot unarchive a child chat while its parent is archived. Unarchive the parent chat to cascade.",
+				})
+				return
+			}
 			action := "archive"
 			if !archived {
 				action = "unarchive"
@@ -2046,6 +2264,38 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// writeChildUnarchiveGuard returns a 400 early when a child unarchive
+// request obviously races an archived parent. The durable invariant
+// is enforced atomically in chatd.Server.UnarchiveChat; this guard
+// just surfaces the error before we take any locks.
+//
+// Returns true when a response has been written.
+func (api *API) writeChildUnarchiveGuard(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+) bool {
+	parent, err := api.Database.GetChatByID(ctx, chat.ParentChatID.UUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return true
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load parent chat.",
+			Detail:  err.Error(),
+		})
+		return true
+	}
+	if parent.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot unarchive a child chat while its parent is archived. Unarchive the parent chat to cascade.",
+		})
+		return true
+	}
+	return false
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2616,6 +2866,48 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
+}
+
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate chat title.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProposeChatTitleResponse{Title: title})
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3292,48 +3584,7 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 const (
 	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
 	maxChatFileSize = 10 << 20
-	// maxChatFileName is the maximum length of an uploaded file name.
-	maxChatFileName = 255
 )
-
-// allowedChatFileMIMETypes lists the content types accepted for chat
-// file uploads. SVG is explicitly excluded because it can contain scripts.
-var allowedChatFileMIMETypes = map[string]bool{
-	"image/png":     true,
-	"image/jpeg":    true,
-	"image/gif":     true,
-	"image/webp":    true,
-	"text/plain":    true,
-	"image/svg+xml": false, // SVG can contain scripts.
-}
-
-func allowedChatFileMIMETypesStr() string {
-	var types []string
-	for t, allowed := range allowedChatFileMIMETypes {
-		if allowed {
-			types = append(types, t)
-		}
-	}
-	slices.Sort(types)
-	return strings.Join(types, ", ")
-}
-
-var (
-	webpMagicRIFF = []byte("RIFF")
-	webpMagicWEBP = []byte("WEBP")
-)
-
-// detectChatFileType detects the MIME type of the given data.
-// It extends http.DetectContentType with support for WebP, which
-// Go's standard sniffer does not recognize.
-func detectChatFileType(data []byte) string {
-	if len(data) >= 12 &&
-		bytes.Equal(data[0:4], webpMagicRIFF) &&
-		bytes.Equal(data[8:12], webpMagicWEBP) {
-		return "image/webp"
-	}
-	return http.DetectContentType(data)
-}
 
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -3556,6 +3807,140 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating desktop setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) deploymentChatDebugLoggingEnabled() bool {
+	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	allowUsers, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDebugLoggingAdminSettings{
+		AllowUsers:         err == nil && allowUsers,
+		ForcedByDeployment: api.deploymentChatDebugLoggingEnabled(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatDebugLoggingAllowUsersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := api.Database.UpsertChatDebugLoggingAllowUsers(ctx, req.AllowUsers); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	forcedByDeployment := api.deploymentChatDebugLoggingEnabled()
+	allowUsers := false
+	if !forcedByDeployment {
+		enabled, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching chat debug logging setting.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		allowUsers = err == nil && enabled
+	}
+
+	debugEnabled := forcedByDeployment
+	if allowUsers {
+		enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, apiKey.UserID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user chat debug logging setting.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		debugEnabled = err == nil && enabled
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatDebugLoggingSettings{
+		DebugLoggingEnabled: debugEnabled,
+		UserToggleAllowed:   !forcedByDeployment && allowUsers,
+		ForcedByDeployment:  forcedByDeployment,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	if api.deploymentChatDebugLoggingEnabled() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat debug logging is already forced on by deployment configuration.",
+		})
+		return
+	}
+
+	allowUsers, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err != nil || !allowUsers {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "An administrator has not enabled user-controlled chat debug logging.",
+		})
+		return
+	}
+
+	var req codersdk.UpdateUserChatDebugLoggingRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := api.Database.UpsertUserChatDebugLoggingEnabled(ctx, database.UpsertUserChatDebugLoggingEnabledParams{
+		UserID:              apiKey.UserID,
+		DebugLoggingEnabled: req.DebugLoggingEnabled,
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user chat debug logging setting.",
 			Detail:  err.Error(),
 		})
 		return
@@ -4114,61 +4499,24 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
 		contentType = mediaType
 	}
-
-	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
+	if !chatfiles.IsAllowedStoredMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
 		})
 		return
+	}
+
+	// Extract filename from Content-Disposition header if provided.
+	var filename string
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			filename = params["filename"]
+		}
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
-	br := bufio.NewReader(r.Body)
-
-	// Peek at the leading bytes to sniff the real content type
-	// before reading the entire body.
-	peek, peekErr := br.Peek(512)
-	if peekErr != nil && !errors.Is(peekErr, io.EOF) && !errors.Is(peekErr, bufio.ErrBufferFull) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read file from request.",
-			Detail:  peekErr.Error(),
-		})
-		return
-	}
-
-	// Verify the actual content matches an allowed file type so that
-	// a client cannot spoof Content-Type to serve active content.
-	detected := detectChatFileType(peek)
-	if mediaType, _, err := mime.ParseMediaType(detected); err == nil {
-		detected = mediaType
-	}
-	if contentType == "text/plain" && strings.HasPrefix(detected, "text/") {
-		detected = "text/plain"
-	}
-	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
-		})
-		return
-	}
-	// The mismatch check below is security-critical: it prevents a text
-	// body from being uploaded under an image Content-Type (or vice
-	// versa) now that both text/plain and image types are in the
-	// allowlist. Combined with the X-Content-Type-Options: nosniff
-	// header applied globally, this ensures browsers respect the
-	// stored MIME type.
-	if detected != contentType {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "File content type does not match Content-Type header.",
-			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
-		})
-		return
-	}
-
-	// Read the full body now that we know the type is valid.
-	data, err := io.ReadAll(br)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -4185,27 +4533,43 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract filename from Content-Disposition header if provided.
-	var filename string
-	if cd := r.Header.Get("Content-Disposition"); cd != "" {
-		if _, params, err := mime.ParseMediaType(cd); err == nil {
-			filename = params["filename"]
-			if len(filename) > maxChatFileName {
-				// Truncate at rune boundary to avoid splitting
-				// multi-byte UTF-8 characters.
-				var truncated []byte
-				for _, r := range filename {
-					encoded := []byte(string(r))
-					if len(truncated)+len(encoded) > maxChatFileName {
-						break
-					}
-					truncated = append(truncated, encoded...)
-				}
-				filename = string(truncated)
-			}
+	// Verify the actual content matches an allowed file type so that
+	// a client cannot spoof Content-Type to serve active content.
+	filename, detected, err := chatfiles.PrepareStoredFile(filename, filename, data)
+	if err != nil {
+		switch {
+		case errors.Is(err, chatfiles.ErrStoredFileNameRequired):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Filename is required.",
+				Detail:  "Provide a filename in the Content-Disposition header.",
+			})
+		case errors.Is(err, chatfiles.ErrUnsupportedStoredFileType):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unsupported file type.",
+				Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid file.",
+				Detail:  err.Error(),
+			})
 		}
+		return
 	}
-
+	// The compatibility check below is security-critical: it keeps exact
+	// media-type matching by default while allowing safe text/plain
+	// refinements such as JSON, CSV, and Markdown now that upload
+	// classification can return richer stored media types. Combined with
+	// the X-Content-Type-Options: nosniff header applied globally, this
+	// still prevents clients from smuggling binary or active content under
+	// a safer declared Content-Type.
+	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "File content type does not match Content-Type header.",
+			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
+		})
+		return
+	}
 	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        apiKey.UserID,
 		OrganizationID: orgID,
@@ -4252,10 +4616,14 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
+	disposition := "attachment"
+	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
+		disposition = "inline"
+	}
 	if chatFile.Name != "" {
-		rw.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": chatFile.Name}))
+		rw.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": chatFile.Name}))
 	} else {
-		rw.Header().Set("Content-Disposition", "inline")
+		rw.Header().Set("Content-Disposition", disposition)
 	}
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
@@ -4325,7 +4693,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.
@@ -6297,4 +6665,98 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// getChatDebugRuns returns a list of debug run summaries for a chat.
+// EXPERIMENTAL
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	const maxDebugRuns = 100
+	runs, err := api.Database.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: maxDebugRuns,
+	})
+	if err != nil {
+		// The chat may have been deleted or access revoked between
+		// middleware extraction and this query (dbauthz re-authorizes
+		// on read). Surface those races as 404 to match the rest of
+		// this API and avoid leaking backend details.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug runs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	summaries := make([]codersdk.ChatDebugRunSummary, 0, len(runs))
+	for _, run := range runs {
+		summaries = append(summaries, db2sdk.ChatDebugRunSummary(run))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, summaries)
+}
+
+// getChatDebugRun returns a single debug run with its steps.
+// EXPERIMENTAL
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	runIDStr := chi.URLParam(r, "debugRun")
+	runID, err := uuid.Parse(runIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid debug run ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	run, err := api.Database.GetChatDebugRunByID(ctx, runID)
+	if err != nil {
+		// Treat both not-found and authorization failures as 404 to
+		// avoid leaking the existence of runs the caller cannot access.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug run.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Verify the run belongs to this chat.
+	if run.ChatID != chat.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	steps, err := api.Database.GetChatDebugStepsByRunID(ctx, run.ID)
+	if err != nil {
+		// The run may have been deleted or access may have changed
+		// between the two queries. Treat not-found/authz errors as
+		// 404 for consistency with the run lookup above.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug steps.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatDebugRunDetail(run, steps))
 }

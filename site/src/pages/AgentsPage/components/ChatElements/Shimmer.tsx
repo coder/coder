@@ -49,7 +49,7 @@ const ShimmerComponent = ({
 				animate={{ backgroundPosition: "0% center" }}
 				className={cn(
 					"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
-					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--background)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
+					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--surface-primary)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
 					className,
 				)}
 				initial={{ backgroundPosition: "100% center" }}
@@ -57,7 +57,7 @@ const ShimmerComponent = ({
 					{
 						"--spread": `${dynamicSpread}px`,
 						backgroundImage:
-							"var(--bg), linear-gradient(hsl(var(--muted-foreground)), hsl(var(--muted-foreground)))",
+							"var(--bg), linear-gradient(hsl(var(--content-secondary)), hsl(var(--content-secondary)))",
 					} as CSSProperties
 				}
 				transition={{

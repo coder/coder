@@ -182,6 +182,10 @@ func (r GetChatsRow) RBACObject() rbac.Object {
 	return r.Chat.RBACObject()
 }
 
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
@@ -951,4 +955,8 @@ type UpsertConnectionLogParams struct {
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
 }

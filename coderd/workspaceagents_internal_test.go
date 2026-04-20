@@ -18,13 +18,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -67,6 +71,93 @@ type channelCloser struct {
 func (c *channelCloser) Close() error {
 	c.closeFn()
 	return nil
+}
+
+// mockAuthorizer is a permissive rbac.Authorizer used by the mock-based
+// handler tests in this file. Authorization behavior is tested
+// separately in coderd/exp_chats_test.go against a real coderdtest
+// server.
+type mockAuthorizer struct{}
+
+func (*mockAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, rbac.Object) error {
+	return nil
+}
+
+func (*mockAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
+	//nolint:nilnil
+	return nil, nil
+}
+
+var _ rbac.Authorizer = (*mockAuthorizer)(nil)
+
+// injectSystemActor is a test-only middleware that seeds an RBAC actor
+// into the request context so handlers using api.Authorize do not panic
+// via httpmw.UserAuthorization. Pair it with mockAuthorizer to
+// short-circuit authorization in tests that focus on plumbing rather
+// than RBAC.
+func injectSystemActor(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(rw, r.WithContext(dbauthz.AsSystemRestricted(r.Context())))
+	})
+}
+
+// runWatchChatGitWorkspaceLookupTest exercises the GetWorkspaceByID
+// error branches in authorizeChatWorkspaceExec. The chat middleware
+// always succeeds; the workspace lookup returns workspaceErr, and the
+// handler is expected to respond with wantStatus.
+func runWatchChatGitWorkspaceLookupTest(t *testing.T, workspaceErr error, wantStatus int) {
+	t.Helper()
+
+	var (
+		ctx    = testutil.Context(t, testutil.WaitShort)
+		logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+
+		mCtrl = gomock.NewController(t)
+		mDB   = dbmock.NewMockStore(mCtrl)
+
+		chatID      = uuid.New()
+		workspaceID = uuid.New()
+
+		r = chi.NewMux()
+
+		api = API{
+			ctx: ctx,
+			Options: &Options{
+				AgentInactiveDisconnectTimeout: testutil.WaitShort,
+				Database:                       mDB,
+				Logger:                         logger,
+				DeploymentValues:               &codersdk.DeploymentValues{},
+			},
+			HTTPAuth: &HTTPAuthorizer{
+				Authorizer: &mockAuthorizer{},
+				Logger:     logger,
+			},
+		}
+	)
+
+	mDB.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:          chatID,
+		OwnerID:     uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	}, nil)
+
+	mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, workspaceErr)
+
+	r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).
+		Get("/chats/{chat}/stream/git", api.watchChatGit)
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/chats/%s/stream/git", srv.URL, chatID), nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, wantStatus, resp.StatusCode)
 }
 
 func TestWatchChatGit(t *testing.T) {
@@ -126,6 +217,23 @@ func TestWatchChatGit(t *testing.T) {
 
 		// Then: We expect a 400 response.
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("WorkspaceLookupErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// Covers the GetWorkspaceByID branches in
+		// authorizeChatWorkspaceExec: 404-class errors return 400,
+		// other errors return 500.
+		t.Run("NotFound", func(t *testing.T) {
+			t.Parallel()
+			runWatchChatGitWorkspaceLookupTest(t, sql.ErrNoRows, http.StatusBadRequest)
+		})
+
+		t.Run("InternalError", func(t *testing.T) {
+			t.Parallel()
+			runWatchChatGitWorkspaceLookupTest(t, xerrors.New("simulated db failure"), http.StatusInternalServerError)
+		})
 	})
 
 	t.Run("UnauthorizedUsersCannotWatch", func(t *testing.T) {
@@ -215,6 +323,10 @@ func TestWatchChatGit(t *testing.T) {
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				HTTPAuth: &HTTPAuthorizer{
+					Authorizer: &mockAuthorizer{},
+					Logger:     logger,
+				},
 			}
 		)
 
@@ -226,6 +338,12 @@ func TestWatchChatGit(t *testing.T) {
 			ID:          chatID,
 			OwnerID:     uuid.New(),
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+
+		// And: Return the workspace so the handler's
+		// workspace-level authz check can run.
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{
+			ID: workspaceID,
 		}, nil)
 
 		// And: Return an agent that is disconnected (no
@@ -241,7 +359,7 @@ func TestWatchChatGit(t *testing.T) {
 		mCoordinator.EXPECT().Node(gomock.Any()).Return(nil)
 
 		// And: We mount the HTTP handler.
-		r.With(httpmw.ExtractChatParam(mDB)).
+		r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).
 			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
@@ -300,6 +418,10 @@ func TestWatchChatGit(t *testing.T) {
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				HTTPAuth: &HTTPAuthorizer{
+					Authorizer: &mockAuthorizer{},
+					Logger:     logger,
+				},
 			}
 		)
 
@@ -341,6 +463,12 @@ func TestWatchChatGit(t *testing.T) {
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
+		// And: Return the workspace so the handler's
+		// workspace-level authz check can run.
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{
+			ID: workspaceID,
+		}, nil)
+
 		// And: Return a connected agent.
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 			Return([]database.WorkspaceAgent{{
@@ -375,7 +503,7 @@ func TestWatchChatGit(t *testing.T) {
 				return s, nil
 			})
 		// And: We mount the HTTP handler.
-		r.With(httpmw.ExtractChatParam(mDB)).
+		r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).
 			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
@@ -468,6 +596,10 @@ func TestWatchChatGit(t *testing.T) {
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				HTTPAuth: &HTTPAuthorizer{
+					Authorizer: &mockAuthorizer{},
+					Logger:     logger,
+				},
 			}
 		)
 
@@ -506,6 +638,12 @@ func TestWatchChatGit(t *testing.T) {
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
+		// And: Return the workspace so the handler's
+		// workspace-level authz check can run.
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{
+			ID: workspaceID,
+		}, nil)
+
 		// And: Return a connected agent.
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 			Return([]database.WorkspaceAgent{{
@@ -537,7 +675,7 @@ func TestWatchChatGit(t *testing.T) {
 				return s, nil
 			})
 		// And: We mount the HTTP handler.
-		r.With(httpmw.ExtractChatParam(mDB)).
+		r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).
 			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
