@@ -45,6 +45,12 @@ const ERROR_STATUSES = new Set([
 	"cancelled",
 	"canceled",
 ]);
+// Terminal run statuses, shared with the debug-run polling query so
+// polling stops on the same values that light up the badge. The set
+// is derived from ERROR_STATUSES plus `completed` so the badge-color
+// and the polling gate can never drift: every error-like status also
+// ends polling.
+export const TERMINAL_RUN_STATUSES = new Set(["completed", ...ERROR_STATUSES]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

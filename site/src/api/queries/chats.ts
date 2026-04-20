@@ -11,6 +11,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { TERMINAL_RUN_STATUSES } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -866,8 +867,6 @@ export const chatDebugRunsKey = (chatId: string) =>
 const chatDebugRunKey = (chatId: string, runId: string) =>
 	[...chatDebugRunsKey(chatId), runId] as const;
 
-const debugRunTerminalStatuses = new Set(["completed", "error", "interrupted"]);
-
 // Foreground poll cadence when the Debug tab is open. The error cadence
 // is slower so a transiently unreachable backend is not hammered, but
 // the panel still recovers automatically once the request succeeds.
@@ -901,7 +900,7 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 				return DEBUG_RUN_ERROR_POLL_MS;
 			}
 			const status = state.data?.status;
-			if (status && debugRunTerminalStatuses.has(status.toLowerCase())) {
+			if (status && TERMINAL_RUN_STATUSES.has(status.toLowerCase())) {
 				return false;
 			}
 			return DEBUG_RUN_POLL_MS;

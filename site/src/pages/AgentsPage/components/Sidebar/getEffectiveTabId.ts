@@ -9,11 +9,10 @@
  * 3. `"desktop"` when `desktopChatId` is truthy.
  * 4. `null` (no valid tab available).
  *
- * This function is shared between AgentChatPageView (which needs
- * the effective tab before constructing tab content) and
- * SidebarTabView (which needs it to drive CSS visibility and the
- * active indicator). Keeping one implementation prevents the
- * fallback logic from drifting between the two call sites.
+ * AgentChatPageView owns this resolution so the parent-side gating
+ * (e.g. `TerminalPanel.isVisible`, `DebugPanel.enabled`) and the
+ * child SidebarTabView's visual highlight always agree. The child
+ * receives the resolved value via the `effectiveTabId` prop.
  */
 export function getEffectiveTabId(
 	tabIds: readonly string[],

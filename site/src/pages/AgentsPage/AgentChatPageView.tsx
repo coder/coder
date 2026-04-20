@@ -523,7 +523,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					>
 						<SidebarTabView
-							activeTabId={sidebarTabId}
+							effectiveTabId={effectiveSidebarTabId}
 							onActiveTabChange={setSidebarTabId}
 							tabs={sidebarTabs}
 							onClose={() => onSetShowSidebarPanel(false)}
