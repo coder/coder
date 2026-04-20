@@ -750,15 +750,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Re-read the chat so the response reflects the authoritative
 	// database state (file links are deduped in the join table).
-	if updated, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
-		aReq.New = updated
-	} else {
+	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to read back chat after creation.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	aReq.New = chat
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
