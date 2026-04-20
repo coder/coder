@@ -24,6 +24,11 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Input } from "#/components/Input/Input";
 import {
@@ -593,28 +598,29 @@ const ServerForm: FC<ServerFormProps> = ({
 					</div>
 
 					{/* ── Details section ── */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowDetails((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Details
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Optional description and icon shown to users.
-								</p>
-							</div>
-							{showDetails ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showDetails && (
-							<div className="space-y-4 pt-3">
+					<Collapsible open={showDetails} onOpenChange={setShowDetails}>
+						<div className="border-0 border-t border-solid border-border pt-4">
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+								>
+									<div>
+										<h3 className="m-0 text-sm font-medium text-content-primary">
+											Details
+										</h3>
+										<p className="m-0 text-xs text-content-secondary">
+											Optional description and icon shown to users.
+										</p>
+									</div>
+									{showDetails ? (
+										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									) : (
+										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									)}
+								</button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="space-y-4 pt-3">
 								<Field label="Description" htmlFor={`${formId}-desc`}>
 									<Input
 										id={`${formId}-desc`}
@@ -636,33 +642,34 @@ const ServerForm: FC<ServerFormProps> = ({
 										disabled={isDisabled}
 									/>
 								</Field>
-							</div>
-						)}
-					</div>
+							</CollapsibleContent>
+						</div>
+					</Collapsible>
 
 					{/* ── Authentication section ── */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-								onClick={() => setShowAuth((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Authentication
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									How users authenticate with this MCP server.
-								</p>
-							</div>
-							{showAuth ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showAuth && (
-							<div className="space-y-4 pt-3">
+					<Collapsible open={showAuth} onOpenChange={setShowAuth}>
+						<div className="border-0 border-t border-solid border-border pt-4">
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+								>
+									<div>
+										<h3 className="m-0 text-sm font-medium text-content-primary">
+											Authentication
+										</h3>
+										<p className="m-0 text-xs text-content-secondary">
+											How users authenticate with this MCP server.
+										</p>
+									</div>
+									{showAuth ? (
+										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									) : (
+										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									)}
+								</button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="space-y-4 pt-3">
 								<Field label="Authentication method" htmlFor={`${formId}-auth`}>
 									<Select
 										value={form.values.authType}
@@ -909,32 +916,33 @@ const ServerForm: FC<ServerFormProps> = ({
 										</Button>
 									</div>
 								)}
-							</div>
-						)}
-					</div>
+							</CollapsibleContent>
+						</div>
+					</Collapsible>
 					{/* ── Behavior section ── */}
-					<div className="border-0 border-t border-solid border-border pt-4">
-						<button
-							type="button"
-							onClick={() => setShowBehavior((v) => !v)}
-							className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
-						>
-							<div>
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Behavior
-								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Availability, model intent, and tool governance.
-								</p>
-							</div>
-							{showBehavior ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
-							)}
-						</button>
-						{showBehavior && (
-							<div className="space-y-4 pt-3">
+					<Collapsible open={showBehavior} onOpenChange={setShowBehavior}>
+						<div className="border-0 border-t border-solid border-border pt-4">
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									className="flex w-full cursor-pointer items-start justify-between border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary"
+								>
+									<div>
+										<h3 className="m-0 text-sm font-medium text-content-primary">
+											Behavior
+										</h3>
+										<p className="m-0 text-xs text-content-secondary">
+											Availability, model intent, and tool governance.
+										</p>
+									</div>
+									{showBehavior ? (
+										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									) : (
+										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+									)}
+								</button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="space-y-4 pt-3">
 								<Field label="Availability" htmlFor={`${formId}-availability`}>
 									<Select
 										value={form.values.availability}
@@ -1036,9 +1044,9 @@ const ServerForm: FC<ServerFormProps> = ({
 										/>
 									</Field>
 								</div>
-							</div>
-						)}
-					</div>
+							</CollapsibleContent>
+						</div>
+					</Collapsible>
 				</div>
 
 				{/* Footer — pushed to bottom, matches ProviderForm */}
@@ -1242,7 +1250,6 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				)}
 			</div>
 
-			{/* Errors — rendered at the bottom */}
 			{serversError && <ErrorAlert error={serversError} />}
 			{createError && <ErrorAlert error={createError} />}
 			{updateError && <ErrorAlert error={updateError} />}
