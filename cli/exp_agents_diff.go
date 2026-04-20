@@ -43,17 +43,25 @@ func fetchChatDiffContents(
 		return remoteDiff, nil
 	}
 
-	if localDiff.Provider == nil {
-		localDiff.Provider = remoteDiff.Provider
-	}
-	if localDiff.RemoteOrigin == nil {
-		localDiff.RemoteOrigin = remoteDiff.RemoteOrigin
-	}
-	if localDiff.Branch == nil {
-		localDiff.Branch = remoteDiff.Branch
-	}
-	if localDiff.PullRequestURL == nil {
-		localDiff.PullRequestURL = remoteDiff.PullRequestURL
+	// Backfill metadata from the remote diff only when the local
+	// watcher produced a single-repo result. buildLocalChatDiffContents
+	// only sets Branch/RemoteOrigin when exactly one repo contributed
+	// to the aggregated diff, so treat the absence of both as the
+	// multi-repo case where a single remote's branch/origin/PR URL
+	// does not describe the combined local diff.
+	if localDiff.Branch != nil || localDiff.RemoteOrigin != nil {
+		if localDiff.Provider == nil {
+			localDiff.Provider = remoteDiff.Provider
+		}
+		if localDiff.RemoteOrigin == nil {
+			localDiff.RemoteOrigin = remoteDiff.RemoteOrigin
+		}
+		if localDiff.Branch == nil {
+			localDiff.Branch = remoteDiff.Branch
+		}
+		if localDiff.PullRequestURL == nil {
+			localDiff.PullRequestURL = remoteDiff.PullRequestURL
+		}
 	}
 	return localDiff, nil
 }
