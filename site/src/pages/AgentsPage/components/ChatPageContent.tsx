@@ -306,7 +306,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
-	const editAttachments = useFileAttachments(organizationId);
+	const editAttachments = useFileAttachments(organizationId, {
+		// Provider is read in a ref by the hook so resizing tracks
+		// the latest model selection without re-subscribing.
+		provider: modelOptions.find((o) => o.id === selectedModel)?.provider,
+	});
 	const {
 		setAttachments: setEditAttachments,
 		setPreviewUrls: setEditPreviewUrls,

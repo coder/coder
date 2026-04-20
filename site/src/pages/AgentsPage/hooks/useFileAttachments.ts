@@ -3,17 +3,37 @@ import {
 	type SetStateAction,
 	useEffect,
 	useEffectEvent,
+	useRef,
 	useState,
 } from "react";
 import { API } from "#/api/api";
 import type { UploadState } from "../components/AgentChatInput";
 import { getChatFileURL } from "../utils/chatAttachments";
-import {
-	formatAgentAttachmentTooLargeError,
-	formatAgentAttachmentUploadError,
-	maxAgentAttachmentSize,
-	readAgentAttachmentText,
-} from "../utils/fileAttachmentLimits";
+import { formatAgentAttachmentUploadError } from "../utils/fileAttachmentLimits";
+import { resizeImageToMaxBytes } from "../utils/resizeImage";
+
+// Maximum bytes accepted by our upload endpoint (maxChatFileSize in
+// coderd/exp_chats.go). Non-image files over this limit surface as
+// an error; oversized images get resized down instead.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+// Default image budget keeps us safely under MAX_UPLOAD_BYTES after
+// any trailing encoder metadata. Images larger than this are
+// re-encoded before upload so we never have to reject them.
+const DEFAULT_IMAGE_BUDGET_BYTES = MAX_UPLOAD_BYTES - 16 * 1024;
+
+// Anthropic's documented inline image budget is 5 MiB (5,242,880
+// bytes). Stay slightly below to leave room for framing on the
+// wire. This is stricter than DEFAULT_IMAGE_BUDGET_BYTES, so the
+// Anthropic path uses it even though the upload endpoint itself
+// would accept more.
+const ANTHROPIC_IMAGE_BUDGET_BYTES = 5 * 1024 * 1024 - 16 * 1024;
+
+function imageBudgetForProvider(provider: string | undefined): number {
+	return provider === "anthropic"
+		? ANTHROPIC_IMAGE_BUDGET_BYTES
+		: DEFAULT_IMAGE_BUDGET_BYTES;
+}
 
 /** @internal Exported for testing. */
 export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
@@ -173,9 +193,21 @@ interface UseFileAttachmentsReturn {
 
 export function useFileAttachments(
 	organizationId: string | undefined,
-	options?: { persist?: boolean },
+	options?: { persist?: boolean; provider?: string },
 ): UseFileAttachmentsReturn {
 	const persist = options?.persist ?? false;
+
+	// Provider is read inside async callbacks; keep it in a ref so
+	// the latest value is visible without rebuilding handleAttach
+	// whenever the user switches models. Writing the ref from an
+	// effect (rather than during render) keeps React Compiler happy
+	// while still ensuring subsequent event-driven calls see the
+	// newest value.
+	const provider = options?.provider;
+	const providerRef = useRef(provider);
+	useEffect(() => {
+		providerRef.current = provider;
+	}, [provider]);
 
 	// Restore previously uploaded attachments from localStorage
 	// when persistence is enabled. Computed once on first render.
@@ -257,10 +289,42 @@ export function useFileAttachments(
 	};
 
 	const handleAttach = (files: File[]) => {
-		setAttachments((prev) => [...prev, ...files]);
+		// handleAttach is fire-and-forget to callers (paste/drop
+		// handlers don't await). Delegate to an async worker so we
+		// can resize images before committing them to state when
+		// targeting Anthropic.
+		void processAttach(files);
+	};
+
+	const processAttach = async (files: File[]) => {
+		// Resize oversized images up front so that every File that
+		// enters attachment state is already within the applicable
+		// budget. Anthropic has a stricter 5 MiB inline cap; other
+		// providers just need to fit the server's 10 MiB upload
+		// limit. Non-image files are passed through unchanged; if
+		// they exceed MAX_UPLOAD_BYTES the check below still
+		// surfaces the existing too-large error.
+		const budget = imageBudgetForProvider(providerRef.current);
+		const processed = await Promise.all(
+			files.map(async (file) => {
+				if (!file.type.startsWith("image/")) return file;
+				if (file.size <= budget) return file;
+				let resized: File | null = null;
+				try {
+					resized = await resizeImageToMaxBytes(file, budget);
+				} catch {
+					// Never let a resize error swallow the attachment;
+					// the user can still attempt to upload the original.
+					resized = null;
+				}
+				return resized ?? file;
+			}),
+		);
+
+		setAttachments((prev) => [...prev, ...processed]);
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
-			for (const file of files) {
+			for (const file of processed) {
 				if (file.type !== "text/plain") {
 					next.set(file, URL.createObjectURL(file));
 				}
@@ -268,9 +332,14 @@ export function useFileAttachments(
 			return next;
 		});
 		// Read text content for preview, but skip oversized files.
-		for (const file of files) {
-			if (file.type === "text/plain" && file.size <= maxAgentAttachmentSize) {
-				void readAgentAttachmentText(file)
+		for (const file of processed) {
+			if (file.type === "text/plain" && file.size <= MAX_UPLOAD_BYTES) {
+				// Defensive: some test environments lack File.prototype.text().
+				const readText =
+					typeof file.text === "function"
+						? file.text()
+						: new Response(file).text();
+				void readText
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);
@@ -283,12 +352,12 @@ export function useFileAttachments(
 					});
 			}
 		}
-		for (const file of files) {
-			if (file.size > maxAgentAttachmentSize) {
+		for (const file of processed) {
+			if (file.size > MAX_UPLOAD_BYTES) {
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error" as const,
-						error: formatAgentAttachmentTooLargeError(file.size),
+						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
 					}),
 				);
 			} else {

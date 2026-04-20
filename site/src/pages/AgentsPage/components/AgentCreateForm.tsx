@@ -382,7 +382,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, { persist: true });
+	} = useFileAttachments(organizationId || undefined, {
+		persist: true,
+		// Provider is read in a ref by the hook so resizing tracks
+		// the latest model selection without re-subscribing.
+		provider: modelOptions.find((o) => o.id === selectedModel)?.provider,
+	});
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];

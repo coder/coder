@@ -5161,16 +5161,46 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
+// anthropicMaxInlineImageBytes mirrors Anthropic's documented 5 MiB
+// cap on inline image parts. Enforced server-side as a safety net;
+// the browser also resizes proactively in useFileAttachments, so this
+// should only trigger for older clients or direct API callers.
+const anthropicMaxInlineImageBytes = 5 * 1024 * 1024 // 5_242_880
+
 // chatFileResolver returns a FileResolver that fetches chat file
-// content from the database by ID.
-func (p *Server) chatFileResolver() chatprompt.FileResolver {
+// content from the database by ID. The provider argument is used to
+// enforce per-provider payload limits (e.g. Anthropic's 5 MiB inline
+// image cap) so oversized attachments are rejected before any
+// upstream request is issued.
+func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
+		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
+			if normalizedProvider == anthropic.Name &&
+				strings.HasPrefix(f.Mimetype, "image/") &&
+				len(f.Data) > anthropicMaxInlineImageBytes {
+				// Pre-classify the error so the surfaced message
+				// points the user at the actionable cause rather
+				// than producing a generic upstream failure.
+				err := xerrors.Errorf(
+					"image attachment %q is %d bytes; Anthropic limits inline images to %d bytes",
+					f.Name, len(f.Data), anthropicMaxInlineImageBytes,
+				)
+				return nil, chaterror.WithClassification(err, chaterror.ClassifiedError{
+					Kind:     chaterror.KindConfig,
+					Provider: anthropic.Name,
+					Message: fmt.Sprintf(
+						"Image attachment exceeds Anthropic's %d byte inline limit. Please remove or re-attach the image; the app will resize it for you.",
+						anthropicMaxInlineImageBytes,
+					),
+					Retryable: false,
+				})
+			}
 			result[f.ID] = chatprompt.FileData{
 				Name:      f.Name,
 				Data:      f.Data,
@@ -6478,7 +6508,7 @@ func (p *Server) runChat(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(modelConfig.Provider), logger)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
@@ -7263,7 +7293,7 @@ func (p *Server) runChat(
 			if compactionOptions != nil {
 				compactionOptions.HistoryTipMessageID = compactionHistoryTipMessageID
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(), logger)
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(modelConfig.Provider), logger)
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
