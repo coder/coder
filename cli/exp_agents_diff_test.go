@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -23,7 +22,7 @@ func TestFetchChatDiffContents(t *testing.T) {
 	t.Run("FallsBackToLocalGitWatcher", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		chatID := uuid.New()
 		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
 		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -72,7 +71,7 @@ func TestFetchChatDiffContents(t *testing.T) {
 	t.Run("IgnoresTimedOutWatcherFallbackErrors", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalMedium)
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.IntervalMedium)
 		defer cancel()
 
 		handlerDone := make(chan struct{})
@@ -96,7 +95,14 @@ func TestFetchChatDiffContents(t *testing.T) {
 				require.NoError(t, json.Unmarshal(payload, &refresh))
 				require.Equal(t, codersdk.WorkspaceAgentGitClientMessageTypeRefresh, refresh.Type)
 
-				time.Sleep(testutil.IntervalSlow)
+				// Keep the WebSocket open until the client disconnects
+				// (either from fetchChatDiffContents hitting its watch
+				// timeout or test cleanup closing the connection)
+				// instead of sleeping for a fixed duration. The second
+				// Read blocks on the socket and unblocks with an error
+				// when the peer closes the connection, so this handler
+				// drains cleanly without time.Sleep (see WORKFLOWS.md).
+				_, _, _ = conn.Read(r.Context())
 			default:
 				http.NotFound(rw, r)
 			}
@@ -130,11 +136,10 @@ func TestFetchChatDiffContents(t *testing.T) {
 			"Chat workspace has no agents.",
 			`Agent state is "connecting", it must be in the "connected" state.`,
 		} {
-			message := message
 			t.Run(message, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := context.Background()
+				ctx := t.Context()
 				chatID := uuid.New()
 				path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
 				client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

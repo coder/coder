@@ -822,7 +822,6 @@ func TestExpAgentsRender(t *testing.T) {
 				ok:   false,
 			},
 		} {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				gotOld, gotNew, gotOK := parseUnifiedDiffHeaderPaths(tc.line)

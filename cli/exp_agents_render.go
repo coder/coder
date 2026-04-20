@@ -350,7 +350,7 @@ func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []coders
 		currentDeletions = 0
 	}
 
-	for _, line := range strings.Split(rawDiff, "\n") {
+	for line := range strings.SplitSeq(rawDiff, "\n") {
 		switch {
 		case strings.HasPrefix(line, "diff --git "):
 			flush()
