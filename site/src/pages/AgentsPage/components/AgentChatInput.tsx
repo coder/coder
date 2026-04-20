@@ -16,6 +16,7 @@ import {
 import type React from "react";
 import {
 	type FC,
+	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useRef,
@@ -51,7 +52,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { isMobileViewport } from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -447,6 +448,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const composerRefCallback = useCallback((el: HTMLDivElement | null) => {
+		if (!el) return;
+		const update = () => {
+			const rect = el.getBoundingClientRect();
+			const bottom = window.innerHeight - rect.top - 68;
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-bottom",
+				`${bottom}px`,
+			);
+		};
+		update();
+		const ro = new ResizeObserver(update);
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
+
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
 			onAttach(Array.from(e.target.files));
@@ -673,20 +691,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			<div
-				ref={(el) => {
-					if (!el) return;
-					const update = () => {
-						const rect = el.getBoundingClientRect();
-						const bottom = window.innerHeight - rect.top - 68;
-						document.documentElement.style.setProperty(
-							"--mobile-dropdown-bottom",
-							`${bottom}px`,
-						);
-					};
-					update();
-					const ro = new ResizeObserver(update);
-					ro.observe(el);
-				}}
+				ref={composerRefCallback}
 				className={cn(
 					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
@@ -893,9 +898,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												)}
 											</button>
 										)}
-										{workspaceOptions &&
-											onWorkspaceChange &&
-											(isMobileViewport() ? (
+						{workspaceOptions &&
+							onWorkspaceChange &&
+							(isBelowMdViewport() ? (
 												<button
 													type="button"
 													disabled={isDisabled || isWorkspaceLoading}
