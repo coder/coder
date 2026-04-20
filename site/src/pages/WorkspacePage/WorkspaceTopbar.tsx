@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
+import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -174,7 +174,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					>
 						<TopbarData>
 							<TopbarIcon>
-								<CircleDollarSign
+								<CircleDollarSignIcon
 									className="size-icon-sm"
 									aria-label="Daily usage"
 								/>

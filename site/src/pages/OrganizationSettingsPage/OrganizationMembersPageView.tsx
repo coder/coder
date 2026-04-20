@@ -1,4 +1,8 @@
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import {
+	EllipsisVerticalIcon,
+	TriangleAlertIcon,
+	UserPlusIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -101,7 +105,7 @@ export const OrganizationMembersPageView: FC<
 
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
-						<TriangleAlert className="size-icon-sm" />
+						<TriangleAlertIcon className="size-icon-sm" />
 						<p>
 							You do not have permission to view members other than yourself.
 						</p>
@@ -184,7 +188,7 @@ export const OrganizationMembersPageView: FC<
 																variant="subtle"
 																aria-label="Open menu"
 															>
-																<EllipsisVertical aria-hidden="true" />
+																<EllipsisVerticalIcon aria-hidden="true" />
 																<span className="sr-only">Open menu</span>
 															</Button>
 														</DropdownMenuTrigger>

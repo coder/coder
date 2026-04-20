@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react";
+import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
@@ -254,7 +254,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<CircleHelp className="size-icon-xs text-content-secondary" />
+									<CircleHelpIcon className="size-icon-xs text-content-secondary" />
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs text-sm">
 									Dynamic Parameters enhances Coder's existing parameter system

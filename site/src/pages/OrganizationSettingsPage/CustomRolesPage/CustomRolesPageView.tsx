@@ -1,4 +1,4 @@
-import { EllipsisVertical, PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Role } from "#/api/typesGenerated";
@@ -218,7 +218,7 @@ const RoleRow: FC<RoleRowProps> = ({
 								variant="subtle"
 								aria-label="Open menu"
 							>
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
 							</ShadcnButton>
 						</DropdownMenuTrigger>
