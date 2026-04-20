@@ -2154,6 +2154,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
 		aReq.New = refreshed
 	} else {
+		aReq.New = chat // fallback
 		api.Logger.Error(ctx, "failed to refresh chat for audit", slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 
