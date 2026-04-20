@@ -863,12 +863,13 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 		totalOutputTokens: undefined,
 		warnings: [],
 	};
-	if (!isRecord(data)) {
+	const parsed = deepParse(data);
+	if (!isRecord(parsed)) {
 		return defaults;
 	}
 	const firstMessage = toOptionalString(
 		pickField(
-			data,
+			parsed,
 			"first_message",
 			"firstMessage",
 			"primary_label",
@@ -878,16 +879,16 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 	return {
 		primaryLabel: firstMessage ?? "",
 		endpointLabel: toOptionalString(
-			pickField(data, "endpoint_label", "endpointLabel"),
+			pickField(parsed, "endpoint_label", "endpointLabel"),
 		),
-		model: toOptionalString(pickField(data, "model")),
-		provider: toOptionalString(pickField(data, "provider")),
+		model: toOptionalString(pickField(parsed, "model")),
+		provider: toOptionalString(pickField(parsed, "provider")),
 		stepCount: toFiniteNumber(
-			pickField(data, "step_count", "stepCount", "steps"),
+			pickField(parsed, "step_count", "stepCount", "steps"),
 		),
 		totalInputTokens: toFiniteNumber(
 			pickField(
-				data,
+				parsed,
 				"total_input_tokens",
 				"totalInputTokens",
 				"input_tokens",
@@ -898,7 +899,7 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 		),
 		totalOutputTokens: toFiniteNumber(
 			pickField(
-				data,
+				parsed,
 				"total_output_tokens",
 				"totalOutputTokens",
 				"output_tokens",
@@ -927,8 +928,13 @@ export const coerceStepRequest = (data: unknown): StepRequestViewModel => {
 	if (!isRecord(parsed)) {
 		return defaults;
 	}
-	const optionsSource = isRecord(parsed.options) ? parsed.options : parsed;
-	const policySource = isRecord(parsed.policy) ? parsed.policy : parsed;
+	// `options` and `policy` can arrive as JSON-string wrappers when the
+	// payload has been round-tripped through Go's `json.RawMessage`, so
+	// unwrap them before the `isRecord` branch.
+	const rawOptions = deepParse(parsed.options);
+	const rawPolicy = deepParse(parsed.policy);
+	const optionsSource = isRecord(rawOptions) ? rawOptions : parsed;
+	const policySource = isRecord(rawPolicy) ? rawPolicy : parsed;
 	return {
 		model: toOptionalString(pickField(parsed, "model")),
 		messages: coerceMessages(pickField(parsed, "messages", "input")),

@@ -165,6 +165,61 @@ describe("coerceStepResponse", () => {
 			},
 		]);
 	});
+
+	it("falls back to OpenAI choices when content is absent", () => {
+		// Raw OpenAI-format response: no top-level `content`, the data
+		// lives in `choices[0].message`.
+		const response = coerceStepResponse({
+			choices: [
+				{
+					message: {
+						content: "hello from openai",
+						tool_calls: [
+							{
+								id: "call-1",
+								function: {
+									name: "search_docs",
+									arguments: '{"query":"foo"}',
+								},
+							},
+						],
+					},
+					finish_reason: "stop",
+				},
+			],
+		});
+
+		expect(response.content).toBe("hello from openai");
+		expect(response.toolCalls).toEqual([
+			{
+				id: "call-1",
+				name: "search_docs",
+				arguments: '{\n  "query": "foo"\n}',
+			},
+		]);
+		expect(response.finishReason).toBe("stop");
+	});
+
+	it("reads OpenAI choices content from array text parts", () => {
+		// Providers sometimes emit `content` as a structured array on the
+		// choice message instead of a plain string.
+		const response = coerceStepResponse({
+			choices: [
+				{
+					message: {
+						content: [
+							{ type: "text", text: "part one " },
+							{ type: "text", text: "part two" },
+						],
+					},
+					finish_reason: "length",
+				},
+			],
+		});
+
+		expect(response.content).toBe("part one part two");
+		expect(response.finishReason).toBe("length");
+	});
 });
 
 describe("getRunKindLabel", () => {

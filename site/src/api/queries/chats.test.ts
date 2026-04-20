@@ -9,6 +9,7 @@ import {
 	cancelChatListRefetches,
 	chatCostSummary,
 	chatCostSummaryKey,
+	chatDebugRunsKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
@@ -738,7 +739,7 @@ describe("mutation invalidation scope", () => {
 		// Messages: ["chats", chatId, "messages"]
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		// Debug runs: ["chats", chatId, "debug-runs"]
-		queryClient.setQueryData(chatDebugRunsTestKey(chatId), []);
+		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
 		// Diff contents: ["chats", chatId, "diff-contents"]
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
@@ -747,9 +748,6 @@ describe("mutation invalidation scope", () => {
 			{} as TypesGen.ChatCostSummary,
 		);
 	};
-
-	const chatDebugRunsTestKey = (chatId: string) =>
-		["chats", chatId, "debug-runs"] as const;
 
 	/** Keys that should NEVER be invalidated by chat message mutations
 	 *  because they are completely unrelated to the message flow. */
@@ -784,7 +782,7 @@ describe("mutation invalidation scope", () => {
 		await mutation.onSuccess?.();
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsTestKey(chatId))?.isInvalidated,
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
 		).toBe(true);
 
@@ -830,7 +828,7 @@ describe("mutation invalidation scope", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 
-		// These queries should be invalidated — editing changes
+		// These queries should be invalidated -- editing changes
 		// message content, may update the chat record, and can start
 		// a new debug run.
 		const chatState = queryClient.getQueryState(chatKey(chatId));
@@ -845,7 +843,7 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsTestKey(chatId))?.isInvalidated,
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
 		).toBe(true);
 	});
@@ -1209,7 +1207,7 @@ describe("mutation invalidation scope", () => {
 		await mutation.onSuccess?.();
 
 		expect(
-			queryClient.getQueryState(chatDebugRunsTestKey(chatId))?.isInvalidated,
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
 		).toBe(true);
 
@@ -1218,6 +1216,28 @@ describe("mutation invalidation scope", () => {
 			expect(
 				state?.isInvalidated,
 				`${label} should NOT be invalidated by promoteChatQueuedMessage`,
+			).not.toBe(true);
+		}
+	});
+
+	it("regenerateChatTitle invalidates debug runs so the title_generation run surfaces immediately", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedAllActiveQueries(queryClient, chatId);
+
+		const mutation = regenerateChatTitle(queryClient);
+		await mutation.onSettled(undefined, undefined, chatId);
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
+
+		for (const { label, key } of unrelatedKeys(chatId)) {
+			const state = queryClient.getQueryState(key);
+			expect(
+				state?.isInvalidated,
+				`${label} should NOT be invalidated by regenerateChatTitle`,
 			).not.toBe(true);
 		}
 	});

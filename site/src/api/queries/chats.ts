@@ -823,6 +823,10 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		// `regenerateChatTitle` triggers a backend `title_generation` debug
+		// run. Kick the Debug panel query so the new run appears without
+		// waiting for the next poll cycle.
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -858,7 +862,7 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatDebugRunsKey = (chatId: string) =>
+export const chatDebugRunsKey = (chatId: string) =>
 	["chats", chatId, "debug-runs"] as const;
 
 const invalidateChatDebugRuns = (queryClient: QueryClient, chatId: string) => {
