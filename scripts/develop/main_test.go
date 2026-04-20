@@ -589,3 +589,66 @@ func TestPoll(t *testing.T) {
 		assert.Equal(t, 2, calls)
 	})
 }
+
+func TestStartPrometheusServerDockerMissing(t *testing.T) {
+	// Not t.Parallel(): mutates PATH via t.Setenv.
+	t.Setenv("PATH", "")
+
+	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+	group := newProcGroup(t.Context(), logger)
+
+	cfg := &devConfig{prometheusServer: true, prometheusPort: 2114}
+
+	started, err := startPrometheusServer(t.Context(), logger, cfg, group)
+	require.NoError(t, err)
+	assert.False(t, started)
+}
+
+func TestPrometheusBannerEntry(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		cfg       *devConfig
+		started   bool
+		wantLabel string
+		wantPort  int64
+	}{
+		{
+			name:      "MetricsDisabled",
+			cfg:       &devConfig{prometheusPort: 0},
+			started:   false,
+			wantLabel: "",
+			wantPort:  0,
+		},
+		{
+			name:      "MetricsOnlyDefault",
+			cfg:       &devConfig{prometheusPort: 2114},
+			started:   false,
+			wantLabel: "Metrics:",
+			wantPort:  2114,
+		},
+		{
+			name:      "PrometheusServerUp",
+			cfg:       &devConfig{prometheusPort: 2114, prometheusServer: true},
+			started:   true,
+			wantLabel: "Prometheus UI:",
+			wantPort:  defaultPrometheusServerPort,
+		},
+		{
+			name:      "ServerRequestedButDown",
+			cfg:       &devConfig{prometheusPort: 2114, prometheusServer: true},
+			started:   false,
+			wantLabel: "Metrics:",
+			wantPort:  2114,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			label, port := prometheusBannerEntry(tc.cfg, tc.started)
+			assert.Equal(t, tc.wantLabel, label)
+			assert.Equal(t, tc.wantPort, port)
+		})
+	}
+}

@@ -498,14 +498,17 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		}
 	}
 
+	var prometheusServerStarted bool
 	if cfg.prometheusServer {
-		if err := startPrometheusServer(ctx, logger, cfg, group); err != nil {
+		started, err := startPrometheusServer(ctx, logger, cfg, group)
+		if err != nil {
 			logger.Warn(ctx, "prometheus server setup failed, continuing",
 				slog.Error(err))
 		}
+		prometheusServerStarted = started
 	}
 
-	printBanner(ctx, logger, cfg)
+	printBanner(ctx, logger, cfg, prometheusServerStarted)
 
 	// Block until a signal fires or a child process exits.
 	<-ctx.Done()
@@ -948,10 +951,12 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 // with a generated config that scrapes the local Coder metrics
 // endpoint. It uses --net=host so the container can reach the
 // host-bound metrics port directly.
-func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig, group *procGroup) error {
+func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig, group *procGroup) (bool, error) {
 	// Verify Docker is available before attempting anything.
 	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
-		return xerrors.New("docker is required for --prometheus-server but does not appear to be available")
+		logger.Info(ctx, "docker not available, skipping prometheus server",
+			slog.Error(err))
+		return false, nil
 	}
 
 	// Remove any leftover container from a previous run.
@@ -974,12 +979,19 @@ scrape_configs:
 
 	tmpFile, err := os.CreateTemp("", "coder-prometheus-*.yml")
 	if err != nil {
-		return xerrors.Errorf("creating prometheus config: %w", err)
+		return false, xerrors.Errorf("creating prometheus config: %w", err)
 	}
+	// Remove the temp file when the context is done. Registering the
+	// cleanup immediately after CreateTemp lets every later failure
+	// path simply return without its own os.Remove call.
+	go func() {
+		<-ctx.Done()
+		_ = os.Remove(tmpFile.Name())
+	}()
+
 	if _, err := tmpFile.WriteString(promCfg); err != nil {
 		_ = tmpFile.Close()
-		_ = os.Remove(tmpFile.Name())
-		return xerrors.Errorf("writing prometheus config: %w", err)
+		return false, xerrors.Errorf("writing prometheus config: %w", err)
 	}
 	_ = tmpFile.Close()
 
@@ -1000,17 +1012,10 @@ scrape_configs:
 	)
 
 	if err := group.Start("prometheus", cmd); err != nil {
-		_ = os.Remove(tmpFile.Name())
-		return err
+		return false, err
 	}
 
-	// Clean up the temp file when the context is done.
-	go func() {
-		<-ctx.Done()
-		_ = os.Remove(tmpFile.Name())
-	}()
-
-	return nil
+	return true, nil
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
@@ -1022,7 +1027,22 @@ func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
 	return cmd
 }
 
-func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
+// prometheusBannerEntry decides which (if any) prometheus-related URL
+// the dev banner should advertise. When the embedded Prometheus server
+// is running we prefer its UI; otherwise fall back to the raw metrics
+// endpoint. Returns an empty label when metrics are disabled entirely.
+func prometheusBannerEntry(cfg *devConfig, prometheusServerStarted bool) (label string, port int64) {
+	switch {
+	case prometheusServerStarted:
+		return "Prometheus UI:", defaultPrometheusServerPort
+	case cfg.prometheusPort != 0:
+		return "Metrics:", cfg.prometheusPort
+	default:
+		return "", 0
+	}
+}
+
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
 	ifaces := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
@@ -1077,22 +1097,13 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.proxyPort)))
 		}
 	}
-	if cfg.prometheusPort != 0 {
+	if label, port := prometheusBannerEntry(cfg, prometheusServerStarted); label != "" {
 		line(
 			"",
-			"Metrics:",
+			label,
 		)
 		for _, h := range ifaces {
-			line(indent(fmt.Sprintf("http://%s:%d", h, cfg.prometheusPort)))
-		}
-	}
-	if cfg.prometheusServer {
-		line(
-			"",
-			"Prometheus UI:",
-		)
-		for _, h := range ifaces {
-			line(indent(fmt.Sprintf("http://%s:%d", h, defaultPrometheusServerPort)))
+			line(indent(fmt.Sprintf("http://%s:%d", h, port)))
 		}
 	}
 	line(
