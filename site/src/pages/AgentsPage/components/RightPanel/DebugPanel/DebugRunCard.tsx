@@ -28,7 +28,7 @@ import {
 interface DebugRunCardProps {
 	run: ChatDebugRunSummary;
 	chatId: string;
-	enabled?: boolean;
+	enabled: boolean;
 }
 
 const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
@@ -39,7 +39,7 @@ const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 export const DebugRunCard: FC<DebugRunCardProps> = ({
 	run,
 	chatId,
-	enabled = true,
+	enabled,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const runDetailQuery = useQuery({
