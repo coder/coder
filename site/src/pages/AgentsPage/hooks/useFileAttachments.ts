@@ -27,12 +27,27 @@ const DEFAULT_IMAGE_BUDGET_BYTES = MAX_UPLOAD_BYTES - 16 * 1024;
 // wire. This is stricter than DEFAULT_IMAGE_BUDGET_BYTES, so the
 // Anthropic path uses it even though the upload endpoint itself
 // would accept more.
+//
+// Kept in sync with coderd/x/chatd/chatprovider/chatprovider.go
+// `anthropicInlineImageByteCap` (server-side backstop) — adjust the
+// byte values together if Anthropic ever revises the limit.
 const ANTHROPIC_IMAGE_BUDGET_BYTES = 5 * 1024 * 1024 - 16 * 1024;
 
+// Providers that inherit Anthropic's stricter 5 MiB inline image cap.
+// Must mirror chatprovider.InlineImageByteCap's coverage on the
+// server so both layers agree on which configurations need the
+// tighter budget. Bedrock is included because fantasy's bedrock
+// provider is a thin wrapper around the Anthropic client.
+const ANTHROPIC_STRICT_BUDGET_PROVIDERS: ReadonlySet<string> = new Set([
+	"anthropic",
+	"bedrock",
+]);
+
 function imageBudgetForProvider(provider: string | undefined): number {
-	return provider === "anthropic"
-		? ANTHROPIC_IMAGE_BUDGET_BYTES
-		: DEFAULT_IMAGE_BUDGET_BYTES;
+	if (provider && ANTHROPIC_STRICT_BUDGET_PROVIDERS.has(provider)) {
+		return ANTHROPIC_IMAGE_BUDGET_BYTES;
+	}
+	return DEFAULT_IMAGE_BUDGET_BYTES;
 }
 
 /** @internal Exported for testing. */
@@ -288,51 +303,126 @@ export function useFileAttachments(
 		})();
 	};
 
-	const handleAttach = (files: File[]) => {
-		// handleAttach is fire-and-forget to callers (paste/drop
-		// handlers don't await). Delegate to an async worker so we
-		// can resize images before committing them to state when
-		// targeting Anthropic.
-		void processAttach(files);
+	// Track originals that were removed while their resize was still
+	// in flight. Writes happen in handleRemoveAttachment; reads in
+	// processResizes. A WeakSet lets dismissed File objects be GC'd
+	// without needing explicit cleanup.
+	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
+
+	const processResizes = async (
+		originals: File[],
+		needsResize: boolean[],
+		budget: number,
+	) => {
+		// Resize images one at a time (module-level queue in
+		// resizeImageToMaxBytes already serializes decode work; this
+		// mirrors it so each swap is committed before the next
+		// starts, keeping UI transitions predictable).
+		for (let i = 0; i < originals.length; i++) {
+			if (!needsResize[i]) continue;
+			const original = originals[i];
+			let resized: File | null = null;
+			try {
+				resized = await resizeImageToMaxBytes(original, budget);
+			} catch {
+				// Never let a resize error swallow the attachment;
+				// we fall back to the original below.
+				resized = null;
+			}
+
+			// If the user removed this attachment while resize was
+			// in flight, skip state updates entirely so we don't
+			// resurrect a dismissed file.
+			if (abandonedResizesRef.current.has(original)) {
+				continue;
+			}
+			const replacement = resized ?? original;
+			const replaced = replacement !== original;
+
+			// Functional updaters so a racing removal (e.g. unmount
+			// cleanup) leaves the state alone: if the original is no
+			// longer present, every updater below is a no-op.
+			setAttachments((prev) => {
+				const idx = prev.indexOf(original);
+				if (idx === -1 || !replaced) return prev;
+				const next = prev.slice();
+				next[idx] = replacement;
+				return next;
+			});
+			setPreviewUrls((prev) => {
+				if (!prev.has(original)) return prev;
+				const next = new Map(prev);
+				const oldUrl = next.get(original);
+				if (oldUrl?.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
+				next.delete(original);
+				if (replaced && replacement.type !== "text/plain") {
+					next.set(replacement, URL.createObjectURL(replacement));
+				}
+				return next;
+			});
+			setUploadStates((prev) => {
+				if (!prev.has(original)) return prev;
+				const next = new Map(prev);
+				next.delete(original);
+				return next;
+			});
+
+			// If the replacement is still larger than the server
+			// cap (e.g. resize failed and the original was >10 MiB),
+			// surface the pre-existing too-large error instead of
+			// kicking off an upload that will 413.
+			if (replacement.size > MAX_UPLOAD_BYTES) {
+				setUploadStates((prev) =>
+					new Map(prev).set(replacement, {
+						status: "error" as const,
+						error: `File too large (${(replacement.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+					}),
+				);
+				continue;
+			}
+			startUpload(replacement);
+		}
 	};
 
-	const processAttach = async (files: File[]) => {
-		// Resize oversized images up front so that every File that
-		// enters attachment state is already within the applicable
-		// budget. Anthropic has a stricter 5 MiB inline cap; other
-		// providers just need to fit the server's 10 MiB upload
-		// limit. Non-image files are passed through unchanged; if
-		// they exceed MAX_UPLOAD_BYTES the check below still
-		// surfaces the existing too-large error.
+	const handleAttach = (files: File[]) => {
+		// Commit originals to state synchronously so the composer
+		// reflects the paste/drop immediately and the send gate
+		// (via the "processing" UploadState) blocks dispatch until
+		// any async preprocessing finishes. The async worker below
+		// later swaps each entry for its resized File if needed.
 		const budget = imageBudgetForProvider(providerRef.current);
-		const processed = await Promise.all(
-			files.map(async (file) => {
-				if (!file.type.startsWith("image/")) return file;
-				if (file.size <= budget) return file;
-				let resized: File | null = null;
-				try {
-					resized = await resizeImageToMaxBytes(file, budget);
-				} catch {
-					// Never let a resize error swallow the attachment;
-					// the user can still attempt to upload the original.
-					resized = null;
-				}
-				return resized ?? file;
-			}),
+		const needsResize = files.map(
+			(file) => file.type.startsWith("image/") && file.size > budget,
 		);
 
-		setAttachments((prev) => [...prev, ...processed]);
+		setAttachments((prev) => [...prev, ...files]);
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
-			for (const file of processed) {
+			for (const file of files) {
 				if (file.type !== "text/plain") {
 					next.set(file, URL.createObjectURL(file));
 				}
 			}
 			return next;
 		});
+		setUploadStates((prev) => {
+			const next = new Map(prev);
+			for (let i = 0; i < files.length; i++) {
+				const file = files[i];
+				if (file.size > MAX_UPLOAD_BYTES && !needsResize[i]) {
+					next.set(file, {
+						status: "error" as const,
+						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+					});
+				} else if (needsResize[i]) {
+					next.set(file, { status: "processing" });
+				}
+			}
+			return next;
+		});
+
 		// Read text content for preview, but skip oversized files.
-		for (const file of processed) {
+		for (const file of files) {
 			if (file.type === "text/plain" && file.size <= MAX_UPLOAD_BYTES) {
 				// Defensive: some test environments lack File.prototype.text().
 				const readText =
@@ -352,18 +442,17 @@ export function useFileAttachments(
 					});
 			}
 		}
-		for (const file of processed) {
-			if (file.size > MAX_UPLOAD_BYTES) {
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "error" as const,
-						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
-					}),
-				);
-			} else {
-				startUpload(file);
-			}
+
+		// Start uploads for files that don't need resizing.
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			if (needsResize[i]) continue;
+			if (file.size > MAX_UPLOAD_BYTES) continue; // already marked as error above
+			startUpload(file);
 		}
+
+		// Kick off async resize + swap for files that need it.
+		void processResizes(files, needsResize, budget);
 	};
 
 	const handleRemoveAttachment = (attachment: number | File) => {
@@ -376,6 +465,12 @@ export function useFileAttachments(
 				? attachment
 				: attachments.indexOf(attachment);
 		const removed = idx >= 0 ? attachments[idx] : undefined;
+		if (removed) {
+			// Mark this file as abandoned so an in-flight resize
+			// doesn't resurrect it by swapping in a replacement
+			// after the state updates below.
+			abandonedResizesRef.current.add(removed);
+		}
 		if (persist && removed) {
 			const state = uploadStates.get(removed);
 			if (state?.status === "uploaded" && state.fileId) {

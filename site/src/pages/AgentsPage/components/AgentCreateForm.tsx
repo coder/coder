@@ -22,6 +22,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
+	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
@@ -384,9 +385,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetAttachments,
 	} = useFileAttachments(organizationId || undefined, {
 		persist: true,
-		// Provider is read in a ref by the hook so resizing tracks
-		// the latest model selection without re-subscribing.
-		provider: modelOptions.find((o) => o.id === selectedModel)?.provider,
+		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
 
 	const handleSendWithAttachments = async (message: string) => {
