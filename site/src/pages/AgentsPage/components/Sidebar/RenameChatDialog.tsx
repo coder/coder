@@ -179,7 +179,10 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							type="submit"
 							size="sm"
 							disabled={
-								!renameTitle.trim() || isRenamingChat || isGeneratingTitle
+								!renameTitle.trim() ||
+								renameTitle.trim() === chat?.title ||
+								isRenamingChat ||
+								isGeneratingTitle
 							}
 						>
 							{isRenamingChat && <Spinner className="h-4 w-4" loading />}
