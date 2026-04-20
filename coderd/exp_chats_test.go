@@ -1333,10 +1333,10 @@ func TestListChats(t *testing.T) {
 		}
 		require.Len(t, parent.Children, 2, "parent should embed 2 children")
 
-		// Children should be ordered by created_at ASC.
+		// Children are ordered by created_at DESC (newest first).
 		childIDs := []uuid.UUID{parent.Children[0].ID, parent.Children[1].ID}
-		require.Equal(t, child1.ID, childIDs[0])
-		require.Equal(t, child2.ID, childIDs[1])
+		require.Equal(t, child2.ID, childIDs[0])
+		require.Equal(t, child1.ID, childIDs[1])
 
 		// Verify each child has correct parent/root references.
 		for _, child := range parent.Children {

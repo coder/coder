@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
-	appendChildToParentInCache,
+	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -567,10 +567,10 @@ const AgentsPage: FC = () => {
 					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
-							// Child chat: append to its parent's children
+							// Child chat: add to its parent's children
 							// array. If the parent is not in any loaded
 							// page, the child is silently dropped.
-							appendChildToParentInCache(
+							addChildToParentInCache(
 								queryClient,
 								updatedChat,
 								updatedChat.parent_chat_id,

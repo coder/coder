@@ -103,11 +103,11 @@ export const readInfiniteChatsCache = (
 };
 
 /**
- * Appends a child chat to its parent's `children` array across all
+ * Adds a child chat to its parent's `children` array across all
  * infinite chat query caches. If the parent is not in any loaded page,
  * the child is silently dropped (it will appear when the parent loads).
  */
-export const appendChildToParentInCache = (
+export const addChildToParentInCache = (
 	queryClient: QueryClient,
 	child: TypesGen.Chat,
 	parentId: string,
@@ -119,7 +119,7 @@ export const appendChildToParentInCache = (
 			// Avoid duplicates.
 			if (c.children?.some((ch) => ch.id === child.id)) return c;
 			changed = true;
-			return { ...c, children: [...(c.children ?? []), child] };
+			return { ...c, children: [child, ...(c.children ?? [])] };
 		});
 		return changed ? next : chats;
 	});

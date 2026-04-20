@@ -418,8 +418,8 @@ WHERE
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
 ORDER BY
-    chats.created_at ASC,
-    chats.id ASC;
+    chats.created_at DESC,
+    chats.id DESC;
 
 -- name: InsertChat :one
 INSERT INTO chats (

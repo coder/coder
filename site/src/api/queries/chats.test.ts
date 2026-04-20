@@ -4,7 +4,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
-	appendChildToParentInCache,
+	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatCostSummary,
@@ -1703,8 +1703,8 @@ describe("mutation onMutate cancels pagination fetches", () => {
 	});
 });
 
-describe("appendChildToParentInCache", () => {
-	it("appends the child to the matching parent's children array", () => {
+describe("addChildToParentInCache", () => {
+	it("prepends new child to the parent's children array", () => {
 		const queryClient = createTestQueryClient();
 		const parent = makeChat("parent-1");
 		seedInfiniteChats(queryClient, [parent]);
@@ -1713,7 +1713,7 @@ describe("appendChildToParentInCache", () => {
 			parent_chat_id: "parent-1",
 			root_chat_id: "parent-1",
 		});
-		appendChildToParentInCache(queryClient, child, "parent-1");
+		addChildToParentInCache(queryClient, child, "parent-1");
 
 		const result = readInfiniteChats(queryClient);
 		expect(result).toHaveLength(1);
@@ -1730,7 +1730,7 @@ describe("appendChildToParentInCache", () => {
 			parent_chat_id: "missing-parent",
 			root_chat_id: "missing-parent",
 		});
-		appendChildToParentInCache(queryClient, child, "missing-parent");
+		addChildToParentInCache(queryClient, child, "missing-parent");
 
 		const result = readInfiniteChats(queryClient);
 		expect(result).toHaveLength(1);
@@ -1747,7 +1747,7 @@ describe("appendChildToParentInCache", () => {
 		const parent = makeChat("parent-1", { children: [existingChild] });
 		seedInfiniteChats(queryClient, [parent]);
 
-		appendChildToParentInCache(queryClient, existingChild, "parent-1");
+		addChildToParentInCache(queryClient, existingChild, "parent-1");
 
 		const result = readInfiniteChats(queryClient);
 		expect(result?.[0].children).toHaveLength(1);
