@@ -43,9 +43,9 @@ const (
 	maxTelemetryHeartbeatAge = 24 * time.Hour
 	// Chat batch sizes are smaller than audit/connection log batches
 	// (10000) because chat_files rows carry bytea blobs.
-	chatsBatchSize            = 1000
-	chatFilesBatchSize        = 1000
-	chatsAutoArchiveBatchSize = 1000
+	chatsBatchSize           = 1000
+	chatFilesBatchSize       = 1000
+	chatAutoArchiveBatchSize = 1000
 	// chatAutoArchiveDigestMaxChats caps titles per digest; extras
 	// are summarized as "...and N more".
 	chatAutoArchiveDigestMaxChats = 25
@@ -316,7 +316,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			// nolint:gocritic // Auto-archive runs as the system.
 			archivedChats, err = tx.AutoArchiveInactiveChats(dbauthz.AsSystemRestricted(ctx), database.AutoArchiveInactiveChatsParams{
 				ArchiveCutoff: archiveCutoff,
-				LimitCount:    chatsAutoArchiveBatchSize,
+				LimitCount:    chatAutoArchiveBatchSize,
 			})
 			if err != nil {
 				return xerrors.Errorf("failed to auto-archive inactive chats: %w", err)

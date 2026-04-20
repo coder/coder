@@ -2370,6 +2370,50 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, auditor.AuditLogs(), 2)
 			},
 		},
+		{
+			name: "DigestOverflowCap",
+			run: func(t *testing.T) {
+				// 27 inactive roots exceed chatAutoArchiveDigestMaxChats
+				// (25). All 27 should archive, but the digest payload
+				// lists at most 25 titles and surfaces the rest via
+				// additional_archived_count so the template can render
+				// "...and N more".
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := archiveTestDeps(ctx, t, db)
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				const total = 27
+				for i := range total {
+					createArchiveChat(ctx, t, db, rawDB, deps,
+						fmt.Sprintf("stale-%02d", i),
+						now.Add(-60*24*time.Hour))
+				}
+
+				auditor := audit.NewMock()
+				enqueuer := notificationstest.NewFakeEnqueuer()
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditor, enqueuer)
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// All 27 roots archived (one audit each).
+				require.Len(t, auditor.AuditLogs(), total)
+
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "one digest per owner")
+				chats, ok := sent[0].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats, 25, "digest caps titles at 25")
+				require.Equal(t, "2", sent[0].Data["additional_archived_count"],
+					"overflow count is total - cap")
+			},
+		},
 	}
 
 	for _, tc := range tests {
