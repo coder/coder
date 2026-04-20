@@ -629,13 +629,17 @@ func styleUnifiedDiffLine(styles tuiStyles, line string) string {
 	}
 }
 
-func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, width, height int) string {
+// renderDiffDrawer builds the diff overlay contents. The caller is
+// responsible for producing summary with renderChatDiffSummary so that
+// every View() redraw does not walk the full (potentially 4 MiB) diff
+// through parseChatGitChangesFromUnifiedDiff again. chatViewModel
+// caches the summary in diffSummary for this reason.
+func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, summary string, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
 	if meta := diffMetadataLines(diff); len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
-	summary := renderChatDiffSummary(diff)
 	diffBody := renderStyledDiffBody(styles, diff.Diff)
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4

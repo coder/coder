@@ -305,7 +305,13 @@ type chatViewModel struct {
 
 	diffStatus   *codersdk.ChatDiffStatus
 	diffContents *codersdk.ChatDiffContents
-	diffErr      error
+	// diffSummary caches the rendered "N files changed" summary
+	// for diffContents so renderDiffDrawer can reuse it across
+	// View() redraws. parseChatGitChangesFromUnifiedDiff walks the
+	// full (potentially 4 MiB) diff text, so recomputing it on every
+	// keypress or resize stalls the TUI for large diffs.
+	diffSummary string
+	diffErr     error
 
 	modelPickerFlat   []codersdk.ChatModel
 	modelPickerCursor int
@@ -471,6 +477,7 @@ func (m *chatViewModel) setChat(chat codersdk.Chat) {
 	m.chatStatus = chat.Status
 	m.diffStatus = chat.DiffStatus
 	m.diffContents = nil
+	m.diffSummary = ""
 	m.diffErr = nil
 }
 
@@ -1176,6 +1183,9 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		diff := msg.diff
 		m.diffContents = &diff
+		// Pre-render the summary once so View() redraws reuse it
+		// instead of re-parsing the full diff on every keypress.
+		m.diffSummary = renderChatDiffSummary(diff)
 		return m, nil
 
 	default:

@@ -374,7 +374,7 @@ func (m expChatsTUIModel) diffOverlayView() string {
 	case m.chat.diffErr != nil:
 		return m.renderOverlay("Diff", m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))))
 	case m.chat.diffContents != nil:
-		return renderDiffDrawer(m.styles, *m.chat.diffContents, m.width, m.height)
+		return renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.diffSummary, m.width, m.height)
 	default:
 		return m.renderOverlay("Diff", m.styles.dimmedText.Render("Loading diff…"))
 	}

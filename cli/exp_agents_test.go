@@ -563,6 +563,34 @@ func TestExpAgents(t *testing.T) {
 			require.Contains(t, plainText(updated.View()), "connection refused")
 		})
 
+		t.Run("DiffDrawerMemoizesSummary", func(t *testing.T) {
+			t.Parallel()
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model.currentView = viewChat
+			model.width = 80
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+			generation := model.chat.chatGeneration
+
+			// A successful diffContentsMsg pre-renders the summary so
+			// View() redraws do not re-parse the full diff on every
+			// keypress (see chatViewModel.diffSummary).
+			diff := codersdk.ChatDiffContents{
+				ChatID: chat.ID,
+				Diff:   "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new",
+			}
+			updatedModel, cmd := model.Update(diffContentsMsg{generation: generation, chatID: chat.ID, diff: diff})
+			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.NotNil(t, updated.chat.diffContents)
+			require.Equal(t, "1 file changed:\n  modified a.txt (+1 -1)", updated.chat.diffSummary)
+
+			// setChat clears the cached summary so a new chat does
+			// not inherit a stale summary from the previous session.
+			(&updated.chat).setChat(testChat(codersdk.ChatStatusCompleted))
+			require.Empty(t, updated.chat.diffSummary)
+			require.Nil(t, updated.chat.diffContents)
+		})
+
 		t.Run("OverlayDismissedOnViewSwitch", func(t *testing.T) {
 			t.Parallel()
 			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
