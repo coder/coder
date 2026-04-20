@@ -569,7 +569,19 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, "diff --git a/a.txt b/a.txt")
 				require.Contains(t, output, "+added line")
 			}},
-			{name: "ShowsPlaceholderForEmptyDiff", assert: func(t *testing.T, output string) { require.Contains(t, output, "No diff contents.") }},
+			{name: "ShowsPlaceholderForEmptyDiff", assert: func(t *testing.T, output string) {
+				require.Contains(t, output, "No diff contents.")
+				require.Contains(t, output, "No changes detected.")
+			}},
+			{name: "ShowsFallbackForUnparsableNonEmptyDiff", diff: codersdk.ChatDiffContents{Diff: "Total diff too large to show. Size: 12MB. Showing branch and remote only."}, assert: func(t *testing.T, output string) {
+				// When agent/agentgit substitutes a placeholder for
+				// an oversized diff, the text is non-empty but not in
+				// `diff --git` format. renderChatDiffSummary should
+				// report "Changes present but could not be summarized."
+				// instead of claiming no changes were detected.
+				require.Contains(t, output, "Changes present but could not be summarized.")
+				require.NotContains(t, output, "No changes detected.")
+			}},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {

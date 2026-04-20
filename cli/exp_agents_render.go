@@ -571,6 +571,15 @@ func stripUnifiedDiffPrefix(path string) string {
 func renderChatDiffSummary(diff codersdk.ChatDiffContents) string {
 	changes := parseChatGitChangesFromUnifiedDiff(diff)
 	if len(changes) == 0 {
+		// The diff text might be non-empty but not in `diff --git`
+		// format (for example `agent/agentgit` emits a "Total diff
+		// too large to show..." placeholder when the raw diff exceeds
+		// the read limit). Report that changes exist but could not
+		// be summarized so we do not mislead the user into thinking
+		// the workspace is clean.
+		if strings.TrimSpace(diff.Diff) != "" {
+			return "Changes present but could not be summarized."
+		}
 		return "No changes detected."
 	}
 
