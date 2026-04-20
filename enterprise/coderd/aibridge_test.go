@@ -755,6 +755,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		})
 
 		// Session 3: Standalone interception (no client_session_id, no thread_root_id).
+		// No prompt — last_active_at falls back to started_at.
 		s3EndedAt := now.Add(-2*time.Hour + time.Minute)
 		s3i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -762,11 +763,6 @@ func TestAIBridgeListSessions(t *testing.T) {
 			Model:       "claude-4",
 			StartedAt:   now.Add(-2 * time.Hour),
 		}, &s3EndedAt)
-		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-			InterceptionID: s3i1.ID,
-			Prompt:         "prompt from session 3",
-			CreatedAt:      now.Add(-90 * time.Minute),
-		})
 
 		// Session 4: Two distinct thread roots in one client_session_id.
 		s4i1EndedAt := now.Add(-3*time.Hour + time.Minute)
@@ -799,7 +795,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Sessions ordered by last_active_at DESC:
 		// session-A (now+1m), thread-based (now-30m), standalone
-		// (now-90m), multi-thread (now-150m).
+		// (now-2h via started_at fallback), multi-thread (now-150m).
 		require.Equal(t, "session-A", res.Sessions[0].ID)
 		require.Equal(t, s2i1.ID.String(), res.Sessions[1].ID)
 		require.Equal(t, s3i1.ID.String(), res.Sessions[2].ID)
@@ -826,10 +822,10 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// thread root, so count is 1.
 		require.EqualValues(t, 1, s2.Threads)
 
-		// Verify session 3 (standalone).
+		// Verify session 3 (standalone, no prompts).
 		s3 := res.Sessions[2]
 		require.EqualValues(t, 1, s3.Threads)
-		require.NotNil(t, s3.LastPrompt)
+		require.Nil(t, s3.LastPrompt)
 
 		// Verify session 4 (multiple threads). Thread A has a root +
 		// child (1 thread), thread B is a standalone root (1 thread),
@@ -847,8 +843,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		now := dbtime.Now()
 		// Create 5 standalone sessions with different start times.
-		// Each session has a prompt at started_at so sort_at equals started_at
-		// and the expected descending order is preserved.
+		// Without prompts, last_active_at falls back to started_at, so the
+		// expected descending order is preserved.
 		allSessionIDs := make([]string, 5)
 		for i := range 5 {
 			startedAt := now.Add(-time.Duration(i) * time.Hour)
@@ -857,11 +853,6 @@ func TestAIBridgeListSessions(t *testing.T) {
 				InitiatorID: firstUser.UserID,
 				StartedAt:   startedAt,
 			}, &endedAt)
-			dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-				InterceptionID: intc.ID,
-				Prompt:         "prompt",
-				CreatedAt:      startedAt,
-			})
 			// Standalone session: ID = interception UUID string.
 			allSessionIDs[i] = intc.ID.String()
 		}
@@ -1549,9 +1540,9 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.EqualValues(t, 3, res.Count)
 	})
 
-	// LastActiveAtAlwaysSet verifies that sessions with user prompts have
-	// last_active_at populated. Sessions without prompts have last_active_at
-	// nil; see PromptlessSessionSortsByStartedAt for that case.
+	// LastActiveAtAlwaysSet verifies that last_active_at is always non-zero,
+	// even for sessions without prompts. Prompted sessions use the latest
+	// prompt timestamp; promptless sessions fall back to started_at.
 	t.Run("LastActiveAtAlwaysSet", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
@@ -1581,7 +1572,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Len(t, res.Sessions, 3)
 
 		for i, s := range res.Sessions {
-			require.NotNil(t, s.LastActiveAt, "session %d (%s) should have last_active_at set", i, s.ID)
+			require.NotZero(t, s.LastActiveAt, "session %d (%s) should have last_active_at set", i, s.ID)
 		}
 
 		// Sorted by last_active_at DESC: a (now), b (now-30m), c (now-1h).
@@ -1593,17 +1584,18 @@ func TestAIBridgeListSessions(t *testing.T) {
 	// PromptlessSessionSortsByStartedAt verifies that a session whose root
 	// interception has no associated user prompts still appears in results and
 	// sorts by MIN(started_at) as a fallback. Without the COALESCE fallback a
-	// NULL sort_at would cause the HAVING row-value comparison to evaluate to
-	// NULL (not false), silently dropping the session from all result pages.
+	// NULL last_active_at would cause the HAVING row-value comparison to
+	// evaluate to NULL (not false), silently dropping the session from all
+	// result pages.
 	//
 	// Three sessions are arranged so that the promptless session sits between
 	// two prompted sessions in sort order:
 	//
-	//   A: started=now,    prompt=now      → sort_at=now,    last_active_at=now
-	//   B: started=now-1h, NO prompt       → sort_at=now-1h, last_active_at=nil
-	//   C: started=now-2h, prompt=now-30m  → sort_at=now-30m,last_active_at=now-30m
+	//   A: started=now,    prompt=now      → last_active_at=now
+	//   B: started=now-1h, NO prompt       → last_active_at=now-1h (fallback)
+	//   C: started=now-2h, prompt=now-30m  → last_active_at=now-30m
 	//
-	// Sort order by sort_at DESC: C (now-30m) > B (now-1h), so: A, C, B.
+	// Sort order by last_active_at DESC: C (now-30m) > B (now-1h), so: A, C, B.
 	// B disappearing would indicate the fallback is broken.
 	t.Run("PromptlessSessionSortsByStartedAt", func(t *testing.T) {
 		t.Parallel()
@@ -1657,15 +1649,15 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Equal(t, cInterception.SessionID, res.Sessions[1].ID, "session C should be second (prompt=now-30m beats B's started_at=now-1h)")
 		require.Equal(t, bInterception.SessionID, res.Sessions[2].ID, "session B should be last (no prompt, falls back to started_at=now-1h)")
 
-		// Prompted sessions have last_active_at; the promptless session does not.
-		require.NotNil(t, res.Sessions[0].LastActiveAt, "session A should have last_active_at set")
-		require.NotNil(t, res.Sessions[1].LastActiveAt, "session C should have last_active_at set")
-		require.Nil(t, res.Sessions[2].LastActiveAt, "session B has no prompts, last_active_at should be nil")
+		// All sessions have last_active_at; session B falls back to started_at.
+		require.NotZero(t, res.Sessions[0].LastActiveAt, "session A should have last_active_at set")
+		require.NotZero(t, res.Sessions[1].LastActiveAt, "session C should have last_active_at set")
+		require.WithinDuration(t, bInterception.StartedAt, res.Sessions[2].LastActiveAt, time.Millisecond, "session B has no prompts, last_active_at should equal started_at")
 	})
 
-	// SortsByLastActive verifies that sessions are ordered by the latest prompt
-	// timestamp (last_active_at). Every session has at least one prompt, so
-	// last_active_at is always non-nil.
+	// SortsByLastActive verifies that sessions are ordered by last_active_at.
+	// Every session here has at least one prompt, so last_active_at equals
+	// the latest prompt timestamp rather than the started_at fallback.
 	//
 	// Three sessions are created with intentionally crossing timestamps so that
 	// the "prompt time" order differs from the "started_at" order:

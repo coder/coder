@@ -446,14 +446,13 @@ WHERE
 -- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 -- first-interception metadata) only for the ~page-size result set.
 WITH cursor_pos AS (
-	-- Resolve the cursor's sort_at once, outside the HAVING clause, so the
-	-- planner cannot accidentally re-evaluate it per group. Direct LEFT JOIN
-	-- is safe here since we only use MAX/MIN aggregates (no COUNT affected
-	-- by fan-out from multiple prompts per interception). The ended_at IS NOT
-	-- NULL filter keeps this consistent with session_page's aggregation scope.
-	-- COALESCE falls back to MIN(ai.started_at) for sessions with no prompts
-	-- so that sort_at is never NULL and cursor pagination always works.
-	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS sort_at
+	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group. Direct
+	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
+	-- affected by fan-out from multiple prompts per interception).
+	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
+	-- never NULL, which would silently drop rows from the HAVING comparison.
+	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
 	FROM aibridge_interceptions ai
 	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
 	WHERE ai.session_id = @after_session_id AND ai.ended_at IS NOT NULL
@@ -465,19 +464,16 @@ session_page AS (
 	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
 	-- index makes this an index-only lookup per interception row rather than
 	-- a full-table-scan GROUP BY over all prompts.
+	-- last_active_at is the latest prompt timestamp, falling back to
+	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
+	-- it is never NULL so the HAVING row-value cursor comparison is safe.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
 		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		-- last_active_at is the latest user-prompt timestamp; it is NULL for
-		-- sessions that have no prompts. sort_at adds a MIN(started_at)
-		-- fallback so promptless sessions still appear and sort correctly —
-		-- a NULL sort_at in the HAVING row-value comparison evaluates to
-		-- NULL (not false), which silently drops rows from results.
-		MAX(pr.latest_prompt_at) AS last_active_at,
-		COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)) AS sort_at
+		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)) AS last_active_at
 	FROM
 		aibridge_interceptions ai
 	LEFT JOIN LATERAL (
@@ -486,7 +482,7 @@ session_page AS (
 		WHERE interception_id = ai.id
 		ORDER BY created_at DESC
 		LIMIT 1
-	) pr ON true
+	) latest_prompt ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
@@ -535,15 +531,15 @@ session_page AS (
 		-- value comes from cursor_pos to guarantee single evaluation.
 		CASE
 			WHEN @after_session_id::text != '' THEN (
-				(COALESCE(MAX(pr.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
-					(SELECT sort_at FROM cursor_pos),
+				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+					(SELECT last_active_at FROM cursor_pos),
 					@after_session_id::text
 				)
 			)
 			ELSE true
 		END
 	ORDER BY
-		sort_at DESC,
+		last_active_at DESC,
 		ai.session_id DESC
 	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 	OFFSET @offset_
@@ -603,7 +599,7 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) slp ON true
 ORDER BY
-	sp.sort_at DESC,
+	sp.last_active_at DESC,
 	sp.session_id DESC
 ;
 
