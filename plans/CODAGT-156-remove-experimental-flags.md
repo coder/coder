@@ -15,21 +15,21 @@ the Agents page sidebar.
 
 **File:** `coderd/coderd.go`
 
-- **Lines ~1157-1159** — Remove `httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents)` from the `/api/experimental/chats` route group. Keep `apiKeyMiddleware`.
-- **Lines ~1267** — Remove the same middleware from `/api/experimental/mcp/servers` route group.
-- **Lines ~1993-1999** — Remove the `ExperimentAgents` conditional around the `blob:` CSP `img-src` addition; make it unconditional.
+- **Lines ~1157-1159**: Remove `httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents)` from the `/api/experimental/chats` route group. Keep `apiKeyMiddleware`.
+- **Lines ~1267**: Remove the same middleware from `/api/experimental/mcp/servers` route group.
+- **Lines ~1993-1999**: Remove the `ExperimentAgents` conditional around the `blob:` CSP `img-src` addition; make it unconditional.
 
 ### 2. Backend: Always include AgentsAccessRole
 
 **File:** `coderd/roles.go`
 
-- **Lines ~51-53** — Remove the `if api.Experiments.Enabled(codersdk.ExperimentAgents) || buildinfo.IsDev()` guard. Always append `rbac.AgentsAccessRole()` to site roles.
+- **Lines ~51-53**: Remove the `if api.Experiments.Enabled(codersdk.ExperimentAgents) || buildinfo.IsDev()` guard. Always append `rbac.AgentsAccessRole()` to site roles.
 
 ### 3. Backend: Always set AgentsTabVisible
 
 **File:** `site/site.go`
 
-- **Lines ~528-535** — Remove the experiment check. Always set `agentsTabVisible = true`.
+- **Lines ~528-535**: Remove the experiment check. Always set `agentsTabVisible = true`.
 
 ### 4. SDK: Remove ExperimentAgents entirely
 
@@ -47,29 +47,29 @@ Existing deployments that still pass `--experiments=agents` will get a
 
 **File:** `site/src/modules/dashboard/Navbar/NavbarView.tsx`
 
-- **Lines ~263-281** — In `AgentsNavItem`, remove the `experimentEnabled` check (`experiments.includes("agents") || isDevBuild(buildInfo)`). The nav item should render whenever `canCreateChat` is true. Remove the `useDashboard()` call and `buildInfo`/`experiments` destructuring if no longer needed.
+- **Lines ~263-281**: In `AgentsNavItem`, remove the `experimentEnabled` check (`experiments.includes("agents") || isDevBuild(buildInfo)`). The nav item should render whenever `canCreateChat` is true. Remove the `useDashboard()` call and `buildInfo`/`experiments` destructuring if no longer needed.
 
 ### 6. Frontend: Remove experiment check in WorkspacesPage
 
 **File:** `site/src/pages/WorkspacesPage/WorkspacesPage.tsx`
 
-- **Line ~73** — Remove `const agentsEnabled = experiments.includes("agents");`. Change the query `enabled` condition (~line 137) to no longer depend on this flag (use `true` or just the `workspaceIds.length > 0` condition).
+- **Line ~73**: Remove `const agentsEnabled = experiments.includes("agents");`. Change the query `enabled` condition (~line 137) to no longer depend on this flag (use `true` or just the `workspaceIds.length > 0` condition).
 
 ### 7. Frontend: Remove experiment from Storybook story
 
 **File:** `site/src/modules/dashboard/Navbar/NavbarView.stories.tsx`
 
-- **Line ~23** — Remove `experiments: ["agents"]` from the story mock since the experiment is no longer needed.
+- **Line ~23**: Remove `experiments: ["agents"]` from the story mock since the experiment is no longer needed.
 
 ### 8. Frontend: Add "BETA" badge next to Coder logo
 
 **File:** `site/src/pages/AgentsPage/components/Sidebar/AgentsSidebar.tsx`
 
-- **Lines ~992-998** — After the `<NavLink>` containing the logo, add a `<FeatureStageBadge contentType="beta" size="sm" />` inline with the logo. Wrap logo + badge in a flex row with `gap-2 items-center` if not already.
+- **Lines ~992-998**: After the `<NavLink>` containing the logo, add a `<FeatureStageBadge contentType="beta" size="sm" />` inline with the logo. Wrap logo + badge in a flex row with `gap-2 items-center` if not already.
 
 **File:** `site/src/pages/AgentsPage/components/AgentPageHeader.tsx`
 
-- **Lines ~46-52** — Same change for the mobile logo: add the beta badge next to the logo `<NavLink>`.
+- **Lines ~46-52**: Same change for the mobile logo: add the beta badge next to the logo `<NavLink>`.
 
 Import: `import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";`
 
@@ -77,26 +77,26 @@ Import: `import { FeatureStageBadge } from "#/components/FeatureStageBadge/Featu
 
 **File:** `docs/ai-coder/agents/early-access.md`
 
-- **Lines ~46-56** — Remove the "Enable Coder Agents" section that tells users to pass `--experiments=agents`.
+- **Lines ~46-56**: Remove the "Enable Coder Agents" section that tells users to pass `--experiments=agents`.
 
 **File:** `docs/ai-coder/agents/getting-started.md`
 
-- **Lines ~33-42** — Remove "Step 1: Enable the experiment" section. Renumber subsequent steps.
+- **Lines ~33-42**: Remove "Step 1: Enable the experiment" section. Renumber subsequent steps.
 
 **File:** `docs/ai-coder/agents/chats-api.md`
 
-- **Line ~4** — Remove the statement that the API is "gated behind the `agents` experiment flag".
+- **Line ~4**: Remove the statement that the API is "gated behind the `agents` experiment flag".
 
 ### 10. Backend: Clean up stale comments
 
 **File:** `coderd/coderd.go`
 
-- **Line ~1155** — Remove or reword the comment `// Experimental(agents): chat API routes gated by ExperimentAgents.`
-- **Lines ~1993-1994** — Update the comment about `blob:` CSP to remove the experiment reference (the addition is now unconditional).
+- **Line ~1155**: Remove or reword the comment `// Experimental(agents): chat API routes gated by ExperimentAgents.`
+- **Lines ~1993-1994**: Update the comment about `blob:` CSP to remove the experiment reference (the addition is now unconditional).
 
 ### 11. Tests: Remove experiment setup from tests
 
-All these tests set `ExperimentAgents` in deployment values. Remove the experiment assignment lines — the feature is now unconditional.
+All these tests set `ExperimentAgents` in deployment values. Remove the experiment assignment lines: the feature is now unconditional.
 
 | File                                  | Lines                       |
 |---------------------------------------|-----------------------------|
@@ -117,10 +117,10 @@ All these tests set `ExperimentAgents` in deployment values. Remove the experime
 
 ## Verification
 
-1. `make gen` — Regenerate types and ensure no drift.
-2. `make fmt` — Format all code.
-3. `make lint` — Ensure no lint errors.
-4. `make build` — Ensure clean build.
+1. `make gen`: Regenerate types and ensure no drift.
+2. `make fmt`: Format all code.
+3. `make lint`: Ensure no lint errors.
+4. `make build`: Ensure clean build.
 5. Targeted tests:
    - `make test RUN=TestAssignableRoles` (roles always include agents)
    - `make test RUN=TestChat` (chat routes accessible without experiment)

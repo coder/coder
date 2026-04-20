@@ -151,7 +151,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 			)
 			renderer.SetHasDarkBackground(true)
 
-			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID, defaultOrgID)
+			model := newChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID, defaultOrgID)
 			model.setRenderer(renderer)
 			program := tea.NewProgram(
 				model,
@@ -170,7 +170,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 				return err
 			}
 
-			if _, ok := runModel.(expChatsTUIModel); !ok {
+			if _, ok := runModel.(chatsTUIModel); !ok {
 				return xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", runModel, runModel))
 			}
 
