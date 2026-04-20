@@ -500,7 +500,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 
 	var prometheusServerStarted bool
 	if cfg.prometheusServer {
-		started, err := startPrometheusServer(ctx, logger, cfg, group)
+		started, err := startPrometheusServer(ctx, logger, cfg)
 		if err != nil {
 			logger.Warn(ctx, "prometheus server setup failed, continuing",
 				slog.Error(err))
@@ -951,7 +951,7 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 // with a generated config that scrapes the local Coder metrics
 // endpoint. It uses --net=host so the container can reach the
 // host-bound metrics port directly.
-func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig, group *procGroup) (bool, error) {
+func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConfig) (bool, error) {
 	// Verify Docker is available before attempting anything.
 	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
 		logger.Info(ctx, "docker not available, skipping prometheus server",
@@ -1005,15 +1005,32 @@ scrape_configs:
 		fmt.Sprintf("--web.listen-address=0.0.0.0:%d", defaultPrometheusServerPort),
 	)
 
-	logger.Info(ctx, "starting prometheus server",
+	named := logger.Named("prometheus")
+	w := &logWriter{logger: named}
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	named.Info(ctx, "starting prometheus server",
 		slog.F("image", prometheusImage),
 		slog.F("scrape_target", fmt.Sprintf("127.0.0.1:%d", cfg.prometheusPort)),
 		slog.F("ui", fmt.Sprintf("http://localhost:%d", defaultPrometheusServerPort)),
 	)
 
-	if err := group.Start("prometheus", cmd); err != nil {
-		return false, err
+	if err := cmd.Start(); err != nil {
+		return false, xerrors.Errorf("starting prometheus container: %w", err)
 	}
+
+	// Wait for the container in a separate goroutine. Prometheus is
+	// optional, so if it dies we just log a warning rather than
+	// tearing down the entire dev environment.
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			named.Warn(ctx, "prometheus server exited",
+				slog.Error(err))
+		} else {
+			named.Warn(ctx, "prometheus server exited unexpectedly")
+		}
+	}()
 
 	return true, nil
 }

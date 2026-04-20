@@ -595,11 +595,10 @@ func TestStartPrometheusServerDockerMissing(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	group := newProcGroup(t.Context(), logger)
 
 	cfg := &devConfig{prometheusServer: true, prometheusPort: 2114}
 
-	started, err := startPrometheusServer(t.Context(), logger, cfg, group)
+	started, err := startPrometheusServer(t.Context(), logger, cfg)
 	require.NoError(t, err)
 	assert.False(t, started)
 }
