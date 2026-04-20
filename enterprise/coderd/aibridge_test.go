@@ -1644,7 +1644,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Sessions, 3, "promptless session B must appear in results")
 
-		// Expected order: A (sort_at=now), C (sort_at=now-30m), B (sort_at=now-1h via fallback).
+		// Expected order: A (last_active_at=now), C (last_active_at=now-30m), B (last_active_at=now-1h via fallback).
 		require.Equal(t, aInterception.SessionID, res.Sessions[0].ID, "session A should be first")
 		require.Equal(t, cInterception.SessionID, res.Sessions[1].ID, "session C should be second (prompt=now-30m beats B's started_at=now-1h)")
 		require.Equal(t, bInterception.SessionID, res.Sessions[2].ID, "session B should be last (no prompt, falls back to started_at=now-1h)")
