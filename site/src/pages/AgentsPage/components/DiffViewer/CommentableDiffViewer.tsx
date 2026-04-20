@@ -211,12 +211,6 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	const [activeCommentBox, setActiveCommentBox] =
 		useState<CommentBoxState | null>(null);
 
-	// Ref mirrors activeCommentBox for event-handler-only functions
-	// (handleSubmitComment, renderAnnotation) so the React Compiler
-	// gives them a stable identity and LazyFileDiff's React.memo()
-	// isn't busted when a comment box is toggled on a different file.
-	// The ref is synced in every setter call — never during render —
-	// so the compiler sees no ref access in the render phase.
 	const activeCommentBoxRef = useRef<CommentBoxState | null>(null);
 
 	const updateCommentBox = (box: CommentBoxState | null) => {
@@ -259,10 +253,6 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 
 	// ---------------------------------------------------------------
 	// Annotation helpers
-	//
-	// getLineAnnotations / getSelectedLines read from state so the
-	// compiler correctly re-computes per-file Maps in DiffViewer when
-	// activeCommentBox changes.
 	// ---------------------------------------------------------------
 	const getLineAnnotations = (
 		fileName: string,
@@ -286,10 +276,6 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		return null;
 	};
 
-	// ---------------------------------------------------------------
-	// Event-handler-only callbacks — read from ref so the compiler
-	// gives them stable identities (ref is not a reactive dep).
-	// ---------------------------------------------------------------
 	const handleCancelComment = () => {
 		updateCommentBox(null);
 	};
@@ -320,11 +306,6 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		updateCommentBox(null);
 	};
 
-	// renderAnnotation is only invoked by the diff library when
-	// getLineAnnotations returned a non-empty array, so the
-	// activeCommentBox guard is unnecessary here. Keeping the
-	// function free of activeCommentBox lets the compiler give it
-	// a stable identity across comment-box toggles.
 	const renderAnnotation = (annotation: DiffLineAnnotation<string>) => {
 		if (annotation.metadata === "active-input") {
 			return (

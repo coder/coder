@@ -662,9 +662,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
 		sortedFiles.length > 0;
 
-	// ---------------------------------------------------------------
-	// Active-file tracking (IntersectionObserver + scroll-to-file)
-	// ---------------------------------------------------------------
 	const diffViewportRef = useRef<HTMLElement | null>(null);
 	const { treeActiveFile, setFileRef, handleFileClick } = useActiveFileTracking(
 		{
@@ -752,8 +749,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 					>
 						{sortedFiles.map((fileDiff, i) => {
 							const isLast = i === sortedFiles.length - 1;
-							// CSS containment: isolates layout/style per file
-							// to prevent cross-block recalculation during scroll.
 							return (
 								<div
 									key={fileDiff.name}

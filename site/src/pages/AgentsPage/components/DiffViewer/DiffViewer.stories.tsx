@@ -431,10 +431,6 @@ export const RenameWithLongPaths: Story = {
 	},
 };
 
-// -------------------------------------------------------------------
-// Large diff for performance testing
-// -------------------------------------------------------------------
-
 export const LargeDiff: Story = {
 	args: {
 		parsedFiles: parsePatchFiles(generateLargeDiff(40, 60)).flatMap(

@@ -324,11 +324,6 @@ export const InlineCommentInput: Story = {
 	},
 };
 
-// -------------------------------------------------------------------
-// Large diff for performance testing
-// -------------------------------------------------------------------
-
-/** 40 files × 60 lines each — stress test for rendering performance. */
 export const LargeDiff: Story = {
 	args: {
 		repositories: new Map([

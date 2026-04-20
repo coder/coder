@@ -1,9 +1,3 @@
-/**
- * Generate a large realistic unified diff for performance testing.
- * Produces `fileCount` files with `linesPerFile` context lines each,
- * including modifications every 10 lines and additions every 25
- * lines.
- */
 export function generateLargeDiff(
 	fileCount: number,
 	linesPerFile: number,
