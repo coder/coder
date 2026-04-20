@@ -171,16 +171,16 @@ type ToolBadgeData =
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
-const toolBadgeClassName =
-	"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary";
-
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	className?: string;
 }> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
-	const badgeCls = cn(toolBadgeClassName, className);
+	const badgeCls = cn(
+		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		className,
+	);
 
 	if (badge.kind === "attached-workspace") {
 		return (
@@ -958,7 +958,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{planModeEnabled && (
-							<span className={toolBadgeClassName}>
+							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
 								<PencilIcon className="size-3" />
 								Planning
 							</span>

@@ -160,10 +160,10 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                 | Description                                             |
-|------------------------|---------------------------------------------------------|
-| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.         |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `max`). |
+| Option                 | Description                                                      |
+|------------------------|------------------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                  |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`). |
 
 #### OpenAI
 

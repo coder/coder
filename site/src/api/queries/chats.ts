@@ -102,6 +102,90 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
+/**
+ * Adds a child chat to its parent's `children` array across all
+ * infinite chat query caches. If the parent is not in any loaded page,
+ * the child is silently dropped (it will appear when the parent loads).
+ */
+export const addChildToParentInCache = (
+	queryClient: QueryClient,
+	child: TypesGen.Chat,
+	parentId: string,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (c.id !== parentId) return c;
+			// Avoid duplicates.
+			if (c.children?.some((ch) => ch.id === child.id)) return c;
+			changed = true;
+			return { ...c, children: [child, ...(c.children ?? [])] };
+		});
+		return changed ? next : chats;
+	});
+};
+
+/**
+ * Updates a child chat within its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * updated, false otherwise.
+ */
+export const updateChildInParentCache = (
+	queryClient: QueryClient,
+	updater: (child: TypesGen.Chat) => TypesGen.Chat,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			let childChanged = false;
+			const nextChildren = c.children.map((ch) => {
+				if (ch.id !== childId) return ch;
+				const updated = updater(ch);
+				if (updated !== ch) {
+					childChanged = true;
+					found = true;
+				}
+				return updated;
+			});
+			if (!childChanged) return c;
+			changed = true;
+			return { ...c, children: nextChildren };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
+/**
+ * Removes a child chat from its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * removed, false otherwise. Used when a child is archived individually
+ * (the sidebar hides children whose archive state differs from the
+ * parent) and when a `deleted` pubsub event arrives for a child chat.
+ */
+export const removeChildFromParentInCache = (
+	queryClient: QueryClient,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			const filtered = c.children.filter((ch) => ch.id !== childId);
+			if (filtered.length === c.children.length) return c;
+			found = true;
+			changed = true;
+			return { ...c, children: filtered };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 	let maxPinOrder = 0;
 	const queries = queryClient.getQueriesData<
@@ -211,7 +295,6 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
-const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -220,10 +303,17 @@ type UpdateChatWorkspaceVariables = {
 
 type UpdateChatPlanModeVariables = {
 	chatId: string;
-	planMode?: ChatPlanModeOrClear;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
-const clearPlanMode = "" satisfies ChatPlanModeOrClear;
+const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
+
+const toChatPlanModePayload = (
+	planMode: TypesGen.ChatPlanMode | undefined,
+): ChatPlanModeOrClear => {
+	// The API expects an empty string on the wire to clear plan mode.
+	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
+};
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
@@ -303,11 +393,15 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Flip archived flag in the flat root list; strip the
+		// chat from any parent's embedded children (individual
+		// child archive).
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
 			),
 		);
+		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
@@ -407,7 +501,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 export const updateChatPlanMode = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
 		API.experimental.updateChat(chatId, {
-			plan_mode: planMode ?? clearPlanMode,
+			plan_mode: toChatPlanModePayload(planMode),
 		}),
 	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
 		await queryClient.cancelQueries({
@@ -421,16 +515,15 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
-		const nextPlanMode = planMode === clearPlanMode ? undefined : planMode;
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: nextPlanMode } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				plan_mode: nextPlanMode,
+				plan_mode: planMode,
 			});
 		}
 		return { previousChat };
@@ -466,7 +559,10 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
 		API.experimental.updateChat(chatId, {
-			workspace_id: workspaceId ?? nilUUID,
+			workspace_id:
+				workspaceId ??
+				// The API uses the nil UUID to clear the workspace association.
+				"00000000-0000-0000-0000-000000000000",
 		}),
 	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
 		await queryClient.cancelQueries({
@@ -730,6 +826,38 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+type UpdateChatTitleVariables = {
+	chatId: string;
+	title: string;
+};
+
+export const updateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
+		API.experimental.updateChat(chatId, { title }),
+
+	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
+		queryClient.setQueryData<TypesGen.Chat | undefined>(
+			chatKey(chatId),
+			(chat) => (chat ? { ...chat, title } : chat),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		);
+	},
+
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatTitleVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
@@ -910,6 +1038,23 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatPlanModeInstructionsKey,
+		});
+	},
+});
+
+const chatExploreModelOverrideKey = ["chat-explore-model-override"] as const;
+
+export const chatExploreModelOverride = () => ({
+	queryKey: chatExploreModelOverrideKey,
+	queryFn: () => API.experimental.getChatExploreModelOverride(),
+});
+
+export const updateChatExploreModelOverride = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateChatExploreModelOverrideRequest) =>
+		API.experimental.updateChatExploreModelOverride(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatExploreModelOverrideKey,
 		});
 	},
 });

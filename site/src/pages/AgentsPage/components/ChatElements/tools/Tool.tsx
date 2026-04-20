@@ -50,10 +50,13 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
+
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -383,9 +386,17 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	const editDiffs = editFiles.map((file) =>
-		buildEditDiff(file.path, file.edits),
-	);
+	// On error, render no diff: the agent rejected the edit, so a
+	// synthetic args-derived diff would misrepresent it as applied.
+	const serverResults = parseServerEditResults(result);
+	const editDiffs = isError
+		? editFiles.map(() => null)
+		: editFiles.map((file) => {
+				const entry = serverResults?.find((d) => d.path === file.path);
+				return entry
+					? parseServerEditDiffText(entry.diff)
+					: buildEditDiff(file.path, file.edits);
+			});
 
 	return (
 		<EditFilesTool
@@ -463,7 +474,9 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(chatId && subagentTitles?.get(chatId)) ||
 		(name === "spawn_computer_use_agent"
 			? "Computer use sub-agent"
-			: "Sub-agent");
+			: name === "spawn_explore_agent"
+				? "Explore agent"
+				: "Sub-agent");
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
@@ -887,6 +900,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
 	spawn_agent: SubagentRenderer,
+	spawn_explore_agent: SubagentRenderer,
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,

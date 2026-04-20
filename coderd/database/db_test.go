@@ -60,7 +60,7 @@ func TestNestedInTx(t *testing.T) {
 	err = db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(inner database.Store) error {
 			//nolint:gocritic
-			require.Equal(t, outer, inner, "should be same transaction")
+			require.Equal(t, outer, inner, "should be same transaction") // intxcheck:ignore // intentional: test asserts nested InTx returns same store
 
 			_, err := inner.InsertUser(context.Background(), database.InsertUserParams{
 				ID:             uid,

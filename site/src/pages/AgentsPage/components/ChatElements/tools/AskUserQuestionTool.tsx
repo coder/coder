@@ -1,5 +1,6 @@
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -51,28 +52,25 @@ const filterQuestionOptions = (question: AskUserQuestion): AskUserQuestion => ({
 	),
 });
 
-const formatAnswer = (answer: QuestionAnswer): string =>
-	answer.kind === "other"
-		? `Other: ${answer.text.trim()}`
-		: answer.label || `Option ${answer.optionIndex + 1}`;
-
-const cloneAnswer = (
-	answer: QuestionAnswer | undefined,
+const getDefaultAnswer = (
+	question: AskUserQuestion,
 ): QuestionAnswer | undefined => {
-	if (!answer) {
+	const firstOption = question.options[0];
+	if (!firstOption) {
 		return undefined;
-	}
-
-	if (answer.kind === "other") {
-		return { kind: "other", text: answer.text };
 	}
 
 	return {
 		kind: "option",
-		label: answer.label,
-		optionIndex: answer.optionIndex,
+		label: firstOption.label || "Option 1",
+		optionIndex: 0,
 	};
 };
+
+const formatAnswer = (answer: QuestionAnswer): string =>
+	answer.kind === "other"
+		? `Other: ${answer.text.trim()}`
+		: answer.label || `Option ${answer.optionIndex + 1}`;
 
 const isAnswerValid = (
 	answer: QuestionAnswer | undefined,
@@ -117,6 +115,243 @@ const formatOutgoingMessage = (
 		.join("\n");
 };
 
+const getSubmissionErrorMessage = (error: unknown): string | undefined => {
+	if (!error) {
+		return undefined;
+	}
+
+	if (error instanceof Error) {
+		return error.message;
+	}
+
+	return "Failed to submit your answer.";
+};
+
+type SelectableAnswerOptionProps = {
+	id: string;
+	value: string;
+	label: string;
+	description: string;
+	isInteractive: boolean;
+	isSubmitting: boolean;
+};
+
+const SelectableAnswerOption: FC<SelectableAnswerOptionProps> = ({
+	id,
+	value,
+	label,
+	description,
+	isInteractive,
+	isSubmitting,
+}) => {
+	const isEnabled = isInteractive && !isSubmitting;
+
+	return (
+		<label
+			htmlFor={id}
+			className={cn(
+				"grid gap-x-3 gap-y-0.5 py-1.5",
+				isEnabled ? "cursor-pointer" : "cursor-default",
+			)}
+			style={{ gridTemplateColumns: "auto 1fr" }}
+		>
+			<RadioGroupItem
+				className="self-center"
+				disabled={!isEnabled}
+				id={id}
+				value={value}
+			/>
+			<span className="text-sm font-medium text-content-primary">{label}</span>
+			<p className="col-start-2 m-0 whitespace-pre-wrap text-sm text-content-secondary">
+				{description}
+			</p>
+		</label>
+	);
+};
+
+type QuestionOptionProps = {
+	questionIdBase: string;
+	option: AskUserQuestion["options"][number];
+	optionIndex: number;
+	isInteractive: boolean;
+	isSubmitting: boolean;
+};
+
+const QuestionOption: FC<QuestionOptionProps> = ({
+	questionIdBase,
+	option,
+	optionIndex,
+	isInteractive,
+	isSubmitting,
+}) => {
+	return (
+		<SelectableAnswerOption
+			id={`${questionIdBase}-option-${optionIndex}`}
+			value={`option-${optionIndex}`}
+			label={option.label || `Option ${optionIndex + 1}`}
+			description={option.description || "No description provided."}
+			isInteractive={isInteractive}
+			isSubmitting={isSubmitting}
+		/>
+	);
+};
+
+type OtherQuestionOptionProps = {
+	questionHeader: string;
+	questionIdBase: string;
+	optionIndex: number;
+	answer: QuestionAnswer | undefined;
+	isInteractive: boolean;
+	isSubmitting: boolean;
+	onTextChange: (text: string) => void;
+};
+
+const OtherQuestionOption: FC<OtherQuestionOptionProps> = ({
+	questionHeader,
+	questionIdBase,
+	optionIndex,
+	answer,
+	isInteractive,
+	isSubmitting,
+	onTextChange,
+}) => {
+	const isOtherSelected = answer?.kind === "other";
+
+	return (
+		<div className="space-y-2">
+			<SelectableAnswerOption
+				id={`${questionIdBase}-option-${optionIndex}`}
+				value={OTHER_OPTION_VALUE}
+				label="Other"
+				description="Share a different answer."
+				isInteractive={isInteractive}
+				isSubmitting={isSubmitting}
+			/>
+			{isOtherSelected && (
+				<div className="pl-7">
+					<Input
+						autoFocus={isInteractive}
+						aria-label={`Other response for ${questionHeader}`}
+						disabled={!isInteractive || isSubmitting}
+						placeholder="Describe another answer"
+						value={answer.text}
+						onChange={(event) => {
+							onTextChange(event.currentTarget.value);
+						}}
+					/>
+				</div>
+			)}
+		</div>
+	);
+};
+
+type QuestionStepProps = {
+	question: AskUserQuestion;
+	questionIndex: number;
+	questionCount: number;
+	idPrefix: string;
+	answer: QuestionAnswer | undefined;
+	isInteractive: boolean;
+	isSubmitting: boolean;
+	onOptionChange: (value: string) => void;
+	onOtherTextChange: (text: string) => void;
+};
+
+const QuestionStep: FC<QuestionStepProps> = ({
+	question,
+	questionIndex,
+	questionCount,
+	idPrefix,
+	answer,
+	isInteractive,
+	isSubmitting,
+	onOptionChange,
+	onOtherTextChange,
+}) => {
+	const questionHeader = getQuestionHeader(question, questionIndex);
+	const questionText = getQuestionText(question);
+	const questionIdBase = `${idPrefix}-question-${questionIndex}`;
+	const questionHeaderId = `${questionIdBase}-header`;
+	const questionTextId = `${questionIdBase}-text`;
+	const showProgress = isInteractive && questionCount > 1;
+
+	return (
+		<div className="space-y-3">
+			{showProgress && (
+				<p className="text-xs font-medium text-content-secondary">
+					Question {questionIndex + 1} of {questionCount}
+				</p>
+			)}
+			<div className="space-y-1.5">
+				<p
+					id={questionHeaderId}
+					className="text-xs font-medium text-content-secondary"
+				>
+					{questionHeader}
+				</p>
+				<p
+					id={questionTextId}
+					className="whitespace-pre-wrap text-sm text-content-primary"
+				>
+					{questionText}
+				</p>
+			</div>
+			<div className="rounded-md border border-solid border-border-default px-3 py-1">
+				<RadioGroup
+					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
+					className="space-y-1"
+					name={`${questionIdBase}-options`}
+					value={getSelectedValue(answer)}
+					onValueChange={onOptionChange}
+				>
+					{question.options.map((option, optionIndex) => {
+						return (
+							<QuestionOption
+								key={`${option.label}-${option.description}-${optionIndex}`}
+								questionIdBase={questionIdBase}
+								option={option}
+								optionIndex={optionIndex}
+								isInteractive={isInteractive}
+								isSubmitting={isSubmitting}
+							/>
+						);
+					})}
+					<OtherQuestionOption
+						questionHeader={questionHeader}
+						questionIdBase={questionIdBase}
+						optionIndex={question.options.length}
+						answer={answer}
+						isInteractive={isInteractive}
+						isSubmitting={isSubmitting}
+						onTextChange={onOtherTextChange}
+					/>
+				</RadioGroup>
+			</div>
+		</div>
+	);
+};
+
+type AnsweredQuestionTextProps = {
+	question: AskUserQuestion;
+	questionIndex: number;
+	idPrefix: string;
+};
+
+const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
+	question,
+	questionIndex,
+	idPrefix,
+}) => {
+	return (
+		<p
+			id={`${idPrefix}-question-${questionIndex}-text`}
+			className="whitespace-pre-wrap text-sm text-content-primary"
+		>
+			{getQuestionText(question)}
+		</p>
+	);
+};
+
 export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
@@ -130,25 +365,24 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	const idPrefix = useId();
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
-		() =>
-			filteredQuestions.map((question) => {
-				const firstOption = question.options[0];
-				if (!firstOption) {
-					return undefined;
-				}
-				return {
-					kind: "option" as const,
-					label: firstOption.label || "Option 1",
-					optionIndex: 0,
-				};
-			}),
+		() => filteredQuestions.map(getDefaultAnswer),
 	);
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | undefined>();
 	const [submittedResponseText, setSubmittedResponseText] = useState<
 		string | null
 	>(null);
+	const submitAnswerMutation = useMutation({
+		mutationFn: async (message: string) => {
+			if (!onSubmitAnswer) {
+				return;
+			}
+
+			await onSubmitAnswer(message);
+		},
+		onSuccess: (_data, message) => {
+			setSubmittedResponseText(message);
+		},
+	});
 	const isRunning = status === "running";
 	const displayedSubmittedResponseText =
 		previousResponseText ?? submittedResponseText;
@@ -166,10 +400,30 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		isLatestAskUserQuestion &&
 		!hasSubmittedResponse &&
 		Boolean(onSubmitAnswer);
+	const isSubmitting = submitAnswerMutation.isPending;
+	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isAnswerValid(answers[questionIndex]),
 	);
+	const isWizard = filteredQuestions.length > 1;
+	const isFinalQuestion = activeQuestionIndex >= filteredQuestions.length - 1;
+	const visibleQuestions =
+		isInteractive && isWizard
+			? [
+					{
+						question: filteredQuestions[activeQuestionIndex],
+						questionIndex: activeQuestionIndex,
+					},
+				]
+			: filteredQuestions.map((question, questionIndex) => ({
+					question,
+					questionIndex,
+				}));
+
+	const resetSubmitState = () => {
+		submitAnswerMutation.reset();
+	};
 
 	const setAnswerAtIndex = (
 		questionIndex: number,
@@ -180,7 +434,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			nextAnswers[questionIndex] = nextAnswer;
 			return nextAnswers;
 		});
-		setSubmitError(undefined);
+		resetSubmitState();
 	};
 
 	const handleOptionChange = (
@@ -216,7 +470,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		setCurrentQuestionIndex((currentIndex) => {
 			return Math.max(currentIndex - 1, 0);
 		});
-		setSubmitError(undefined);
+		resetSubmitState();
 	};
 
 	const handleNext = () => {
@@ -227,16 +481,16 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		setCurrentQuestionIndex((currentIndex) => {
 			return Math.min(currentIndex + 1, filteredQuestions.length - 1);
 		});
-		setSubmitError(undefined);
+		resetSubmitState();
 	};
 
-	const handleSubmit = async () => {
+	const handleSubmit = () => {
 		if (!onSubmitAnswer || !isInteractive || !canSubmitAllAnswers) {
 			return;
 		}
 
 		const finalizedAnswers = filteredQuestions.map((_, questionIndex) => {
-			return cloneAnswer(answers[questionIndex]);
+			return answers[questionIndex];
 		});
 		if (!finalizedAnswers.every(isAnswerValid)) {
 			return;
@@ -246,22 +500,8 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			filteredQuestions,
 			finalizedAnswers,
 		);
-		setIsSubmitting(true);
-		setSubmitError(undefined);
-		try {
-			await onSubmitAnswer(outgoingMessage);
-		} catch (error) {
-			setSubmitError(
-				error instanceof Error
-					? error.message
-					: "Failed to submit your answer.",
-			);
-			setIsSubmitting(false);
-			return;
-		}
-
-		setSubmittedResponseText(outgoingMessage);
-		setIsSubmitting(false);
+		resetSubmitState();
+		submitAnswerMutation.mutate(outgoingMessage);
 	};
 
 	const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -270,15 +510,12 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			return;
 		}
 
-		if (
-			filteredQuestions.length > 1 &&
-			activeQuestionIndex < filteredQuestions.length - 1
-		) {
+		if (isWizard && !isFinalQuestion) {
 			handleNext();
 			return;
 		}
 
-		void handleSubmit();
+		handleSubmit();
 	};
 
 	if (isError) {
@@ -324,161 +561,42 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		);
 	}
 
-	const visibleQuestions =
-		isInteractive && filteredQuestions.length > 1
-			? [
-					{
-						question: filteredQuestions[activeQuestionIndex],
-						questionIndex: activeQuestionIndex,
-					},
-				]
-			: filteredQuestions.map((question, questionIndex) => ({
-					question,
-					questionIndex,
-				}));
-
 	const content = (
 		<>
 			<div className="space-y-5">
 				{visibleQuestions.map(({ question, questionIndex }) => {
-					const questionHeader = getQuestionHeader(question, questionIndex);
-					const questionText = getQuestionText(question);
-					const questionIdBase = `${idPrefix}-question-${questionIndex}`;
-					const questionHeaderId = `${questionIdBase}-header`;
-					const questionTextId = `${questionIdBase}-text`;
-					const answer = answers[questionIndex];
-					const isOtherSelected = answer?.kind === "other";
-					const optionCount = question.options.length;
-					const showProgress = isInteractive && filteredQuestions.length > 1;
-
+					const questionKey = `${question.header}-${question.question}-${questionIndex}`;
 					if (showAnsweredState) {
 						return (
-							<p
-								key={`${question.header}-${question.question}-${questionIndex}`}
-								id={questionTextId}
-								className="whitespace-pre-wrap text-sm text-content-primary"
-							>
-								{questionText}
-							</p>
+							<AnsweredQuestionText
+								key={questionKey}
+								question={question}
+								questionIndex={questionIndex}
+								idPrefix={idPrefix}
+							/>
 						);
 					}
 
 					return (
-						<div
-							key={`${question.header}-${question.question}-${questionIndex}`}
-							className="space-y-3"
-						>
-							{showProgress && (
-								<p className="text-xs font-medium text-content-secondary">
-									Question {questionIndex + 1} of {filteredQuestions.length}
-								</p>
-							)}
-							<div className="space-y-1.5">
-								<p
-									id={questionHeaderId}
-									className="text-xs font-medium text-content-secondary"
-								>
-									{questionHeader}
-								</p>
-								<p
-									id={questionTextId}
-									className="whitespace-pre-wrap text-sm text-content-primary"
-								>
-									{questionText}
-								</p>
-							</div>
-							<div className="rounded-md border border-solid border-border-default px-3 py-1">
-								<RadioGroup
-									aria-labelledby={`${questionHeaderId} ${questionTextId}`}
-									className="space-y-1"
-									name={`${questionIdBase}-options`}
-									value={getSelectedValue(answer)}
-									onValueChange={(value) => {
-										handleOptionChange(questionIndex, question, value);
-									}}
-								>
-									{question.options.map((option, optionIndex) => {
-										const optionId = `${questionIdBase}-option-${optionIndex}`;
-
-										return (
-											<label
-												key={`${option.label}-${option.description}-${optionIndex}`}
-												htmlFor={optionId}
-												className={cn(
-													"grid gap-x-3 gap-y-0.5 py-1.5",
-													isInteractive && !isSubmitting
-														? "cursor-pointer"
-														: "cursor-default",
-												)}
-												style={{ gridTemplateColumns: "auto 1fr" }}
-											>
-												<RadioGroupItem
-													className="self-center"
-													disabled={!isInteractive || isSubmitting}
-													id={optionId}
-													value={`option-${optionIndex}`}
-												/>
-												<span className="text-sm font-medium text-content-primary">
-													{option.label || `Option ${optionIndex + 1}`}
-												</span>
-												<p className="col-start-2 m-0 whitespace-pre-wrap text-sm text-content-secondary">
-													{option.description || "No description provided."}
-												</p>
-											</label>
-										);
-									})}
-									{(() => {
-										const otherOptionId = `${questionIdBase}-option-${optionCount}`;
-										return (
-											<div className="space-y-2">
-												<label
-													htmlFor={otherOptionId}
-													className={cn(
-														"grid gap-x-3 gap-y-0.5 py-1.5",
-														isInteractive && !isSubmitting
-															? "cursor-pointer"
-															: "cursor-default",
-													)}
-													style={{ gridTemplateColumns: "auto 1fr" }}
-												>
-													<RadioGroupItem
-														className="self-center"
-														disabled={!isInteractive || isSubmitting}
-														id={otherOptionId}
-														value={OTHER_OPTION_VALUE}
-													/>
-													<span className="text-sm font-medium text-content-primary">
-														Other
-													</span>
-													<p className="col-start-2 m-0 whitespace-pre-wrap text-sm text-content-secondary">
-														Share a different answer.
-													</p>
-												</label>
-												{isOtherSelected && (
-													<div className="pl-7">
-														<Input
-															autoFocus={isInteractive}
-															aria-label={`Other response for ${questionHeader}`}
-															disabled={!isInteractive || isSubmitting}
-															placeholder="Describe another answer"
-															value={
-																answer?.kind === "other" ? answer.text : ""
-															}
-															onChange={(event) => {
-																setAnswerAtIndex(questionIndex, {
-																	kind: "other",
-																	text: event.currentTarget.value,
-																});
-															}}
-														/>
-													</div>
-												)}
-											</div>
-										);
-									})()}
-								</RadioGroup>
-							</div>
-						</div>
+						<QuestionStep
+							key={questionKey}
+							question={question}
+							questionIndex={questionIndex}
+							questionCount={filteredQuestions.length}
+							idPrefix={idPrefix}
+							answer={answers[questionIndex]}
+							isInteractive={isInteractive}
+							isSubmitting={isSubmitting}
+							onOptionChange={(value) => {
+								handleOptionChange(questionIndex, question, value);
+							}}
+							onOtherTextChange={(text) => {
+								setAnswerAtIndex(questionIndex, {
+									kind: "other",
+									text,
+								});
+							}}
+						/>
 					);
 				})}
 			</div>
@@ -506,7 +624,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 
 			{isInteractive && (
 				<div className="mt-4 flex items-center gap-2">
-					{filteredQuestions.length > 1 && (
+					{isWizard && (
 						<Button
 							type="button"
 							size="sm"
@@ -517,8 +635,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							Back
 						</Button>
 					)}
-					{filteredQuestions.length > 1 &&
-					activeQuestionIndex < filteredQuestions.length - 1 ? (
+					{isWizard && !isFinalQuestion ? (
 						<Button
 							type="submit"
 							size="sm"

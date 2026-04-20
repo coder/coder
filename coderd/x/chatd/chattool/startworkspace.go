@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -134,7 +135,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 						build.ID,
 					)), nil
 				}
-				resp, respErr := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
+				result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
@@ -144,12 +145,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 						options.OnChatUpdated(latest)
 					}
 				}
-				return resp, respErr
+				return toolResponse(result), nil
 			case database.ProvisionerJobStatusSucceeded:
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)
+					return toolResponse(waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -168,6 +169,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
+				if responseErr, ok := httperror.IsResponder(err); ok {
+					_, resp := responseErr.Response()
+					if resp.Message != "" {
+						return fantasy.NewTextErrorResponse(resp.Message), nil
+					}
+				}
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("start workspace: %w", err).Error(),
 				), nil
@@ -200,7 +207,19 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				)), nil
 			}
 
-			resp, respErr := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+			result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, startBuild.ID)
+
+			// If the template version changed, annotate the
+			// response so the model knows an auto-update
+			// occurred.
+			if startBuild.TemplateVersionID != uuid.Nil &&
+				build.TemplateVersionID != uuid.Nil &&
+				startBuild.TemplateVersionID != build.TemplateVersionID {
+				result["updated_to_active_version"] = true
+				result["update_reason"] = "template requires active versions"
+				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
+			}
+
 			// Re-fire after the agent is fully ready so
 			// callers can load instruction files (AGENTS.md).
 			// This must happen after waitForAgentAndRespond —
@@ -210,24 +229,28 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 					options.OnChatUpdated(latest)
 				}
 			}
-			return resp, respErr
+			return toolResponse(result), nil
 		})
 }
 
 // waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
-// success response. When buildID is non-zero, it is included in the
-// response so the frontend can fetch historical build logs. Pass
+// result map. When buildID is non-zero, it is included in the
+// result so the frontend can fetch historical build logs. Pass
 // uuid.Nil when no build was triggered (e.g. workspace already
-// running); the response will include no_build: true so the
+// running); the result will include no_build: true so the
 // frontend can suppress the build-log section.
+//
+// The caller is responsible for converting the returned map to a
+// fantasy.ToolResponse via toolResponse(), and may add extra
+// fields before doing so.
 func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
 	buildID uuid.UUID,
-) (fantasy.ToolResponse, error) {
+) map[string]any {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
 		// Workspace started but no agent found - still report
@@ -239,7 +262,7 @@ func waitForAgentAndRespond(
 		}
 		setBuildID(result, buildID)
 		setNoBuild(result, buildID)
-		return toolResponse(result), nil
+		return result
 	}
 
 	selected, err := agentselect.FindChatAgent(agents)
@@ -252,7 +275,7 @@ func waitForAgentAndRespond(
 		}
 		setBuildID(result, buildID)
 		setNoBuild(result, buildID)
-		return toolResponse(result), nil
+		return result
 	}
 
 	result := map[string]any{
@@ -264,5 +287,5 @@ func waitForAgentAndRespond(
 	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
 	}
-	return toolResponse(result), nil
+	return result
 }

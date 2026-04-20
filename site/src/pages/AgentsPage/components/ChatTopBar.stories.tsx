@@ -62,6 +62,8 @@ export const WithParentChat: Story = {
 			archived: false,
 			pin_order: 0,
 			has_unread: false,
+			client_type: "ui",
+			children: [],
 		},
 	},
 };

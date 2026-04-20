@@ -1,9 +1,8 @@
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
 	memo,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -19,12 +18,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import {
-	decodeInlineTextAttachment,
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../../utils/fetchTextAttachment";
-import { ImageThumbnail } from "../AgentChatInput";
-import {
 	ConversationItem,
 	Message,
 	MessageContent,
@@ -33,9 +26,9 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
@@ -44,6 +37,7 @@ import type {
 	ParsedMessageEntry,
 	RenderBlock,
 } from "./types";
+import { FileBlock, UserMessageContent } from "./UserMessageContent";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -122,136 +116,6 @@ const SmoothedResponse = memo<{
 		</Response>
 	);
 });
-
-const InlineTextAttachmentButton: FC<{
-	content: string;
-	onPreview?: (content: string) => void;
-	isPlaceholder?: boolean;
-}> = ({ content, onPreview, isPlaceholder }) => {
-	return (
-		<button
-			type="button"
-			aria-label="View text attachment"
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-			onClick={(e) => {
-				e.stopPropagation();
-				onPreview?.(content);
-			}}
-		>
-			<FileTextIcon className="size-icon-sm shrink-0 text-content-secondary" />
-			<span
-				className={cn(
-					"line-clamp-2 min-w-0 text-content-secondary",
-					isPlaceholder ? "text-sm" : "font-mono text-xs",
-				)}
-			>
-				{isPlaceholder ? content : formatTextAttachmentPreview(content)}
-			</span>
-		</button>
-	);
-};
-
-const TextAttachmentButton: FC<{
-	fileId: string;
-	onPreview?: (content: string) => void;
-}> = ({ fileId, onPreview }) => {
-	const [content, setContent] = useState<string | null>(null);
-	const controllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => controllerRef.current?.abort();
-	}, []);
-
-	return (
-		<InlineTextAttachmentButton
-			content={content ?? "Pasted text"}
-			isPlaceholder={content === null}
-			onPreview={async () => {
-				if (content !== null) {
-					onPreview?.(content);
-					return;
-				}
-
-				controllerRef.current?.abort();
-				const controller = new AbortController();
-				controllerRef.current = controller;
-
-				let fetchedContent: string;
-				try {
-					fetchedContent = await fetchTextAttachmentContent(
-						fileId,
-						controller.signal,
-					);
-				} catch (err) {
-					if (controllerRef.current === controller) {
-						controllerRef.current = null;
-					}
-					if (err instanceof Error && err.name === "AbortError") {
-						return;
-					}
-					console.error("Failed to load text attachment:", err);
-					return;
-				}
-
-				if (controllerRef.current === controller) {
-					controllerRef.current = null;
-				}
-				setContent(fetchedContent);
-				onPreview?.(fetchedContent);
-			}}
-		/>
-	);
-};
-
-type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
-
-const FileBlock: FC<{
-	block: FileRenderBlock;
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
-}> = ({ block, onImageClick, onTextFileClick }) => {
-	if (block.media_type === "text/plain") {
-		if (block.file_id) {
-			return (
-				<TextAttachmentButton
-					fileId={block.file_id}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-		if (block.data != null) {
-			return (
-				<InlineTextAttachmentButton
-					content={decodeInlineTextAttachment(block.data)}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-	}
-	if (!block.media_type.startsWith("image/")) {
-		return null;
-	}
-	const src = block.file_id
-		? `/api/experimental/chats/files/${block.file_id}`
-		: `data:${block.media_type};base64,${block.data}`;
-	return (
-		<button
-			type="button"
-			aria-label="View image"
-			className="inline-block rounded-md border-0 bg-transparent p-0"
-			onClick={(e) => {
-				e.stopPropagation();
-				onImageClick?.(src);
-			}}
-		>
-			<ImageThumbnail
-				previewUrl={src}
-				name="Attached image"
-				className="cursor-pointer transition-opacity hover:opacity-80"
-			/>
-		</button>
-	);
-};
 
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
@@ -522,67 +386,19 @@ const ChatMessageItem = memo<{
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
-		if (
-			parsed.toolResults.length > 0 &&
-			parsed.toolCalls.length === 0 &&
-			parsed.markdown === "" &&
-			parsed.reasoning === ""
-		) {
+		const displayState = deriveMessageDisplayState({
+			message,
+			parsed,
+			hideActions,
+		});
+		if (displayState.shouldHide) {
 			return null;
 		}
 
-		// Hide messages that consist entirely of provider-executed
-		// tool results. The parser skips these parts, so the parsed
-		// output is empty and would show a "no renderable content"
-		// fallback.
-		const parts = message.content ?? [];
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "tool-result" && p.provider_executed)
-		) {
-			return null;
-		}
-
-		// Hide messages that consist entirely of context-file
-		// and/or skill parts. These are metadata for the context
-		// indicator, not conversation content.
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "context-file" || p.type === "skill")
-		) {
-			return null;
-		}
 		const hasRenderableContent =
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
 			parsed.sources.length > 0;
-		// Pre-compute the inline content for user messages so we
-		// avoid a filter + map inside the JSX return path.
-		const userInlineContent = isUser
-			? parsed.blocks.filter(
-					(
-						b,
-					): b is
-						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
-				)
-			: [];
-		const userFileBlocks = isUser
-			? parsed.blocks.filter(
-					(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
-				)
-			: [];
-		const hasUserMessageBody =
-			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
-		const hasFileBlocks = userFileBlocks.length > 0;
-		const hasCopyableContent = Boolean(parsed.markdown.trim());
-		const needsAssistantBottomSpacer =
-			!hideActions &&
-			!isUser &&
-			!hasCopyableContent &&
-			(Boolean(parsed.reasoning) || parsed.sources.length > 0);
-
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -596,74 +412,14 @@ const ChatMessageItem = memo<{
 			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
-						<Message className="w-full max-w-none">
-							<MessageContent
-								className={cn(
-									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									editingMessageId === message.id &&
-										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-									fadeFromBottom && "relative overflow-hidden",
-								)}
-								style={
-									fadeFromBottom
-										? { maxHeight: "var(--clip-h, none)" }
-										: undefined
-								}
-							>
-								<div className="flex flex-col gap-1.5">
-									{(hasUserMessageBody || hasFileBlocks) && (
-										<div className="flex items-start gap-2">
-											{hasUserMessageBody && (
-												<span className="min-w-0 flex-1">
-													{userInlineContent.length > 0
-														? userInlineContent.map((block, i) =>
-																block.type === "response" ? (
-																	<Fragment key={i}>{block.text}</Fragment>
-																) : (
-																	<FileReferenceChip
-																		key={i}
-																		fileName={block.file_name}
-																		startLine={block.start_line}
-																		endLine={block.end_line}
-																		className="mx-1"
-																	/>
-																),
-															)
-														: parsed.markdown || ""}
-												</span>
-											)}
-										</div>
-									)}
-									{hasFileBlocks && (
-										<div
-											className={cn(
-												hasUserMessageBody && "mt-2",
-												"flex flex-wrap gap-2",
-											)}
-										>
-											{userFileBlocks.map((block, i) => (
-												<FileBlock
-													key={`user-file-${block.file_id ?? i}`}
-													block={block}
-													onImageClick={setPreviewImage}
-													onTextFileClick={setPreviewText}
-												/>
-											))}
-										</div>
-									)}
-									{fadeFromBottom && (
-										<div
-											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-											style={{
-												opacity: "var(--fade-opacity, 0)",
-												background:
-													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-											}}
-										/>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
+						<UserMessageContent
+							displayState={displayState}
+							markdown={parsed.markdown}
+							isEditing={editingMessageId === message.id}
+							fadeFromBottom={fadeFromBottom}
+							onImageClick={setPreviewImage}
+							onTextFileClick={setPreviewText}
+						/>
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
@@ -703,12 +459,13 @@ const ChatMessageItem = memo<{
 					)}
 				</ConversationItem>
 				{!hideActions &&
-					(hasCopyableContent || (isUser && onEditUserMessage)) && (
+					(displayState.hasCopyableContent ||
+						(isUser && onEditUserMessage)) && (
 						<div
 							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
 							data-testid="message-actions"
 						>
-							{hasCopyableContent && (
+							{displayState.hasCopyableContent && (
 								<CopyButton
 									text={parsed.markdown}
 									label="Copy message"
@@ -742,7 +499,7 @@ const ChatMessageItem = memo<{
 				{/* Spacer for assistant messages without an action bar
 				   (e.g. reasoning-only or sources-only) so they have
 				   consistent bottom padding before the next user bubble. */}
-				{needsAssistantBottomSpacer && <div className="min-h-6" />}
+				{displayState.needsAssistantBottomSpacer && <div className="min-h-6" />}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}

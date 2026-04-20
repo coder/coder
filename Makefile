@@ -721,6 +721,7 @@ lint/go:
 	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
 lint/examples: | _gen/bin/examplegen

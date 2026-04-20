@@ -137,6 +137,22 @@ breakdowns.
 
 See [Spend Management](./usage-insights.md) for details.
 
+### Git providers
+
+Coder Agents leverages your existing
+[external authentication](../../../admin/external-auth/index.md) configuration to
+power the in-chat diff viewer and PR Insights. Self-hosted GitHub Enterprise
+deployments require additional configuration for these features.
+
+See [Git Providers](./git-providers.md) for details.
+
+### PR Insights
+
+PR Insights tracks pull requests created by Coder Agents and surfaces
+analytics on PR activity, merge rates, and cost efficiency.
+
+See [PR Insights](./pr-insights.md) for requirements and dashboard details.
+
 ### Data retention
 
 Administrators can configure a retention period for archived conversations.

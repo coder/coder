@@ -53,18 +53,40 @@ Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
 
 Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--aibridge-bedrock-region) traffic through AI Gateway:
 
-- `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`
-- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
-- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET` or `--aibridge-bedrock-access-key-secret`
+**Required:**
+
+- `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`.
+Alternatively, set `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` to a full URL (e.g., when routing through a proxy between AI Gateway and AWS Bedrock or using a non-standard endpoint that doesn't follow the `https://bedrock-runtime.<region>.amazonaws.com` format).
+If both are set, `CODER_AIBRIDGE_BEDROCK_BASE_URL` takes precedence.
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
 
-> [!NOTE]
-> `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` may be used instead of `CODER_AIBRIDGE_BEDROCK_REGION`/`--aibridge-bedrock-region`
-if you would like to specify a URL which does not follow the form of `https://bedrock-runtime.<region>.amazonaws.com` - for example if using a
-proxy between AI Gateway and AWS Bedrock.
+**Optional:**
 
-#### Obtaining Bedrock credentials
+- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
+- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET` or `--aibridge-bedrock-access-key-secret`
+
+#### Authentication
+
+AI Gateway supports two credential configuration paths:
+
+##### AWS SDK default credential chain (recommended)
+
+When no credentials are set in AI Gateway config, the AWS SDK resolves them automatically from the environment.
+This includes IAM Roles (instance profiles, IRSA, ECS task roles), shared config files, environment variables, SSO, and more.
+
+**IAM Roles are the recommended approach** when AI Gateway runs on AWS infrastructure.
+Attach an IAM Role with Bedrock permissions to the compute running AI Gateway (EC2 instance, EKS pod via IRSA, or ECS task), no credentials need to be configured in AI Gateway itself.
+
+The IAM Role must have permission to invoke the Bedrock models configured for AI Gateway (`bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`).
+See [Amazon Bedrock identity-based policy examples](https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html) for policy examples,
+and [AWS IAM role creation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-service.html) for general guidance on attaching roles to AWS services.
+
+This aligns with [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) for using temporary credentials instead of long-lived access keys.
+
+##### Static credentials
+
+For deployments when explicit credentials are preferred, provide an access key and secret for an IAM User:
 
 1. **Choose a region** where you want to use Bedrock.
 
@@ -94,12 +116,35 @@ proxy between AI Gateway and AWS Bedrock.
 
 ### GitHub Copilot
 
-Configure a `copilot` provider using the
-[indexed provider format](#multiple-instances-of-the-same-provider) with
-separate instances for Individual, Business, and Enterprise tiers.
+GitHub Copilot offers three plans — Individual, Business, and Enterprise —
+each with its own API endpoint. Configure one or more `copilot` providers
+using the [indexed provider format](#multiple-instances-of-the-same-provider)
+depending on which plans your organization uses.
+Copilot providers use OAuth app installations for authentication rather than
+static API keys.
 
-See [GitHub Copilot — Provider configuration](./clients/copilot.md#provider-configuration)
-for full setup instructions.
+```sh
+# GitHub Copilot (Individual)
+export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
+
+# GitHub Copilot Business
+export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
+export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
+
+# GitHub Copilot Enterprise
+export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
+export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
+export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
+```
+
+The default base URL targets the individual Copilot API
+(`api.individual.githubcopilot.com`). Override `CODER_AIBRIDGE_PROVIDER_<N>_BASE_URL`
+for Business or Enterprise tiers as shown above.
+
+For client-side setup (proxy, certificates, IDE configuration), see
+[GitHub Copilot client configuration](./clients/copilot.md).
 
 ### ChatGPT
 

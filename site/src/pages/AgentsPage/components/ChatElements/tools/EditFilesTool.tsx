@@ -85,6 +85,7 @@ export const EditFilesTool: React.FC<{
 					diff ? (
 						<ScrollArea
 							key={files[i].path}
+							data-testid="edit-file-diff"
 							className="rounded-md border border-solid border-border-default text-2xs"
 							viewportClassName="max-h-64"
 							scrollBarClassName="w-1.5"

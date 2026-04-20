@@ -28,6 +28,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
@@ -140,7 +141,9 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -201,6 +204,18 @@ const BehaviorRouteElement = () => {
 	);
 };
 
+const AgentsRouteElement = () => (
+	<AgentSettingsAgentsPageView
+		exploreModelOverrideData={{ has_malformed_override: false }}
+		modelConfigsData={[]}
+		modelConfigsError={undefined}
+		isLoadingModelConfigs={false}
+		onSaveExploreModelOverride={fn()}
+		isSavingExploreModelOverride={false}
+		isSaveExploreModelOverrideError={false}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
@@ -211,6 +226,7 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <Navigate to="behavior" replace /> },
 				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ path: "agents", element: <AgentsRouteElement /> },
 				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
 					path: "usage",
@@ -248,7 +264,9 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestArchiveAndDeleteWorkspace: fn(),
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
-	onRegenerateTitle: fn(),
+	onRegenerateTitle: fn(async () => "Generated title"),
+	onProposeTitle: fn(async () => "Proposed title"),
+	onRenameTitle: fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,

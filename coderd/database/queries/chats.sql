@@ -373,6 +373,11 @@ WHERE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -390,6 +395,32 @@ LIMIT
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
+-- name: GetChildChatsByParentIDs :many
+-- Fetches child chats of the given parents, optionally filtered by
+-- archive state (NULL = all, true/false = match). The archive
+-- invariant (parent archived implies child archived) is enforced
+-- at write time, not here.
+SELECT
+    sqlc.embed(chats),
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY(@parent_ids :: uuid[])
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC;
+
 -- name: InsertChat :one
 INSERT INTO chats (
     organization_id,
@@ -406,7 +437,8 @@ INSERT INTO chats (
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -422,7 +454,8 @@ INSERT INTO chats (
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -515,6 +548,19 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
 WHERE
     id = @id::uuid
 RETURNING
@@ -932,6 +978,28 @@ SET
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: GetChatDiffStatusSummary :one
+-- Returns aggregate PR counts across all agent chats for telemetry.
+-- Deduplicates by PR URL so forked chats referencing the same pull
+-- request are counted once (using the most recently refreshed state).
+-- Total is derived from the three recognized state buckets and
+-- always equals open + merged + closed; other non-NULL states are
+-- intentionally excluded from these aggregates.
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+)
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM deduped;
+
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
 -- Only counts assistant-role messages.
@@ -1296,12 +1364,14 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
-FROM chats
-WHERE updated_at > @updated_after;
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created

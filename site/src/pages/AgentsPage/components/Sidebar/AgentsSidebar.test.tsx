@@ -63,9 +63,11 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
+	children: [],
 	...overrides,
 });
 
@@ -108,7 +110,7 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
-	onRegenerateTitle: vi.fn(),
+	onRenameTitle: vi.fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,

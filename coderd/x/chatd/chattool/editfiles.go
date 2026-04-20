@@ -96,8 +96,15 @@ func executeEditFilesTool(
 		}
 	}
 
-	if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
+	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+		Files:       args.Files,
+		IncludeDiff: true,
+	})
+	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	return toolResponse(map[string]any{
+		"ok":    true,
+		"files": resp.Files,
+	}), nil
 }

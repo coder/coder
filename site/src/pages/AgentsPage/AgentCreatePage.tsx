@@ -66,6 +66,7 @@ const AgentCreatePage: FC = () => {
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
+			client_type: "ui",
 		});
 
 		if (modelConfigID !== nilUUID) {
