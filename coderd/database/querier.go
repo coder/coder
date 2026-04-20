@@ -61,21 +61,9 @@ type sqlcQuerier interface {
 	// Only unused template versions will be archived, which are any versions not
 	// referenced by the latest build of a workspace.
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
-	// Archives root chat families whose newest non-deleted message is
-	// older than archive_cutoff, cascading to children via root_chat_id
-	// (matching ArchiveChatByID semantics). Pinned chats and families
-	// without any recent activity are skipped.
-	//
-	// Activity is defined as the MAX(chat_messages.created_at) over all
-	// non-deleted messages in the family, falling back to the root's
-	// created_at when the family has no messages. All message roles
-	// count: if any agent is still generating a response, the chat is
-	// considered active.
-	//
-	// The limit bounds the number of ROOTS archived per call, not the
-	// total number of rows affected -- one root can pull in many
-	// children via the cascade. Used by dbpurge with a bounded batch
-	// so a large initial backfill doesn't stall a single tick.
+	// Archives inactive root chats (pinned and already-archived chats skipped),
+	// cascading to children via root_chat_id. Limits apply to roots, not total
+	// rows. Used by dbpurge.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
@@ -282,10 +270,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	// Returns the chat auto-archive period in days. Chats whose newest
-	// non-deleted message is older than this are automatically archived
-	// by dbpurge. Returns 90 (days) when no value has been configured.
-	// A value of 0 disables auto-archive entirely.
+	// Auto-archive window in days; 90 by default, 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)

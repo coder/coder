@@ -3816,14 +3816,8 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Get chat auto-archive days
-// @ID get-chat-auto-archive-days
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Success 200 {object} codersdk.ChatAutoArchiveDaysResponse
-// @Router /experimental/chats/config/auto-archive-days [get]
-// @x-apidocgen {"skip": true}
+// getChatAutoArchiveDays returns the deployment-wide auto-archive
+// window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
@@ -3850,15 +3844,8 @@ func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 // site/src/pages/AgentsPage/AgentSettingsBehaviorPageView.tsx.
 const autoArchiveDaysMaximum = 3650 // ~10 years
 
-// @Summary Update chat auto-archive days
-// @ID update-chat-auto-archive-days
-// @Security CoderSessionToken
-// @Tags Chats
-// @Accept json
-// @Param request body codersdk.UpdateChatAutoArchiveDaysRequest true "Request body"
-// @Success 204
-// @Router /experimental/chats/config/auto-archive-days [put]
-// @x-apidocgen {"skip": true}
+// putChatAutoArchiveDays updates the deployment-wide auto-archive
+// window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
 func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {

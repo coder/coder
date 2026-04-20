@@ -643,6 +643,8 @@ var (
 					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
 					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+					// Chat auto-archive sets archived=true on inactive chats.
+					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

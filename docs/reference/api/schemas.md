@@ -2072,20 +2072,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
-## codersdk.ChatAutoArchiveDaysResponse
-
-```json
-{
-  "auto_archive_days": 0
-}
-```
-
-### Properties
-
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `auto_archive_days` | integer | false    |              |             |
-
 ## codersdk.ChatConfig
 
 ```json
@@ -10441,20 +10427,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
-
-## codersdk.UpdateChatAutoArchiveDaysRequest
-
-```json
-{
-  "auto_archive_days": 0
-}
-```
-
-### Properties
-
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `auto_archive_days` | integer | false    |              |             |
 
 ## codersdk.UpdateChatRetentionDaysRequest
 

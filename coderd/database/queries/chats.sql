@@ -1415,24 +1415,14 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: AutoArchiveInactiveChats :many
--- Archives root chat families whose newest non-deleted message is
--- older than archive_cutoff, cascading to children via root_chat_id
--- (matching ArchiveChatByID semantics). Pinned chats and families
--- without any recent activity are skipped.
---
--- Activity is defined as the MAX(chat_messages.created_at) over all
--- non-deleted messages in the family, falling back to the root's
--- created_at when the family has no messages. All message roles
--- count: if any agent is still generating a response, the chat is
--- considered active.
---
--- The limit bounds the number of ROOTS archived per call, not the
--- total number of rows affected -- one root can pull in many
--- children via the cascade. Used by dbpurge with a bounded batch
--- so a large initial backfill doesn't stall a single tick.
+-- Archives inactive root chats (pinned and already-archived chats skipped),
+-- cascading to children via root_chat_id. Limits apply to roots, not total
+-- rows. Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
+        -- Activity = MAX(cm.created_at) across the family, or c.created_at
+        -- when the family has no non-deleted messages.
         COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
     FROM chats c
     LEFT JOIN LATERAL (
@@ -1444,7 +1434,7 @@ WITH to_archive AS (
     ) activity ON TRUE
     WHERE c.archived = false
       AND c.pin_order = 0
-      AND c.parent_chat_id IS NULL
+      AND c.parent_chat_id IS NULL -- roots only
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     ORDER BY COALESCE(activity.last_activity_at, c.created_at) ASC
     LIMIT @limit_count
@@ -1453,16 +1443,13 @@ archived AS (
     UPDATE chats c
     SET archived = true, pin_order = 0, updated_at = NOW()
     FROM to_archive t
-    WHERE (c.id = t.id OR c.root_chat_id = t.id)
+    WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
       AND c.archived = false
     RETURNING c.*
 )
 SELECT
     a.*,
-    -- Cascaded children fall back to the root's last_activity_at so
-    -- every returned row has a non-null value. Digests filter to
-    -- roots only via parent_chat_id IS NULL in Go, so the value on
-    -- children is never surfaced to the user.
+    -- Children inherit their root's activity so last_activity_at is never null.
     COALESCE(
         t.last_activity_at,
         (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),

@@ -1,25 +1,15 @@
--- Partial index supporting the AutoArchiveInactiveChats CTE predicate.
--- Auto-archive only considers active (archived = false), unpinned
--- (pin_order = 0) root chats (parent_chat_id IS NULL), so a partial
--- index lets dbpurge jump straight to candidates without scanning the
--- full chats table even in deployments with millions of archived or
--- cascaded chats.
+-- Partial index matching the AutoArchiveInactiveChats WHERE clause so
+-- dbpurge can skip the bulk of archived / pinned / child chats.
 CREATE INDEX IF NOT EXISTS idx_chats_auto_archive_candidates
     ON chats (created_at)
     WHERE archived = false
       AND pin_order = 0
       AND parent_chat_id IS NULL;
 
--- Notification template used by dbpurge to send the per-owner
--- digest of auto-archived chats. Per-owner deduplication is handled
--- by the native notification_messages dedupe hash (template_id,
--- user_id, payload, day); users who find the digest noisy can
--- disable this template in their notification preferences.
---
--- The "Hi {{.UserName}}," greeting is prepended by the SMTP and
--- webhook wrappers, so the body_template must not repeat it. No
--- action buttons are included; archived chats aren't yet visible
--- in the frontend, and adding that view is out of scope here.
+-- Template for the per-owner auto-archive digest. Dedupe happens via
+-- the native notification_messages hash; users can disable this
+-- template in their notification preferences. The SMTP/webhook
+-- wrappers prepend "Hi {{.UserName}},", so body_template must not.
 INSERT INTO notification_templates (
     id,
     name,
