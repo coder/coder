@@ -961,7 +961,7 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 
 	// Verify Docker is available before attempting anything.
 	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
-		logger.Info(ctx, "docker not available, skipping prometheus server",
+		logger.Warn(ctx, "docker not available, skipping prometheus server",
 			slog.Error(err))
 		return false, nil
 	}
