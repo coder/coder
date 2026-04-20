@@ -1,0 +1,35 @@
+# Defines CLI clients and prompts for testing aibridge
+# compatibility with AI clients.
+
+clients:
+  - name: claude
+    command:
+      - "claude"
+      # Non-interactive mode: run prompt, print result, exit.
+      - "--print"
+      # Strip system prompt and formatting.
+      - "--bare"
+      # Structured output for programmatic error checking.
+      - "--output-format"
+      - "json"
+      # Cost control: enough for a tool call round-trip, still bounded.
+      - "--max-turns"
+      - "5"
+    # Auth goes through aibridge, not directly to Anthropic.
+    # ANTHROPIC_BASE_URL points Claude at the local aibridge endpoint.
+    # ANTHROPIC_AUTH_TOKEN authenticates with Coder via session token.
+    env:
+      ANTHROPIC_BASE_URL: "ANTHROPIC_BASE_URL"
+      ANTHROPIC_AUTH_TOKEN: "ANTHROPIC_AUTH_TOKEN"
+    output_format: "json"
+    # For Claude JSON output, the top-level "is_error" field is true
+    # on failure.
+    error_field: "is_error"
+
+prompts:
+  - name: simple
+    text: "What is 2+2? Reply with just the number."
+    category: "simple"
+  - name: tool_call
+    text: "List files in the current directory using available tools."
+    category: "tool_call"
