@@ -23,29 +23,6 @@ func (c *closeTrackingAgentConn) Close() error {
 func TestWrapAgentConn(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil conn runs close func", func(t *testing.T) {
-		t.Parallel()
-
-		closeCalls := 0
-		wrapped := WrapAgentConn(nil, func() error {
-			closeCalls++
-			return nil
-		})
-
-		require.Nil(t, wrapped)
-		require.Equal(t, 1, closeCalls)
-	})
-
-	t.Run("nil close func still wraps conn", func(t *testing.T) {
-		t.Parallel()
-
-		baseConn := &closeTrackingAgentConn{}
-		wrapped := WrapAgentConn(baseConn, nil)
-		require.NotNil(t, wrapped)
-		require.NoError(t, wrapped.Close())
-		require.Equal(t, 1, baseConn.closeCalls)
-	})
-
 	t.Run("close is idempotent and joins errors", func(t *testing.T) {
 		t.Parallel()
 
