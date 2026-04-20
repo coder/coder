@@ -10,6 +10,9 @@
 	"ignore": [
 		"**/*Generated.ts",
 		"src/api/chatModelOptions.ts",
+		// TODO(devtools): debugPanelUtils.ts is staged in PR 7; its exports are
+		// consumed by the Debug panel components in PRs 8 and 9. Remove this
+		// exclusion once the panel components land.
 		"src/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils.ts"
 	],
 	"ignoreBinaries": ["protoc"],

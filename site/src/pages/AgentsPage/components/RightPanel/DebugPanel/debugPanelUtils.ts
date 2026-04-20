@@ -567,7 +567,7 @@ interface NormalizedMessagePartViewModel {
 }
 
 // ---------------------------------------------------------------------------
-// Message coercion – handles both plain objects and stringified entries.
+// Message coercion -- handles both plain objects and stringified entries.
 // ---------------------------------------------------------------------------
 
 const coerceNormalizedMessagePart = (
@@ -1052,7 +1052,7 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 					finalizedToolCallIds.add(toolCall.id);
 				}
 				// Otherwise: already have a finalized entry (or a duplicate
-				// partial delta) – skip to avoid duplicated rows in the
+				// partial delta) -- skip to avoid duplicated rows in the
 				// Debug panel.
 			}
 		}
@@ -1104,7 +1104,7 @@ export const coerceStepResponse = (data: unknown): StepResponseViewModel => {
 	// Usage (within the response body itself).
 	const usage = coerceUsageRecord(pickField(parsed, "usage"));
 
-	// Warnings – support both string arrays and object arrays.
+	// Warnings -- support both string arrays and object arrays.
 	const rawWarnings = deepParse(pickField(parsed, "warnings"));
 	const warnings: string[] = [];
 	if (Array.isArray(rawWarnings)) {
@@ -1203,7 +1203,7 @@ export const getRoleBadgeVariant = (
 };
 
 // ---------------------------------------------------------------------------
-// Transcript preview – collapsed message list logic.
+// Transcript preview -- collapsed message list logic.
 // ---------------------------------------------------------------------------
 
 /** Default number of messages to show before collapsing. */

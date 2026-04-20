@@ -1012,7 +1012,7 @@ export const promoteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: () => {
-		// Fire-and-forget: same reasoning as createChatMessage – the caller
+		// Fire-and-forget: same reasoning as createChatMessage -- the caller
 		// awaits the promise to upsert the promoted message, so the Debug
 		// panel refetch must not gate the mutation settling.
 		void invalidateChatDebugRuns(queryClient, chatId);
