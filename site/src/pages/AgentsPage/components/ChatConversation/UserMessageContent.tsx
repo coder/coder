@@ -21,20 +21,17 @@ import type {
 } from "./messageHelpers";
 
 type ChatImageSource =
-	| { kind: "file"; fileId: string; src: string }
+	| { kind: "file"; src: string }
 	| { kind: "inline"; src: string };
 
-type ImageFailureState =
-	| { kind: "idle" }
-	| { kind: "expired" }
-	| { kind: "failed"; detail?: string };
+type ImageFailure = { kind: "expired" } | { kind: "failed"; detail?: string };
 
-type ImageFailureReason = Exclude<ImageFailureState, { kind: "idle" }>;
+type ImageFailureState = { kind: "idle" } | ImageFailure;
 
 const classifyRemoteImageFailure = async (
 	src: string,
 	signal?: AbortSignal,
-): Promise<ImageFailureReason> => {
+): Promise<ImageFailure> => {
 	const response = await fetch(src, { signal });
 	if (response.status === 404) {
 		return { kind: "expired" };
@@ -138,13 +135,11 @@ const TextAttachmentButton: FC<{
 	);
 };
 
-const getImageFallbackLabel = (state: ImageFailureReason) =>
-	state.kind === "expired" ? "Image expired" : "Image failed to load";
-
 const ImageFallbackTile: FC<{
-	state: ImageFailureReason;
+	state: ImageFailure;
 }> = ({ state }) => {
-	const label = getImageFallbackLabel(state);
+	const label =
+		state.kind === "expired" ? "Image expired" : "Image failed to load";
 
 	const tile = (
 		<div
@@ -285,7 +280,6 @@ export const FileBlock: FC<{
 	const source: ChatImageSource = block.file_id
 		? {
 				kind: "file",
-				fileId: block.file_id,
 				src: `/api/experimental/chats/files/${block.file_id}`,
 			}
 		: {

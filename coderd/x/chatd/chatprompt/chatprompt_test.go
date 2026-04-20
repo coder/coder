@@ -195,10 +195,11 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		mediaType    string
-		resolvedData *chatprompt.FileData
-		expectedText string
+		name              string
+		mediaType         string
+		resolvedMediaType string
+		resolvedData      *chatprompt.FileData
+		expectedText      string
 	}{
 		{
 			name:      "missing image file",
@@ -207,11 +208,9 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
 		},
 		{
-			name:      "empty resolved pdf data",
-			mediaType: "application/pdf",
-			resolvedData: &chatprompt.FileData{
-				MediaType: "application/pdf",
-			},
+			name:              "resolved mime fills missing media type",
+			resolvedMediaType: "application/pdf",
+			resolvedData:      &chatprompt.FileData{},
 			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
 				"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
 		},
@@ -226,7 +225,6 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			fileID := uuid.New()
 			rawContent := mustJSON(t, []json.RawMessage{
 				mustJSON(t, map[string]any{
@@ -237,17 +235,19 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 					},
 				}),
 			})
-
 			resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 				result := make(map[uuid.UUID]chatprompt.FileData)
 				for _, id := range ids {
 					if id == fileID && tt.resolvedData != nil {
-						result[id] = *tt.resolvedData
+						fd := *tt.resolvedData
+						if fd.MediaType == "" {
+							fd.MediaType = tt.resolvedMediaType
+						}
+						result[id] = fd
 					}
 				}
 				return result, nil
 			}
-
 			prompt, err := chatprompt.ConvertMessagesWithFiles(
 				context.Background(),
 				[]database.ChatMessage{{
@@ -261,13 +261,9 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
 			require.Len(t, prompt[0].Content, 1)
-
 			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 			require.True(t, ok, "expected TextPart")
 			require.Equal(t, tt.expectedText, textPart.Text)
-
-			_, isFilePart := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
-			require.False(t, isFilePart, "missing file-backed attachments should not remain FileParts")
 		})
 	}
 }
