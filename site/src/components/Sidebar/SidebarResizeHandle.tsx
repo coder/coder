@@ -59,11 +59,12 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		>
 			<div
 				className="absolute top-0 h-full w-[2px] rounded-full bg-border"
-					style={{
-						left: 7,
-						opacity: visible ? 1 : 0,
-						transition: "opacity 150ms",
-					}}			/>
+				style={{
+					left: 7,
+					opacity: visible ? 1 : 0,
+					transition: "opacity 150ms",
+				}}
+			/>
 		</div>
 	);
 };

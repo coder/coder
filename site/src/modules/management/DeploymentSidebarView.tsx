@@ -189,7 +189,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 			>
 				<div className="flex flex-col gap-1">
 					<BaseSidebarNavItem href="/deployment/ai-settings/usage-stats">
-						Usage Stats
+						Usage
 					</BaseSidebarNavItem>
 					<BaseSidebarNavItem href="/deployment/ai-settings/models">
 						Models
