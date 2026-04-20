@@ -46,7 +46,6 @@ import {
 	Trash2Icon,
 	UserIcon,
 	WalletIcon,
-	WandSparklesIcon,
 } from "lucide-react";
 import {
 	createContext,
