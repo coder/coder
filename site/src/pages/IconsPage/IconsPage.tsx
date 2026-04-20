@@ -159,7 +159,7 @@ const IconsPage: FC = () => {
 								<img
 									alt={icon.url}
 									src={icon.url}
-									className="size-15 object-contain pointer-events-none p-3"
+									className="size-16 object-contain pointer-events-none p-3"
 									style={parseImageParameters(
 										theme.externalImages,
 										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
