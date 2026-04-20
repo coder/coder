@@ -46,6 +46,22 @@ export function useActiveFileTracking({
 	const activeFileRef = useRef<string | null>(null);
 	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
 
+	// Track viewport height so the IntersectionObserver's rootMargin
+	// adapts when the diff panel is resized (window resize, layout
+	// split, etc.). Without this the observation strip computed at
+	// setup time becomes stale after a resize.
+	const [viewportHeight, setViewportHeight] = useState(0);
+	useEffect(() => {
+		const viewport = viewportRef.current;
+		if (!viewport) return;
+		setViewportHeight(viewport.clientHeight);
+		const ro = new ResizeObserver(([entry]) => {
+			setViewportHeight(Math.round(entry.contentRect.height));
+		});
+		ro.observe(viewport);
+		return () => ro.disconnect();
+	}, [viewportRef]);
+
 	// Keep sortedFiles in a ref so the IntersectionObserver callback
 	// always reads the latest value without needing sortedFiles in
 	// the effect's dependency array.
@@ -73,7 +89,7 @@ export function useActiveFileTracking({
 	// this strip, the callback fires — zero synchronous layout
 	// reads per frame.
 	useEffect(() => {
-		if (!enabled || fileListKey === "") return;
+		if (!enabled || fileListKey === "" || viewportHeight === 0) return;
 		const viewport = viewportRef.current;
 		if (!viewport) return;
 
@@ -81,7 +97,7 @@ export function useActiveFileTracking({
 		// (per CSS spec), not its height. Compute an explicit pixel value
 		// from the viewport height so the observation strip is reliably
 		// 5% of the visible height regardless of aspect ratio.
-		const bottomMargin = Math.round(viewport.clientHeight * 0.95);
+		const bottomMargin = Math.round(viewportHeight * 0.95);
 
 		// Track which files currently intersect the top strip.
 		const intersecting = new Set<string>();
@@ -119,7 +135,7 @@ export function useActiveFileTracking({
 		}
 
 		return () => observer.disconnect();
-	}, [enabled, fileListKey, viewportRef]);
+	}, [enabled, fileListKey, viewportRef, viewportHeight]);
 
 	const handleFileClick = (name: string) => {
 		const el = fileRefs.current.get(name);
