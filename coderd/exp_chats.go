@@ -682,6 +682,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq, commitAudit := audit.InitRequestWithCancel[database.Chat](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
+	})
+	defer commitAudit(true)
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
@@ -736,6 +744,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	aReq.New = chat
+	aReq.UpdateOrganizationID(chat.OrganizationID)
+	if chat.ParentChatID.Valid {
+		commitAudit(false)
 	}
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
