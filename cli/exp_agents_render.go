@@ -608,13 +608,26 @@ func renderStyledDiffBody(styles tuiStyles, diff string) string {
 		return styles.dimmedText.Render("No diff contents.")
 	}
 	lines := strings.Split(diff, "\n")
+	inHunk := false
 	for i, line := range lines {
-		lines[i] = styleUnifiedDiffLine(styles, line)
+		// Track whether we're inside a hunk body so styling can
+		// distinguish legitimate header `--- `/`+++ ` lines from
+		// additions/deletions whose content happens to start with
+		// those prefixes (for example a `+++ ` content line whose
+		// text begins with `++ `). Matches the parser's inHunk
+		// bookkeeping in parseChatGitChangesFromUnifiedDiff.
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			inHunk = false
+		case strings.HasPrefix(line, "@@"):
+			inHunk = true
+		}
+		lines[i] = styleUnifiedDiffLine(styles, line, inHunk)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func styleUnifiedDiffLine(styles tuiStyles, line string) string {
+func styleUnifiedDiffLine(styles tuiStyles, line string, inHunk bool) string {
 	switch {
 	case strings.HasPrefix(line, "diff --git "):
 		return styles.selectedItem.Render(line)
@@ -623,9 +636,9 @@ func styleUnifiedDiffLine(styles tuiStyles, line string) string {
 		strings.HasPrefix(line, "deleted file mode "),
 		strings.HasPrefix(line, "rename from "),
 		strings.HasPrefix(line, "rename to "),
-		strings.HasPrefix(line, "Binary files "),
-		strings.HasPrefix(line, "--- "),
-		strings.HasPrefix(line, "+++ "):
+		strings.HasPrefix(line, "Binary files "):
+		return styles.subtitle.Render(line)
+	case !inHunk && (strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "+++ ")):
 		return styles.subtitle.Render(line)
 	case strings.HasPrefix(line, "@@"):
 		return styles.warningText.Render(line)
