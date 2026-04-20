@@ -555,11 +555,6 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if cfg.prometheusPort != 0 && isPortBusy(ctx, cfg.prometheusPort) {
 		return xerrors.Errorf("port %d is already in use (prometheus)", cfg.prometheusPort)
 	}
-	if cfg.prometheusServer {
-		if isPortBusy(ctx, defaultPrometheusServerPort) {
-			return xerrors.Errorf("port %d is already in use (prometheus server UI)", defaultPrometheusServerPort)
-		}
-	}
 	return nil
 }
 
@@ -959,7 +954,23 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 		return false, nil
 	}
 
-	// Remove any leftover container from a previous run.
+	// If the port is already in use, check whether it's our
+	// container from a previous run. If so, reuse it.
+	if isPortBusy(ctx, defaultPrometheusServerPort) {
+		out, err := exec.CommandContext(ctx, "docker", "inspect",
+			"-f", "{{.State.Running}}",
+			"coder-prometheus").Output()
+		if err == nil && strings.TrimSpace(string(out)) == "true" {
+			logger.Info(ctx, "reusing existing prometheus server",
+				slog.F("ui", fmt.Sprintf("http://localhost:%d", defaultPrometheusServerPort)))
+			return true, nil
+		}
+		logger.Info(ctx, "prometheus server port already in use, skipping",
+			slog.F("port", defaultPrometheusServerPort))
+		return false, nil
+	}
+
+	// Remove any stopped leftover container from a previous run.
 	// Failure is fine — it just means the container doesn't exist.
 	rmCmd := exec.CommandContext(ctx, "docker", "rm", "-f", "coder-prometheus")
 	rmCmd.Stdout = nil
