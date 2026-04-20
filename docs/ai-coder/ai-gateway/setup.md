@@ -55,7 +55,9 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 
 **Required:**
 
-- `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`
+- `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`.
+Alternatively, set `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` to a full URL (e.g., when routing through a proxy between AI Gateway and AWS Bedrock or using a non-standard endpoint that doesn't follow the `https://bedrock-runtime.<region>.amazonaws.com` format).
+If both are set, `CODER_AIBRIDGE_BEDROCK_BASE_URL` takes precedence.
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
 
@@ -63,11 +65,6 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET` or `--aibridge-bedrock-access-key-secret`
-
-> [!NOTE]
-> `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` may be used instead of `CODER_AIBRIDGE_BEDROCK_REGION`/`--aibridge-bedrock-region`
-> if you would like to specify a URL which does not follow the form of `https://bedrock-runtime.<region>.amazonaws.com` - for example if using a
-> proxy between AI Gateway and AWS Bedrock.
 
 #### Authentication
 
