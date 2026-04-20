@@ -533,9 +533,9 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
 
 	case database.ResourceTypeChat:
-		// Chats are surfaced at /chats/{id}. They are owner-scoped but
+		// Chats are surfaced at /agents/{id}. They are owner-scoped but
 		// not username-scoped in the URL like workspaces or tasks.
-		return fmt.Sprintf("/chats/%s", alog.AuditLog.ResourceID)
+		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
 	default:
 		return ""
 	}
