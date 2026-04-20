@@ -2292,6 +2292,7 @@ func (p *Server) recordManualTitleGenerationFailure(
 	return generationErr
 }
 
+//nolint:revive // flag-parameter: enableDebug toggles optional debug capture on a shared code path; splitting would duplicate message fetch and model resolution.
 func (p *Server) fetchAndGenerateManualTitle(
 	ctx context.Context,
 	store database.Store,

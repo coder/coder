@@ -1,5 +1,5 @@
 import { SparklesIcon } from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -34,7 +34,6 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const sessionRef = useRef(0);
-	const nextSessionRef = useRef(1);
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
 
@@ -43,12 +42,16 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	if (currentChatId !== prevChatId) {
 		setPrevChatId(currentChatId);
 		if (chat) {
-			sessionRef.current = nextSessionRef.current++;
 			setRenameTitle(chat.title);
 			setGenerateTitleError(null);
 			setIsGeneratingTitle(false);
 		}
 	}
+
+	useEffect(() => {
+		if (prevChatId === null) return;
+		sessionRef.current += 1;
+	}, [prevChatId]);
 
 	const handleGenerate = async () => {
 		if (!chat || !onPropose) return;
