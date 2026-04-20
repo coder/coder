@@ -41,7 +41,6 @@ import {
 	PinOffIcon,
 	SettingsIcon,
 	ShieldIcon,
-	SparklesIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
@@ -54,13 +53,11 @@ import {
 	useContext,
 	useEffect,
 	useEffectEvent,
-	useId,
 	useRef,
 	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
-import { getErrorMessage } from "#/api/errors";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -79,13 +76,6 @@ import {
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -94,7 +84,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
-import { Input } from "#/components/Input/Input";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -113,6 +102,7 @@ import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -837,17 +827,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
-	const [renameTitle, setRenameTitle] = useState("");
-	const [isRenamingChat, setIsRenamingChat] = useState(false);
-	const [isGeneratingRenameTitle, setIsGeneratingRenameTitle] = useState(false);
-	const [generateRenameTitleError, setGenerateRenameTitleError] = useState<
-		string | null
-	>(null);
-	const renameInputRef = useRef<HTMLInputElement | null>(null);
-	const renameSessionRef = useRef<number>(0);
-	const nextRenameSessionRef = useRef<number>(1);
-	const renameInputId = useId();
-	const renameErrorId = `${renameInputId}-error`;
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1023,70 +1002,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
-	const handleOpenRenameDialog = (chat: Chat) => {
-		renameSessionRef.current = nextRenameSessionRef.current++;
-		setChatPendingRename(chat);
-		setRenameTitle(chat.title);
-		setGenerateRenameTitleError(null);
-		setIsGeneratingRenameTitle(false);
-	};
-	const closeRenameDialog = () => {
-		if (isRenamingChat) {
-			return;
-		}
-		renameSessionRef.current = 0;
-		setChatPendingRename(null);
-		setRenameTitle("");
-		setGenerateRenameTitleError(null);
-		setIsGeneratingRenameTitle(false);
-	};
-	const handleGenerateRenameTitle = async () => {
-		if (!chatPendingRename || !onProposeTitle) {
-			return;
-		}
-		const requestedChatId = chatPendingRename.id;
-		const requestedSession = renameSessionRef.current;
-		setIsGeneratingRenameTitle(true);
-		setGenerateRenameTitleError(null);
-		try {
-			const newTitle = await onProposeTitle(requestedChatId);
-			if (renameSessionRef.current !== requestedSession) {
-				return;
-			}
-			setRenameTitle(newTitle);
-			requestAnimationFrame(() => {
-				renameInputRef.current?.focus();
-				renameInputRef.current?.select();
-			});
-			setIsGeneratingRenameTitle(false);
-		} catch (error) {
-			if (renameSessionRef.current !== requestedSession) {
-				return;
-			}
-			setGenerateRenameTitleError(
-				getErrorMessage(error, "Failed to generate a new title."),
-			);
-			setIsGeneratingRenameTitle(false);
-		}
-	};
-	const handleRenameSubmit = async () => {
-		if (!chatPendingRename || !onRenameTitle) {
-			return;
-		}
-		const trimmedTitle = renameTitle.trim();
-		if (!trimmedTitle) {
-			closeRenameDialog();
-			return;
-		}
-		setIsRenamingChat(true);
-		await onRenameTitle(chatPendingRename.id, trimmedTitle)
-			.then(() => {
-				setChatPendingRename(null);
-				setRenameTitle("");
-			})
-			.catch(() => {});
-		setIsRenamingChat(false);
-	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
 		chatTree,
@@ -1107,7 +1022,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onOpenRenameDialog: onRenameTitle ? handleOpenRenameDialog : undefined,
+		onOpenRenameDialog: onRenameTitle ? setChatPendingRename : undefined,
 	};
 
 	const subNavTitle = "Settings";
@@ -1465,109 +1380,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</nav>
 				)}
 			</div>
-			<Dialog
-				open={chatPendingRename !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						closeRenameDialog();
-					}
-				}}
-			>
-				<DialogContent
-					onOpenAutoFocus={(event) => {
-						event.preventDefault();
-						requestAnimationFrame(() => {
-							renameInputRef.current?.focus();
-							renameInputRef.current?.select();
-						});
+			{onRenameTitle && (
+				<RenameChatDialog
+					chat={chatPendingRename}
+					onRename={onRenameTitle}
+					onPropose={onProposeTitle}
+					onOpenChange={(open) => {
+						if (!open) setChatPendingRename(null);
 					}}
-					className="max-w-[440px] p-6 sm:p-6"
-					aria-describedby={undefined}
-				>
-					{" "}
-					<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
-						<DialogTitle className="text-lg">Rename chat</DialogTitle>
-						{onProposeTitle && (
-							<Button
-								type="button"
-								variant="subtle"
-								size="sm"
-								className="h-auto min-w-0 gap-1 px-2 py-1.5 text-xs font-normal"
-								onClick={() => {
-									void handleGenerateRenameTitle();
-								}}
-								disabled={isRenamingChat || isGeneratingRenameTitle}
-							>
-								{isGeneratingRenameTitle ? (
-									<Spinner className="h-[18px] w-[18px]" loading />
-								) : (
-									<SparklesIcon className="h-[18px] w-[18px]" />
-								)}
-								Generate
-							</Button>
-						)}
-					</DialogHeader>
-					<form
-						className="flex flex-col gap-6"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void handleRenameSubmit();
-						}}
-					>
-						<div className="space-y-1.5">
-							<Input
-								id={renameInputId}
-								ref={renameInputRef}
-								value={renameTitle}
-								onChange={(event) => {
-									setRenameTitle(event.target.value);
-									if (generateRenameTitleError) {
-										setGenerateRenameTitleError(null);
-									}
-								}}
-								disabled={isRenamingChat || isGeneratingRenameTitle}
-								maxLength={200}
-								aria-label="Chat title"
-								aria-invalid={generateRenameTitleError ? true : undefined}
-								aria-describedby={
-									generateRenameTitleError ? renameErrorId : undefined
-								}
-							/>
-							{generateRenameTitleError && (
-								<p
-									id={renameErrorId}
-									role="alert"
-									className="m-0 text-xs text-content-destructive"
-								>
-									{generateRenameTitleError}
-								</p>
-							)}
-						</div>
-						<DialogFooter className="gap-2 sm:space-x-0">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={closeRenameDialog}
-								disabled={isRenamingChat}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="submit"
-								size="sm"
-								disabled={
-									!renameTitle.trim() ||
-									isRenamingChat ||
-									isGeneratingRenameTitle
-								}
-							>
-								{isRenamingChat && <Spinner className="h-4 w-4" loading />}
-								Save
-							</Button>
-						</DialogFooter>
-					</form>
-				</DialogContent>
-			</Dialog>
+				/>
+			)}
 		</div>
 	);
 };
