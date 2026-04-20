@@ -28,8 +28,7 @@ func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
-// newMCPClient creates a test server with the agents experiment
-// enabled and returns the admin client.
+// newMCPClient creates a test server and returns the admin client.
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 

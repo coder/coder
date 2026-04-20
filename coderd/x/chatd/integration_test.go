@@ -35,7 +35,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
@@ -295,7 +295,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
@@ -449,7 +449,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
