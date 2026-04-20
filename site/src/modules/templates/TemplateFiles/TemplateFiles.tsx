@@ -93,7 +93,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
-							const TemplateFileIcon = getTemplateFileIcon(filename, false);
+							const TemplateFileIcon = getTemplateFileIcon(filename);
 							const info = fileInfo(filename);
 
 							return (

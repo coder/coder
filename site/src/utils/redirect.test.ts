@@ -1,4 +1,4 @@
-import { embedRedirect, retrieveRedirect } from "./redirect";
+import { embedRedirect, retrieveRedirect, sanitizeRedirect } from "./redirect";
 
 describe("redirect helper functions", () => {
 	describe("embedRedirect", () => {
@@ -15,6 +15,22 @@ describe("redirect helper functions", () => {
 		it("retrieves the page to return to from the URL", () => {
 			const result = retrieveRedirect("?redirect=%2Fworkspaces");
 			expect(result).toEqual("/workspaces");
+		});
+	});
+
+	describe("sanitizeRedirect", () => {
+		it("is a no-op for a relative path", () => {
+			expect(sanitizeRedirect("/bar/baz")).toEqual("/bar/baz");
+		});
+		it("removes the origin from url", () => {
+			expect(sanitizeRedirect("http://www.evil.com/bar/baz")).toEqual(
+				"/bar/baz",
+			);
+		});
+		it("preserves search params", () => {
+			expect(
+				sanitizeRedirect("https://www.example.com/bar?baz=1&quux=2"),
+			).toEqual("/bar?baz=1&quux=2");
 		});
 	});
 });

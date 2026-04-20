@@ -896,6 +896,160 @@ export const EditFilesError: Story = {
 		},
 		result: { error: "File not found" },
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		// On error, no diff body: the synthetic fallback would
+		// misrepresent a rejected edit as applied.
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesServerDiffMultiFile: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+				{
+					path: "src/server.ts",
+					diff: '--- src/server.ts\n+++ src/server.ts\n@@ -1,3 +1,3 @@\n export const server = {\n-\tconst host = "localhost";\n+\tconst host = "0.0.0.0";\n };\n',
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		// Both server diffs must render. FileDiff's internals aren't
+		// queryable from jsdom; count the testid'd wrappers instead.
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
+};
+
+export const EditFilesServerDiffNoOp: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/unchanged.ts",
+					edits: [
+						{
+							search: "same",
+							replace: "same",
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [{ path: "src/unchanged.ts", diff: "" }],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesFallbackToSynthetic: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/legacy.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+		result: { ok: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesServerDiffPartialFallback: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
 };
 
 // ---------------------------------------------------------------------------

@@ -371,7 +371,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
 			provider := opts.Model.Provider()
-			opts.Metrics.StepsTotal.WithLabelValues(provider).Inc()
+			modelName := opts.Model.Model()
+			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
@@ -388,8 +389,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
-			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
-			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
+			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
 			call := fantasy.Call{
 				Prompt:           prepared,
@@ -408,6 +409,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					provider,
+					modelName,
 					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
@@ -435,8 +437,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
+				// Record before OnRetry so a panicking callback can't
+				// drop the sample. The metric's provider label comes
+				// from the outer local; WithProvider only affects the
+				// classified payload handed to OnRetry.
+				classified = classified.WithProvider(provider)
+				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if opts.OnRetry != nil {
-					classified = classified.WithProvider(opts.Model.Provider())
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
@@ -481,7 +488,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					ssePart := chatprompt.PartFromContent(tr)
 					ssePart.CreatedAt = &completedAt
@@ -625,7 +632,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
-				opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
+				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
@@ -667,7 +674,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				lastProviderMetadata,
 				messages,
 			)
-			opts.Metrics.RecordCompaction(opts.Model.Provider(), did, err)
+			opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)
@@ -762,7 +769,7 @@ func classifyStartupTimeout(
 
 func guardedStream(
 	parent context.Context,
-	provider string,
+	provider, model string,
 	clock quartz.Clock,
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
@@ -787,7 +794,7 @@ func guardedStream(
 	}
 
 	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider).Observe(
+		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
 			clock.Since(streamStart).Seconds(),
 		)
 	})
@@ -1041,7 +1048,7 @@ func executeTools(
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
-	provider string,
+	provider, model string,
 	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
@@ -1100,7 +1107,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, model, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1122,7 +1129,7 @@ func executeSingleTool(
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
-	provider string,
+	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
@@ -1137,7 +1144,7 @@ func executeSingleTool(
 		if !builtinToolNames[tc.ToolName] {
 			toolLabel = "mcp"
 		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, toolLabel).Observe(
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, toolLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
 	}()
@@ -1347,7 +1354,7 @@ func tryCompactOnExit(
 		metadata,
 		reloaded,
 	)
-	opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
+	opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}

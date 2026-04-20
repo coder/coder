@@ -197,15 +197,18 @@ type sqlcQuerier interface {
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
-	// in a non-terminal state forever.  The NOT IN list must match the
+	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
 	//
 	// The steps CTE also catches steps whose parent run was just finalized
 	// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-	// same snapshot and cannot see each other's row updates.  Without this,
+	// same snapshot and cannot see each other's row updates. Without this,
 	// a step with a recent updated_at would survive its run's finalization
 	// and remain in 'in_progress' state permanently.
-	FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (FinalizeStaleChatDebugRowsRow, error)
+	//
+	// @now is the caller's clock timestamp so that mock-clock tests stay
+	// consistent with the @updated_before cutoff.
+	FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error)
 	// FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
 	// It returns the preset ID if a match is found, or NULL if no match is found.
 	// The query finds presets where all preset parameters are present in the provided parameters,
@@ -407,6 +410,7 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
+	GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
@@ -780,6 +784,12 @@ type sqlcQuerier interface {
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
+	// The CTE atomically locks the parent run via UPDATE, bumps its
+	// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
+	// call), and enforces the finalization guard: if the run is already
+	// finished, the UPDATE returns zero rows, the INSERT gets no source
+	// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
+	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
@@ -946,6 +956,31 @@ type sqlcQuerier interface {
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
+	// Overrides updated_at on the parent run without touching any
+	// other column. Used by tests that need to stamp a run with a
+	// specific timestamp after the InsertChatDebugStep CTE has
+	// already bumped it to NOW(), so stale-row finalization paths
+	// can be exercised deterministically. The chatdebug service
+	// itself does not call this: heartbeats go through
+	// TouchChatDebugStepAndRun, and step creation updates the parent
+	// run via the InsertChatDebugStep CTE.
+	TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error
+	// Atomically bumps updated_at on both the step and its parent run
+	// in a single statement. This prevents FinalizeStale from
+	// interleaving between the two touches and finalizing a run whose
+	// step heartbeat was just written.
+	//
+	// The step UPDATE joins through touched_run (via FROM) and reads
+	// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
+	// is the only way to communicate values between a data-modifying
+	// CTE and the main query, and consuming those rows forces the run
+	// UPDATE to complete before the step UPDATE. That matches the
+	// lock order used by FinalizeStaleChatDebugRows and avoids a
+	// deadlock between concurrent heartbeats and stale sweeps. The
+	// join also constrains the step update to the specified run so a
+	// mismatched (run_id, step_id) pair cannot silently refresh an
+	// unrelated step.
+	TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -966,14 +1001,25 @@ type sqlcQuerier interface {
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
-	// existing value."  This is intentional: debug rows follow a
+	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation
-	// or finalization and never cleared back to NULL.
+	// or finalization and never cleared back to NULL. The @now
+	// parameter keeps updated_at under the caller's clock.
+	//
+	// finished_at is enforced as write-once at the SQL level: once
+	// populated it cannot be overwritten by a later call. Callers
+	// that issue a summary or status refresh after the run has
+	// already finalized therefore cannot corrupt the original
+	// completion timestamp, which keeps duration and ordering
+	// calculations stable regardless of how many times the row is
+	// updated.
 	UpdateChatDebugRun(ctx context.Context, arg UpdateChatDebugRunParams) (ChatDebugRun, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
-	// existing value."  This is intentional: debug rows follow a
+	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation
-	// or finalization and never cleared back to NULL.
+	// or finalization and never cleared back to NULL. The @now
+	// parameter keeps updated_at under the caller's clock, matching
+	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
