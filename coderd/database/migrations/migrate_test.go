@@ -372,7 +372,7 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	const migrationVersion = 362
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, testutil.Logger(t))
 
 	// Migrate up to the migration before the one that aggregates usage events.
 	next, err := migrations.Stepper(sqlDB)

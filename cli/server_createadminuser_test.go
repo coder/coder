@@ -39,7 +39,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		sqlDB, err := sql.Open("postgres", dbURL)
 		require.NoError(t, err)
 		defer sqlDB.Close()
-		db := database.New(sqlDB)
+		db := database.New(sqlDB, testutil.Logger(t))
 
 		pingCtx, pingCancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer pingCancel()
@@ -91,7 +91,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer sqlDB.Close()
-		db := database.New(sqlDB)
+		db := database.New(sqlDB, testutil.Logger(t))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()

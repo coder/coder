@@ -26,7 +26,7 @@ func TestSerializedRetry(t *testing.T) {
 	}
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, slog.Logger{})
 
 	called := 0
 	txOpts := &database.TxOptions{Isolation: sql.LevelSerializable}
@@ -60,7 +60,7 @@ func TestNestedInTx(t *testing.T) {
 	err := migrations.Up(sqlDB)
 	require.NoError(t, err, "migrations")
 
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, slog.Logger{})
 	err = db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(inner database.Store) error {
 			//nolint:gocritic
@@ -93,7 +93,7 @@ func TestInTx_CapturesRollbackError(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sqlDB.Close() })
 
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, slog.Logger{})
 
 	callbackErr := xerrors.New("callback failed")
 	rollbackErr := xerrors.New("rollback failed")
@@ -123,7 +123,7 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 	logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, database.WithLogger(logger))
+	db := database.New(sqlDB, logger)
 
 	// Outer uses default isolation, inner requests RepeatableRead.
 	// After normalization default becomes ReadCommitted, so the
@@ -164,7 +164,7 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 	logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, database.WithLogger(logger))
+	db := database.New(sqlDB, logger)
 
 	// Outer uses RepeatableRead, inner requests Serializable.
 	// Both are explicit and the inner is stricter, so a Warn
@@ -205,7 +205,7 @@ func TestNestedInTxSameIsolationNoLog(t *testing.T) {
 	logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, database.WithLogger(logger))
+	db := database.New(sqlDB, logger)
 
 	// Both use the same isolation level. No log should fire.
 	opts := &database.TxOptions{Isolation: sql.LevelRepeatableRead}
@@ -232,7 +232,7 @@ func TestNestedInTxWeakerIsolationNoLog(t *testing.T) {
 	logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, database.WithLogger(logger))
+	db := database.New(sqlDB, logger)
 
 	// Outer uses Serializable, inner requests RepeatableRead (weaker).
 	// No log should fire because the inner gets more isolation than needed.
@@ -259,7 +259,7 @@ func TestNestedInTxDefaultVsReadCommittedNoLog(t *testing.T) {
 	logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB, database.WithLogger(logger))
+	db := database.New(sqlDB, logger)
 
 	// Outer uses default (nil opts), inner requests ReadCommitted.
 	// After normalization both map to ReadCommitted, so no log

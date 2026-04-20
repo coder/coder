@@ -37,7 +37,7 @@ func TestServerDBCrypt(t *testing.T) {
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 	})
-	db := database.New(sqlDB)
+	db := database.New(sqlDB, testutil.Logger(t))
 
 	// Populate the database with some unencrypted data.
 	t.Log("Generating unencrypted data")

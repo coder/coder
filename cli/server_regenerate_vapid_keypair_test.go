@@ -31,7 +31,7 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		require.NoError(t, err)
 		defer sqlDB.Close()
 
-		db := database.New(sqlDB)
+		db := database.New(sqlDB, testutil.Logger(t))
 		// Ensure there is no existing VAPID keypair.
 		rows, err := db.GetWebpushVAPIDKeys(ctx)
 		require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		require.NoError(t, err)
 		defer sqlDB.Close()
 
-		db := database.New(sqlDB)
+		db := database.New(sqlDB, testutil.Logger(t))
 		for i := 0; i < 10; i++ {
 			// Insert a few fake users.
 			u := dbgen.User(t, db, database.User{})

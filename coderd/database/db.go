@@ -56,20 +56,15 @@ func WithSerialRetryCount(count int) func(*sqlQuerier) {
 	}
 }
 
-func WithLogger(logger slog.Logger) func(*sqlQuerier) {
-	return func(q *sqlQuerier) {
-		q.logger = logger
-	}
-}
-
 // New creates a new database store using a SQL database connection.
-func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
+func New(sdb *sql.DB, logger slog.Logger, opts ...func(*sqlQuerier)) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
 	q := &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
 		// This is an arbitrary number.
 		serialRetryCount: 3,
+		logger:           logger,
 	}
 
 	for _, opt := range opts {
