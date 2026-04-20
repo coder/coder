@@ -66,7 +66,7 @@ export const SessionSummaryTable = ({
 			<div className="flex items-center justify-between">
 				<dt className="shrink-0 font-normal whitespace-nowrap">End time</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary text-xs font-mono">
-					{endTime ? formatDateTime(endTime) : "—"}
+					{endTime ? formatDateTime(endTime) : "-"}
 				</dd>
 			</div>
 
@@ -78,7 +78,7 @@ export const SessionSummaryTable = ({
 				>
 					{durationInMs !== undefined
 						? `${Math.round(durationInMs / 1000)} s`
-						: "—"}
+						: "-"}
 				</dd>
 			</div>
 

@@ -8765,7 +8765,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Equal(t, "hb_ai_seats_v1", rows[0].EventType)
 		require.JSONEq(t, `{"count": 10}`, string(rows[0].UsageData))
 
-		// Insert a higher count on the same day — should take the max.
+		// Insert a higher count on the same day - should take the max.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-2",
 			EventType: "hb_ai_seats_v1",
@@ -8778,7 +8778,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
 
-		// Insert a lower count on the same day — should keep the max (50).
+		// Insert a lower count on the same day - should keep the max (50).
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-3",
 			EventType: "hb_ai_seats_v1",
@@ -10704,7 +10704,7 @@ func TestGetPRInsights(t *testing.T) {
 		linkPR(t, store, c2.ID, "https://github.com/org/repo/pull/11", "open", "feat: PR2", 30, 5, 1)
 
 		// With direct-branch attribution:
-		//   PR1 cost = C1's own cost = $5 (parent NOT included — only children of C1)
+		//   PR1 cost = C1's own cost = $5 (parent NOT included - only children of C1)
 		//   PR2 cost = C2's own cost = $3
 		//   Total = $8 (no double-counting of parent or siblings)
 		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
@@ -10740,12 +10740,12 @@ func TestGetPRInsights(t *testing.T) {
 
 		// Child C1 ($5) has its own PR2. Because C1 has its own
 		// chat_diff_statuses entry, its cost should NOT be included
-		// under PR1 — it belongs to PR2 only.
+		// under PR1 - it belongs to PR2 only.
 		c1 := createChildChat(t, p, parent.ID, parent.ID, "child-1")
 		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
 		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/21", "open", "feat: child PR", 30, 5, 1)
 
-		// Child C2 ($2) has NO cds entry — pure subagent.
+		// Child C2 ($2) has NO cds entry - pure subagent.
 		// Its cost should be included under PR1 (the parent's PR).
 		c2 := createChildChat(t, p, parent.ID, parent.ID, "child-2")
 		insertCostMessage(t, store, c2.ID, userID, mcID, 2_000_000)
@@ -10950,7 +10950,7 @@ func TestGetPRInsights(t *testing.T) {
 		store, userID, mcID, orgID := setupChatInfra(t)
 		p := chatParams{Store: store, UserID: userID, ModelConfigID: mcID, OrgID: orgID}
 
-		// Create 25 distinct PRs — more than the old LIMIT 20 — and
+		// Create 25 distinct PRs - more than the old LIMIT 20 - and
 		// verify all are returned.
 		const prCount = 25
 		for i := range prCount {
@@ -11142,7 +11142,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 			third.ID:  3,
 		})
 
-		// Reorder among remaining active pins — archived chat
+		// Reorder among remaining active pins - archived chat
 		// should not interfere with position calculation.
 		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
 			ID:       third.ID,
@@ -11304,7 +11304,7 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Update title only — labels must survive.
+		// Update title only - labels must survive.
 		updated, err := db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
 			ID:    chat.ID,
 			Title: "new-title",
@@ -11343,7 +11343,7 @@ func TestChatLabels(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Filter by env=prod — should match filter-a and filter-b.
+		// Filter by env=prod - should match filter-a and filter-b.
 		filterJSON, err := json.Marshal(database.StringMap{"env": "prod"})
 		require.NoError(t, err)
 		results, err := db.GetChats(ctx, database.GetChatsParams{
@@ -11363,7 +11363,7 @@ func TestChatLabels(t *testing.T) {
 		require.Contains(t, titles, "filter-b")
 		require.NotContains(t, titles, "filter-c")
 
-		// Filter by env=prod AND team=backend — should match only filter-a.
+		// Filter by env=prod AND team=backend - should match only filter-a.
 		filterJSON, err = json.Marshal(database.StringMap{"env": "prod", "team": "backend"})
 		require.NoError(t, err)
 		results, err = db.GetChats(ctx, database.GetChatsParams{
@@ -11376,7 +11376,7 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		require.Equal(t, "filter-a", results[0].Chat.Title)
-		// No filter — should return all chats for this owner.
+		// No filter - should return all chats for this owner.
 		allChats, err := db.GetChats(ctx, database.GetChatsParams{
 			OwnerID: owner.ID,
 		})
@@ -11861,7 +11861,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 
 	// staleRun + cascadeRun were finalized; completedRun and doneRun
 	// were already terminal, and freshRun survives because its
-	// updated_at is after the threshold — so only 2 runs are expected.
+	// updated_at is after the threshold - so only 2 runs are expected.
 	assert.EqualValues(t, 2, result.RunsFinalized,
 		"stale + cascade in_progress runs should be finalized")
 	// staleStep (age), orphanStep (age), cascadeStep (cascade only)
@@ -11931,7 +11931,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.Equal(t, "error", errorSteps[0].Status)
 
 	// Verify the fresh in_progress run survived due to recency,
-	// not terminal status — its updated_at is after the threshold.
+	// not terminal status - its updated_at is after the threshold.
 	unchangedFreshRun, err := store.GetChatDebugRunByID(ctx, freshRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "in_progress", unchangedFreshRun.Status,

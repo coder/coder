@@ -304,7 +304,7 @@ describe("archiveChat optimistic update", () => {
 		// Verify the optimistic update took effect.
 		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(true);
 
-		// Simulate an error — the onError handler invalidates the
+		// Simulate an error - the onError handler invalidates the
 		// cache so a re-fetch restores the correct state.
 		mutation.onError(new Error("server error"), chatId, context);
 
@@ -717,7 +717,7 @@ describe("chat cost query factories", () => {
 describe("mutation invalidation scope", () => {
 	// These tests assert the CORRECT (narrow) invalidation behaviour.
 	// Each mutation should only invalidate the queries it actually
-	// needs to refresh — not the entire ["chats"] prefix tree. The
+	// needs to refresh - not the entire ["chats"] prefix tree. The
 	// WebSocket stream already delivers real-time updates for
 	// messages, status changes, and sidebar ordering, so broad
 	// prefix invalidation causes a burst of redundant HTTP requests
@@ -758,7 +758,7 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// createChatMessage has no onSuccess handler — the WebSocket
+		// createChatMessage has no onSuccess handler - the WebSocket
 		// stream covers all real-time updates. Verify that constructing
 		// the mutation config does not define one.
 		const mutation = createChatMessage(queryClient, chatId);
@@ -825,7 +825,7 @@ describe("mutation invalidation scope", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 
-		// These two should still be invalidated — editing changes
+		// These two should still be invalidated - editing changes
 		// message content and potentially the chat's updated_at.
 		const chatState = queryClient.getQueryState(chatKey(chatId));
 		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
@@ -1069,7 +1069,7 @@ describe("mutation invalidation scope", () => {
 
 		const mutation = editChatMessage(queryClient, chatId);
 
-		// Pass undefined context — simulates onMutate throwing before
+		// Pass undefined context - simulates onMutate throwing before
 		// it could return a snapshot.
 		mutation.onError(
 			new Error("fail"),
@@ -1077,7 +1077,7 @@ describe("mutation invalidation scope", () => {
 			undefined,
 		);
 
-		// Cache should be untouched — no crash, no corruption.
+		// Cache should be untouched - no crash, no corruption.
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
 	});
@@ -1086,7 +1086,7 @@ describe("mutation invalidation scope", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Page 0 (newest): IDs 10–6. Page 1 (older): IDs 5–1.
+		// Page 0 (newest): IDs 10-6. Page 1 (older): IDs 5-1.
 		const page0 = [10, 9, 8, 7, 6].map((id) => makeMsg(chatId, id));
 		const page1 = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
 		const optimisticMessage = buildOptimisticMessage(requireMessage(page0, 7));
@@ -1175,7 +1175,7 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// interruptChat has no onSuccess handler — the WebSocket
+		// interruptChat has no onSuccess handler - the WebSocket
 		// delivers status changes in real-time.
 		const mutation = interruptChat(queryClient, chatId);
 		expect(mutation).not.toHaveProperty("onSuccess");
@@ -1351,7 +1351,7 @@ describe("diff_status_change invalidation scope", () => {
 	// These tests verify the CORRECT invalidation pattern for
 	// diff_status_change WebSocket events. The handler should
 	// invalidate only the individual chat detail and diff-contents
-	// queries — NOT the chat list (sidebar) or messages.
+	// queries - NOT the chat list (sidebar) or messages.
 
 	it("exact chatKey invalidation does not cascade to messages or diff-contents", async () => {
 		const queryClient = createTestQueryClient();
@@ -1363,7 +1363,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
 
-		// This is what the fixed handler does — exact: true.
+		// This is what the fixed handler does - exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
@@ -1402,7 +1402,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 
-		// This is what the OLD (broken) handler did — no exact: true.
+		// This is what the OLD (broken) handler did - no exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 		});
@@ -1518,7 +1518,7 @@ describe("cancelChatListRefetches", () => {
 
 		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
 
-		// Start an in-flight refetch (no fetchMeta — simulates a
+		// Start an in-flight refetch (no fetchMeta - simulates a
 		// regular invalidation or window-focus refetch).
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
@@ -1581,7 +1581,7 @@ describe("cancelChatListRefetches", () => {
 		await cancelChatListRefetches(queryClient);
 		await fetchDone;
 
-		// The fetch was NOT cancelled — the new data landed.
+		// The fetch was NOT cancelled - the new data landed.
 		const title = readInfiniteChats(queryClient)?.find(
 			(c) => c.id === chatId,
 		)?.title;
@@ -1628,7 +1628,7 @@ describe("cancelChatListRefetches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Do NOT seed the cache — simulate the very first fetch
+		// Do NOT seed the cache - simulate the very first fetch
 		// where no data exists yet.
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,

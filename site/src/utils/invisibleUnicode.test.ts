@@ -36,12 +36,12 @@ describe("countInvisibleCharacters", () => {
 	});
 
 	it("handles text with interleaved ZWS", () => {
-		// "h​e​l​l​o" — 4 ZWS between visible chars.
+		// "h​e​l​l​o" - 4 ZWS between visible chars.
 		expect(countInvisibleCharacters("h\u200be\u200bl\u200bl\u200bo")).toBe(4);
 	});
 
 	it("does NOT count tag characters", () => {
-		// Tag characters U+E0001–U+E007F are used in subdivision flag
+		// Tag characters U+E0001-U+E007F are used in subdivision flag
 		// emoji (e.g. 🏴󠁧󠁢󠁥󠁮󠁧󠁿) and are deliberately excluded from the
 		// strip list. They appear as surrogate pairs in UTF-16.
 		const text =

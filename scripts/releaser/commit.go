@@ -150,7 +150,7 @@ var humanizedAreas = []struct {
 }
 
 // conventionalPrefixRe extracts prefix, scope, and rest from a
-// conventional commit title. Does NOT match breaking "!" suffix —
+// conventional commit title. Does NOT match breaking "!" suffix;
 // those titles are left as-is (matching bash behavior).
 var conventionalPrefixRe = regexp.MustCompile(`^([a-z]+)(\((.+)\))?:\s*(.*)$`)
 
@@ -179,7 +179,7 @@ func humanizeTitle(title string) string {
 			return ha.Area + ": " + rest
 		}
 	}
-	// Scope not found in map — return as-is.
+	// Scope not found in map - return as-is.
 	return title
 }
 

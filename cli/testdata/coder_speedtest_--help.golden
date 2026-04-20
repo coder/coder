@@ -26,5 +26,5 @@ OPTIONS:
   -t, --time duration (default: 5s)
           Specifies the duration to monitor traffic.
 
-———
+---
 Run `coder --help` for a list of global options.

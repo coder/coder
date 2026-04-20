@@ -575,7 +575,7 @@ describe("useConversationEditingState", () => {
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
 			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef – assign the mock to it.
+		}; // The hook exposes chatInputRef - assign the mock to it.
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
@@ -596,7 +596,7 @@ describe("useConversationEditingState", () => {
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
 
-		// Each chatID should initialize with its own draft — this is
+		// Each chatID should initialize with its own draft - this is
 		// what the key={agentId} wrapper guarantees at the component
 		// level (a new chatID means a full remount).
 		const hookA = renderEditing(chatA);
@@ -776,7 +776,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.initialEditorState).toBeUndefined();
 		expect(result.current.editorInitialValue).toBe("old message text");
 
-		// Cancel — should restore both plain text and serialized state.
+		// Cancel - should restore both plain text and serialized state.
 		act(() => {
 			result.current.handleCancelHistoryEdit();
 		});

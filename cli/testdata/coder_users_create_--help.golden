@@ -31,5 +31,5 @@ OPTIONS:
   -u, --username string
           Specifies a username for the new user.
 
-———
+---
 Run `coder --help` for a list of global options.

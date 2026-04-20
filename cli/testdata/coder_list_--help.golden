@@ -20,5 +20,5 @@ OPTIONS:
       --search string (default: owner:me)
           Search for a workspace with a query.
 
-———
+---
 Run `coder --help` for a list of global options.

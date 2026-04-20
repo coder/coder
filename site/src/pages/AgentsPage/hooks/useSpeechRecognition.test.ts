@@ -41,7 +41,7 @@ let lastInstance: MockSpeechRecognition | null = null;
 
 function installMock() {
 	lastInstance = null;
-	// Use a real class so `new Ctor()` works — vi.fn() arrow
+	// Use a real class so `new Ctor()` works - vi.fn() arrow
 	// functions are not constructable.
 	class Ctor extends MockSpeechRecognition {
 		constructor() {
@@ -238,7 +238,7 @@ describe("useSpeechRecognition", () => {
 		installMock();
 		const { result } = renderHook(() => useSpeechRecognition());
 
-		// Start recording — creates the first instance.
+		// Start recording - creates the first instance.
 		act(() => {
 			result.current.start();
 		});
@@ -248,7 +248,7 @@ describe("useSpeechRecognition", () => {
 		// simulating the async browser behaviour.
 		first.abort = vi.fn();
 
-		// Start recording again — creates a second instance and aborts
+		// Start recording again - creates a second instance and aborts
 		// the first.
 		act(() => {
 			result.current.start();
@@ -263,7 +263,7 @@ describe("useSpeechRecognition", () => {
 			first.onend?.();
 		});
 
-		// The old onend must be ignored — recording is still active.
+		// The old onend must be ignored - recording is still active.
 		expect(result.current.isRecording).toBe(true);
 		expect(lastInstance).toBe(second);
 	});

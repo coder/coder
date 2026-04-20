@@ -3,7 +3,7 @@
  *
  * The previous implementation tried to dynamically truncate the number of roles
  * that would get displayed in a cell, only truncating if there were more roles
- * than room in the cell. But there was a problem – that information can't
+ * than room in the cell. But there was a problem: that information can't
  * exist on the first render, because the DOM nodes haven't been made yet.
  *
  * The only way to avoid UI flickering was by juggling between useLayoutEffect

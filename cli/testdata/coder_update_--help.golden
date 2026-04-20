@@ -41,5 +41,5 @@ OPTIONS:
           template. The file should be in YAML format, containing key-value
           pairs for the parameters.
 
-———
+---
 Run `coder --help` for a list of global options.

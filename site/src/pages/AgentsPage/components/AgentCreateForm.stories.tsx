@@ -446,7 +446,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
-		// Deliberately NOT pre-seeding permittedOrgsKey — the
+		// Deliberately NOT pre-seeding permittedOrgsKey - the
 		// wrapper sets it after mount to simulate async resolution.
 	},
 	args: {

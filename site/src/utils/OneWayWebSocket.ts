@@ -11,7 +11,7 @@
  * there is a very real possibility that parts of the app will start to lock up
  * without it being clear why.
  *
- * WebSockets do not have this limitation, even on HTTP/1.1 – all modern
+ * WebSockets do not have this limitation, even on HTTP/1.1 - all modern
  * browsers implement at least some degree of multiplexing for them.
  */
 

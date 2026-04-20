@@ -241,7 +241,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 
 	t.Run("MultiDigitIndices", func(t *testing.T) {
 		t.Parallel()
-		// Indices 0, 1, 2, ..., 10 — verifies that 10 sorts after 2,
+		// Indices 0, 1, 2, ..., 10 - verifies that 10 sorts after 2,
 		// not between 1 and 2 as a lexicographic sort would do.
 		var env []string
 		var expected []codersdk.AIBridgeProviderConfig

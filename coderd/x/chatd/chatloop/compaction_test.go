@@ -764,7 +764,7 @@ func TestRun_Compaction(t *testing.T) {
 					}), nil
 				default:
 					// Second turn (after compaction re-entry):
-					// text-only with low usage — should finish.
+					// text-only with low usage - should finish.
 					return streamFromParts([]fantasy.StreamPart{
 						{Type: fantasy.StreamPartTypeTextStart, ID: "text-2"},
 						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-2", Delta: "continued after compaction"},

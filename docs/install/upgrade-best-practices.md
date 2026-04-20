@@ -22,7 +22,7 @@ particularly with database migrations in high availability (HA) deployments.
 - **Check for known issues affecting your upgrade path.** Some version upgrades
   have known issues that may require a larger maintenance window or additional
   steps. For example, upgrades from v2.26.0 to v2.27.8 may encounter issues with
-  the `api_keys` table—upgrading to v2.26.6 first can help mitigate this.
+  the `api_keys` table. Upgrading to v2.26.6 first can help mitigate this.
   Contact [Coder support](../support/index.md) for guidance on your specific
   upgrade path.
 
@@ -186,7 +186,7 @@ If you encounter any of the following issues, contact
 
 - Locking issues that cannot be mitigated by the steps in this guide
 - Migrations taking significantly longer than expected (more than 15 minutes)
-  without evidence of lock contention—this may indicate database resource
+  without evidence of lock contention, this may indicate database resource
   constraints requiring investigation
 - Resource consumption issues (excessive memory, CPU, or OOM kills) during
   upgrades

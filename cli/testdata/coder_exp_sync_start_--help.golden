@@ -13,5 +13,5 @@ OPTIONS:
       --timeout duration (default: 5m)
           Maximum time to wait for dependencies (e.g., 30s, 5m). 5m by default.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -768,7 +768,7 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	{ // Experimental: agents — chat daemon and git sync worker initialization.
+	{ // Experimental: agents - chat daemon and git sync worker initialization.
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32

@@ -573,7 +573,7 @@ const mcpDefaults = {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+/** Input with multiple MCP servers selected - shows icon stack in toolbar. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -582,7 +582,7 @@ export const WithMCPServers: Story = {
 	},
 };
 
-/** MCP server needing OAuth — shows Auth button instead of toggle. */
+/** MCP server needing OAuth - shows Auth button instead of toggle. */
 export const WithMCPNeedingAuth: Story = {
 	args: {
 		...mcpDefaults,
@@ -591,7 +591,7 @@ export const WithMCPNeedingAuth: Story = {
 	},
 };
 
-/** No MCP servers active — shows only "MCP" label with chevron. */
+/** No MCP servers active - shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
@@ -749,7 +749,7 @@ const pagerdutyMCP = makeMCPServer({
 	enabled: true,
 });
 
-/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+/** Many tools with a workspace at 414px - forces overflow and "+N" pill. */
 export const OverflowBadges: Story = {
 	args: {
 		...mcpDefaults,
@@ -867,7 +867,7 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — verifies truncation. */
+/** Long workspace name at iPhone SE width - verifies truncation. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,

@@ -88,7 +88,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	}
 
 	// Add legacy Anthropic provider if configured. Bedrock credentials
-	// alone are sufficient — an Anthropic API key is not required when
+	// alone are sufficient - an Anthropic API key is not required when
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {

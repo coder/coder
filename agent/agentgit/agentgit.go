@@ -121,7 +121,7 @@ func (h *Handler) Subscribe(paths []string) bool {
 
 		root, err := findRepoRoot(h.gitBin, p)
 		if err != nil {
-			// Not a git path — silently ignore.
+			// Not a git path - silently ignore.
 			continue
 		}
 		if _, ok := h.repoRoots[root]; ok {
@@ -193,7 +193,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 				delete(h.lastSnapshots, res.root)
 				repos = append(repos, removal)
 			} else {
-				// Transient error — log and skip without
+				// Transient error - log and skip without
 				// removing the repo from the watch set.
 				h.logger.Warn(ctx, "scan repo failed",
 					slog.F("root", res.root),

@@ -15,5 +15,5 @@ OPTIONS:
           Permanently delete the token instead of expiring it. This removes the
           audit trail.
 
-———
+---
 Run `coder --help` for a list of global options.

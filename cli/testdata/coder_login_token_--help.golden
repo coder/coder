@@ -7,5 +7,5 @@ USAGE:
 
   Print the session token for use in scripts and automation.
 
-———
+---
 Run `coder --help` for a list of global options.

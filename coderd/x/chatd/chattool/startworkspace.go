@@ -43,7 +43,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"start_workspace",
 		"Start the chat's workspace if it is currently stopped. "+
-			"This tool is idempotent — if the workspace is already "+
+			"This tool is idempotent - if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
 			"first if no workspace exists yet.",
 		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -138,7 +138,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				result := waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, build.ID)
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
-				// This must happen after waitForAgentAndRespond —
+				// This must happen after waitForAgentAndRespond;
 				// firing earlier races with agent startup.
 				if options.OnChatUpdated != nil {
 					if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {
@@ -152,11 +152,11 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				if build.Transition == database.WorkspaceTransitionStart {
 					return toolResponse(waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws, uuid.Nil)), nil
 				}
-				// Otherwise it is stopped (or deleted) — proceed
+				// Otherwise it is stopped (or deleted) - proceed
 				// to start it below.
 
 			default:
-				// Failed, canceled, etc — try starting anyway.
+				// Failed, canceled, etc - try starting anyway.
 			}
 
 			// Set up dbauthz context for the start call.
@@ -222,7 +222,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 
 			// Re-fire after the agent is fully ready so
 			// callers can load instruction files (AGENTS.md).
-			// This must happen after waitForAgentAndRespond —
+			// This must happen after waitForAgentAndRespond;
 			// firing earlier races with agent startup.
 			if options.OnChatUpdated != nil {
 				if latest, err := options.DB.GetChatByID(ctx, options.ChatID); err == nil {

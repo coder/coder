@@ -3442,7 +3442,7 @@ func TestReinit(t *testing.T) {
 		}()
 
 		// The agent should receive a reinit event immediately from
-		// the durable claim check — no pubsub publish needed.
+		// the durable claim check - no pubsub publish needed.
 		ctx := testutil.Context(t, testutil.WaitShort)
 		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
 		require.NotNil(t, reinitEvent)

@@ -10,5 +10,5 @@ USAGE:
 SUBCOMMANDS:
     list    
 
-———
+---
 Run `coder --help` for a list of global options.

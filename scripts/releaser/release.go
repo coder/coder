@@ -69,8 +69,8 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Two modes:
-	//   1. On "main" — for tagging release candidates (RCs).
-	//   2. On "release/X.Y" — for releases and patches.
+	//   1. On "main" - for tagging release candidates (RCs).
+	//   2. On "release/X.Y" - for releases and patches.
 	// RCs are tagged directly on main to avoid the toil of
 	// cherry-picking hundreds of commits onto a release branch.
 	// The release/X.Y branch is only cut when the release is
@@ -89,13 +89,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if err := gitRun("merge-base", "--is-ancestor", "HEAD", "origin/main"); err == nil {
 			onMain = true
 			currentBranch = "main"
-			successf(w, "Detached HEAD is an ancestor of main — RC tagging mode.")
+			successf(w, "Detached HEAD is an ancestor of main - RC tagging mode.")
 		}
 	}
 
 	switch {
 	case onMain:
-		successf(w, "On main branch — RC tagging mode.")
+		successf(w, "On main branch - RC tagging mode.")
 	case branchRe.MatchString(currentBranch):
 		m := branchRe.FindStringSubmatch(currentBranch)
 		branchMajor, _ = strconv.Atoi(m[1])
@@ -122,7 +122,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		currentBranch = branchInput
 		if currentBranch == "main" {
 			onMain = true
-			successf(w, "On main branch — RC tagging mode.")
+			successf(w, "On main branch - RC tagging mode.")
 		} else {
 			m := branchRe.FindStringSubmatch(currentBranch)
 			branchMajor, _ = strconv.Atoi(m[1])
@@ -475,7 +475,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 			if len(breakingCommits) > 0 || len(breakingPRLabeled) > 0 {
 				fmt.Fprintln(w)
-				warnf(w, "BREAKING CHANGES detected in a PATCH release — this violates semver!")
+				warnf(w, "BREAKING CHANGES detected in a PATCH release - this violates semver!")
 				fmt.Fprintln(w)
 				if len(breakingCommits) > 0 {
 					fmt.Fprintln(w, "  Breaking commits (by conventional commit prefix):")

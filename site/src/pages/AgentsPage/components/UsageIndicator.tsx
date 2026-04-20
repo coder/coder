@@ -88,7 +88,7 @@ export const UsageIndicator: FC = () => {
 					used
 					{exceeded && (
 						<span className="ml-1 text-content-destructive">
-							— limit exceeded
+							- limit exceeded
 						</span>
 					)}
 				</div>

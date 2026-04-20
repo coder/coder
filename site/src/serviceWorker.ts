@@ -54,7 +54,7 @@ self.addEventListener("push", (event) => {
 	);
 });
 
-// Handle notification click — navigate to the specific chat or agents page.
+// Handle notification click - navigate to the specific chat or agents page.
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
 	const targetUrl: string = event.notification.data?.url || "/agents";

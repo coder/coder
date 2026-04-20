@@ -162,7 +162,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	if (tabs.length === 0 && !desktopChatId) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-				{/* Tab bar – always visible for the expand button. */}
+				{/* Tab bar - always visible for the expand button. */}
 				<div
 					role="tablist"
 					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
@@ -209,7 +209,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				role="tablist"
 				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
 			>
-				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
+				{/* Sidebar toggle - only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
 					<Button
 						variant="subtle"
@@ -329,7 +329,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{/* Tab panels – all stay mounted, only the active one visible. */}
+			{/* Tab panels - all stay mounted, only the active one visible. */}
 			{allPanels.map((panel) => {
 				const isActive = effectiveTabId === panel.id;
 				return (

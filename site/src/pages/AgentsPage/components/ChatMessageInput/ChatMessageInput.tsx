@@ -351,7 +351,7 @@ const ValueSyncPlugin: FC<{
 				editor.setEditorState(parsed);
 				return;
 			} catch {
-				// Malformed state — fall through to plain-text path.
+				// Malformed state - fall through to plain-text path.
 			}
 		}
 

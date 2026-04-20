@@ -30,5 +30,5 @@ SUBCOMMANDS:
                 specified by flag
     versions    Manage different versions of the specified template
 
-———
+---
 Run `coder --help` for a list of global options.

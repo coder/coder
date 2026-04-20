@@ -160,7 +160,7 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			// No stale rows — tick returns immediately.
+			// No stale rows - tick returns immediately.
 			close(tickDone)
 			return nil, nil
 		})
@@ -592,7 +592,7 @@ func TestWorker_RespectsShutdown(t *testing.T) {
 
 	select {
 	case <-worker.Done():
-		// Success — worker shut down.
+		// Success - worker shut down.
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for worker to shut down")
 	}

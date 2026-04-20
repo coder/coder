@@ -30,7 +30,7 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * Stateless "Thinking..." shimmer used during the streaming phase
  * when no text or reasoning blocks have arrived yet. Unlike the
  * `StartingPlaceholder` in `ChatStatusCallout`, this has no
- * delayed-startup timer — the streaming phase is transient and
+ * delayed-startup timer - the streaming phase is transient and
  * will be replaced as soon as real content arrives.
  */
 const StreamingThinkingPlaceholder: FC = () => (

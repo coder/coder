@@ -1724,7 +1724,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		// signalWake from CreateChat triggers background
 		// processing. drainInflight waits for in-flight goroutines
 		// but can't guarantee a pending DB row has been acquired
-		// yet — the child chat may still be pending if the second
+		// yet - the child chat may still be pending if the second
 		// wake signal hasn't been consumed. Poll until the child
 		// reaches a terminal DB state so processChat has fully
 		// finished, then reset to running for the cancellation

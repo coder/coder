@@ -482,7 +482,7 @@ type sqlcQuerier interface {
 	// the costs of any direct children (subagents) it spawned that do NOT
 	// have their own PR association. If a child chat has its own
 	// chat_diff_statuses entry (with a non-NULL pull_request_state), its
-	// cost is attributed to that child's PR instead — preventing
+	// cost is attributed to that child's PR instead - preventing
 	// double-counting when sibling chats create different PRs.
 	// Subagent trees are at most 2 levels deep (enforced by the
 	// application layer). PR metadata (state, additions, deletions)

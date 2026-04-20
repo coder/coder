@@ -141,7 +141,7 @@ const AgentsPage: FC = () => {
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently - react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -549,7 +549,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents - the chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({

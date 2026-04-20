@@ -17,5 +17,5 @@ SUBCOMMANDS:
     promote      Promote a template version to active.
     unarchive    Unarchive a template version(s).
 
-———
+---
 Run `coder --help` for a list of global options.

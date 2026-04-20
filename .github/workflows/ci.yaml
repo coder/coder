@@ -1235,7 +1235,7 @@ jobs:
       - name: Clean up build cache
         run: |
           set -euxo pipefail
-          # Go caches are no longer needed — binaries are already compiled.
+          # Go caches are no longer needed - binaries are already compiled.
           go clean -cache -modcache
           # Remove .apk and .rpm packages that are not uploaded as
           # artifacts and were only built as make prerequisites.
@@ -1247,7 +1247,7 @@ jobs:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
           DOCKER_CLI_EXPERIMENTAL: "enabled"
           # Skip building .deb/.rpm/.apk/.tar.gz as prerequisites for
-          # the Docker image targets — they were already built above.
+          # the Docker image targets - they were already built above.
           DOCKER_IMAGE_NO_PREREQUISITES: "true"
         run: |
           set -euxo pipefail

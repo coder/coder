@@ -14,5 +14,5 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
-———
+---
 Run `coder --help` for a list of global options.

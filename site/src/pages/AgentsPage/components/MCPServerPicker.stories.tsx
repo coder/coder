@@ -154,7 +154,7 @@ type Story = StoryObj<typeof MCPServerPicker>;
 
 // ── Stories ────────────────────────────────────────────────────
 
-/** No servers available — picker should not render. */
+/** No servers available - picker should not render. */
 export const NoServers: Story = {
 	args: {
 		servers: [],
@@ -162,7 +162,7 @@ export const NoServers: Story = {
 	},
 };
 
-/** All disabled servers — picker should not render. */
+/** All disabled servers - picker should not render. */
 export const AllDisabled: Story = {
 	args: {
 		servers: [disabledServer],
@@ -194,7 +194,7 @@ export const SingleDefaultOff: Story = {
 	},
 };
 
-/** OAuth2 server needing authentication — shows Auth button. */
+/** OAuth2 server needing authentication - shows Auth button. */
 export const OAuthNeedsAuth: Story = {
 	args: {
 		servers: [githubServer],
@@ -202,7 +202,7 @@ export const OAuthNeedsAuth: Story = {
 	},
 };
 
-/** OAuth2 server already authenticated — shows check icon. */
+/** OAuth2 server already authenticated - shows check icon. */
 export const OAuthConnected: Story = {
 	args: {
 		servers: [githubServerConnected],
@@ -231,7 +231,7 @@ export const AllConnected: Story = {
 	},
 };
 
-/** Disabled state — all toggles disabled. */
+/** Disabled state - all toggles disabled. */
 export const Disabled: Story = {
 	args: {
 		servers: allServers,
@@ -240,7 +240,7 @@ export const Disabled: Story = {
 	},
 };
 
-/** Servers including a disabled one — disabled should be filtered out. */
+/** Servers including a disabled one - disabled should be filtered out. */
 export const WithDisabledServer: Story = {
 	args: {
 		servers: [...allServers, disabledServer],
@@ -248,7 +248,7 @@ export const WithDisabledServer: Story = {
 	},
 };
 
-/** All servers opted out — only force_on remains active. */
+/** All servers opted out - only force_on remains active. */
 export const AllOptedOut: Story = {
 	args: {
 		servers: allServers,

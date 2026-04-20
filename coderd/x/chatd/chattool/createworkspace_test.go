@@ -1172,7 +1172,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
-	// UpdateChatWorkspaceBinding — triggers first OnChatUpdated.
+	// UpdateChatWorkspaceBinding - triggers first OnChatUpdated.
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
 		Return(database.Chat{
@@ -1196,8 +1196,8 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			CompletedAt: validNullTime(time.Now()),
 		}, nil)
 
-	// GetChatByID — called after waitForBuild for second OnChatUpdated.
-	// GetChatByID — called after waitForBuild for second OnChatUpdated.
+	// GetChatByID - called after waitForBuild for second OnChatUpdated.
+	// GetChatByID - called after waitForBuild for second OnChatUpdated.
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{
@@ -1205,7 +1205,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
-	// Agent lookup after build completes — return empty so we skip
+	// Agent lookup after build completes - return empty so we skip
 	// agent selection and waitForAgentReady.
 	db.EXPECT().
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).

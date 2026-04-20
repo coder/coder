@@ -3,7 +3,7 @@
 # changes, search existing docs, and comment with recommendations.
 #
 # Uses the Coder Chat API (/api/experimental/chats) instead of the Tasks
-# API — all API calls use curl + jq directly, no dedicated GitHub Action
+# API - all API calls use curl + jq directly, no dedicated GitHub Action
 # or workspace provisioning required.
 #
 # Triggers:
@@ -217,7 +217,7 @@ jobs:
 
       # ------------------------------------------------------------------
       # Create a chat via the Coder Chat API.
-      # The Chat API creates a lightweight chat session — no workspace
+      # The Chat API creates a lightweight chat session - no workspace
       # provisioning or dedicated GitHub Action checkout required.
       # ------------------------------------------------------------------
       - name: Create chat via Coder Chat API
@@ -243,7 +243,7 @@ jobs:
           CHAT_STATUS=$(echo "${RESPONSE}" | jq -r '.status')
 
           if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
-            echo "::error::Failed to create chat — no ID returned"
+            echo "::error::Failed to create chat - no ID returned"
             echo "Response: ${RESPONSE}"
             exit 1
           fi
@@ -293,7 +293,7 @@ jobs:
 
       # ------------------------------------------------------------------
       # Poll the chat status until the agent finishes.
-      # The Chat API is asynchronous — after creation the agent begins
+      # The Chat API is asynchronous - after creation the agent begins
       # working in the background. We poll GET /api/experimental/chats/<id>
       # every 5 seconds until the status is "waiting" (agent needs input),
       # "completed" (agent finished), or "error". Timeout after 10 minutes.
@@ -334,7 +334,7 @@ jobs:
                 exit 1
                 ;;
               pending|running)
-                # Still working — keep polling.
+                # Still working - keep polling.
                 ;;
               *)
                 echo "::warning::Unknown chat status: ${STATUS}"

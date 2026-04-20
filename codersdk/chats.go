@@ -90,7 +90,7 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes — first workspace
+	// is updated only when context changes - first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
@@ -766,14 +766,14 @@ type ChatDebugStep struct {
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
-// Zero means disabled — the template's own autostop setting applies.
+// Zero means disabled - the template's own autostop setting applies.
 const DefaultChatWorkspaceTTL = 0
 
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled - the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
@@ -781,7 +781,7 @@ type ChatWorkspaceTTLResponse struct {
 // workspace TTL setting.
 type UpdateChatWorkspaceTTLRequest struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled - the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
@@ -1272,7 +1272,7 @@ type DynamicTool struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 
 	// Handler executes the tool when the LLM invokes it.
-	// Not serialized — this only exists on the client side.
+	// Not serialized - this only exists on the client side.
 	Handler func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) `json:"-"`
 }
 

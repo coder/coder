@@ -9,5 +9,5 @@ SUBCOMMANDS:
     app       Open a workspace application.
     vscode    Open a workspace in VS Code Desktop
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -260,7 +260,7 @@ export const MultipleRepos: Story = {
 	},
 };
 
-/** No remote changes, no working changes — empty state. */
+/** No remote changes, no working changes - empty state. */
 export const EmptyState: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
@@ -305,7 +305,7 @@ export const InlineCommentInput: Story = {
 			const shadow = host.shadowRoot;
 			if (!shadow) continue;
 
-			// Look for a line number cell — they have data-line-number.
+			// Look for a line number cell - they have data-line-number.
 			const lineNumber = shadow.querySelector(
 				"[data-line-number]",
 			) as HTMLElement | null;

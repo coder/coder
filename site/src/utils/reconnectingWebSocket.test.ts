@@ -102,7 +102,7 @@ describe("createReconnectingWebSocket", () => {
 
 		expect(connect).toHaveBeenCalledTimes(1);
 
-		// First disconnect — should schedule reconnect after 1000ms.
+		// First disconnect - should schedule reconnect after 1000ms.
 		activeSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
@@ -112,7 +112,7 @@ describe("createReconnectingWebSocket", () => {
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(2);
 
-		// Second disconnect — delay should be 2000ms.
+		// Second disconnect - delay should be 2000ms.
 		activeSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(2);
 		expectReconnectSchedule(disconnects[1]!, { attempt: 2, delayMs: 2000 });
@@ -122,7 +122,7 @@ describe("createReconnectingWebSocket", () => {
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(3);
 
-		// Third disconnect — delay should be 4000ms.
+		// Third disconnect - delay should be 4000ms.
 		activeSocket.emit("close");
 		expectReconnectSchedule(disconnects[2]!, { attempt: 3, delayMs: 4000 });
 		vi.advanceTimersByTime(3999);
@@ -441,7 +441,7 @@ describe("createReconnectingWebSocket", () => {
 		activeSocket.emit("close");
 		vi.runOnlyPendingTimers();
 
-		// Now simulate a successful open — attempt should reset.
+		// Now simulate a successful open - attempt should reset.
 		activeSocket.emit("open");
 		activeSocket.emit("close");
 

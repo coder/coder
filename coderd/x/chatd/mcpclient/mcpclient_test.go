@@ -1165,7 +1165,7 @@ func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
 
 	info := tools[0].Info()
 
-	// Original schema should be flat — no model_intent wrapper.
+	// Original schema should be flat - no model_intent wrapper.
 	_, hasModelIntent := info.Parameters["model_intent"]
 	assert.False(t, hasModelIntent, "schema should NOT contain model_intent")
 	_, hasInput := info.Parameters["input"]
@@ -1261,7 +1261,7 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
-	// Malformed JSON should not panic — the error is returned
+	// Malformed JSON should not panic - the error is returned
 	// from the JSON unmarshal in Run(), not from unwrap.
 	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
 		ID:    "call-bad",

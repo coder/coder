@@ -25,5 +25,5 @@ USAGE:
   
        $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin
 
-———
+---
 Run `coder --help` for a list of global options.

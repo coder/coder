@@ -1039,7 +1039,7 @@ func (api *API) refreshMCPUserToken(
 		return true
 	}
 	if tok.RefreshToken == "" {
-		// No refresh token — consider connected only if not
+		// No refresh token - consider connected only if not
 		// expired (or no expiry set).
 		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
 	}
@@ -1050,7 +1050,7 @@ func (api *API) refreshMCPUserToken(
 			slog.F("server_slug", cfg.Slug),
 			slog.Error(err),
 		)
-		// Refresh failed — token is dead.
+		// Refresh failed - token is dead.
 		return false
 	}
 

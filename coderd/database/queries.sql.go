@@ -4174,7 +4174,7 @@ type GetPRInsightsSummaryRow struct {
 // the costs of any direct children (subagents) it spawned that do NOT
 // have their own PR association. If a child chat has its own
 // chat_diff_statuses entry (with a non-NULL pull_request_state), its
-// cost is attributed to that child's PR instead — preventing
+// cost is attributed to that child's PR instead - preventing
 // double-counting when sibling chats create different PRs.
 // Subagent trees are at most 2 levels deep (enforced by the
 // application layer). PR metadata (state, additions, deletions)
@@ -24721,7 +24721,7 @@ SELECT
 				-- get organization-member, but service accounts will get
 				-- organization-service-account instead. They're largely the same,
 				-- but having them be distinct means we can allow configuring
-				-- service-accounts to have slightly broader permissions–such as
+				-- service-accounts to have slightly broader permissions, such as
 				-- for workspace sharing.
 				unnest(
 					array_append(

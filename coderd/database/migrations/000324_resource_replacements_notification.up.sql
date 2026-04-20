@@ -15,7 +15,7 @@ because one or more immutable attributes changed:
 
 When Terraform must change an immutable attribute, it replaces the entire resource.
 If you’re using prebuilds to speed up provisioning, unexpected replacements will slow down
-workspace startup—even when claiming a prebuilt environment.
+workspace startup, even when claiming a prebuilt environment.
 
 For tips on preventing replacements and improving claim performance, see [this guide](https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement).
 

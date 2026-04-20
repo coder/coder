@@ -97,7 +97,7 @@ const ReasoningDisclosure = memo<{
 });
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
-// response block. Only used during live streaming — historical
+// response block. Only used during live streaming - historical
 // messages render through <Response> directly.
 const SmoothedResponse = memo<{
 	text: string;
@@ -589,7 +589,7 @@ const StickyUserMessage = memo<{
 				const fullHeight = container.offsetHeight;
 
 				// Skip sticky behavior for messages that take up
-				// most of the visible area — accounting for the
+				// most of the visible area - accounting for the
 				// chat input and some breathing room.
 				const tooTall = fullHeight > scrollerHeight * 0.75;
 				setIsTooTall(tooTall);
@@ -625,7 +625,7 @@ const StickyUserMessage = memo<{
 				container.style.setProperty("--fade-opacity", String(fade));
 				// Push-up effect: when the next user message's sentinel
 				// approaches the bottom of this sticky container, shift
-				// this container upward so it slides out of view — the
+				// this container upward so it slides out of view - the
 				// same visual as the old section-boundary behavior.
 				let nextSentinel: Element | null = sentinel.nextElementSibling;
 				while (nextSentinel) {
@@ -663,7 +663,7 @@ const StickyUserMessage = memo<{
 			// Re-run the visual update when the scrollable content height
 			// changes (e.g. streaming responses growing the transcript).
 			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
+			// bottom so no scroll event fires - but the content wrapper
 			// resizes and this observer catches that.
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
@@ -681,7 +681,7 @@ const StickyUserMessage = memo<{
 			scroller.addEventListener("scroll", onScroll, { passive: true });
 			window.addEventListener("resize", onResize);
 			update();
-			// Set immediately — both --clip-h and --overlay-ready are
+			// Set immediately - both --clip-h and --overlay-ready are
 			// applied before the browser paints since we're in a
 			// useLayoutEffect.
 			container.style.setProperty("--overlay-ready", "1");

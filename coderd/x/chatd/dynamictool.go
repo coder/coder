@@ -12,7 +12,7 @@ import (
 
 // dynamicTool wraps a codersdk.DynamicTool as a fantasy.AgentTool.
 // These tools are presented to the LLM but never executed by the
-// chatloop — when the LLM calls one, the chatloop exits with
+// chatloop - when the LLM calls one, the chatloop exits with
 // requires_action status and the client handles execution.
 // The Run method should never be called; it returns an error if
 // it is, as a safety net.
@@ -77,7 +77,7 @@ func (*dynamicTool) Run(_ context.Context, _ fantasy.ToolCall) (fantasy.ToolResp
 	// method is called, it indicates a bug in the chatloop's
 	// dynamic tool detection logic.
 	return fantasy.NewTextErrorResponse(
-		"dynamic tool called in chatloop — this is a bug; " +
+		"dynamic tool called in chatloop - this is a bug; " +
 			"dynamic tools should be handled by the client",
 	), nil
 }

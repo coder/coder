@@ -19,7 +19,7 @@ by ECS blocks the syscalls needed for Agent Firewall. Because it is difficult to
 disable or modify the seccomp profile on ECS, you must grant `SYS_ADMIN` (along
 with `NET_ADMIN`) so that Agent Firewall can create namespaces and run nsjail.
 
-**Task definition (Terraform) — `linuxParameters`:**
+**Task definition (Terraform) - `linuxParameters`:**
 
 ```hcl
 container_definitions = jsonencode([{

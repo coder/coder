@@ -1170,7 +1170,7 @@ describe("useChatStore", () => {
 
 		// The old WebSocket was closed during effect cleanup.
 		expect(mockSocket1.close).toHaveBeenCalled();
-		// Stream state was reset — no stale stream data from chat-1.
+		// Stream state was reset - no stale stream data from chat-1.
 		expect(result.current.streamState).toBeNull();
 	});
 
@@ -1308,7 +1308,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Stream state should still be present — the mismatched event
+		// Stream state should still be present - the mismatched event
 		// was filtered and did not trigger a stream reset.
 		await waitFor(() => {
 			expect(result.current.streamState?.blocks).toEqual([
@@ -1585,7 +1585,7 @@ describe("useChatStore", () => {
 		});
 
 		// After the switch, queued messages from chat-1 should NOT be
-		// visible — the store resets them on chatID change.
+		// visible - the store resets them on chatID change.
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
@@ -1654,7 +1654,7 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be null — the status change cleared it,
+		// Stream state should be null - the status change cleared it,
 		// and the deferred applyMessageParts should not have
 		// re-populated it.
 		await waitFor(() => {
@@ -1931,7 +1931,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Transition to running — should clear retry state.
+		// Transition to running - should clear retry state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -2091,7 +2091,7 @@ describe("useChatStore", () => {
 			);
 		});
 		// Main chat status should remain "running" from the initial
-		// chatRecord — the subagent status event must not change it.
+		// chatRecord - the subagent status event must not change it.
 		expect(result.current.chatStatus).toBe("running");
 	});
 
@@ -2425,7 +2425,7 @@ describe("useChatStore", () => {
 			timeout: 3_000,
 		});
 
-		// Second disconnect — reconnect after 2s.
+		// Second disconnect - reconnect after 2s.
 		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
@@ -2663,7 +2663,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
-		// Transition to running — should call clearChatErrorReason.
+		// Transition to running - should call clearChatErrorReason.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -2739,7 +2739,7 @@ describe("useChatStore", () => {
 			},
 		});
 
-		// Messages 2 and 3 should be removed — replaceMessages should
+		// Messages 2 and 3 should be removed - replaceMessages should
 		// have been used instead of upsert because the store contained
 		// IDs not present in the fetched set.
 		await waitFor(() => {
@@ -3408,7 +3408,7 @@ describe("updateSidebarChat via stream events", () => {
 			});
 		});
 
-		// The per-chat WebSocket does not write updated_at — only the
+		// The per-chat WebSocket does not write updated_at - only the
 		// global chat-list WebSocket delivers the authoritative server
 		// timestamp. Verify it stays at the original value.
 		await waitFor(() => {
@@ -4045,7 +4045,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 
 describe("store/cache desync protection", () => {
 	it("does not wipe a message added via upsertDurableMessage when a genuine refetch follows", async () => {
-		// RED TEST: Simulates what handleSend does today — it calls
+		// RED TEST: Simulates what handleSend does today - it calls
 		// store.upsertDurableMessage without writing to the React
 		// Query cache. A subsequent rerender with new message refs
 		// (genuine refetch) should NOT wipe the store-only message.
@@ -4132,7 +4132,7 @@ describe("store/cache desync protection", () => {
 		});
 
 		// msg3 was added to the store AFTER the last sync. It
-		// should NOT be classified as stale — it's new, not
+		// should NOT be classified as stale - it's new, not
 		// something the server removed.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
@@ -4210,7 +4210,7 @@ describe("store/cache desync protection", () => {
 		});
 
 		// msg2 and msg3 WERE in the previous sync data and are
-		// now absent — they are genuinely stale (edit truncation)
+		// now absent - they are genuinely stale (edit truncation)
 		// and should be removed.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1]);

@@ -68,7 +68,7 @@ When investigating an incident (policy violation, destructive action, etc.):
 1. **Locate the thread.** Each thread in a session shows the (likely) human prompt
    that initiated the chain of actions.
 1. **Trace the causal chain.** Expand the thread to see every step in the
-   agentic loop — each tool call and its arguments.
+   agentic loop - each tool call and its arguments.
 1. **Review model reasoning.** If extended thinking was enabled, check the
    model's reasoning at each step to understand why specific tools were called.
 1. **Assess attribution.** The session identifies the human who
@@ -89,13 +89,13 @@ AI Gateway captures the following data from each request/response:
 Model-produced inference text is discarded, as generated text alone
 cannot affect external systems. The retention philosophy prioritizes:
 
-- **Human prompts** — capture intent and detect policy violations or
+- **Human prompts** - capture intent and detect policy violations or
   exfiltration attempts.
-- **Tool calls** — record how agents interact with external systems,
+- **Tool calls** - record how agents interact with external systems,
   which is critical for understanding how incidents occurred. For
   example, an agent might delete and recreate a database because it
   lacks permissions to satisfy a human request to query a table.
-- **Model reasoning** — preserve thinking content that explains why
+- **Model reasoning** - preserve thinking content that explains why
   specific tools were invoked, distinguishing between human instruction
   and model misunderstanding as the root cause.
 
@@ -104,6 +104,6 @@ session data is kept.
 
 ## Next steps
 
-- [Monitoring](./monitoring.md) — Dashboards, data export, and tracing
-- [Setup](./setup.md) — Configure AI Gateway and data retention
-- [Reference](./reference.md) — API and technical reference
+- [Monitoring](./monitoring.md) - Dashboards, data export, and tracing
+- [Setup](./setup.md) - Configure AI Gateway and data retention
+- [Reference](./reference.md) - API and technical reference

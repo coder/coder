@@ -14,5 +14,5 @@ USAGE:
   
    $ coder schedule extend my-workspace 90m
 
-———
+---
 Run `coder --help` for a list of global options.

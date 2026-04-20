@@ -378,7 +378,7 @@ describe("mergeTools", () => {
 	});
 });
 
-describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
+describe("parseMessagesWithMergedTools - killedBySignal annotation", () => {
 	const msg = (
 		id: number,
 		role: "assistant" | "user",

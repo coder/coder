@@ -3346,7 +3346,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	for i := range reconnections {
 		call := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
 		require.Equal(t, i+1, client.GetNumRefreshTokenCalls())
-		close(call.Resps) // hang up — triggers reconnect
+		close(call.Resps) // hang up - triggers reconnect
 	}
 	// Verify final reconnect succeeds.
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)

@@ -44,7 +44,7 @@ export const OpenCombobox: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Type a display name to filter — this verifies cmdk filters
+		// Type a display name to filter - this verifies cmdk filters
 		// by label rather than by the underlying UUID value.
 		await userEvent.type(input, "My Organization 2");
 

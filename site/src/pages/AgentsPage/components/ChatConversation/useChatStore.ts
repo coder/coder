@@ -380,7 +380,7 @@ export const useChatStore = (
 
 		// Discard buffered parts without applying them. Used when
 		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
+		// retry) - flushing would re-populate the state that the
 		// event is about to clear.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
@@ -438,7 +438,7 @@ export const useChatStore = (
 					// commit durable state that must include all
 					// stream parts. `error` events should surface
 					// partial output. Other events (status, retry,
-					// queue_update) must NOT flush — status changes
+					// queue_update) must NOT flush - status changes
 					// need to be visible before parts so the
 					// "Thinking..." indicator can render, and retry
 					// clears stream state which a flush would

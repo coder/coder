@@ -9,5 +9,5 @@ OPTIONS:
       --raw-url bool
           Output the raw connection URL instead of a psql command.
 
-———
+---
 Run `coder --help` for a list of global options.

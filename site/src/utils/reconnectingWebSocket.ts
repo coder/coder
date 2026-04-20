@@ -77,7 +77,7 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	 * Factory that creates and returns a new socket. Called on the
 	 * initial connection and on every reconnection attempt. The caller
 	 * is responsible for attaching any `message` listeners to the
-	 * returned socket — this utility only manages the lifecycle
+	 * returned socket - this utility only manages the lifecycle
 	 * (`open`, `close`, `error`) events.
 	 */
 	connect: () => TSocket;
@@ -248,7 +248,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		activeSocket = socket;
 
 		const handleOpen = () => {
-			// Connection succeeded — reset backoff.
+			// Connection succeeded - reset backoff.
 			lastReconnectAttempt = 0;
 			onOpen?.(socket);
 		};

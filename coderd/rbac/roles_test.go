@@ -1026,7 +1026,7 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
-		// Only the user themselves can access their own secrets — no one else.
+		// Only the user themselves can access their own secrets - no one else.
 		{
 			Name:     "UserSecrets",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},

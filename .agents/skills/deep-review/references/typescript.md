@@ -1,4 +1,4 @@
-# Modern TypeScript (5.0–6.0 RC) — Reference
+# Modern TypeScript (5.0-6.0 RC) - Reference
 
 Reference for writing idiomatic TypeScript. Covers what changed, what it replaced, and what to reach for. Respect the project's minimum TypeScript version: don't emit features from a version newer than what the project targets. Check `package.json` and `tsconfig.json` before writing code.
 
@@ -20,12 +20,12 @@ The left column reflects patterns still common before TypeScript 5.x. Write the 
 
 | Old pattern                                                                                                      | Modern replacement                                                                                                           | Since  |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `--experimentalDecorators` + legacy decorator signatures                                                         | Standard decorators (TC39): `function dec(target, context: ClassMethodDecoratorContext)` — no flag needed                    | 5.0    |
-| Requiring callers to add `as const` at call sites                                                                | `<const T extends HasNames>(arg: T)` — `const` modifier on type parameter                                                    | 5.0    |
+| `--experimentalDecorators` + legacy decorator signatures                                                         | Standard decorators (TC39): `function dec(target, context: ClassMethodDecoratorContext)` - no flag needed                    | 5.0    |
+| Requiring callers to add `as const` at call sites                                                                | `<const T extends HasNames>(arg: T)` - `const` modifier on type parameter                                                    | 5.0    |
 | `--importsNotUsedAsValues` + `--preserveValueImports`                                                            | `--verbatimModuleSyntax`                                                                                                     | 5.0    |
 | `import { Foo } from "..."` when `Foo` is only used as a type                                                    | `import { type Foo } from "..."` or `import type { Foo } from "..."`                                                         | 5.0    |
 | `"extends": "@tsconfig/strictest/tsconfig.json"` chain                                                           | `"extends": ["@tsconfig/strictest/tsconfig.json", "./tsconfig.base.json"]` (array form)                                      | 5.0    |
-| `try { ... } finally { resource.close(); resource.delete(); }`                                                   | `using resource = acquireResource()` — calls `[Symbol.dispose]()` automatically                                              | 5.2    |
+| `try { ... } finally { resource.close(); resource.delete(); }`                                                   | `using resource = acquireResource()` - calls `[Symbol.dispose]()` automatically                                              | 5.2    |
 | `try { ... } finally { await resource.close() }`                                                                 | `await using resource = acquireAsyncResource()`                                                                              | 5.2    |
 | Ad-hoc cleanup with multiple `try/finally` blocks                                                                | `using cleanup = new DisposableStack(); cleanup.defer(() => ...)`                                                            | 5.2    |
 | `import data from "./data.json" assert { type: "json" }`                                                         | `import data from "./data.json" with { type: "json" }`                                                                       | 5.3    |
@@ -41,12 +41,12 @@ The left column reflects patterns still common before TypeScript 5.x. Write the 
 | `"baseUrl": "./src"` + `"@app/*": ["app/*"]` in paths                                                            | Remove `baseUrl`; use `"@app/*": ["./src/app/*"]` in paths directly                                                          | 6.0 RC |
 | `module Foo { export const x = 1; }`                                                                             | `namespace Foo { export const x = 1; }`                                                                                      | 6.0 RC |
 | `export * from "..."` when all re-exported members are types                                                     | `export type * from "..."` (or `export type * as ns from "..."`)                                                             | 5.0    |
-| `function f(): undefined { return undefined; }` — explicit return required in `: undefined`-returning function   | Remove the `return` entirely; `undefined`-returning functions no longer require any return statement                         | 5.1    |
+| `function f(): undefined { return undefined; }` - explicit return required in `: undefined`-returning function   | Remove the `return` entirely; `undefined`-returning functions no longer require any return statement                         | 5.1    |
 | Manual type predicate annotation on a simple arrow: `(x: T \| undefined): x is T => x !== undefined`             | Remove the annotation; TypeScript infers `x is T` from `!== null/undefined` and `instanceof` checks automatically            | 5.5    |
-| `const val = obj[key]; if (typeof val === "string") { use(val); }` — extract to const to narrow indexed access   | `if (typeof obj[key] === "string") { obj[key].toUpperCase(); }` directly — both `obj` and `key` must be effectively constant | 5.5    |
+| `const val = obj[key]; if (typeof val === "string") { use(val); }` - extract to const to narrow indexed access   | `if (typeof obj[key] === "string") { obj[key].toUpperCase(); }` directly - both `obj` and `key` must be effectively constant | 5.5    |
 | Copy narrowed `let`/param to a `const`, or restructure code to escape stale closure narrowing after reassignment | Remove the copy; narrowing survives into closures created after the last assignment to the variable                          | 5.4    |
 | `(arr as string[]).filter(...)` or restructure to avoid "not callable" errors on `string[] \| number[]`          | Call `.filter`, `.find`, `.some`, `.every`, `.reduce` directly on union-of-array types                                       | 5.2    |
-| `if`/`else` chain used to work around lack of narrowing inside a `switch (true)` body                            | `switch (true)` — each `case` condition now narrows the tested variable in its clause                                        | 5.3    |
+| `if`/`else` chain used to work around lack of narrowing inside a `switch (true)` body                            | `switch (true)` - each `case` condition now narrows the tested variable in its clause                                        | 5.3    |
 
 ## New capabilities
 
@@ -73,7 +73,7 @@ These enable things that weren't practical before. Reach for them in the describ
 | `Set` algebra methods                           | 5.5    | Non-mutating: `union`, `intersection`, `difference`, `symmetricDifference` → new `Set`. Predicate: `isSubsetOf`, `isSupersetOf`, `isDisjointFrom` → `boolean`. Requires `esnext` or `es2025` lib.                                             |
 | `Object.groupBy` / `Map.groupBy`                | 5.4    | Group an iterable into buckets by key function. Return type has all keys as optional (not every key is guaranteed present). Requires `esnext` or `es2024`+ lib.                                                                               |
 | `Temporal` API types                            | 6.0 RC | `Temporal.Now`, `Temporal.Instant`, `Temporal.PlainDate`, etc. Available under `esnext` or `esnext.temporal` lib. Usable in runtimes that already ship it (V8 118+, SpiderMonkey, etc.).                                                      |
-| `@satisfies` in JSDoc                           | 5.0    | Validates that a JS expression satisfies a type without widening it — the TS `satisfies` operator for `.js` files. Write `/** @satisfies {MyType} */` above the declaration or inline on a parenthesized expression.                          |
+| `@satisfies` in JSDoc                           | 5.0    | Validates that a JS expression satisfies a type without widening it - the TS `satisfies` operator for `.js` files. Write `/** @satisfies {MyType} */` above the declaration or inline on a parenthesized expression.                          |
 | `@overload` in JSDoc                            | 5.0    | Declare multiple call signatures for a JS function. Each JSDoc comment tagged `@overload` is treated as a distinct overload; the final JSDoc comment (without `@overload`) describes the implementation signature.                            |
 | Getter/setter with completely unrelated types   | 5.1    | `get style(): CSSStyleDeclaration` and `set style(v: string)` can now have fully unrelated types, provided both have explicit type annotations. Previously the getter type was required to be a subtype of the setter type.                   |
 | `instanceof` narrowing via `Symbol.hasInstance` | 5.3    | When a class defines `static [Symbol.hasInstance](val: unknown): val is T`, the `instanceof` operator now narrows to the predicate type `T`, not the class type itself. Useful when the runtime check and the structural type differ.         |
@@ -88,11 +88,11 @@ These enable things that weren't practical before. Reach for them in the describ
 
 Global types provided by TypeScript's lib (requires `esnext.disposable` or `esnext` in `lib`):
 
-- `Disposable` — `{ [Symbol.dispose](): void }`
-- `AsyncDisposable` — `{ [Symbol.asyncDispose](): PromiseLike<void> }`
-- `DisposableStack` — `defer(fn)`, `use(resource)`, `adopt(value, disposeFn)`, `move()`. Is itself `Disposable`.
-- `AsyncDisposableStack` — async equivalent. Is itself `AsyncDisposable`.
-- `SuppressedError` — thrown when both the scope body and a `[Symbol.dispose]` throw. `.error` holds the dispose-phase error; `.suppressed` holds the original error.
+- `Disposable` - `{ [Symbol.dispose](): void }`
+- `AsyncDisposable` - `{ [Symbol.asyncDispose](): PromiseLike<void> }`
+- `DisposableStack` - `defer(fn)`, `use(resource)`, `adopt(value, disposeFn)`, `move()`. Is itself `Disposable`.
+- `AsyncDisposableStack` - async equivalent. Is itself `AsyncDisposable`.
+- `SuppressedError` - thrown when both the scope body and a `[Symbol.dispose]` throw. `.error` holds the dispose-phase error; `.suppressed` holds the original error.
 
 Polyfill the symbols in older runtimes:
 
@@ -139,7 +139,7 @@ Declared on `Array`, `ReadonlyArray`, and all `TypedArray` types. Use these inst
 
 Things easy to get wrong even when you know the modern API exists. Check your output against these.
 
-**tsconfig defaults changed hard in 6.0.** `types: []` means no `@types/*` packages load implicitly. If you see floods of "cannot find name 'process'" or "cannot find module 'fs'" after upgrading to 6.0, add `"types": ["node"]` (or whatever you need) to `compilerOptions`. `rootDir: "."` means a project with source in `src/` will emit to `dist/src/` instead of `dist/` — add `"rootDir": "./src"` explicitly. `strict: true` by default means projects with loose code see new errors.
+**tsconfig defaults changed hard in 6.0.** `types: []` means no `@types/*` packages load implicitly. If you see floods of "cannot find name 'process'" or "cannot find module 'fs'" after upgrading to 6.0, add `"types": ["node"]` (or whatever you need) to `compilerOptions`. `rootDir: "."` means a project with source in `src/` will emit to `dist/src/` instead of `dist/` - add `"rootDir": "./src"` explicitly. `strict: true` by default means projects with loose code see new errors.
 
 **`using` requires a runtime polyfill on older runtimes.** `Symbol.dispose` and `Symbol.asyncDispose` don't exist before Node.js 18.x / Chrome 120. Add the two-line polyfill at your entry point. `DisposableStack` and `AsyncDisposableStack` need a more substantial polyfill (e.g. from `@microsoft/using-polyfill`).
 
@@ -159,7 +159,7 @@ Things easy to get wrong even when you know the modern API exists. Check your ou
 
 **`--erasableSyntaxOnly` prohibits parameter properties.** `constructor(public x: number)` is not allowed. Expand to an explicit field declaration plus assignment in the constructor body.
 
-**Closure narrowing is invalidated if the variable is assigned anywhere in a nested function.** TypeScript cannot know when a nested function will run, so any assignment to a `let`/param inside a nested function — even a no-op like `value = value` — invalidates narrowing for all closures in the outer scope. Only the outer "no further assignments after this point" pattern is safe.
+**Closure narrowing is invalidated if the variable is assigned anywhere in a nested function.** TypeScript cannot know when a nested function will run, so any assignment to a `let`/param inside a nested function - even a no-op like `value = value` - invalidates narrowing for all closures in the outer scope. Only the outer "no further assignments after this point" pattern is safe.
 
 **Constant indexed access narrowing requires both `obj` and `key` to be unmodified between the check and the use.** If either is a `let` that could be reassigned, TypeScript will not narrow `obj[key]`. Extract the value to a `const` in that case.
 

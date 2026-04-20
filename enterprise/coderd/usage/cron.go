@@ -51,7 +51,7 @@ type CronJob struct {
 
 // Cron runs registered CronJobs on the dbInserter's clock. Stopping
 // the context passed to Start cancels all jobs. Daemon restarts
-// naturally restart the timers since Start() creates them fresh —
+// naturally restart the timers since Start() creates them fresh;
 // there is no state to persist or recover.
 type Cron struct {
 	clock quartz.Clock
@@ -147,7 +147,7 @@ func (c *Cron) run(ctx context.Context, job CronJob) {
 		// same key.
 		stableID := string(job.EventType) + ":" + boundary.UTC().Format(cronDateFormat)
 
-		// Skip if this bucket was already recorded — avoids running
+		// Skip if this bucket was already recorded - avoids running
 		// the potentially expensive heartbeat function for a
 		// duplicate.
 		exists, err := c.db.UsageEventExistsByID(ctx, stableID)

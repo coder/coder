@@ -365,7 +365,7 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 
 	// Shallow-clone the HTTP client so we never inherit a caller-provided
 	// cookie jar. Non-browser websocket auth uses the Coder-Session-Token
-	// header or a signed-token query param — never cookies. A stale jar
+	// header or a signed-token query param - never cookies. A stale jar
 	// cookie would take precedence on the server (cookies are checked
 	// before headers) and cause spurious 401s.
 	wsHTTPClient := *c.client.HTTPClient

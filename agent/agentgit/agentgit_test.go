@@ -73,7 +73,7 @@ func TestSubscribeBulkPathsAndDedupes(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	// Subscribe with multiple paths in the same repo — should dedupe
+	// Subscribe with multiple paths in the same repo - should dedupe
 	// to one repo root.
 	filePath1 := filepath.Join(repoDir, "a.go")
 	filePath2 := filepath.Join(repoDir, "b.go")
@@ -248,19 +248,19 @@ func TestScanDeltaEmission(t *testing.T) {
 	h.Subscribe([]string{dirtyFile})
 	ctx := context.Background()
 
-	// First scan — returns all files (no previous snapshot).
+	// First scan - returns all files (no previous snapshot).
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes - should return nil (no delta).
 	msg2 := h.Scan(ctx)
 	require.Nil(t, msg2, "no changes since last scan should return nil")
 
 	// Revert the dirty file (make repo clean).
 	require.NoError(t, os.Remove(dirtyFile))
 
-	// Third scan — should emit a "clean" delta for dirty.go.
+	// Third scan - should emit a "clean" delta for dirty.go.
 	msg3 := h.Scan(ctx)
 	require.NotNil(t, msg3)
 	require.Len(t, msg3.Repositories, 1)
@@ -284,14 +284,14 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	h.Subscribe([]string{readmePath})
 	ctx := context.Background()
 
-	// First scan — returns the initial dirty state.
+	// First scan - returns the initial dirty state.
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
 
 	require.Contains(t, msg1.Repositories[0].UnifiedDiff, "README.md")
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes - should return nil (no delta).
 	msg2 := h.Scan(ctx)
 	require.Nil(t, msg2, "no changes since last scan should return nil")
 
@@ -299,7 +299,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	// different content).
 	require.NoError(t, os.WriteFile(readmePath, []byte("# Edit 2\nMore lines\nEven more\n"), 0o600))
 
-	// Third scan — should detect the content change even though the
+	// Third scan - should detect the content change even though the
 	// status is still "Modified".
 	msg3 := h.Scan(ctx)
 	require.NotNil(t, msg3, "content change in already-dirty file should emit delta")
@@ -307,7 +307,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg3.Repositories[0].UnifiedDiff, "README.md")
 
-	// Also test an untracked (unstaged) file — its status is "Added"
+	// Also test an untracked (unstaged) file - its status is "Added"
 	// throughout, but further edits should still emit deltas.
 	untrackedPath := filepath.Join(repoDir, "untracked.go")
 	require.NoError(t, os.WriteFile(untrackedPath, []byte("package main\n"), 0o600))
@@ -318,7 +318,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg4.Repositories[0].UnifiedDiff, "untracked.go")
 
-	// No changes — should return nil.
+	// No changes - should return nil.
 	msg5 := h.Scan(ctx)
 	require.Nil(t, msg5, "no changes since last scan should return nil")
 
@@ -436,7 +436,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	h.Subscribe([]string{dirtyFile})
 	ctx := context.Background()
 
-	// Initial scan — populates the snapshot with the dirty file.
+	// Initial scan - populates the snapshot with the dirty file.
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
@@ -458,7 +458,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	// Removed repo should have an empty diff.
 	require.Empty(t, removed.UnifiedDiff)
 
-	// Subsequent scan should return nil — the repo was evicted from
+	// Subsequent scan should return nil - the repo was evicted from
 	// the watch set.
 	msg3 := h.Scan(ctx)
 	require.Nil(t, msg3, "evicted repo should not appear in subsequent scans")
@@ -542,7 +542,7 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 		"worktree with deleted gitdir should be marked as removed")
 	require.Equal(t, worktreeDir, msg2.Repositories[0].RepoRoot)
 
-	// Repo should be evicted — subsequent scan returns nil.
+	// Repo should be evicted - subsequent scan returns nil.
 	msg3 := h.Scan(ctx)
 	require.Nil(t, msg3, "evicted worktree should not appear in subsequent scans")
 }
@@ -998,15 +998,15 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	h.Subscribe([]string{largeFile})
 	ctx := context.Background()
 
-	// First scan — should include the large file.
+	// First scan - should include the large file.
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes - should return nil (no delta).
 	msg2 := h.Scan(ctx)
 	require.Nil(t, msg2, "no changes should mean no delta")
 
-	// Remove the large file — should emit a clean delta.
+	// Remove the large file - should emit a clean delta.
 	require.NoError(t, os.Remove(largeFile))
 	msg3 := h.Scan(ctx)
 	require.NotNil(t, msg3)
@@ -1176,7 +1176,7 @@ func TestWebSocketLargePathStoreSubscription(t *testing.T) {
 	ps := agentgit.NewPathStore()
 	chatID := uuid.New()
 
-	// Build a path list with 500 paths — one real repo path and 499
+	// Build a path list with 500 paths - one real repo path and 499
 	// long non-git paths that will be silently ignored.
 	paths := make([]string, 500)
 	for i := range paths {
@@ -1341,7 +1341,7 @@ func TestE2E_ReEditedFileTriggersRescan(t *testing.T) {
 	chatID := uuid.New()
 	mClock := quartz.NewMock(t)
 
-	// First AddPaths — registers the path and repo.
+	// First AddPaths - registers the path and repo.
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filePath})
 
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
@@ -1353,7 +1353,7 @@ func TestE2E_ReEditedFileTriggersRescan(t *testing.T) {
 	require.NotEmpty(t, msg1.Repositories)
 	require.Contains(t, msg1.Repositories[0].UnifiedDiff, "v1")
 
-	// Modify the same file again — the repo is already watched,
+	// Modify the same file again - the repo is already watched,
 	// so Subscribe returns false. The handler must still scan.
 	require.NoError(t, os.WriteFile(filePath, []byte("package v2\n"), 0o600))
 
@@ -1361,7 +1361,7 @@ func TestE2E_ReEditedFileTriggersRescan(t *testing.T) {
 	// immediately.
 	mClock.Advance(2 * time.Second).MustWait(context.Background())
 
-	// AddPaths with the same path — triggers PathStore notification.
+	// AddPaths with the same path - triggers PathStore notification.
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filePath})
 
 	// The handler should rescan and send an updated diff.

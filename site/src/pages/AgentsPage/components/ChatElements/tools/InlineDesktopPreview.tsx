@@ -76,7 +76,7 @@ export const InlineDesktopPreview: React.FC<{
 	const wrapWithOverlay = (children: React.ReactNode) => (
 		<div className="group/preview relative">
 			{children}
-			{/* Transparent overlay — dims the preview on hover and shows
+			{/* Transparent overlay - dims the preview on hover and shows
 			    a "View desktop" label so it's clear clicking opens the
 			    sidebar desktop tab. */}
 			{onClick && (
@@ -128,7 +128,7 @@ export const InlineDesktopPreview: React.FC<{
 		);
 	}
 
-	// status === "connected" — pointer-events-none on the VNC
+	// status === "connected" - pointer-events-none on the VNC
 	// container prevents noVNC from capturing any input.
 	return wrapWithOverlay(
 		<div

@@ -84,7 +84,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // Forked from coder/fantasy (coder_2_33) which adds:
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
-// 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
+// 3) ibetitsmike/fantasy#4 - skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7

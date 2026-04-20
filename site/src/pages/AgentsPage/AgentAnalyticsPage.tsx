@@ -13,7 +13,7 @@ const createDateRange = (now?: Dayjs) => {
 	return {
 		startDate: start.toISOString(),
 		endDate: end.toISOString(),
-		rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
+		rangeLabel: `${start.format("MMM D")} - ${end.format("MMM D, YYYY")}`,
 	};
 };
 

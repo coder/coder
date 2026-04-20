@@ -266,7 +266,7 @@ func (r *Refresher) refreshOne(
 	var prURL string
 
 	if row.Url.Valid && row.Url.String != "" {
-		// Row already has a PR URL — parse it directly.
+		// Row already has a PR URL - parse it directly.
 		parsed, ok := provider.ParsePullRequestURL(row.Url.String)
 		if !ok {
 			return nil, xerrors.Errorf("parse pull request URL %q", row.Url.String)
@@ -274,7 +274,7 @@ func (r *Refresher) refreshOne(
 		ref = parsed
 		prURL = row.Url.String
 	} else {
-		// No PR URL — resolve owner/repo from the remote origin,
+		// No PR URL - resolve owner/repo from the remote origin,
 		// then look up the open PR for this branch.
 		owner, repo, _, ok := provider.ParseRepositoryOrigin(row.GitRemoteOrigin)
 		if !ok {

@@ -34,5 +34,5 @@ OPTIONS:
           The username of the new user. If not specified, you will be prompted
           via stdin.
 
-———
+---
 Run `coder --help` for a list of global options.

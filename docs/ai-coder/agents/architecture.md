@@ -16,7 +16,7 @@ Three components are involved in every agent interaction:
    OpenAI-compatible endpoint) performs model inference. It never communicates
    with the workspace directly.
 1. **The workspace** is standard compute infrastructure. It runs shell commands,
-   reads and writes files, and executes processes — exactly what occurs when a
+   reads and writes files, and executes processes - exactly what occurs when a
    developer connects via their IDE.
 
 <img src="../../images/guides/ai-agents/agent-loop-detailed.png" alt="Architecture diagram">
@@ -33,27 +33,27 @@ VS Code Remote, or runs `coder ssh`, the traffic follows this path:
 1. The control plane routes the connection through its internal Tailnet node.
 1. The connection reaches the workspace daemon over a DERP relay or
    direct peer-to-peer link.
-1. The workspace daemon handles the request — spawning a shell,
+1. The workspace daemon handles the request - spawning a shell,
    forwarding a port, or serving a file.
 
-When the agent executes a tool call — reading a file, running a command,
-writing code — it follows the same tunnel:
+When the agent executes a tool call - reading a file, running a command,
+writing code - it follows the same tunnel:
 
 1. The agent loop in the control plane issues a tool call.
 1. The control plane routes the call through its internal Tailnet node.
 1. The call reaches the workspace daemon over the same DERP relay or
    peer-to-peer link.
-1. The workspace daemon handles the request via its HTTP API — reading a file,
+1. The workspace daemon handles the request via its HTTP API - reading a file,
    starting a process, or writing content.
 
 The underlying tunnel is identical. IDE connections use SSH, web terminals use
-a WebSocket protocol, and the agent uses the workspace daemon's HTTP API — but
+a WebSocket protocol, and the agent uses the workspace daemon's HTTP API - but
 all three traverse the same Tailnet connection and rely on the same security
 boundary. No additional ports or network paths are introduced.
 
 ### No inbound ports
 
-The workspace daemon always dials _out_ to the control plane — never
+The workspace daemon always dials _out_ to the control plane - never
 the reverse. The control plane then uses that established tunnel to reach back
 in. This means:
 
@@ -76,12 +76,12 @@ job:
 1. The model responds with text, reasoning, or tool calls.
 1. If the response includes tool calls, the control plane executes them
    (connecting to the workspace as needed) and returns the results to the model.
-1. Steps 3–5 repeat until the model produces a final response with no further
+1. Steps 3-5 repeat until the model produces a final response with no further
    tool calls.
 1. The chat is marked `waiting` for the next user message.
 
 This loop runs inside the control plane process. There is no separate service
-to deploy — it is part of the same binary that serves the dashboard and API.
+to deploy - it is part of the same binary that serves the dashboard and API.
 
 ### Context compaction
 
@@ -96,14 +96,14 @@ long-running sessions productive.
 
 Users can send follow-up messages while the agent is actively working. Messages
 are queued in the database and delivered when the agent completes its current
-turn — the full sequence of steps until the model stops calling tools. There is
+turn - the full sequence of steps until the model stops calling tools. There is
 no need to wait for a response before providing additional context or
 redirecting the agent.
 
 ## Tool execution
 
 Tools are how the agent takes action. Each tool call from the LLM translates to
-a concrete operation — either inside a workspace or within the control plane
+a concrete operation - either inside a workspace or within the control plane
 itself.
 
 The agent is restricted to the built-in tool set defined in this section,
@@ -119,7 +119,7 @@ control plane.
 ### Workspace connection lifecycle
 
 The connection to a workspace is **lazy**. It is not established when a chat
-starts — only when something needs to reach the workspace. This is typically
+starts - only when something needs to reach the workspace. This is typically
 triggered by the first tool call that requires workspace access. Once
 established, the connection is cached and reused for the duration of that chat
 session.
@@ -146,7 +146,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
 These tools run entirely within the control plane. They do not require a
 workspace connection. Platform and orchestration tools are only available to
-root chats — sub-agents spawned by `spawn_agent` do not have access to them
+root chats - sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
 | Tool                | What it does                                                                            |
@@ -167,7 +167,7 @@ not available.
 
 ### Orchestration tools
 
-These tools manage sub-agents — child chats that work on independent tasks in
+These tools manage sub-agents - child chats that work on independent tasks in
 parallel.
 
 | Tool                       | What it does                                                                                                                                                                      |
@@ -224,14 +224,14 @@ manually.
 
 All chat data is stored in the control plane database, not in the workspace.
 
-- **Chat metadata** — status, owner, associated workspace, timestamps, and
+- **Chat metadata** - status, owner, associated workspace, timestamps, and
   parent/child relationships for sub-agents.
-- **Messages** — every message (user, assistant, tool calls, tool results) is
+- **Messages** - every message (user, assistant, tool calls, tool results) is
   stored as a separate record with role, content, and token usage.
-- **Compressed context** — when the agent compacts the conversation, summaries
+- **Compressed context** - when the agent compacts the conversation, summaries
   are stored with a compression flag so the original context budget is
   preserved.
-- **Queued messages** — follow-up messages sent while the agent is working are
+- **Queued messages** - follow-up messages sent while the agent is working are
   held in a queue and delivered in order.
 
 Because state lives in the database:
@@ -244,8 +244,8 @@ Because state lives in the database:
 ## Security posture
 
 The control plane architecture provides built-in security properties for AI
-coding workflows. These are structural guarantees, not configuration options —
-they hold by default for every agent session.
+coding workflows. These are structural guarantees, not configuration options.
+They hold by default for every agent session.
 
 ### No API keys in workspaces
 
@@ -281,7 +281,7 @@ to all agent sessions immediately.
 
 ### User identity on every action
 
-Every action the agent takes — PRs opened, code committed, commands executed —
+Every action the agent takes - PRs opened, code committed, commands executed -
 is tied to the user who submitted the prompt. There is no shared bot account or
 anonymous identity. If a developer submits a prompt that results in a pull
 request, that pull request is attributed to them via the git authentication

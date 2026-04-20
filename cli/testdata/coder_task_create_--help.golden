@@ -47,5 +47,5 @@ OPTIONS:
 
       --template string, $CODER_TASK_TEMPLATE_NAME
       --template-version string, $CODER_TASK_TEMPLATE_VERSION
-———
+---
 Run `coder --help` for a list of global options.

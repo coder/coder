@@ -152,7 +152,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					})}
 				>
 					{/*
-					 * There are some templates that have -1 as their user count –
+					 * There are some templates that have -1 as their user count -
 					 * basically functioning like a null value in JS. Can safely just
 					 * treat them as if they were 0.
 					 */}

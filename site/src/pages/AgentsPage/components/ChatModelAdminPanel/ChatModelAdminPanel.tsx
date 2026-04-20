@@ -329,7 +329,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				)}
 			</div>
 
-			{/* Errors — rendered at the bottom */}
+			{/* Errors - rendered at the bottom */}
 			{providerConfigsError && <ErrorAlert error={providerConfigsError} />}
 			{modelConfigsError && <ErrorAlert error={modelConfigsError} />}
 			{modelCatalogError && <ErrorAlert error={modelCatalogError} />}

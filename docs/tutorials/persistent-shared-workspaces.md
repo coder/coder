@@ -14,14 +14,14 @@ authenticates as themselves.
 This pattern is useful for any scenario where a workspace outlives the people
 who use it:
 
-- **On-call rotations** — Engineers share a workspace pre-loaded with runbooks,
+- **On-call rotations** - Engineers share a workspace pre-loaded with runbooks,
   dashboards, and monitoring tools. Access rotates with the shift schedule.
-- **Shared staging or QA** — A team workspace hosts a persistent staging
+- **Shared staging or QA** - A team workspace hosts a persistent staging
   environment. Testers and reviewers are added and removed as sprints change.
-- **Pair programming** — A service-account-owned workspace gives two or more
+- **Pair programming** - A service-account-owned workspace gives two or more
   developers a shared environment without either one owning (and accidentally
   deleting) it.
-- **Contractor onboarding** — An external team gets scoped access to a workspace
+- **Contractor onboarding** - An external team gets scoped access to a workspace
   for the duration of an engagement, then access is revoked.
 
 The steps below use an **on-call SRE workspace** as a running example, but the
@@ -55,7 +55,7 @@ credentials to expose and the shared environment is not affected when any user
 leaves the team or the organization.
 
 ```shell
-# On-call example — substitute a name that fits your use case
+# On-call example - substitute a name that fits your use case
 coder users create \
   --username oncall-sre \
   --service-account
@@ -246,13 +246,13 @@ for more information.
 
 ## Next steps
 
-- [Shared Workspaces](../user-guides/shared-workspaces.md) — full reference
+- [Shared Workspaces](../user-guides/shared-workspaces.md) - full reference
   for workspace sharing features and UI
-- [IdP Sync](../admin/users/idp-sync.md) — group, role, and organization
+- [IdP Sync](../admin/users/idp-sync.md) - group, role, and organization
   sync configuration
-- [Configuring Okta](./configuring-okta.md) — Okta-specific OIDC setup with
+- [Configuring Okta](./configuring-okta.md) - Okta-specific OIDC setup with
   custom claims and scopes
-- [Security Best Practices](./best-practices/security-best-practices.md) —
+- [Security Best Practices](./best-practices/security-best-practices.md) -
   deployment-wide security hardening
-- [Sessions and Tokens](../admin/users/sessions-tokens.md) — API token
+- [Sessions and Tokens](../admin/users/sessions-tokens.md) - API token
   management and scoping

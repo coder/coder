@@ -10,7 +10,7 @@ import (
 
 // Desktop abstracts a virtual desktop session running inside a workspace.
 type Desktop interface {
-	// Start launches the desktop session. It is idempotent — calling
+	// Start launches the desktop session. It is idempotent - calling
 	// Start on an already-running session returns the existing
 	// config. The returned DisplayConfig describes the running
 	// session.

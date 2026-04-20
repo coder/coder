@@ -146,7 +146,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* PR link — mobile: icon + number; desktop: icon + title.
+			{/* PR link - mobile: icon + number; desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
 			   (which already shows PR info). */}
 			{prUrl && hasPR && (

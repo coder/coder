@@ -12,5 +12,5 @@ OPTIONS:
   -o, --output text|json|table (default: text)
           Output format.
 
-———
+---
 Run `coder --help` for a list of global options.

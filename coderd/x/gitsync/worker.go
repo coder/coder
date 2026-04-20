@@ -216,7 +216,7 @@ func (w *Worker) tick(ctx context.Context) {
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
 			// Apply a longer backoff for rows whose owner has
-			// no linked token — retrying every 2 minutes is
+			// no linked token - retrying every 2 minutes is
 			// pointless until the user links their account.
 			backoff := DiffStatusTTL
 			if errors.Is(res.Error, ErrNoTokenAvailable) {

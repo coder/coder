@@ -11,5 +11,5 @@ SUBCOMMANDS:
     cancel    Cancel a provisioner job
     list      List provisioner jobs
 
-———
+---
 Run `coder --help` for a list of global options.

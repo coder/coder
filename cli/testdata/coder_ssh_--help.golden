@@ -75,5 +75,5 @@ OPTIONS:
       --workspace-poll-interval duration, $CODER_WORKSPACE_POLL_INTERVAL (default: 1m)
           Specifies how often to poll for workspace automated shutdown.
 
-———
+---
 Run `coder --help` for a list of global options.

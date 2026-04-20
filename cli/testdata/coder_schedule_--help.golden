@@ -11,5 +11,5 @@ SUBCOMMANDS:
     start     Edit workspace start schedule
     stop      Edit workspace stop schedule
 
-———
+---
 Run `coder --help` for a list of global options.

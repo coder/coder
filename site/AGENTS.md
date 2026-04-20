@@ -71,7 +71,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   If sibling components initialize state with `useMemo`, don't switch to
   `useState(initialFn)` in the same file without reason.
 - Match errors by error code or HTTP status, never by comparing error
-  message strings. String matching is brittle — messages change, get
+  message strings. String matching is brittle - messages change, get
   localized, or get reformatted.
 
 ## TypeScript Type Safety
@@ -86,7 +86,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   be null, fix the upstream type definition to reflect that.
 - **Use generated types from `api/typesGenerated.ts`** for all
   API/server types. Never manually re-declare types that already exist in
-  generated code — duplicated types drift out of sync with the backend.
+  generated code - duplicated types drift out of sync with the backend.
 - If a component's implementation depends on a prop being present, make
   that prop **required** in the type definition. Optional props that are
   actually required create a false sense of flexibility and hide bugs.
@@ -101,7 +101,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   `queryClient.invalidateQueries(parentKey)` from correctly invalidating
   related queries.
 - When you don't need to `await` a mutation result, use **`mutate()`**
-  with `onSuccess`/`onError` callbacks — not `mutateAsync()` wrapped in
+  with `onSuccess`/`onError` callbacks - not `mutateAsync()` wrapped in
   `try/catch` with an empty catch block. Empty catch blocks silently
   swallow errors. `mutate()` automatically surfaces errors through
   react-query's error state.
@@ -119,29 +119,29 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   tab order and accessibility tree. Add `tabIndex={-1}` and
   `aria-hidden="true"`, or better yet, conditionally render the element
   so it's not in the DOM at all. `pointer-events: none` only suppresses
-  mouse/touch — keyboard and screen readers still reach the element.
+  mouse/touch - keyboard and screen readers still reach the element.
 
 ## Testing Patterns
 
 - **Assert observable behavior, not CSS class names.** In Storybook play
   functions and tests, use queries like `queryByRole`, `toBeVisible()`,
-  or `not.toBeVisible()` — not assertions on class names like
+  or `not.toBeVisible()` - not assertions on class names like
   `opacity-0`. Asserting class names couples tests to the specific
   Tailwind/CSS technique and breaks when the styling mechanism changes
   without user-visible regression.
 - **Use `data-testid`** for test element lookup when an element has no
   semantic role or accessible name (e.g., scroll containers, wrapper
   divs). Never use CSS class substring matches like
-  `querySelector("[class*='flex-col-reverse']")` — these break silently
+  `querySelector("[class*='flex-col-reverse']")` - these break silently
   on class renames or Tailwind output changes.
 - **Don't depend on `behavior: "smooth"` scroll** in tests. Smooth
-  scrolling is async and implementation-defined — in test environments,
+  scrolling is async and implementation-defined - in test environments,
   `scrollTo` may not produce native scroll events at all. Use
   `behavior: "instant"` in test contexts or mock the scroll position
   directly.
 - When modifying a component's visual appearance or behavior, **update or
   add Storybook stories** to capture the change. Stories must stay
-  current as components evolve — stale stories hide regressions.
+  current as components evolve - stale stories hide regressions.
 
 ## Robustness
 
@@ -162,7 +162,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   into React Compiler via `babel-plugin-react-compiler`. The compiler
   automatically memoizes values, callbacks, and JSX at build time. Do
   not add `useMemo`, `useCallback`, or `memo()` in these directories
-  — the compiler handles it. The only exception is `memo()` on
+  - the compiler handles it. The only exception is `memo()` on
   list-item components rendered in a `.map()` (e.g. `ChatMessageItem`,
   `Tool`, `ChatTreeNode`, `LazyFileDiff`) because the compiler does
   not add `React.memo()` behavior across component boundaries.
@@ -213,12 +213,12 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ### 1. Purity & Immutability
 
-- **Components and custom Hooks must be pure and idempotent**—same inputs → same output; move side-effects to event handlers or Effects.
+- **Components and custom Hooks must be pure and idempotent**: same inputs → same output; move side-effects to event handlers or Effects.
 - **Never mutate props, state, or values returned by Hooks.** Always create new objects or use the setter from useState.
 
 ### 2. Rules of Hooks
 
-- **Only call Hooks at the top level** of a function component or another custom Hook—never in loops, conditions, nested functions, or try / catch.
+- **Only call Hooks at the top level** of a function component or another custom Hook. Never in loops, conditions, nested functions, or try / catch.
 - **Only call Hooks from React functions.** Regular JS functions, classes, event handlers, useMemo, etc. are off-limits.
 
 ### 3. React orchestrates execution
@@ -230,7 +230,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 - After calling a setter you'll still read the **previous** state during the same event; updates are queued and batched.
 - Use **functional updates** (setX(prev ⇒ …)) whenever next state depends on previous state.
-- Pass a function to useState(initialFn) for **lazy initialization**—it runs only on the first render.
+- Pass a function to useState(initialFn) for **lazy initialization**: it runs only on the first render.
 - If the next state is Object.is-equal to the current one, React skips the re-render.
 
 ### 5. Effects
@@ -242,7 +242,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - **Never use `useEffect` to derive state from props or other state.** If
   a value can be computed during render, use `useMemo` or a plain
   variable. A `useEffect` that reads state A and calls `setState(B)` on
-  every change is a code smell — it causes an extra render cycle and adds
+  every change is a code smell - it causes an extra render cycle and adds
   unnecessary complexity.
 
 ### 6. Lists & Keys
@@ -264,7 +264,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 ### 8. Element IDs
 
 - **Use `React.useId()`** to generate unique IDs for form elements,
-  labels, and ARIA attributes. Never hard-code string IDs — they collide
+  labels, and ARIA attributes. Never hard-code string IDs - they collide
   when a component is rendered multiple times on the same page.
 
 ### 9. Component Testability

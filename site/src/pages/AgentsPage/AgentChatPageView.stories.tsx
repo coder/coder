@@ -353,7 +353,7 @@ export const SidebarCollapsed: Story = {
 	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
 };
 
-/** No model options available — shows a disabled status message. */
+/** No model options available - shows a disabled status message. */
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -450,7 +450,7 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading - Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -468,7 +468,7 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading - Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -485,7 +485,7 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading - Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -503,7 +503,7 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading - Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -559,7 +559,7 @@ const editingMessages = [
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
 
-/** Editing a message in the middle of the conversation — shows the warning
+/** Editing a message in the middle of the conversation - shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
@@ -582,7 +582,7 @@ export const EditingMessage: Story = {
 export const NotFound: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found - Agents</title>}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -593,7 +593,7 @@ export const NotFound: Story = {
 export const NotFoundSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found - Agents</title>}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -683,7 +683,7 @@ export const ScrollToBottomButton: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The button should be hidden initially — it has aria-hidden="true"
+		// The button should be hidden initially - it has aria-hidden="true"
 		// when not shown, so queryByRole correctly returns null.
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
@@ -1056,7 +1056,7 @@ export const ScrollNotJumpedDuringWheel: Story = {
 
 		// After wheeling up, the user has expressed intent to
 		// disengage auto-follow. Content growth should NOT yank
-		// them back to the bottom — they keep their position.
+		// them back to the bottom - they keep their position.
 		await waitFor(() => {
 			const dist =
 				scrollContainer.scrollHeight -

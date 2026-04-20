@@ -196,7 +196,7 @@ export const ExpiredAIGovernanceOverageShowsExpired: Story = {
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("-");
 		await expect(seatsValue).toHaveTextContent("/ 1,000");
 	},
 };
@@ -274,7 +274,7 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("-");
 		await expect(seatsValue).toHaveTextContent("/ 1,000");
 	},
 };
@@ -303,7 +303,7 @@ export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
 		const canvas = within(canvasElement);
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("-");
 		await expect(seatsValue).toHaveTextContent("/ 1,000");
 		await expect(seatsValue).not.toHaveTextContent("0 / 1,000");
 	},
@@ -333,7 +333,7 @@ export const LowerLimitCardUsesMergedEntitlement: Story = {
 		const canvas = within(canvasElement);
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("-");
 		await expect(seatsValue).toHaveTextContent("/ 500");
 		await expect(seatsValue).not.toHaveTextContent("750 / 500");
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();

@@ -51,7 +51,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4 MiB read limit — subscribe messages with many paths can exceed the
+	// 4 MiB read limit - subscribe messages with many paths can exceed the
 	// default 32 KB limit. Matches the SDK/proxy side.
 	conn.SetReadLimit(1 << 22)
 

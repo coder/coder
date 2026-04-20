@@ -181,7 +181,7 @@ func TestSanitizePromptText(t *testing.T) {
 		{
 			name: "SubdivisionFlagEmojiPreserved",
 			// 🏴󠁧󠁢󠁥󠁮󠁧󠁿 (England flag) uses tag characters
-			// U+E0001–U+E007F which are deliberately NOT stripped.
+			// U+E0001-U+E007F which are deliberately NOT stripped.
 			input: "Flag: 🏴󠁧󠁢󠁥󠁮󠁧󠁿",
 			want:  "Flag: 🏴󠁧󠁢󠁥󠁮󠁧󠁿",
 		},
@@ -279,7 +279,7 @@ func TestSanitizePromptText(t *testing.T) {
 func TestIsVisibleCanonicalList(t *testing.T) {
 	t.Parallel()
 
-	// Canonical list — must match site/src/utils/invisibleUnicode.test.ts
+	// Canonical list - must match site/src/utils/invisibleUnicode.test.ts
 	//
 	// Every codepoint that isVisible returns false for is listed
 	// here, with ranges expanded to individual values. If a
@@ -314,8 +314,8 @@ func TestIsVisibleCanonicalList(t *testing.T) {
 		'z',     // Normal ASCII.
 		'0',     // Digit.
 		' ',     // Space.
-		0x200C,  // ZWNJ — required for Persian/Urdu/Kurdish.
-		0xE0067, // Tag character — used in subdivision flag emoji.
+		0x200C,  // ZWNJ - required for Persian/Urdu/Kurdish.
+		0xE0067, // Tag character - used in subdivision flag emoji.
 	}
 
 	for _, r := range preserved {

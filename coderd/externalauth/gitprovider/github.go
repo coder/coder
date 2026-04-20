@@ -416,7 +416,7 @@ func (g *githubProvider) decodeJSON(
 			if retryAfter > 0 {
 				return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
 			}
-			// No rate-limit headers — fall through to generic error.
+			// No rate-limit headers - fall through to generic error.
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {

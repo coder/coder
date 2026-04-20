@@ -69,7 +69,7 @@ If a level abstains, then the decision gets deferred to the next level. When
 there is no "next" level to defer to it is equivalent to being denied.
 
 ### Scope
-Additionally, each input has a "scope" that can be thought of as a second set of permissions, where each permission belongs to one of the four levels–exactly the same as role permissions. An action is only allowed if it is allowed by both the subject's permissions _and_ their current scope. This is to allow issuing tokens for a subject that have a subset of the full subjects permissions.
+Additionally, each input has a "scope" that can be thought of as a second set of permissions, where each permission belongs to one of the four levels, exactly the same as role permissions. An action is only allowed if it is allowed by both the subject's permissions _and_ their current scope. This is to allow issuing tokens for a subject that have a subset of the full subjects permissions.
 
 For example, you may have a scope like...
 

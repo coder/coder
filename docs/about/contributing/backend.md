@@ -10,7 +10,7 @@ The purpose of this guide is to help you:
 * Navigate the codebase with confidence and adhere to established best practices.
 * Contribute meaningful changes - whether you're fixing bugs, implementing features, or reviewing code.
 
-Need help or have questions? Join the conversation on our [Discord server](https://discord.com/invite/coder) — we’re always happy to support contributors.
+Need help or have questions? Join the conversation on our [Discord server](https://discord.com/invite/coder) - we’re always happy to support contributors.
 
 ## Platform Architecture
 
@@ -133,7 +133,7 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
 
 ## Quiz
 
-Try to find answers to these questions before jumping into implementation work — having a solid understanding of how Coder works will save you time and help you contribute effectively.
+Try to find answers to these questions before jumping into implementation work - having a solid understanding of how Coder works will save you time and help you contribute effectively.
 
 1. When you create a template, what does that do exactly?
 2. When you create a workspace, what exactly happens?

@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof InlineDesktopPreview>;
 
 // ---------------------------------------------------------------------------
-// Idle — hook has not started connecting yet.
+// Idle - hook has not started connecting yet.
 // ---------------------------------------------------------------------------
 
 export const Idle: Story = {
@@ -43,7 +43,7 @@ export const Idle: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Connecting — WebSocket handshake in progress.
+// Connecting - WebSocket handshake in progress.
 // ---------------------------------------------------------------------------
 
 export const Connecting: Story = {
@@ -64,7 +64,7 @@ export const Connecting: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Connected — VNC canvas attached.
+// Connected - VNC canvas attached.
 // ---------------------------------------------------------------------------
 
 export const Connected: Story = {
@@ -86,7 +86,7 @@ export const Connected: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Disconnected — connection dropped, auto-reconnecting.
+// Disconnected - connection dropped, auto-reconnecting.
 // ---------------------------------------------------------------------------
 
 export const Disconnected: Story = {
@@ -107,7 +107,7 @@ export const Disconnected: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Error — connection failed permanently.
+// Error - connection failed permanently.
 // ---------------------------------------------------------------------------
 
 export const ErrorState: Story = {

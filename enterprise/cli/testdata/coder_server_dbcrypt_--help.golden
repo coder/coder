@@ -11,5 +11,5 @@ SUBCOMMANDS:
                DESTRUCTIVE OPERATION.
     rotate     Rotate database encryption keys.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -20,5 +20,5 @@ SUBCOMMANDS:
     pause     Pause prebuilds
     resume    Resume prebuilds
 
-———
+---
 Run `coder --help` for a list of global options.

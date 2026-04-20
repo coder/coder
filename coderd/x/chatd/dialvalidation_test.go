@@ -556,7 +556,7 @@ func TestDialWithLazyValidation_ValidationError(t *testing.T) {
 				return uuid.Nil, xerrors.Errorf("unexpected workspace ID %q", id)
 			}
 			validateCalls.Add(1)
-			// Validation fails — code should fall back to waiting
+			// Validation fails - code should fall back to waiting
 			// for the original dial.
 			close(unblockDial)
 			return uuid.Nil, xerrors.New("db connection reset")

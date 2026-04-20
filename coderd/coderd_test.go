@@ -435,7 +435,7 @@ func TestRateLimitByUser(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Make rateLimit requests — they should all succeed.
+		// Make rateLimit requests - they should all succeed.
 		for i := 0; i < rateLimit; i++ {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 				ownerClient.URL.String()+"/api/v2/buildinfo", nil)
@@ -490,7 +490,7 @@ func TestRateLimitByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// A member requesting the bypass header should be rejected
-		// with 428 Precondition Required — only owners may bypass.
+		// with 428 Precondition Required - only owners may bypass.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 			memberClient.URL.String()+"/api/v2/buildinfo", nil)
 		require.NoError(t, err)

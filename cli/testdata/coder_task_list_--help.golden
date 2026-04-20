@@ -46,5 +46,5 @@ OPTIONS:
       --user string
           List tasks for the specified user (username, "me").
 
-———
+---
 Run `coder --help` for a list of global options.

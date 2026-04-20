@@ -248,7 +248,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		r.clock = quartz.NewReal()
 	}
 
-	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
+	fmtLong := `Coder %s - A tool for provisioning self-hosted development environments with Terraform.
 `
 	hiddenAgentAuth := &AgentAuth{}
 	cmd := &serpent.Command{

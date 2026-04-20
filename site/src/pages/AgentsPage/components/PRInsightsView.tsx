@@ -141,7 +141,7 @@ function formatChartDate(dateStr: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Activity chart — simplified to created vs merged
+// Activity chart - simplified to created vs merged
 // ---------------------------------------------------------------------------
 
 const ActivityChart: FC<{
@@ -329,7 +329,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 				<EmptyState />
 			) : (
 				<>
-					{/* ── Stat cards — 3 headline metrics ── */}
+					{/* ── Stat cards - 3 headline metrics ── */}
 					<div className="grid grid-cols-3 gap-3">
 						<StatCard
 							label="Merged"
@@ -415,7 +415,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 													<TableCell className="px-4 py-3 text-right tabular-nums text-content-primary">
 														{m.merged_prs > 0
 															? formatCostMicros(m.cost_per_merged_pr_micros)
-															: "—"}
+															: "-"}
 													</TableCell>
 												</TableRow>
 											))}

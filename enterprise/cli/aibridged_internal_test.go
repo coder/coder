@@ -120,7 +120,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("LegacyBedrockWithoutAnthropicKey", func(t *testing.T) {
 		t.Parallel()
 		// Bedrock credentials alone should be enough to create an
-		// Anthropic provider — no CODER_AIBRIDGE_ANTHROPIC_KEY needed.
+		// Anthropic provider - no CODER_AIBRIDGE_ANTHROPIC_KEY needed.
 		cfg := codersdk.AIBridgeConfig{}
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")

@@ -915,7 +915,7 @@ func injectMissingToolUses(
 		// persisted in a later step than the assistant message that
 		// initiated the tool call. When that happens they appear as
 		// orphans after the wrong assistant message. Filter them
-		// out before matching — the provider will re-execute the
+		// out before matching - the provider will re-execute the
 		// tool, and the search results are already captured in the
 		// subsequent assistant message's sources/text.
 		toolResults := make([]fantasy.ToolResultPart, 0, len(allToolResults))
@@ -1439,7 +1439,7 @@ func decodeNulInString(s string) string {
 				_, _ = b.WriteRune(0)
 				i++
 			default:
-				// Unpaired sentinel — preserve as-is.
+				// Unpaired sentinel - preserve as-is.
 				_, _ = b.WriteRune(runes[i])
 			}
 		} else {

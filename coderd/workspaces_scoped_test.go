@@ -68,7 +68,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		return scoped
 	}
 
-	// coder:workspaces.create — token should be able to create a
+	// coder:workspaces.create - token should be able to create a
 	// workspace via POST /users/{user}/workspaces.
 	t.Run("WorkspacesCreate", func(t *testing.T) {
 		t.Parallel()
@@ -94,7 +94,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		require.NoError(t, err, "creating workspace with coder:workspaces.create scope")
 	})
 
-	// coder:workspaces.operate — token should be able to read and
+	// coder:workspaces.operate - token should be able to read and
 	// update workspace metadata.
 	t.Run("WorkspacesOperate", func(t *testing.T) {
 		t.Parallel()
@@ -134,7 +134,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		})
 		require.NoError(t, err, "starting workspace with coder:workspaces.operate scope")
 
-		// Verify we cannot create a new workspace — the operate scope
+		// Verify we cannot create a new workspace - the operate scope
 		// should not include workspace:create or template:read/use.
 		_, err = scoped.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: s.workspace.TemplateID,
@@ -143,7 +143,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		require.Error(t, err, "creating workspace should fail with coder:workspaces.operate scope")
 	})
 
-	// coder:workspaces.delete — token should be able to read
+	// coder:workspaces.delete - token should be able to read
 	// workspaces and trigger a delete build.
 	t.Run("WorkspacesDelete", func(t *testing.T) {
 		t.Parallel()

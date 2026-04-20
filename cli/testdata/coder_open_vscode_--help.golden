@@ -12,5 +12,5 @@ OPTIONS:
           already configured. This flag does not need to be specified when
           running this command on a local machine unless automatic open fails.
 
-———
+---
 Run `coder --help` for a list of global options.

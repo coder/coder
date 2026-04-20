@@ -188,7 +188,7 @@ func updateCalendar(
 		}
 	}
 
-	// For patch releases, we only update Latest Release — done
+	// For patch releases, we only update Latest Release - done
 	// above.
 	if newVer.Patch > 0 {
 		return rows

@@ -144,7 +144,7 @@ export const NoOptions: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Play function – selection interaction
+// Play function - selection interaction
 // ---------------------------------------------------------------------------
 
 export const SelectsModel: Story = {

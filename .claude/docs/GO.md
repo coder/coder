@@ -1,4 +1,4 @@
-# Modern Go (1.18–1.26)
+# Modern Go (1.18-1.26)
 
 Reference for writing idiomatic Go. Covers what changed, what it
 replaced, and what to reach for. Respect the project's `go.mod` `go`
@@ -24,7 +24,7 @@ etc., they replace ad-hoc "loop and append" code with composable,
 lazy pipelines. When a sequence is consumed only once, prefer an
 iterator over materializing a slice.
 
-**Error trees** (1.20–1.26): Errors compose as trees, not chains.
+**Error trees** (1.20-1.26): Errors compose as trees, not chains.
 `errors.Join` aggregates multiple errors. `fmt.Errorf` accepts multiple
 `%w` verbs. `errors.Is`/`As` traverse the full tree. Custom error
 types that wrap multiple causes must implement `Unwrap() []error` (the

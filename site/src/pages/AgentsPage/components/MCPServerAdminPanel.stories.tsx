@@ -329,7 +329,7 @@ export const EditServer: Story = {
 	},
 };
 
-/** Edit a server that has OAuth2 — secret field should show placeholder. */
+/** Edit a server that has OAuth2 - secret field should show placeholder. */
 export const EditServerWithOAuth2Secret: Story = {
 	args: {
 		serversData: [

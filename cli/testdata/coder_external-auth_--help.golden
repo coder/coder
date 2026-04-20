@@ -10,5 +10,5 @@ USAGE:
 SUBCOMMANDS:
     access-token    Print auth for an external provider
 
-———
+---
 Run `coder --help` for a list of global options.

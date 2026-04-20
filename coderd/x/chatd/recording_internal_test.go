@@ -373,7 +373,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 	server.drainInflight()
 
 	// Wire up the mock agent connection. The mock has zero
-	// expectations — gomock will fail if StartDesktopRecording
+	// expectations - gomock will fail if StartDesktopRecording
 	// or any other method is called.
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return mockConn, func() {}, nil
@@ -381,7 +381,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
-	// Invoke wait_agent via the tool closure — the isComputerUseChat
+	// Invoke wait_agent via the tool closure - the isComputerUseChat
 	// guard should be false, so no recording calls fire.
 	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
 	require.NoError(t, err)
@@ -430,7 +430,7 @@ func TestWaitAgentRecordingStartFails(t *testing.T) {
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	// StartDesktopRecording fails. StopDesktopRecording must NOT
-	// be called — gomock enforces this: any unexpected call fails
+	// be called - gomock enforces this: any unexpected call fails
 	// the test.
 	mockConn.EXPECT().
 		StartDesktopRecording(gomock.Any(), gomock.Any()).

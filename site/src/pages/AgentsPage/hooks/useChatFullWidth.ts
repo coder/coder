@@ -38,7 +38,7 @@ export function chatWidthClass(fullWidth: boolean): string {
 
 /**
  * Reactive hook for the chat full-width preference. All
- * consumers re-render when the value changes — no page reload
+ * consumers re-render when the value changes - no page reload
  * required.
  */
 export function useChatFullWidth(): [boolean, (v: boolean) => void] {

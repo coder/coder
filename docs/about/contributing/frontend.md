@@ -258,7 +258,7 @@ We use [Formik](https://formik.org/docs) for forms along with
 We use three types of testing in our app: **End-to-end (E2E)**, **Integration/Unit**
 and **Visual Testing**.
 
-### End-to-End (E2E) – Playwright
+### End-to-End (E2E) - Playwright
 
 These are useful for testing complete flows like "Create a user", "Import
 template", etc. We use [Playwright](https://playwright.dev/). These tests run against a full Coder instance, backed by a database, and allows you to make sure that features work properly all the way through the stack. "End to end", so to speak.
@@ -287,7 +287,7 @@ so you can simply execute the test (`pnpm run playwright:test`).
 
 We use unit and integration tests mostly for testing code that does _not_ pertain to React. Functions and classes that contain notable app logic, and which are well abstracted from React should have accompanying tests. If the logic is tightly coupled to a React component, a Storybook test or an E2E test is usually a better option.
 
-### Visual Testing – Storybook
+### Visual Testing - Storybook
 
 We use Storybook for testing all of our React code. For static components, you simply add a story that renders the components with the props that you would like to test, and Storybook will record snapshots of it to ensure that it isn't changed unintentionally. If you would like to test an interaction with the component, then you can add an interaction test by specifying a `play` function for the story. For stories with an interaction test, a snapshot will be recorded of the end state of the component. We use
 [Chromatic](https://www.chromatic.com/) to manage and compare snapshots in CI.

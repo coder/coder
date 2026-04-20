@@ -150,7 +150,7 @@ export const parseMessageContent = (
 			}
 			case "tool-call": {
 				// Provider-executed tool calls (e.g. web_search) are
-				// handled by the provider itself — hide them from the
+				// handled by the provider itself - hide them from the
 				// tool card UI and let the sources component render
 				// their results.
 				if (part.provider_executed) {

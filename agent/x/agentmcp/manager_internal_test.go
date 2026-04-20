@@ -238,7 +238,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	listCtx, listCancel := context.WithTimeout(ctx, testutil.WaitShort)
 	defer listCancel()
 	result, err := client.ListTools(listCtx, mcp.ListToolsRequest{})
-	require.NoError(t, err, "ListTools should succeed — server must be alive after connect")
+	require.NoError(t, err, "ListTools should succeed - server must be alive after connect")
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
 }

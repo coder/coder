@@ -12,5 +12,5 @@ OPTIONS:
   -t, --tag string-array, $CODER_PROVISIONERD_TAGS
           Tags to filter provisioner jobs by.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -15,5 +15,5 @@ OPTIONS:
   -l, --license string
           License string.
 
-———
+---
 Run `coder --help` for a list of global options.

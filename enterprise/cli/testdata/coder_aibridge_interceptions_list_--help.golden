@@ -36,5 +36,5 @@ OPTIONS:
           'started-after' if set. Accepts a time in the RFC 3339 format, e.g.
           "====[timestamp]=====07:00".
 
-———
+---
 Run `coder --help` for a list of global options.

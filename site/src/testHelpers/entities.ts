@@ -804,7 +804,7 @@ export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
 		message: `
 # Abiding Grace
 ## Enchantment
-At the beginning of your end step, choose one —
+At the beginning of your end step, choose one -
 
 - You gain 1 life.
 

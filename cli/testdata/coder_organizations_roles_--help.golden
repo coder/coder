@@ -12,5 +12,5 @@ SUBCOMMANDS:
     show      Show role(s)
     update    Update an organization custom role
 
-———
+---
 Run `coder --help` for a list of global options.

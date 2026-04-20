@@ -34,5 +34,5 @@ OPTIONS:
   -o, --output text|table|json (default: text)
           Output format.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -30,5 +30,5 @@ SUBCOMMANDS:
     remove    Expire or delete a token
     view      Display detailed information about a token
 
-———
+---
 Run `coder --help` for a list of global options.

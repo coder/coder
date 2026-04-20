@@ -125,7 +125,7 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		isDecimal := ft == reflect.TypeOf(decimal.Decimal{})
 
 		// If the field is a struct (not a map), recurse to flatten
-		// its children using dot-separated names — unless the
+		// its children using dot-separated names - unless the
 		// entire struct is marked hidden, in which case emit it
 		// as a single opaque field.
 		if ft.Kind() == reflect.Struct && !hidden && !isDecimal {

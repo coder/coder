@@ -25,7 +25,7 @@ export function isHexColor(input: string): boolean {
  * Setup:
  * - Supports capture groups for all three numeric values. Regex tries to fail
  *   the input as quickly as possible.
- * - Regex is all-or-nothing – there is some tolerance for extra spaces, but
+ * - Regex is all-or-nothing - there is some tolerance for extra spaces, but
  *   this regex will fail any string that is missing any part of the format.
  * - String is case-insensitive
  * - String must start with HSL and have both parentheses

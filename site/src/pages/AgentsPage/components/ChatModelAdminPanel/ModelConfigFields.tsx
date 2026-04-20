@@ -72,10 +72,10 @@ const fieldSuffix: Record<string, string> = {
  * where the valid range is more useful than an empty box.
  */
 const placeholderOverrides: Record<string, string> = {
-	temperature: "0.0–2.0",
-	top_p: "0.0–1.0",
-	presence_penalty: "-2.0–2.0",
-	frequency_penalty: "-2.0–2.0",
+	temperature: "0.0-2.0",
+	top_p: "0.0-1.0",
+	presence_penalty: "-2.0-2.0",
+	frequency_penalty: "-2.0-2.0",
 };
 
 /**

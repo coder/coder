@@ -44,5 +44,5 @@ OPTIONS:
           Forward UDP port(s) from the workspace to the local machine. The UDP
           connection has TCP-like semantics to support stateful UDP protocols.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -1428,7 +1428,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected - we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

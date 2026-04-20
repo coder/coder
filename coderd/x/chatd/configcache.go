@@ -57,7 +57,7 @@ type chatConfigCache struct {
 	// per-request context would mean the leader's cancellation
 	// (timeout, user disconnect) fans the error to every waiter.
 	// Storing the server context here makes that impossible by
-	// construction — callers cannot pass a request context into
+	// construction - callers cannot pass a request context into
 	// the shared fill path.
 	ctx context.Context
 
@@ -193,7 +193,7 @@ func (c *chatConfigCache) InvalidateProviders() {
 	c.mu.Lock()
 	c.providers = nil
 	c.providerGeneration++
-	// Provider topology changed — model selections depend on
+	// Provider topology changed - model selections depend on
 	// provider existence, so flush all model-config state.
 	clear(c.modelConfigs)
 	c.modelTopologyEpoch++

@@ -1409,7 +1409,7 @@ func TestRun_PersistStepErrorPropagates(t *testing.T) {
 
 // TestRun_ShutdownDuringToolExecutionReturnsContextCanceled verifies that
 // when the parent context is canceled (simulating server shutdown) while
-// a tool is blocked, Run returns context.Canceled — not ErrInterrupted.
+// a tool is blocked, Run returns context.Canceled - not ErrInterrupted.
 // This matters because the caller uses the error type to decide whether
 // to set chat status to "pending" (retryable on another worker) vs
 // "waiting" (stuck forever).
@@ -1491,7 +1491,7 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	<-serverCancelDone
 
 	require.Error(t, err)
-	// The error must NOT be ErrInterrupted — it should propagate
+	// The error must NOT be ErrInterrupted - it should propagate
 	// as context.Canceled so the caller can distinguish shutdown
 	// from user interruption. Use assert (not require) so both
 	// checks are evaluated even if the first fails.
@@ -1511,7 +1511,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"query":"coder"}`,
 				ProviderExecuted: true,
 			},
-			// Provider-executed tool result — must stay in
+			// Provider-executed tool result - must stay in
 			// assistant message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "provider-tc-1",
@@ -1526,7 +1526,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"path":"main.go"}`,
 				ProviderExecuted: false,
 			},
-			// Local tool result — should go into tool message.
+			// Local tool result - should go into tool message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "local-tc-1",
 				ToolName:         "read_file",
@@ -1580,28 +1580,28 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 
 	sr := stepResult{
 		content: []fantasy.Content{
-			// Empty text — should be filtered.
+			// Empty text - should be filtered.
 			fantasy.TextContent{Text: ""},
-			// Whitespace-only text — should be filtered.
+			// Whitespace-only text - should be filtered.
 			fantasy.TextContent{Text: "   \t\n"},
-			// Empty reasoning — should be filtered.
+			// Empty reasoning - should be filtered.
 			fantasy.ReasoningContent{Text: ""},
-			// Whitespace-only reasoning — should be filtered.
+			// Whitespace-only reasoning - should be filtered.
 			fantasy.ReasoningContent{Text: "  \n"},
-			// Non-empty text — should pass through.
+			// Non-empty text - should pass through.
 			fantasy.TextContent{Text: "hello world"},
-			// Leading/trailing whitespace with content — kept
+			// Leading/trailing whitespace with content - kept
 			// with the original value (not trimmed).
 			fantasy.TextContent{Text: "  hello  "},
-			// Non-empty reasoning — should pass through.
+			// Non-empty reasoning - should pass through.
 			fantasy.ReasoningContent{Text: "let me think"},
-			// Tool call — should be unaffected by filtering.
+			// Tool call - should be unaffected by filtering.
 			fantasy.ToolCallContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
 				Input:      `{"path":"main.go"}`,
 			},
-			// Local tool result — should be unaffected by filtering.
+			// Local tool result - should be unaffected by filtering.
 			fantasy.ToolResultContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
@@ -1626,7 +1626,7 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 	require.True(t, ok, "part 0 should be TextPart")
 	assert.Equal(t, "hello world", textPart.Text)
 
-	// Part 1: padded text — original whitespace preserved.
+	// Part 1: padded text - original whitespace preserved.
 	paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](assistantMsg.Content[1])
 	require.True(t, ok, "part 1 should be TextPart")
 	assert.Equal(t, "  hello  ", paddedPart.Text)
@@ -1792,7 +1792,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			// Simulate a provider-executed tool call and result
 			// (e.g. Anthropic web search) followed by a text
-			// response — all in a single stream.
+			// response - all in a single stream.
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
 				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
@@ -1804,7 +1804,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 					ToolCallInput:    `{"query":"coder"}`,
 					ProviderExecuted: true,
 				},
-				// Provider-executed tool result — emitted by
+				// Provider-executed tool result - emitted by
 				// the provider, not our tool runner.
 				{
 					Type:             fantasy.StreamPartTypeToolResult,
@@ -2014,7 +2014,7 @@ func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
 				}
 			}
 			if !inserted {
-				// No system messages — prepend.
+				// No system messages - prepend.
 				result = append([]fantasy.Message{{
 					Role: fantasy.MessageRoleSystem,
 					Content: []fantasy.MessagePart{

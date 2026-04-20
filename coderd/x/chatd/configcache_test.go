@@ -182,7 +182,7 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 	require.Equal(t, options, string(second.Options))
 	second.Options[0] = 'y' // mutate cache-hit return
 
-	// Third call is another cache hit — must be unaffected.
+	// Third call is another cache hit - must be unaffected.
 	third, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
 	require.Equal(t, options, string(third.Options))
@@ -880,7 +880,7 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 				// Release the store so the fill can complete.
 				close(release)
 
-				// A fresh call must succeed — either a cache
+				// A fresh call must succeed - either a cache
 				// hit or by joining the still-in-flight fill.
 				// Only one store call should have occurred.
 				require.NoError(t, m.call(ctx, cache))

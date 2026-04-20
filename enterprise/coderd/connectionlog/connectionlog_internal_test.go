@@ -187,7 +187,7 @@ func Test_addToBatch(t *testing.T) {
 
 		got := b.dedupedBatch[connID]
 		// A standalone disconnect must not leave connectTime as
-		// zero — that would insert a year-0001 connect_time in
+		// zero - that would insert a year-0001 connect_time in
 		// the DB. It should use the disconnect's own timestamp,
 		// matching the single-row UpsertConnectionLog behavior.
 		require.False(t, got.connectTime.IsZero(),
@@ -389,7 +389,7 @@ func Test_batcherFlush(t *testing.T) {
 		// batch queued to retryCh → timer reset trapped.
 		capacityTrap.MustWait(ctx).MustRelease(ctx)
 
-		// Retry worker creates a timer — trap it, release, advance.
+		// Retry worker creates a timer - trap it, release, advance.
 		retryCall := retryTrap.MustWait(ctx)
 		retryCall.MustRelease(ctx)
 		clock.Advance(retryInterval).MustWait(ctx)
@@ -434,7 +434,7 @@ func Test_batcherFlush(t *testing.T) {
 			}).
 			AnyTimes()
 
-		// Send event — capacity flush triggers immediately.
+		// Send event - capacity flush triggers immediately.
 		require.NoError(t, b.Upsert(ctx, evt))
 		capacityTrap.MustWait(ctx).MustRelease(ctx)
 

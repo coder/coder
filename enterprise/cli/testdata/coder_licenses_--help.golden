@@ -12,5 +12,5 @@ SUBCOMMANDS:
     delete    Delete license by ID
     list      List licenses (including expired)
 
-———
+---
 Run `coder --help` for a list of global options.

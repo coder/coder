@@ -12,5 +12,5 @@ OPTIONS:
   -s, --shell bash|fish|zsh|powershell
           The shell to install completion for.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -909,5 +909,5 @@ These options are only available in the Enterprise Edition.
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
 
-———
+---
 Run `coder --help` for a list of global options.

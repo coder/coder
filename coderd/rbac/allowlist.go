@@ -12,7 +12,7 @@ import (
 )
 
 // maxAllowListEntries caps normalized allow lists to a manageable size. This
-// limit is intentionally arbitrary—just high enough for current use cases—so we
+// limit is intentionally arbitrary, just high enough for current use cases, so we
 // can revisit it without implying any semantic contract.
 const maxAllowListEntries = 128
 

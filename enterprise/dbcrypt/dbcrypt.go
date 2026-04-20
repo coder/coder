@@ -268,7 +268,7 @@ func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, param
 	// The caller supplies the plaintext old token (since dbcrypt
 	// decrypts on read), but the DB stores the encrypted value.
 	// Because AES-GCM is non-deterministic, we cannot simply
-	// re-encrypt the old token — the ciphertext would differ.
+	// re-encrypt the old token - the ciphertext would differ.
 	// Instead, read the current row from the inner (raw) store
 	// and use the actual encrypted value for the WHERE clause.
 	if params.OldOauthRefreshToken != "" && db.ciphers != nil && db.primaryCipherDigest != "" {

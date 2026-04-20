@@ -534,7 +534,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 							/>
 						))}
 					</div>
-					{/* infinite scroll sentinel — sits 200px below the last thread */}
+					{/* infinite scroll sentinel - sits 200px below the last thread */}
 					<div ref={sentinelRef} />
 					{isFetchingNextPage && (
 						<div className="flex items-center justify-center py-4 text-sm text-content-secondary">

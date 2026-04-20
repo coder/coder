@@ -37,7 +37,7 @@ endif
 # Protect git-tracked generated files from deletion on interrupt.
 # .DELETE_ON_ERROR is desirable for most targets but for files that
 # are committed to git and serve as inputs to other rules, deletion
-# is worse than a stale file — `git restore` is the recovery path.
+# is worse than a stale file - `git restore` is the recovery path.
 .PRECIOUS: \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \

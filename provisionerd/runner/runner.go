@@ -849,9 +849,9 @@ func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 		return r.failedJobf("commit quota: %+v", err)
 	}
 	for _, line := range []string{
-		fmt.Sprintf("Build cost       —   %v", cost),
-		fmt.Sprintf("Budget           —   %v", resp.Budget),
-		fmt.Sprintf("Credits consumed —   %v", resp.CreditsConsumed),
+		fmt.Sprintf("Build cost       -   %v", cost),
+		fmt.Sprintf("Budget           -   %v", resp.Budget),
+		fmt.Sprintf("Credits consumed -   %v", resp.CreditsConsumed),
 	} {
 		r.queueLog(ctx, &proto.Log{
 			Source:    proto.LogSource_PROVISIONER,

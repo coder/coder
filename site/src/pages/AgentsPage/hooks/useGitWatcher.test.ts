@@ -374,7 +374,7 @@ describe("useGitWatcher", () => {
 	});
 
 	it("refresh returns false before the socket connects", () => {
-		// Don't connect at all — agentStatus prevents effect from running.
+		// Don't connect at all - agentStatus prevents effect from running.
 		const { result } = renderHook(() =>
 			useGitWatcher({ chatId: "chat-123", agentStatus: "connecting" }),
 		);

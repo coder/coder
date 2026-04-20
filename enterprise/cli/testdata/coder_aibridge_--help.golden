@@ -8,5 +8,5 @@ USAGE:
 SUBCOMMANDS:
     interceptions    Manage AI Bridge interceptions.
 
-———
+---
 Run `coder --help` for a list of global options.

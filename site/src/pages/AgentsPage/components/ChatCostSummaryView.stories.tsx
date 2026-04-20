@@ -148,7 +148,7 @@ export const PaginatedChats: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// First page shows agents 1–10, agent 11 is on page 2.
+		// First page shows agents 1-10, agent 11 is on page 2.
 		await canvas.findByText("Agent 1");
 		await expect(canvas.queryByText("Agent 11")).not.toBeInTheDocument();
 
@@ -169,7 +169,7 @@ export const PaginatedModels: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// First page shows models 1–10, model 11 is on page 2.
+		// First page shows models 1-10, model 11 is on page 2.
 		await canvas.findByText("Model 1");
 		await expect(canvas.queryByText("Model 11")).not.toBeInTheDocument();
 

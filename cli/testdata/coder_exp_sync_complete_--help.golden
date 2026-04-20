@@ -8,5 +8,5 @@ USAGE:
   Mark a unit as complete. Indicating to other units that it has completed its
   work. This allows units that depend on it to proceed with their startup.
 
-———
+---
 Run `coder --help` for a list of global options.

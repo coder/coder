@@ -9,5 +9,5 @@ OPTIONS:
       --id aws-devcontainer|aws-linux|aws-windows|azure-linux|digitalocean-linux|docker|docker-devcontainer|docker-envbuilder|gcp-devcontainer|gcp-linux|gcp-vm-container|gcp-windows|kubernetes|kubernetes-devcontainer|nomad-docker|scratch|tasks-docker
           Specify a given example template by ID.
 
-———
+---
 Run `coder --help` for a list of global options.

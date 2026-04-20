@@ -12,5 +12,5 @@ SUBCOMMANDS:
     delete    Delete a provisioner key
     list      List provisioner keys in an organization
 
-———
+---
 Run `coder --help` for a list of global options.

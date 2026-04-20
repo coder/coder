@@ -443,7 +443,7 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 			}
 
 			return fmt.Sprintf("Workspace Proxy %[1]q updated successfully.\n"+
-				pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+"\n"+
+				pretty.Sprint(cliui.DefaultStyles.Placeholder, "-------------------------------------------------")+"\n"+
 				"Save this authentication token, it will not be shown again.\n"+
 				"Token: %[2]s\n"+
 				"\n"+

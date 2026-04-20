@@ -214,7 +214,7 @@ func waitForChatDone(
 						label, event.Message.Role, len(event.Message.Content))
 				}
 			case codersdk.ChatStreamEventTypeMessagePart:
-				// Streaming delta — just note it.
+				// Streaming delta - just note it.
 				if event.MessagePart != nil {
 					t.Logf("[%s] part: type=%s",
 						label, event.MessagePart.Part.Type)

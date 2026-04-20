@@ -23,7 +23,7 @@ export interface AgentContextUsage {
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
 	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
+	// Percentage (0-100) at which the context will be compacted.
 	readonly compressionThreshold?: number;
 	// Last injected context parts (AGENTS.md files and skills).
 	readonly lastInjectedContext?: readonly ChatMessagePart[];
@@ -139,7 +139,7 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{hasPercent
-				? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
 				: "Context usage unavailable"}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&

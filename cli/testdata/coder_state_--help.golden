@@ -9,5 +9,5 @@ SUBCOMMANDS:
     pull    Pull a Terraform state file from a workspace.
     push    Push a Terraform state file to a workspace.
 
-———
+---
 Run `coder --help` for a list of global options.

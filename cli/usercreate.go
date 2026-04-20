@@ -150,7 +150,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 
 			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
-`+pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+`
+`+pretty.Sprint(cliui.DefaultStyles.Placeholder, "-------------------------------------------------")+`
 Download the Coder command line for your operating system:
 https://github.com/coder/coder/releases
 

@@ -26,5 +26,5 @@ OPTIONS:
           Watch the task status output. This will stream updates to the terminal
           until the underlying workspace is stopped.
 
-———
+---
 Run `coder --help` for a list of global options.

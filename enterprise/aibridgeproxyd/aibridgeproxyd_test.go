@@ -1565,7 +1565,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 		{
 			// Client already set the BYOK header (Claude Code, Codex).
 			// The proxy must not overwrite it.
-			name:          "BYOK header already set by client — not overwritten",
+			name:          "BYOK header already set by client - not overwritten",
 			authzHeader:   "Bearer client-access-token",
 			byokHeader:    "client-set-coder-token",
 			expectBYOK:    true,

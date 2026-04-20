@@ -752,7 +752,7 @@ func generateManualTitle(
 const pushSummaryPrompt = "You are a notification assistant. Given a chat title " +
 	"and the agent's last message, write a single short sentence (under 100 characters) " +
 	"summarizing what the agent did. This will be shown as a push notification body. " +
-	"Return plain text only — no quotes, no emoji, no markdown."
+	"Return plain text only - no quotes, no emoji, no markdown."
 
 // generatePushSummary calls a cheap model to produce a short push
 // notification body from the chat title and the last assistant

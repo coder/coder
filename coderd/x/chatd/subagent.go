@@ -319,7 +319,7 @@ func (p *Server) subagentTools(
 
 				// Check if the target is a computer_use subagent
 				// and start a desktop recording. Failures are
-				// best-effort warnings — recording never blocks
+				// best-effort warnings - recording never blocks
 				// the wait_agent flow.
 				var recordingID string
 				var agentConn workspacesdk.AgentConn

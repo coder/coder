@@ -20,5 +20,5 @@ SUBCOMMANDS:
     suspend        Update a user's status to 'suspended'. A suspended user
                    cannot log into the platform
 
-———
+---
 Run `coder --help` for a list of global options.

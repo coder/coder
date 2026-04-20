@@ -3,7 +3,7 @@ import { useEffect } from "react";
 /**
  * Global keyboard shortcuts for the Agents page.
  *
- * - Ctrl+N / Cmd+N — Create a new agent.
+ * - Ctrl+N / Cmd+N - Create a new agent.
  */
 export function useAgentsPageKeybindings({
 	onNewAgent,
@@ -22,7 +22,7 @@ export function useAgentsPageKeybindings({
 				}
 			}
 
-			// Ctrl+N / Cmd+N — new agent
+			// Ctrl+N / Cmd+N - new agent
 			if (event.key === "n" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
 				onNewAgent();

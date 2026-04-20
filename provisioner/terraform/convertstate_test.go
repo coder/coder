@@ -131,7 +131,7 @@ func TestConvertStateGolden(t *testing.T) {
 // TestConvertStateDeterministic verifies that ConvertState produces
 // identical output across multiple runs. This catches non-deterministic
 // map iteration in the implementation. Unlike TestConvertStateGolden,
-// this test does NOT sort the output — it relies on ConvertState itself
+// this test does NOT sort the output - it relies on ConvertState itself
 // being deterministic.
 func TestConvertStateDeterministic(t *testing.T) {
 	t.Parallel()

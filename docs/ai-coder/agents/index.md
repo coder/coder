@@ -15,8 +15,8 @@ Your browser does not support the video tag.
 ## What Coder Agents is and isn't
 
 It is a standalone agent written in Go that implements standard
-agentic patterns — sub-agent delegation, context compaction, file editing, and
-shell execution — and works with any LLM provider you configure.
+agentic patterns - sub-agent delegation, context compaction, file editing, and
+shell execution - and works with any LLM provider you configure.
 
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
@@ -42,7 +42,7 @@ strong fit for:
   capabilities using their current templates, workspaces, and identity
   providers rather than adopting a separate SaaS product.
 
-Coder Agents runs entirely self-hosted. There is no SaaS or managed component — the agent
+Coder Agents runs entirely self-hosted. There is no SaaS or managed component - the agent
 loop, chat history, and all tool execution happen within your Coder deployment.
 
 ## How it works
@@ -55,13 +55,13 @@ submits a prompt, the control plane:
 1. Receives the model's response, which may include tool calls such as reading
    files, writing code, or running shell commands.
 1. Executes tool calls by connecting to a Coder workspace over the existing
-   workspace connection — the same path used for web terminals, port
+   workspace connection - the same path used for web terminals, port
    forwarding, and IDE access.
 1. Returns tool results to the model and continues the loop until the task is
    complete.
 
 The workspace itself has no knowledge of AI. It is standard compute
-infrastructure — there are no LLM API keys, no agent harnesses, and no special
+infrastructure - there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
 <img src="../../images/guides/ai-agents/agent-loop.png" alt="Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces">
@@ -74,17 +74,17 @@ providers and connects to workspaces only when tool execution is needed.</small>
 Not every chat requires a workspace. The agent runs in the control plane and can
 answer questions, discuss architecture, or plan an approach without any
 infrastructure. Workspaces are only provisioned when the agent needs to take
-action — reading code, running commands, or editing files.
+action - reading code, running commands, or editing files.
 
 This means:
 
-- **Faster responses** — conversations that don't require workspace access
+- **Faster responses** - conversations that don't require workspace access
   start immediately with no provisioning delay.
-- **Lower infrastructure cost** — workspaces are only created when the agent
+- **Lower infrastructure cost** - workspaces are only created when the agent
   needs to do real development work.
 
-When a workspace _is_ needed, the agent reads the templates available to that user —
-including their descriptions and parameters — selects the appropriate one, and
+When a workspace _is_ needed, the agent reads the templates available to that user,
+including their descriptions and parameters - selects the appropriate one, and
 creates a workspace automatically. Template visibility is scoped to the user's role and permissions, so the agent can only select templates the user is authorized to use. Users can also manually choose which workspace is used when starting a new chat.
 
 Platform teams control template routing by writing clear template descriptions.
@@ -166,10 +166,10 @@ entirely:
   else. The workspace never needs to reach the internet for AI functionality.
 - **Centralized, enforced control.** Platform teams configure models, system
   prompts, and tool permissions from the control plane. These settings are
-  enforced server-side — they are not user preferences that developers can
+  enforced server-side - they are not user preferences that developers can
   override.
-- **User identity is always attached.** Every action the agent takes — PRs
-  opened, code pushed, commands run — is tied to the user who submitted the
+- **User identity is always attached.** Every action the agent takes - PRs
+  opened, code pushed, commands run - is tied to the user who submitted the
   prompt. There is no shared bot identity or anonymous execution.
 - **No privilege escalation.** The agent operates with the exact same
   permissions as the user who submitted the prompt. If a developer cannot
@@ -178,7 +178,7 @@ entirely:
   and no shared service account.
 - **Workspace isolation is preserved.** The agent can only access workspaces
   owned by the user who submitted the prompt. There is no cross-user
-  workspace access — an agent running on behalf of one developer cannot
+  workspace access - an agent running on behalf of one developer cannot
   read files, execute commands, or interact with another developer's
   workspaces.
 

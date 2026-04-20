@@ -209,7 +209,7 @@ of this essay, I hope to reveal to you, the reader, that this description is jus
 absolute chonker. Just way longer than it actually needs to be. Absolutely massive.
 Very big.
 
-> Wow, that description is straight up large. –Some guy, probably
+> Wow, that description is straight up large. -Some guy, probably
 `,
 					icon: "/icon/aws.svg",
 				},

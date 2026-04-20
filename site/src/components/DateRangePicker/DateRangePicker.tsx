@@ -143,7 +143,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	const handlePreset = (preset: DateRangePreset) => {
 		const { from, to } = preset.range();
 		setSelection({ from, to });
-		// Presets are a complete selection — commit immediately.
+		// Presets are a complete selection - commit immediately.
 		onChange(toBoundary(from, to, now ?? new Date()));
 		setOpen(false);
 	};

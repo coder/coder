@@ -77,7 +77,7 @@ func TestResolvePath(t *testing.T) { //nolint:tparallel // subtests using t.Sete
 }
 
 func TestResolvePath_HomeUnset(t *testing.T) {
-	// Cannot be parallel — modifies HOME env var.
+	// Cannot be parallel - modifies HOME env var.
 	t.Setenv("HOME", "")
 	// Also clear USERPROFILE for Windows compatibility.
 	t.Setenv("USERPROFILE", "")

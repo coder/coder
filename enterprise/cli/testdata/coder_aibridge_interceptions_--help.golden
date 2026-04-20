@@ -8,5 +8,5 @@ USAGE:
 SUBCOMMANDS:
     list    List AI Bridge interceptions as JSON.
 
-———
+---
 Run `coder --help` for a list of global options.

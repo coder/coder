@@ -313,7 +313,7 @@ describe(usePaginatedQuery.name, () => {
 			);
 
 			await waitFor(() => expect(result.current.isSuccess).toBe(true));
-			// Should stay on page 83 — not redirect to page 80.
+			// Should stay on page 83 - not redirect to page 80.
 			expect(result.current.currentPage).toBe(83);
 		});
 

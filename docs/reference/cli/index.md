@@ -10,7 +10,7 @@ coder [global-flags] <subcommand>
 ## Description
 
 ```console
-Coder — A tool for provisioning self-hosted development environments with Terraform.
+Coder - A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:
 
      $ coder server

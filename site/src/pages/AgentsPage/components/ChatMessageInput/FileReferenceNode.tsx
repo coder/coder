@@ -42,7 +42,7 @@ export function FileReferenceChip({
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
 	const lineLabel =
-		startLine === endLine ? `L${startLine}` : `L${startLine}–${endLine}`;
+		startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`;
 
 	return (
 		<span

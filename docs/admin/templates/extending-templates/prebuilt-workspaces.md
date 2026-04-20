@@ -96,7 +96,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
       datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
 
-   The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
+   The claiming process is transparent to the developer - the workspace will just be ready faster than usual.
 
 You can view available prebuilt workspaces in the **Workspaces** view in the Coder dashboard:
 

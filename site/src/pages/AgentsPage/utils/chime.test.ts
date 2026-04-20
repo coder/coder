@@ -82,7 +82,7 @@ describe("maybePlayChime", () => {
 		vi.useFakeTimers();
 		localStorage.clear();
 		_resetForTesting();
-		// Explicitly enable the chime — the default is now disabled.
+		// Explicitly enable the chime - the default is now disabled.
 		setChimeEnabled(true);
 
 		mockLocks = new MockLockManager();

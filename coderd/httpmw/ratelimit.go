@@ -34,10 +34,10 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
 			// Identify the caller. We check two sources:
 			//
-			// 1. apiKeyPrecheckedContextKey — set by PrecheckAPIKey
+			// 1. apiKeyPrecheckedContextKey - set by PrecheckAPIKey
 			//    at the root of the router. Only fully validated
 			//    keys are used.
-			// 2. apiKeyContextKey — set by ExtractAPIKeyMW if it
+			// 2. apiKeyContextKey - set by ExtractAPIKeyMW if it
 			//    has already run (e.g. unit tests, workspace-app
 			//    routes that don't go through PrecheckAPIKey).
 			//
@@ -67,7 +67,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			// rego is CPU-intensive and undermines the
 			// DoS-prevention goal of the rate limiter.
 			if subject == nil {
-				// Can't verify roles — rate limit normally.
+				// Can't verify roles - rate limit normally.
 				return userID, nil
 			}
 			for _, role := range subject.SafeRoleNames() {

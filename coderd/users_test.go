@@ -158,7 +158,7 @@ func TestFirstUser_OnboardingTelemetry(t *testing.T) {
 			Email:    "admin@coder.com",
 			Username: "admin",
 			Password: "SomeSecurePassword!",
-			// No OnboardingInfo — simulates old CLI or OIDC flow.
+			// No OnboardingInfo - simulates old CLI or OIDC flow.
 		})
 		require.NoError(t, err)
 

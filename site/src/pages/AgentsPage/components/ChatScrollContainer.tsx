@@ -13,7 +13,7 @@ import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
 // ===========================================================================
-// useStickToBottom — scroll-lock hook
+// useStickToBottom - scroll-lock hook
 // ===========================================================================
 
 /** Pixel threshold for "near bottom" detection. */
@@ -119,7 +119,7 @@ function useStickToBottom(): StickToBottomInstance {
 		pendingPrepend: null,
 	});
 
-	// Sync helpers — keep mutable state and React state in lockstep.
+	// Sync helpers - keep mutable state and React state in lockstep.
 	const syncIsAtBottom = useEffectEvent((v: boolean) => {
 		stateRef.current.internalIsAtBottom = v;
 		setIsAtBottom(v);
@@ -202,10 +202,10 @@ function useStickToBottom(): StickToBottomInstance {
 
 		setNearBottom(isNearBottom(s));
 
-		// Synchronous escape logic — must run before any resize
+		// Synchronous escape logic - must run before any resize
 		// handler so they see up-to-date internalIsAtBottom.
 		// Skip when a content resize or viewport resize is in
-		// progress — the browser may fire scroll events during
+		// progress - the browser may fire scroll events during
 		// layout that aren’t user-initiated.
 		if (
 			s.resizeDifference === 0 &&
@@ -232,7 +232,7 @@ function useStickToBottom(): StickToBottomInstance {
 				syncIsAtBottom(true);
 			}
 		}
-		// Text-selection escape deferred — getSelection() needs
+		// Text-selection escape deferred - getSelection() needs
 		// post-layout DOM state to reflect the current drag.
 		setTimeout(() => {
 			if (s.resizeDifference !== 0) return;
@@ -333,7 +333,7 @@ function useStickToBottom(): StickToBottomInstance {
 			s.suppressNextResize = false;
 		} else if (difference >= 0) {
 			if (previousHeight === undefined) {
-				// First observation — jump to bottom instantly.
+				// First observation - jump to bottom instantly.
 				if (s.internalIsAtBottom) {
 					scrollTo(s, target);
 				}
@@ -362,7 +362,7 @@ function useStickToBottom(): StickToBottomInstance {
 				}
 			}
 		} else if (isNearBottom(s)) {
-			// Content shrank and we ended up near bottom — re-engage.
+			// Content shrank and we ended up near bottom - re-engage.
 			syncEscapedFromLock(false);
 			syncIsAtBottom(true);
 		}
@@ -430,7 +430,7 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
-	// Ref callbacks must have stable identity — React cycles them
+	// Ref callbacks must have stable identity - React cycles them
 	// on identity change, which leaks event listeners. Store the
 	// element in state and let a useEffect manage listeners.
 	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
@@ -538,7 +538,7 @@ function useStickToBottom(): StickToBottomInstance {
 	// race between ResizeObserver callbacks, browser scroll
 	// clamping, and React re-renders (e.g. Safari PWA viewport
 	// settling after navigation).
-	// Intentionally no deps — runs every render as a safety net.
+	// Intentionally no deps - runs every render as a safety net.
 	useLayoutEffect(() => {
 		const s = stateRef.current;
 		if (!s.scrollElement || !s.internalIsAtBottom) return;
@@ -560,7 +560,7 @@ function useStickToBottom(): StickToBottomInstance {
 }
 
 // ===========================================================================
-// ChatScrollContainer — the scroll-anchored wrapper for the chat transcript
+// ChatScrollContainer - the scroll-anchored wrapper for the chat transcript
 // ===========================================================================
 
 /**
@@ -625,7 +625,7 @@ const ChatScrollContainer: FC<{
 		}
 		// Restoration happens in handleContentResize (via
 		// pendingPrepend) when the DOM actually reflects the
-		// prepended content — not here, because the store
+		// prepended content - not here, because the store
 		// update may lag behind isFetchingMoreMessages.
 	}, [isFetchingMoreMessages, capturePrependSnapshot]);
 

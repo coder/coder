@@ -38,7 +38,7 @@ export const SeatUsageBarCard: FC<SeatUsageBarCardProps> = ({
 			: 0;
 
 	const activeLabel =
-		actual === undefined ? "—" : activeNum.toLocaleString("en-US");
+		actual === undefined ? "-" : activeNum.toLocaleString("en-US");
 	const limitLabel = isUnlimited
 		? "Unlimited"
 		: meteredLimit.toLocaleString("en-US");

@@ -32,7 +32,7 @@ func TestUserSecretEnvNameValid(t *testing.T) {
 		{name: "ContainsDot", input: "FOO.BAR", wantErr: true, errMsg: "must start with"},
 		{name: "ContainsSpace", input: "FOO BAR", wantErr: true, errMsg: "must start with"},
 
-		// Reserved system names — core POSIX/login.
+		// Reserved system names - core POSIX/login.
 		{name: "ReservedPATH", input: "PATH", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedHOME", input: "HOME", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedSHELL", input: "SHELL", wantErr: true, errMsg: "reserved"},
@@ -41,42 +41,42 @@ func TestUserSecretEnvNameValid(t *testing.T) {
 		{name: "ReservedPWD", input: "PWD", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedOLDPWD", input: "OLDPWD", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — locale/terminal.
+		// Reserved system names - locale/terminal.
 		{name: "ReservedLANG", input: "LANG", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedTERM", input: "TERM", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — shell behavior.
+		// Reserved system names - shell behavior.
 		{name: "ReservedIFS", input: "IFS", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedCDPATH", input: "CDPATH", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — shell startup files.
+		// Reserved system names - shell startup files.
 		{name: "ReservedENV", input: "ENV", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedBASH_ENV", input: "BASH_ENV", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — temp directories.
+		// Reserved system names - temp directories.
 		{name: "ReservedTMPDIR", input: "TMPDIR", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedTMP", input: "TMP", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedTEMP", input: "TEMP", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — host identity.
+		// Reserved system names - host identity.
 		{name: "ReservedHOSTNAME", input: "HOSTNAME", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — SSH.
+		// Reserved system names - SSH.
 		{name: "ReservedSSH_AUTH_SOCK", input: "SSH_AUTH_SOCK", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedSSH_CLIENT", input: "SSH_CLIENT", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedSSH_CONNECTION", input: "SSH_CONNECTION", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedSSH_TTY", input: "SSH_TTY", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — editor/pager.
+		// Reserved system names - editor/pager.
 		{name: "ReservedEDITOR", input: "EDITOR", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedVISUAL", input: "VISUAL", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedPAGER", input: "PAGER", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — IDE integration.
+		// Reserved system names - IDE integration.
 		{name: "ReservedVSCODE_PROXY_URI", input: "VSCODE_PROXY_URI", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedCS_DISABLE", input: "CS_DISABLE_GETTING_STARTED_OVERRIDE", wantErr: true, errMsg: "reserved"},
 
-		// Reserved system names — XDG.
+		// Reserved system names - XDG.
 		{name: "ReservedXDG_RUNTIME_DIR", input: "XDG_RUNTIME_DIR", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedXDG_CONFIG_HOME", input: "XDG_CONFIG_HOME", wantErr: true, errMsg: "reserved"},
 		{name: "ReservedXDG_DATA_HOME", input: "XDG_DATA_HOME", wantErr: true, errMsg: "reserved"},

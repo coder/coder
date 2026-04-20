@@ -283,7 +283,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	telemetryUser.Email = &user.Email
 	// Only populate onboarding data when the client actually sent it. A nil
 	// OnboardingInfo means the request came from an older client, the CLI, or
-	// the OIDC flow — not from a user who answered "no" to every question.
+	// the OIDC flow - not from a user who answered "no" to every question.
 	var onboarding *telemetry.FirstUserOnboarding
 	if createUser.OnboardingInfo != nil {
 		onboarding = &telemetry.FirstUserOnboarding{

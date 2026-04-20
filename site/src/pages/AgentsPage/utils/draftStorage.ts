@@ -33,7 +33,7 @@ export function parseStoredDraft(raw: string | null): ParsedDraft {
 			return { text: extractPlainText(parsed), editorState: raw };
 		}
 	} catch {
-		// Not JSON — treat as legacy plain-text draft.
+		// Not JSON - treat as legacy plain-text draft.
 	}
 	return { text: raw, editorState: undefined };
 }

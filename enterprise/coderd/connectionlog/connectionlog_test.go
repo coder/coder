@@ -223,7 +223,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Close drains channel and flushes — dedup keeps disconnect.
+		// Close drains channel and flushes - dedup keeps disconnect.
 		err = backend.Close()
 		require.NoError(t, err)
 
@@ -358,7 +358,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Close without advancing clock — final flush should write.
+		// Close without advancing clock - final flush should write.
 		err = backend.Close()
 		require.NoError(t, err)
 

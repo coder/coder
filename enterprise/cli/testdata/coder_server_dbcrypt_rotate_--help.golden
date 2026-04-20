@@ -22,5 +22,5 @@ OPTIONS:
   -y, --yes bool
           Bypass confirmation prompts.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -134,13 +134,13 @@ in your `devcontainer.json`.
 
 ## Next steps
 
-- [Working with dev containers](./working-with-dev-containers.md) — SSH, IDE
+- [Working with dev containers](./working-with-dev-containers.md) - SSH, IDE
   integration, and port forwarding
-- [Customizing dev containers](./customizing-dev-containers.md) — Custom agent
+- [Customizing dev containers](./customizing-dev-containers.md) - Custom agent
   names, apps, and display options
-- [Troubleshooting dev containers](./troubleshooting-dev-containers.md) —
+- [Troubleshooting dev containers](./troubleshooting-dev-containers.md) -
   Diagnose common issues
-- [Dev Container specification](https://containers.dev/) — Advanced
+- [Dev Container specification](https://containers.dev/) - Advanced
   configuration options
-- [Dev Container features](https://containers.dev/features) — Enhance your
+- [Dev Container features](https://containers.dev/features) - Enhance your
   environment with pre-built tools

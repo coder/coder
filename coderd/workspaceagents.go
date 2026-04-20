@@ -1526,7 +1526,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if firstBuild.InitiatorID != database.PrebuildsSystemUserID {
-			// Not a claimed prebuild — this is a regular workspace.
+			// Not a claimed prebuild - this is a regular workspace.
 			// Return 409 so the agent stops reconnecting to this
 			// endpoint.
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -1558,7 +1558,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — cancel the pubsub
+			// Claim build succeeded - cancel the pubsub
 			// subscription (no longer needed) and swap in a
 			// pre-seeded channel so the transmitter delivers
 			// exactly one reinit event.
@@ -1585,7 +1585,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Claim build still in progress — fall through to the
+		// Claim build still in progress - fall through to the
 		// transmitter. The pubsub subscription (set up above)
 		// will deliver the event when the build completes
 		// successfully. Note: FailJob does not publish a claim

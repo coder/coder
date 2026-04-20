@@ -2125,7 +2125,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 		// With 2 running prebuilds, 1 of which is expired, the expired prebuild should be deleted,
 		// and one new prebuild should be created to maintain the desired count.
 		{
-			name:       "one expired prebuild – deleted and replaced",
+			name:       "one expired prebuild - deleted and replaced",
 			running:    2,
 			desired:    2,
 			expired:    1,
@@ -2135,7 +2135,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 		// With 2 running prebuilds, both expired, both should be deleted,
 		// and 2 new prebuilds created to match the desired count.
 		{
-			name:       "all prebuilds expired – all deleted and recreated",
+			name:       "all prebuilds expired - all deleted and recreated",
 			running:    2,
 			desired:    2,
 			expired:    2,

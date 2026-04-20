@@ -44,5 +44,5 @@ OPTIONS:
       --extra string
           Extract a field from the "extra" properties of the OAuth token.
 
-———
+---
 Run `coder --help` for a list of global options.

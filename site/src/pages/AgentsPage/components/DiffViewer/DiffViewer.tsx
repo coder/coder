@@ -379,7 +379,7 @@ const DiffScrollContainer: FC<{
 	// on every render, which calls virtualizer.cleanUp() and
 	// wipes the observer map. The compiler can't preserve this
 	// useCallback, but that only causes it to skip this small
-	// wrapper — not the entire DiffViewer.
+	// wrapper - not the entire DiffViewer.
 	const contentRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			const viewport = node?.closest<HTMLElement>(
@@ -422,7 +422,7 @@ const DiffScrollContainer: FC<{
  * heavy component (Shadow DOM + shiki highlighting) is only mounted
  * once the placeholder scrolls into or near the viewport.
  *
- * Once mounted the component stays mounted — we never unmount a
+ * Once mounted the component stays mounted - we never unmount a
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
@@ -670,7 +670,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// Track which file is at the top of the diff scroll area by
 	// listening to scroll events on the viewport. The active file
 	// is whichever file wrapper's top edge is closest to (but not
-	// below) the container's top — i.e. the one whose sticky
+	// below) the container's top - i.e. the one whose sticky
 	// header would be showing.
 	const diffViewportRef = useRef<HTMLElement | null>(null);
 

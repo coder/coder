@@ -26,5 +26,5 @@ OPTIONS:
   -s, --status [pending|running|succeeded|canceling|canceled|failed|unknown], $CODER_PROVISIONER_JOB_LIST_STATUS
           Filter by job status.
 
-———
+---
 Run `coder --help` for a list of global options.

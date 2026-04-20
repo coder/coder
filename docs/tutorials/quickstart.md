@@ -174,8 +174,8 @@ Templates define what's in your development environment. Let's start simple:
 
    ![Create template](../images/screenshots/create-template.png)
 
-**What just happened?** You defined a template — a reusable blueprint for dev
-environments — in your Coder deployment. It's now stored in your organization's
+**What just happened?** You defined a template - a reusable blueprint for dev
+environments - in your Coder deployment. It's now stored in your organization's
 template list, where you and any teammates in the same org can create workspaces
 from it. Let's launch one.
 

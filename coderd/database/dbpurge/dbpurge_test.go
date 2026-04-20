@@ -1767,7 +1767,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
-				// Old archived chat (31 days) — should be deleted.
+				// Old archived chat (31 days) - should be deleted.
 				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				// Insert a message so we can verify CASCADE.
 				_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
@@ -1792,10 +1792,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Recently archived chat (10 days) — should be retained.
+				// Recently archived chat (10 days) - should be retained.
 				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
 
-				// Active chat — should be retained.
+				// Active chat - should be retained.
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
@@ -1852,7 +1852,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File C: 10 days old, NOT in any chat -> should be retained (too young).
 				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-10*24*time.Hour))
 
-				// File near boundary: 29d23h old — close to threshold.
+				// File near boundary: 29d23h old - close to threshold.
 				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
@@ -2083,7 +2083,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				}
 
-				// Delete with limit 2 — should delete 2, leave 1.
+				// Delete with limit 2 - should delete 2, leave 1.
 				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
 					BeforeTime: now.Add(-30 * 24 * time.Hour),
 					LimitCount: 2,
@@ -2091,7 +2091,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, int64(2), deleted, "should delete exactly 2 files")
 
-				// Delete again — should delete the remaining 1.
+				// Delete again - should delete the remaining 1.
 				deleted, err = db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
 					BeforeTime: now.Add(-30 * 24 * time.Hour),
 					LimitCount: 2,
@@ -2112,7 +2112,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				}
 
-				// Delete with limit 2 — should delete 2, leave 1.
+				// Delete with limit 2 - should delete 2, leave 1.
 				deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
 					BeforeTime: now.Add(-30 * 24 * time.Hour),
 					LimitCount: 2,
@@ -2120,7 +2120,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, int64(2), deleted, "should delete exactly 2 chats")
 
-				// Delete again — should delete the remaining 1.
+				// Delete again - should delete the remaining 1.
 				deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
 					BeforeTime: now.Add(-30 * 24 * time.Hour),
 					LimitCount: 2,

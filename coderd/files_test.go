@@ -91,7 +91,7 @@ func TestPostFiles(t *testing.T) {
 func TestDownload(t *testing.T) {
 	t.Parallel()
 
-	// Shared instance — see TestPostFiles for rationale.
+	// Shared instance - see TestPostFiles for rationale.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {

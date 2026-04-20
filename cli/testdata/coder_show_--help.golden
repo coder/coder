@@ -9,5 +9,5 @@ OPTIONS:
       --details bool (default: false)
           Show full error messages and additional details.
 
-———
+---
 Run `coder --help` for a list of global options.

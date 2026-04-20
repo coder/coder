@@ -6,7 +6,7 @@
 
 The Chats API lets you create and interact with Coder Agents
 programmatically. You can start a chat, send follow-up messages, and stream
-the agent's response — all without using the Coder dashboard.
+the agent's response - all without using the Coder dashboard.
 
 ## Authentication
 
@@ -68,11 +68,11 @@ The agent begins processing the prompt asynchronously. Use the
 
 A typical integration follows three steps:
 
-1. **Create a chat** — `POST /api/experimental/chats` with your prompt.
-2. **Stream updates** — Open a WebSocket to
+1. **Create a chat** - `POST /api/experimental/chats` with your prompt.
+2. **Stream updates** - Open a WebSocket to
    `GET /api/experimental/chats/{chat}/stream` to receive real-time events
    as the agent works.
-3. **Send follow-ups** — `POST /api/experimental/chats/{chat}/messages` to
+3. **Send follow-ups** - `POST /api/experimental/chats/{chat}/messages` to
    add messages to the conversation. Messages are queued if the agent is
    busy.
 

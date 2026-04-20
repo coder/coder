@@ -92,7 +92,7 @@ const (
 	// emitted when stream events are dropped. Between intervals the
 	// drop is logged at DEBUG to avoid log spam. This uses a
 	// timestamp comparison rather than a quartz.Ticker because the
-	// state is per-chat — a ticker per chat would require extra
+	// state is per-chat - a ticker per chat would require extra
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
@@ -147,7 +147,7 @@ type Server struct {
 	configCacheUnsubscribe         func()
 
 	// chatStreams stores per-chat stream state. Using sync.Map
-	// gives each chat independent locking — concurrent chats
+	// gives each chat independent locking - concurrent chats
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
@@ -681,7 +681,7 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 //   - params: all state needed to build the merged stream.
 //
 // Returns the merged event channel. Cleanup is driven by ctx
-// cancellation — the merge goroutine tears down all relay state
+// cancellation - the merge goroutine tears down all relay state
 // in its defer when ctx is done.
 // Set by enterprise for HA deployments. Nil in AGPL single-replica.
 type SubscribeFn func(
@@ -1246,7 +1246,7 @@ func (p *Server) SendMessage(
 			updatedChat, err := p.setChatWaiting(ctx, opts.ChatID)
 			if err != nil {
 				// The message is already queued so the chat is
-				// not in a broken state — the user can still
+				// not in a broken state - the user can still
 				// wait for the current run to finish. Log the
 				// error but don't fail the request.
 				p.logger.Error(ctx, "failed to interrupt chat for queued message",
@@ -2022,7 +2022,7 @@ func (p *Server) InterruptChat(
 				slog.F("chat_id", chat.ID),
 				slog.Error(txErr),
 			)
-			// Fall through — still try to set waiting status.
+			// Fall through - still try to set waiting status.
 		}
 	}
 
@@ -2934,7 +2934,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		}
 		// If the chat has already transitioned to pending (e.g.
 		// SendMessage with interrupt behavior), don't overwrite
-		// it — the pending status takes priority so the new
+		// it - the pending status takes priority so the new
 		// message gets processed.
 		if locked.Status == database.ChatStatusPending {
 			updatedChat = locked
@@ -2974,8 +2974,8 @@ func insertChatMessageWithStore(
 // chatMessage describes a single message to insert as part of a batch.
 // Use newChatMessage to create one, then chain builder methods for
 // optional fields. For nullable UUID fields (ModelConfigID, CreatedBy),
-// use uuid.Nil to represent NULL — the SQL uses NULLIF to convert zero
-// UUIDs to NULL. For nullable int64 fields, use 0 to represent NULL —
+// use uuid.Nil to represent NULL - the SQL uses NULLIF to convert zero
+// UUIDs to NULL. For nullable int64 fields, use 0 to represent NULL;
 // the SQL uses NULLIF to convert zeros to NULL.
 type chatMessage struct {
 	role                database.ChatMessageRole
@@ -3690,7 +3690,7 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 
 // getOrCreateStreamState returns the per-chat stream state,
 // creating one atomically if it doesn't exist. The returned
-// state has its own mutex — callers must lock state.mu for
+// state has its own mutex - callers must lock state.mu for
 // access.
 func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 	if val, ok := p.chatStreams.Load(chatID); ok {
@@ -4737,7 +4737,7 @@ func (p *Server) trackWorkspaceUsage(
 		// so no prebuild guard is needed (unlike reporter.go).
 		//
 		// This fires every heartbeat (~30s) but the SQL only
-		// writes when 5% of the deadline has elapsed — most calls
+		// writes when 5% of the deadline has elapsed - most calls
 		// perform a read-only CTE lookup with no UPDATE.
 		//
 		// Scaling note: for 10,000 active chats, this could lead to
@@ -4766,7 +4766,7 @@ func (p *Server) finishActiveChat(
 	result := finishActiveChatResult{}
 
 	err := p.db.InTx(func(tx database.Store) error {
-		// Re-read the chat status under lock — another caller
+		// Re-read the chat status under lock - another caller
 		// (e.g. promote) may have already set it to pending.
 		latestChat, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if lockErr != nil {
@@ -4774,7 +4774,7 @@ func (p *Server) finishActiveChat(
 		}
 
 		// If another worker has already acquired this chat,
-		// bail out — we must not overwrite their running
+		// bail out - we must not overwrite their running
 		// status or publish spurious events.
 		if latestChat.Status == database.ChatStatusRunning &&
 			latestChat.WorkerID.Valid &&
@@ -4783,7 +4783,7 @@ func (p *Server) finishActiveChat(
 		}
 
 		// If someone else already set the chat to pending (e.g.
-		// the promote endpoint), don't overwrite it — just clear
+		// the promote endpoint), don't overwrite it - just clear
 		// the worker and let the processor pick it back up.
 		switch {
 		case latestChat.Status == database.ChatStatusPending:
@@ -4897,7 +4897,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// Start buffering stream events BEFORE publishing the running
 	// status. This closes a race where a subscriber sees
 	// status=running but misses message_part events because
-	// buffering hasn't started yet — the subscriber gets an empty
+	// buffering hasn't started yet - the subscriber gets an empty
 	// snapshot and publishToStream drops message_parts while
 	// buffering is false.
 	streamState := p.getOrCreateStreamState(chat.ID)
@@ -4926,7 +4926,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	})
 
 	// Arm the control subscriber. Closing the channel is a
-	// happens-before guarantee in the Go memory model — any
+	// happens-before guarantee in the Go memory model - any
 	// notification dispatched after this point will correctly
 	// interrupt processing.
 	close(controlArmed)
@@ -4965,7 +4965,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// don't overwrite a status change made by another caller.
 		finishResult, err := p.finishActiveChat(cleanupCtx, logger, chat, status, lastError)
 		if errors.Is(err, errChatTakenByOtherWorker) {
-			// Another worker owns this chat now — skip all
+			// Another worker owns this chat now - skip all
 			// post-TX side effects (status publish, pubsub,
 			// web push) to avoid overwriting their state.
 			return
@@ -5053,7 +5053,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		return
 	}
 
-	// The LLM invoked a dynamic tool — park the chat in
+	// The LLM invoked a dynamic tool - park the chat in
 	// requires_action so the client can supply tool results.
 	if len(runResult.PendingDynamicToolCalls) > 0 {
 		status = database.ChatStatusRequiresAction
@@ -5064,7 +5064,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// canceled (e.g. during Close()), the chat should be returned
 	// to pending so another replica can pick it up. There is a
 	// race where the LLM stream finishes just as the server is
-	// shutting down — the HTTP response completes before context
+	// shutting down - the HTTP response completes before context
 	// cancellation propagates, so runChat returns nil instead of
 	// a context.Canceled error. Without this check the chat would
 	// be marked "waiting" and never retried.
@@ -6002,7 +6002,7 @@ func (p *Server) runChat(
 			// InterruptChat / setChatWaiting), the worker_id has
 			// already been cleared but we still want to persist
 			// the partial assistant response. We allow the write
-			// because the history has NOT been truncated — the
+			// because the history has NOT been truncated - the
 			// user simply asked to stop. In contrast, EditMessage
 			// sets the chat to "pending" after truncating, so the
 			// pending check still correctly blocks stale writes.
@@ -6665,7 +6665,7 @@ func (p *Server) persistChatContextSummary(
 			return xerrors.Errorf("insert summary messages: %w", txErr)
 		}
 		// Skip the first message (hidden summary user msg) when
-		// publishing — only the assistant and tool messages are
+		// publishing - only the assistant and tool messages are
 		// visible to subscribers.
 		insertedMessages = allInserted[1:]
 
@@ -6956,7 +6956,7 @@ func (p *Server) fetchWorkspaceContext(
 
 	// Stamp server-side fields and sanitize content. The
 	// agent cannot know its own UUID, OS metadata, or
-	// directory — those are added here at the trust boundary.
+	// directory - those are added here at the trust boundary.
 	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
 
 	for i := range agentParts {
@@ -7090,7 +7090,7 @@ func (p *Server) persistInstructionFiles(
 // updateLastInjectedContext persists the injected context
 // parts (AGENTS.md files and skills) on the chat row so they
 // are directly queryable without scanning messages. This is
-// best-effort — a failure here is logged but does not block
+// best-effort - a failure here is logged but does not block
 // the turn.
 func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
 	param := pqtype.NullRawMessage{Valid: false}

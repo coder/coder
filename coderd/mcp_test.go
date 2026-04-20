@@ -294,7 +294,7 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Regular user lists configs — auth_connected should be false
+	// Regular user lists configs - auth_connected should be false
 	// because no token has been stored.
 	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
@@ -494,7 +494,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		client := newMCPClient(t)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		// Create config with auth_type=oauth2 but no OAuth2 fields —
+		// Create config with auth_type=oauth2 but no OAuth2 fields;
 		// the server should auto-discover them.
 		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Auto-Discovery Server",
@@ -954,7 +954,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// MCP server that returns 404 for the well-known endpoint and
-		// a non-401 status for the root — discovery has nothing to latch
+		// a non-401 status for the root - discovery has nothing to latch
 		// onto.
 		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "not found", http.StatusNotFound)

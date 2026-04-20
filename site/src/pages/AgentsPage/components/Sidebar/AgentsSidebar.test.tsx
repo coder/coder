@@ -282,7 +282,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const countAfterMount = observeCount;
 		expect(countAfterMount).toBe(1);
 
-		// Start fetching — observer is torn down.
+		// Start fetching - observer is torn down.
 		rerender(
 			<Wrapper>
 				<AgentsSidebar
@@ -294,7 +294,7 @@ describe("AgentsSidebar load-more behavior", () => {
 			</Wrapper>,
 		);
 
-		// Fetch completes — a fresh observer is created, firing
+		// Fetch completes - a fresh observer is created, firing
 		// an initial entry that detects the still-visible sentinel.
 		rerender(
 			<Wrapper>

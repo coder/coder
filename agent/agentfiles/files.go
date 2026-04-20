@@ -1180,12 +1180,12 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 			strings.TrimSpace(aContent) == strings.TrimSpace(bContent)
 	}
 
-	// Pass 2 – trim trailing whitespace on each line.
+	// Pass 2 - trim trailing whitespace on each line.
 	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimRight, edit.ReplaceAll, forcedEnding); matched {
 		return result, err
 	}
 
-	// Pass 3 – trim all leading and trailing whitespace
+	// Pass 3 - trim all leading and trailing whitespace
 	// (indentation-tolerant). The replacement is inserted verbatim;
 	// callers must provide correctly indented replacement text.
 	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimAll, edit.ReplaceAll, forcedEnding); matched {

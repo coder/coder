@@ -716,7 +716,7 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-// Generic fallback renderer — only path that needs theme, diff
+// Generic fallback renderer - only path that needs theme, diff
 // viewers, and file content helpers.
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
@@ -841,7 +841,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// process_signal — thin wrapper that promotes soft failures (success=false
+// process_signal - thin wrapper that promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
 // renderer shows the error indicator and tooltip.
 // ---------------------------------------------------------------------------
@@ -882,7 +882,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Renderer lookup map — maps tool names to their specialized renderers.
+// Renderer lookup map - maps tool names to their specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
@@ -912,7 +912,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Public Tool component — single wrapper div + map dispatch.
+// Public Tool component - single wrapper div + map dispatch.
 // ---------------------------------------------------------------------------
 
 export const Tool = memo(

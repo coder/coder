@@ -9,5 +9,5 @@ USAGE:
   can start. The unit specified first will not start until all subsequent units
   have signaled that they have completed.
 
-———
+---
 Run `coder --help` for a list of global options.

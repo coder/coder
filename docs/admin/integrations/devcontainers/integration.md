@@ -212,12 +212,12 @@ terraform-managed dev containers. If you need custom apps, define them as
 Developers can customize individual dev containers using the `customizations.coder`
 block in their `devcontainer.json` file. Available options include:
 
-- `ignore` — Hide a dev container from Coder completely
-- `autoStart` — Control whether the container starts automatically (requires
+- `ignore` - Hide a dev container from Coder completely
+- `autoStart` - Control whether the container starts automatically (requires
   `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE` to be enabled)
-- `name` — Set a custom agent name
-- `displayApps` — Control which built-in apps appear
-- `apps` — Define custom applications
+- `name` - Set a custom agent name
+- `displayApps` - Control which built-in apps appear
+- `apps` - Define custom applications
 
 For the full reference, see
 [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md).

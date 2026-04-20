@@ -1,4 +1,4 @@
-# docker-compose.dev.yml — Development environment
+# docker-compose.dev.yml - Development environment
 services:
   database:
     labels:

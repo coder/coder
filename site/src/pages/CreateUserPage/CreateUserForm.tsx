@@ -224,7 +224,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						</div>
 					)}
 
-					{/* Login type — "none" is presented as "Service account" */}
+					{/* Login type - "none" is presented as "Service account" */}
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="login_type">Login type</Label>
 						<Select

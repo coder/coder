@@ -60,7 +60,7 @@ func TestCron(t *testing.T) {
 
 		// Wait for timer creation, then fire it. The delay is the
 		// time until the next epoch-aligned boundary for the 5-minute
-		// interval — we don't assert the exact value since it depends
+		// interval - we don't assert the exact value since it depends
 		// on the mock clock's current time.
 		timerCall := timerTrap.MustWait(ctx)
 		timerCall.MustRelease(ctx)

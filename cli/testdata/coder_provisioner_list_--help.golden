@@ -29,5 +29,5 @@ OPTIONS:
   -s, --status [offline|idle|busy], $CODER_PROVISIONER_LIST_STATUS
           Filter by provisioner status.
 
-———
+---
 Run `coder --help` for a list of global options.

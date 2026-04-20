@@ -37,5 +37,5 @@ SUBCOMMANDS:
     resume    Resume notifications
     test      Send a test notification
 
-———
+---
 Run `coder --help` for a list of global options.

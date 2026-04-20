@@ -1,18 +1,18 @@
-# Modern React (18–19.2) + Compiler 1.0 — Reference
+# Modern React (18-19.2) + Compiler 1.0 - Reference
 
-Reference for writing idiomatic React. Covers what changed, what it replaced, and what to reach for. Includes React Compiler patterns — what the compiler handles automatically, what it changes semantically, and how to verify its behavior empirically. Scope: client-side SPA patterns only. Server Components, `use server`, and `use client` directives are framework-specific and omitted. Check the project's React version and compiler config before reaching for newer APIs.
+Reference for writing idiomatic React. Covers what changed, what it replaced, and what to reach for. Includes React Compiler patterns - what the compiler handles automatically, what it changes semantically, and how to verify its behavior empirically. Scope: client-side SPA patterns only. Server Components, `use server`, and `use client` directives are framework-specific and omitted. Check the project's React version and compiler config before reaching for newer APIs.
 
 ## How modern React thinks differently
 
-**Concurrent rendering** (18): React can now pause, interrupt, and resume renders. This is the foundation everything else builds on. Most existing code "just works," but components that produce side effects during render (mutations, subscriptions, network calls in the render body) are unsafe and will misbehave. Concurrent features are opt-in — they only activate when you use a concurrent API like `startTransition` or `useDeferredValue`.
+**Concurrent rendering** (18): React can now pause, interrupt, and resume renders. This is the foundation everything else builds on. Most existing code "just works," but components that produce side effects during render (mutations, subscriptions, network calls in the render body) are unsafe and will misbehave. Concurrent features are opt-in - they only activate when you use a concurrent API like `startTransition` or `useDeferredValue`.
 
 **Urgent vs. non-urgent updates** (18): The `startTransition` / `useTransition` API introduces a formal split between updates that must feel immediate (typing, clicking) and updates that can be interrupted (filtering a large list, navigating to a new screen). Non-urgent updates yield to urgent ones mid-render. Use this instead of `setTimeout` or manual debounce when you want the UI to stay responsive during expensive re-renders.
 
 **Actions** (19): Async functions passed to `startTransition` are called "Actions." They automatically manage pending state, error handling, and optimistic updates as a unit. The `useActionState` hook and `<form action={fn}>` prop are built on this. The pattern replaces the hand-rolled `isPending/setIsPending` + `try/catch` + `setError` boilerplate that was previously necessary for every data mutation.
 
-**Automatic batching** (18): State updates are now batched everywhere — inside `setTimeout`, `Promise.then`, native event handlers, etc. Previously batching only happened inside React-managed event handlers. If you genuinely need a synchronous flush, use `flushSync`.
+**Automatic batching** (18): State updates are now batched everywhere - inside `setTimeout`, `Promise.then`, native event handlers, etc. Previously batching only happened inside React-managed event handlers. If you genuinely need a synchronous flush, use `flushSync`.
 
-**Automatic memoization** (Compiler 1.0): React Compiler is a build-time Babel plugin that automatically inserts memoization into components and hooks. It replaces manual `useMemo`, `useCallback`, and `React.memo` — including conditional memoization and memoization after early returns, which manual APIs cannot express. The compiler only processes components and hooks, not standalone functions. It understands data flow and mutability through its own HIR (High-level Intermediate Representation), so it can memoize more granularly than a human would. Projects adopt it incrementally — typically via path-based Babel overrides or the `"use memo"` directive. Components that violate the Rules of React are silently skipped (no build error), so the automated lint tools that check compiler compatibility matter.
+**Automatic memoization** (Compiler 1.0): React Compiler is a build-time Babel plugin that automatically inserts memoization into components and hooks. It replaces manual `useMemo`, `useCallback`, and `React.memo` - including conditional memoization and memoization after early returns, which manual APIs cannot express. The compiler only processes components and hooks, not standalone functions. It understands data flow and mutability through its own HIR (High-level Intermediate Representation), so it can memoize more granularly than a human would. Projects adopt it incrementally - typically via path-based Babel overrides or the `"use memo"` directive. Components that violate the Rules of React are silently skipped (no build error), so the automated lint tools that check compiler compatibility matter.
 
 ## Replace these patterns
 
@@ -35,19 +35,19 @@ The left column reflects patterns common before React 18/19. Write the right col
 | Manual `isPending` state around async calls                       | `const [isPending, startTransition] = useTransition()`                         | 18    |
 | Manual optimistic state + revert logic                            | `useOptimistic(currentValue)`                                                  | 19    |
 | `useEffect` to subscribe to external stores                       | `useSyncExternalStore(subscribe, getSnapshot)`                                 | 18    |
-| Hand-rolled unique ID (counter, random, index)                    | `useId()` — SSR-safe, hydration-safe                                           | 18    |
+| Hand-rolled unique ID (counter, random, index)                    | `useId()` - SSR-safe, hydration-safe                                           | 18    |
 | `useEffect` to inject `<title>` or `<meta>` / `react-helmet`      | Render `<title>`, `<meta>`, `<link>` directly in components; React hoists them | 19    |
 | `ReactDOM.useFormState(action, initial)` (Canary name)            | `useActionState(action, initial)`                                              | 19    |
-| `useReducer<React.Reducer<State, Action>>(reducer)`               | `useReducer(reducer)` — infers from the reducer function                       | 19    |
+| `useReducer<React.Reducer<State, Action>>(reducer)`               | `useReducer(reducer)` - infers from the reducer function                       | 19    |
 | `<div ref={current => (instance = current)} />` (implicit return) | `<div ref={current => { instance = current }} />` (explicit block body)        | 19    |
-| `useRef<T>()` with no argument                                    | `useRef<T>(undefined)` or `useRef<T \| null>(null)` — argument is now required | 19    |
-| `MutableRefObject<T>` type annotation                             | `RefObject<T>` — all refs are mutable now; `MutableRefObject` is deprecated    | 19    |
+| `useRef<T>()` with no argument                                    | `useRef<T>(undefined)` or `useRef<T \| null>(null)` - argument is now required | 19    |
+| `MutableRefObject<T>` type annotation                             | `RefObject<T>` - all refs are mutable now; `MutableRefObject` is deprecated    | 19    |
 | `React.createFactory('button')`                                   | `<button />` JSX                                                               | 19    |
-| `useMemo(() => expr, [deps])` in compiled components              | `const val = expr;` — compiler memoizes automatically                          | C 1.0 |
-| `useCallback(fn, [deps])` in compiled components                  | `const fn = () => { ... };` — compiler memoizes automatically                  | C 1.0 |
-| `React.memo(Component)` in compiled components                    | Plain component — compiler skips re-render when props are unchanged            | C 1.0 |
+| `useMemo(() => expr, [deps])` in compiled components              | `const val = expr;` - compiler memoizes automatically                          | C 1.0 |
+| `useCallback(fn, [deps])` in compiled components                  | `const fn = () => { ... };` - compiler memoizes automatically                  | C 1.0 |
+| `React.memo(Component)` in compiled components                    | Plain component - compiler skips re-render when props are unchanged            | C 1.0 |
 | `eslint-plugin-react-compiler` (standalone)                       | `eslint-plugin-react-hooks@latest` (compiler rules merged into recommended)    | C 1.0 |
-| `useRef` + `useLayoutEffect` for stable callbacks                 | `useEffectEvent(fn)` — compiler handles both, but `useEffectEvent` is clearer  | 19.2  |
+| `useRef` + `useLayoutEffect` for stable callbacks                 | `useEffectEvent(fn)` - compiler handles both, but `useEffectEvent` is clearer  | 19.2  |
 
 ## New capabilities
 
@@ -56,15 +56,15 @@ These enable things that weren't practical before. Reach for them in the describ
 | What                                                                 | Since   | When to use it                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `useTransition()` / `startTransition()`                              | 18      | Mark a state update as non-urgent so React can interrupt it to handle clicks or keystrokes. The `isPending` boolean lets you show a loading indicator without blocking the UI.                                                                                                                                                                                                                                                                                              |
-| `useDeferredValue(value, initialValue?)`                             | 18 / 19 | Defer re-rendering a slow subtree: pass the deferred value as a prop, wrap the expensive child in `memo`. Unlike debounce, uses no fixed timeout — renders as soon as the browser is idle. The `initialValue` arg (19) avoids a flash on first render.                                                                                                                                                                                                                      |
+| `useDeferredValue(value, initialValue?)`                             | 18 / 19 | Defer re-rendering a slow subtree: pass the deferred value as a prop, wrap the expensive child in `memo`. Unlike debounce, uses no fixed timeout - renders as soon as the browser is idle. The `initialValue` arg (19) avoids a flash on first render.                                                                                                                                                                                                                      |
 | `useId()`                                                            | 18      | Generate a stable, SSR-consistent ID for accessibility attributes (`htmlFor`, `aria-describedby`). Do not use for list keys.                                                                                                                                                                                                                                                                                                                                                |
 | `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot?)`   | 18      | Subscribe to external (non-React) state stores safely under concurrent rendering. Preferred over `useEffect`-based subscriptions in libraries.                                                                                                                                                                                                                                                                                                                              |
 | `useActionState(action, initialState)`                               | 19      | Manage an async mutation: returns `[state, wrappedAction, isPending]`. Handles pending, result, and error state as a unit. Replaces the manual `isPending` + `try/catch` + `setError` pattern.                                                                                                                                                                                                                                                                              |
 | `useOptimistic(currentValue)`                                        | 19      | Show a speculative value while an async Action is in flight. Returns `[optimisticValue, setOptimistic]`. React automatically reverts to `currentValue` when the transition settles.                                                                                                                                                                                                                                                                                         |
-| `use(promiseOrContext)`                                              | 19      | Read a promise or Context value inside a component or custom hook. Unlike hooks, `use` can be called conditionally (after early returns). Promises must come from a cache — do not create them during render.                                                                                                                                                                                                                                                               |
-| `useFormStatus()` (from `react-dom`)                                 | 19      | Read `{ pending, data, method, action }` of the nearest parent `<form>` Action. Works across component boundaries without prop drilling — useful for submit buttons inside design-system components.                                                                                                                                                                                                                                                                        |
+| `use(promiseOrContext)`                                              | 19      | Read a promise or Context value inside a component or custom hook. Unlike hooks, `use` can be called conditionally (after early returns). Promises must come from a cache - do not create them during render.                                                                                                                                                                                                                                                               |
+| `useFormStatus()` (from `react-dom`)                                 | 19      | Read `{ pending, data, method, action }` of the nearest parent `<form>` Action. Works across component boundaries without prop drilling - useful for submit buttons inside design-system components.                                                                                                                                                                                                                                                                        |
 | `useEffectEvent(fn)`                                                 | 19.2    | Extract a non-reactive callback from an effect. The function sees the latest props/state without being listed in deps, and is never stale. Replaces the `useRef`-and-mutate-in-layout-effect workaround for stable event-like callbacks. The compiler has built-in knowledge of this hook and correctly prunes its return value from effect dependency arrays. Both `useEffectEvent` and the old ref workaround compile cleanly; `useEffectEvent` is preferred for clarity. |
-| `<Activity>`                                                         | 19.2    | Hide part of the UI while preserving its state and DOM. React deprioritizes updates to hidden content. Use via framework APIs for route prerendering or tab preservation — not a direct replacement for CSS `visibility`.                                                                                                                                                                                                                                                   |
+| `<Activity>`                                                         | 19.2    | Hide part of the UI while preserving its state and DOM. React deprioritizes updates to hidden content. Use via framework APIs for route prerendering or tab preservation - not a direct replacement for CSS `visibility`.                                                                                                                                                                                                                                                   |
 | `captureOwnerStack()`                                                | 19.1    | Dev-only API that returns a string showing which components are responsible for rendering the current component (owner stack, not call stack). Useful for custom error overlays. Returns `null` in production.                                                                                                                                                                                                                                                              |
 | `<form action={fn}>`                                                 | 19      | Pass an async function as a form's `action` prop. React handles submission, pending state, and automatic form reset on success. Works with `useActionState` and `useFormStatus`.                                                                                                                                                                                                                                                                                            |
 | Ref cleanup function                                                 | 19      | Return a cleanup function from a ref callback: `ref={el => { ...; return () => cleanup(); }}`. React calls it on unmount. Replaces the pattern of checking `el === null` in the callback.                                                                                                                                                                                                                                                                                   |
@@ -72,8 +72,8 @@ These enable things that weren't practical before. Reach for them in the describ
 | `preinit`, `preload`, `prefetchDNS`, `preconnect` (from `react-dom`) | 19      | Imperatively hint the browser to load resources early. Call from render or event handlers. React deduplicates hints across the component tree.                                                                                                                                                                                                                                                                                                                              |
 | React Compiler (`babel-plugin-react-compiler`)                       | C 1.0   | Build-time automatic memoization for components and hooks. Install, add to Babel/Vite pipeline. Projects typically start with path-based overrides to compile a subset of files.                                                                                                                                                                                                                                                                                            |
 | `"use memo"` directive                                               | C 1.0   | Opt a single function into compilation when using `compilationMode: 'annotation'`. Place at the start of the function body. Module-level `"use memo"` at the top of a file compiles all functions in that file.                                                                                                                                                                                                                                                             |
-| `"use no memo"` directive                                            | C 1.0   | Temporary escape hatch — skip compilation for a specific component or hook that causes a runtime regression. Not a permanent solution. Place at the start of the function body.                                                                                                                                                                                                                                                                                             |
-| Compiler-powered ESLint rules                                        | C 1.0   | Rules for purity, refs, set-state-in-render, immutability, etc. now ship in `eslint-plugin-react-hooks` recommended preset. Surface Rules-of-React violations even without the compiler installed. Note: some projects use Biome instead — check project lint config.                                                                                                                                                                                                       |
+| `"use no memo"` directive                                            | C 1.0   | Temporary escape hatch - skip compilation for a specific component or hook that causes a runtime regression. Not a permanent solution. Place at the start of the function body.                                                                                                                                                                                                                                                                                             |
+| Compiler-powered ESLint rules                                        | C 1.0   | Rules for purity, refs, set-state-in-render, immutability, etc. now ship in `eslint-plugin-react-hooks` recommended preset. Surface Rules-of-React violations even without the compiler installed. Note: some projects use Biome instead - check project lint config.                                                                                                                                                                                                       |
 
 ## Key APIs
 
@@ -88,7 +88,7 @@ In React 19, `startTransition` can accept an async function (an "Action"). React
 const [isPending, startTransition] = useTransition();
 startTransition(() => setQuery(input));
 
-// 19: async Action — isPending stays true until the await settles
+// 19: async Action - isPending stays true until the await settles
 startTransition(async () => {
 	const err = await updateName(name);
 	if (err) setError(err);
@@ -107,7 +107,7 @@ const deferred = useDeferredValue(searchQuery, "");
 return <Results query={deferred} />; // Results wrapped in memo
 ```
 
-`deferred !== searchQuery` while the deferred render is in progress — use this to show a "stale" indicator.
+`deferred !== searchQuery` while the deferred render is in progress - use this to show a "stale" indicator.
 
 ### `useActionState` (19)
 
@@ -150,7 +150,7 @@ const submit = async (formData) => {
 
 Unlike hooks, `use` can appear after conditional statements. Two primary uses:
 
-**Reading a promise** (must be stable — from a cache, not created inline):
+**Reading a promise** (must be stable - from a cache, not created inline):
 
 ```tsx
 function Comments({ commentsPromise }) {
@@ -183,7 +183,7 @@ const value = useSyncExternalStore(
 
 ## Verifying compiler behavior
 
-The compiler is a black box unless you inspect its output. When reviewing code in compiled paths, run the compiler on the specific code to see what it actually does. Do not guess — verify.
+The compiler is a black box unless you inspect its output. When reviewing code in compiled paths, run the compiler on the specific code to see what it actually does. Do not guess - verify.
 
 **Run the compiler on a code snippet:**
 
@@ -215,10 +215,10 @@ console.log(result.code);
 
 **Reading compiled output:**
 
-- `const $ = _c(N)` — allocates N memoization cache slots.
-- `if ($[n] !== dep)` — cache invalidation guard. Re-computes when `dep` changes (referential equality).
-- `if ($[n] === Symbol.for("react.memo_cache_sentinel"))` — one-time initialization. Runs once on first render, cached forever after. This is how the compiler handles expressions with no reactive dependencies.
-- `_temp` functions — pure callbacks the compiler hoisted out of the component body.
+- `const $ = _c(N)` - allocates N memoization cache slots.
+- `if ($[n] !== dep)` - cache invalidation guard. Re-computes when `dep` changes (referential equality).
+- `if ($[n] === Symbol.for("react.memo_cache_sentinel"))` - one-time initialization. Runs once on first render, cached forever after. This is how the compiler handles expressions with no reactive dependencies.
+- `_temp` functions - pure callbacks the compiler hoisted out of the component body.
 
 **Check all compiled files at once:**
 
@@ -230,7 +230,7 @@ This runs the compiler on every file in the compiled paths and reports CompileEr
 
 **What the compiler catches vs. what it does not:**
 
-The compiler emits `CompileError` for mutations of props, state, or hook arguments during render, and for `ref.current` access during render. The project's lint pipeline catches these automatically — do not flag them in review.
+The compiler emits `CompileError` for mutations of props, state, or hook arguments during render, and for `ref.current` access during render. The project's lint pipeline catches these automatically - do not flag them in review.
 
 The compiler does **not** flag impure function calls during render (`Math.random()`, `Date.now()`, `new Date()`). Instead it silently memoizes them with a sentinel guard, freezing the value after first render. This changes semantics without any diagnostic. Verify suspicious calls by running the compiler and checking for sentinel guards in the output.
 
@@ -244,13 +244,13 @@ Things that are easy to get wrong even when you know the modern API exists. Chec
 
 **Do not create promises during render and pass them to `use()`.** A new promise is created every render, causing an infinite suspend-retry loop. Create the promise outside the component (module level), or use a caching library (SWR, React Query, `cache()` from React) to stabilize it.
 
-**`useOptimistic` reverts automatically — do not fight it.** The optimistic value is a presentation layer only. When the Action settles, React replaces it with the real `currentValue` you passed in. Do not try to sync optimistic state back to your real state; let React handle the revert.
+**`useOptimistic` reverts automatically - do not fight it.** The optimistic value is a presentation layer only. When the Action settles, React replaces it with the real `currentValue` you passed in. Do not try to sync optimistic state back to your real state; let React handle the revert.
 
 **`flushSync` opts out of automatic batching.** If third-party code or a browser API (e.g. `ResizeObserver`) calls `setState` and you need synchronous DOM flushing, wrap with `flushSync(() => setState(...))`. This is a last resort; prefer letting React batch.
 
 **`forwardRef` still works in React 19 but will be deprecated.** Function components accept `ref` as a plain prop now. New code should use the prop directly. Existing `forwardRef` wrappers continue to work without changes; migrate when convenient.
 
-**`<Activity>` does not unmount.** Content inside a hidden `<Activity>` boundary stays mounted. Effects keep running. Use it for preserving scroll position or form state, not for preventing expensive mounts — use lazy loading for that.
+**`<Activity>` does not unmount.** Content inside a hidden `<Activity>` boundary stays mounted. Effects keep running. Use it for preserving scroll position or form state, not for preventing expensive mounts - use lazy loading for that.
 
 **TypeScript: implicit returns from ref callbacks are now type errors.** In React 19, returning anything other than a cleanup function (or nothing) from a ref callback is rejected by the TypeScript types. The most common case is arrow-function refs that implicitly return the DOM node:
 
@@ -258,15 +258,15 @@ Things that are easy to get wrong even when you know the modern API exists. Chec
 // Error in React 19 types:
 <div ref={el => (instance = el)} />
 
-// Fix — use a block body:
+// Fix - use a block body:
 <div ref={el => { instance = el; }} />
 ```
 
 **TypeScript: `useRef` now requires an argument.** `useRef<T>()` with no argument is a type error. Pass `undefined` for mutable refs or `null` for DOM refs you initialize on mount: `useRef<T>(undefined)` / `useRef<HTMLDivElement | null>(null)`.
 
-**`useId` output format changed across versions.** React 18 produced `:r0:`. React 19.1 changed it to `«r0»`. React 19.2 changed it again to `_r0`. Do not parse or depend on the specific format — treat it as an opaque string.
+**`useId` output format changed across versions.** React 18 produced `:r0:`. React 19.1 changed it to `«r0»`. React 19.2 changed it again to `_r0`. Do not parse or depend on the specific format - treat it as an opaque string.
 
-**`useFormStatus` reads the nearest parent `<form>` with a function `action`.** It does not reflect native HTML form submissions — only React Actions. A submit button that is a sibling of `<form>` (rather than a descendant) will not see the form's status.
+**`useFormStatus` reads the nearest parent `<form>` with a function `action`.** It does not reflect native HTML form submissions - only React Actions. A submit button that is a sibling of `<form>` (rather than a descendant) will not see the form's status.
 
 **Context as a provider (`<Context>`) requires React 19; `<Context.Provider>` still works.** Do not use `<Context>` shorthand in a codebase that needs to support React 18. The two forms can coexist during migration.
 
@@ -276,7 +276,7 @@ Things that are easy to get wrong even when you know the modern API exists. Chec
 
 **The compiler only memoizes components and hooks.** Standalone utility functions (even expensive ones called during render) are not compiled. If a utility function is truly expensive, it still needs its own caching strategy outside of React (e.g., a module-level cache, `WeakMap`, etc.).
 
-**Changing memoization can shift `useEffect` firing.** A value that was unstable before compilation may become stable after, causing an effect that depended on it to fire less often. Conversely, future compiler changes may alter memoization granularity. Effects that use memoized values as dependencies should be resilient to these changes — they should be true synchronization effects, not "run this when X changes" hacks.
+**Changing memoization can shift `useEffect` firing.** A value that was unstable before compilation may become stable after, causing an effect that depended on it to fire less often. Conversely, future compiler changes may alter memoization granularity. Effects that use memoized values as dependencies should be resilient to these changes - they should be true synchronization effects, not "run this when X changes" hacks.
 
 ## Behavioral changes that affect code
 
@@ -302,4 +302,4 @@ Things that are easy to get wrong even when you know the modern API exists. Chec
 
 - **UMD builds removed** (19): React no longer ships UMD bundles. Load via npm and a bundler, or use an ESM CDN (`import React from "https://esm.sh/react@19"`).
 
-- **React Compiler automatic memoization** (Compiler 1.0): Build-time Babel plugin that inserts memoization into components and hooks. Components that follow the Rules of React are automatically memoized; components that violate them are silently skipped (no build error, no runtime change). The compiler can memoize conditionally and after early returns — things impossible with manual `useMemo`/`useCallback`. Works with React 17+ via `react-compiler-runtime`; best with React 19+. Projects adopt incrementally via path-based Babel overrides, `compilationMode: 'annotation'`, or the `"use memo"` / `"use no memo"` directives. Check the project's Vite/Babel config to know which paths are compiled. Compiled components show a "Memo ✨" badge in React DevTools.
+- **React Compiler automatic memoization** (Compiler 1.0): Build-time Babel plugin that inserts memoization into components and hooks. Components that follow the Rules of React are automatically memoized; components that violate them are silently skipped (no build error, no runtime change). The compiler can memoize conditionally and after early returns - things impossible with manual `useMemo`/`useCallback`. Works with React 17+ via `react-compiler-runtime`; best with React 19+. Projects adopt incrementally via path-based Babel overrides, `compilationMode: 'annotation'`, or the `"use memo"` / `"use no memo"` directives. Check the project's Vite/Babel config to know which paths are compiled. Compiled components show a "Memo ✨" badge in React DevTools.

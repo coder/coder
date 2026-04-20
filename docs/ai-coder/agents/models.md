@@ -78,9 +78,9 @@ to a given developer:
 
 | Central key | User keys allowed | Fallback | Developer has key | Result               |
 |-------------|-------------------|----------|-------------------|----------------------|
-| On          | Off               | —        | —                 | Uses central key     |
-| Off         | On                | —        | Yes               | Uses developer's key |
-| Off         | On                | —        | No                | Unavailable          |
+| On          | Off               | -        | -                 | Uses central key     |
+| Off         | On                | -        | Yes               | Uses developer's key |
+| Off         | On                | -        | No                | Unavailable          |
 | On          | On                | Off      | Yes               | Uses developer's key |
 | On          | On                | Off      | No                | Unavailable          |
 | On          | On                | On       | Yes               | Uses developer's key |
@@ -88,7 +88,7 @@ to a given developer:
 
 When a developer's personal key is present, it always takes precedence over
 the central key. When user keys are required and fallback is disabled,
-the provider is unavailable to developers who have not saved a personal key —
+the provider is unavailable to developers who have not saved a personal key,
 even if a central key exists. This is intentional: it enforces that each
 developer authenticates with their own credentials.
 
@@ -101,11 +101,11 @@ generation parameters, and provider-specific options.
 
 1. Open the **Admin** dialog and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
-1. Enter the **Model Identifier** — the exact model string your provider
+1. Enter the **Model Identifier** - the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
    selector.
-1. Set the **Context Limit** — the maximum number of tokens in the model's
+1. Set the **Context Limit** - the maximum number of tokens in the model's
    context window (e.g., `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
 1. Click **Save**.
@@ -141,7 +141,7 @@ These options apply to all providers:
 | Model Identifier      | The API model string sent to the provider (e.g., `claude-opus-4-6`).                             |
 | Display Name          | The label shown to developers in the model selector.                                             |
 | Context Limit         | Maximum tokens in the context window. Used to determine when context compaction triggers.        |
-| Compression Threshold | Percentage (0–100) of context usage at which the agent compresses older messages into a summary. |
+| Compression Threshold | Percentage (0-100) of context usage at which the agent compresses older messages into a summary. |
 | Max Output Tokens     | Maximum tokens generated per model response.                                                     |
 | Temperature           | Controls randomness. Lower values produce more deterministic output.                             |
 | Top P                 | Nucleus sampling threshold.                                                                      |
@@ -207,9 +207,9 @@ active.
 
 The model selector uses the following precedence to pre-select a model:
 
-1. **Last used model** — stored in the browser's local storage.
-1. **Admin-designated default** — the model marked with the star icon.
-1. **First available model** — if no default is set and no history exists.
+1. **Last used model** - stored in the browser's local storage.
+1. **Admin-designated default** - the model marked with the star icon.
+1. **First available model** - if no default is set and no history exists.
 
 Developers cannot add their own providers or models. If no models are
 configured, the chat interface displays a message directing developers to
@@ -225,14 +225,14 @@ developers can supply their own API key from the Agents settings page.
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** and select the **API Keys** tab.
 1. Each provider that allows user keys is listed with a status indicator:
-   - **Key saved** — your personal key is active and will be used for requests.
-   - **Using shared key** — no personal key set, but the central deployment
+   - **Key saved** - your personal key is active and will be used for requests.
+   - **Using shared key** - no personal key set, but the central deployment
      key is available as a fallback.
-   - **No key** — you must add a personal key before you can use this provider.
+   - **No key** - you must add a personal key before you can use this provider.
 1. Enter your API key and click **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption
-as deployment-managed keys. The dashboard never displays a saved key — only
+as deployment-managed keys. The dashboard never displays a saved key - only
 whether one is set.
 
 ### How key selection works
@@ -256,8 +256,8 @@ until you add a new personal key.
 
 ## Using an LLM proxy
 
-Organizations that route LLM traffic through a centralized proxy — such as
-Coder's AI Gateway or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
+Organizations that route LLM traffic through a centralized proxy - such as
+Coder's AI Gateway or third parties like LiteLLM - can point any provider's **Base URL** at their proxy endpoint.
 
 For example, to route all OpenAI traffic through Coder's AI Gateway:
 

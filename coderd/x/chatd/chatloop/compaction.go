@@ -256,7 +256,7 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 }
 
 // resolveContextLimit picks the first positive value from metadata,
-// configured limit, and fallback — in that priority order. Returns
+// configured limit, and fallback - in that priority order. Returns
 // 0 when none are positive.
 func resolveContextLimit(metadataLimit, configLimit, fallback int64) int64 {
 	if metadataLimit > 0 {

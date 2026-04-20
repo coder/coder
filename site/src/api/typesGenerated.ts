@@ -1255,7 +1255,7 @@ export interface Chat {
 	/**
 	 * LastInjectedContext holds the most recently persisted
 	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes — first workspace
+	 * is updated only when context changes - first workspace
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
@@ -2501,7 +2501,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled - the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -3341,7 +3341,7 @@ export interface DebugProfileOptions {
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero means disabled - the template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -7729,7 +7729,7 @@ export interface UpdateChatUsageLimitOverrideRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled - the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }

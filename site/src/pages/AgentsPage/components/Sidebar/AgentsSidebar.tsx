@@ -844,7 +844,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-	// Local override for pinned order during drag — applied
+	// Local override for pinned order during drag - applied
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
@@ -967,8 +967,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes — not on every parentById
-	// recalculation — so user-initiated collapse is preserved.
+	// Only runs when activeChatId changes - not on every parentById
+	// recalculation - so user-initiated collapse is preserved.
 	const parentByIdRef = useRef(chatTree.parentById);
 	useEffect(() => {
 		parentByIdRef.current = chatTree.parentById;
@@ -1487,7 +1487,7 @@ const LoadMoreSentinel: FC<{
 		// Don't observe while a fetch is in progress. When the
 		// fetch completes this effect re-runs, creating a fresh
 		// observer whose initial entry detects the sentinel if
-		// it's still visible — fixing the case where loaded items
+		// it's still visible - fixing the case where loaded items
 		// don't push the sentinel out of view and the previous
 		// observer never re-fires.
 		if (isFetchingNextPage) return;

@@ -9,5 +9,5 @@ OPTIONS:
   -o, --output text|json (default: text)
           Output format.
 
-———
+---
 Run `coder --help` for a list of global options.

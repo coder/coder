@@ -2075,7 +2075,7 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	state.resetDropCounters()
 	state.mu.Unlock()
 
-	// The very next drop should WARN immediately — the reset zeroed
+	// The very next drop should WARN immediately - the reset zeroed
 	// lastWarnAt so the interval check passes.
 	server.publishToStream(chatID, partEvent)
 
@@ -2995,7 +2995,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		nil,
 	)
 
-	// resolveChatModel fails immediately — that's fine, we only
+	// resolveChatModel fails immediately - that's fine, we only
 	// need processChat to get past initialization without being
 	// interrupted by the stale notification.
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
@@ -3138,7 +3138,7 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 		logger:          logger,
 	})
 
-	// The batch UPDATE returns only chat1 and chat2 —
+	// The batch UPDATE returns only chat1 and chat2;
 	// chat3 was "stolen" by another replica.
 	db.EXPECT().UpdateChatHeartbeats(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
@@ -3158,7 +3158,7 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 	// chat3 should have been removed from the registry by
 	// unregister (in production this happens via defer in
 	// processChat). The heartbeat tick itself does not
-	// unregister — it only cancels. Verify the entry is
+	// unregister - it only cancels. Verify the entry is
 	// still present (processChat's defer would clean it up).
 	server.heartbeatMu.Lock()
 	_, chat1Exists := server.heartbeatRegistry[chat1]
@@ -3209,7 +3209,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 
 	server.heartbeatTick(ctx)
 
-	// Chat should NOT be interrupted — the tick logged and
+	// Chat should NOT be interrupted - the tick logged and
 	// returned early.
 	require.NoError(t, chatCtx.Err(),
 		"chat context should not be canceled on transient DB error")

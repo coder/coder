@@ -10,16 +10,16 @@ This means:
 
 - **All agent configuration is admin-level.** Providers, models, system prompts,
   and tool permissions are set by platform teams from the control plane. These
-  are not user preferences — they are deployment-wide policies.
+  are not user preferences - they are deployment-wide policies.
 - **Developers never need to configure anything by default.** A developer just
   describes the work they want done. They do not need to pick a provider or
-  write a system prompt — the platform team has already set all of that up.
+  write a system prompt - the platform team has already set all of that up.
   When a platform team enables user API keys for a provider, developers may
-  optionally supply their own key — but this is an opt-in policy decision, not
+  optionally supply their own key - but this is an opt-in policy decision, not
   a requirement.
 - **Enforcement, not defaults.** Settings configured by administrators are
   enforced server-side. Developers cannot override them. This is a deliberate
-  distinction — a setting that a user can change is a preference, not a policy.
+  distinction - a setting that a user can change is a preference, not a policy.
 
 This is an architectural decision, not just a product choice. Because the agent
 loop runs in the control plane rather than inside developer workspaces, there is
@@ -49,7 +49,7 @@ See [Models](../models.md) for setup instructions.
 ### System prompt
 
 Administrators can set a system prompt that applies to all agent sessions. This
-is useful for establishing organizational conventions — coding standards,
+is useful for establishing organizational conventions - coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
 The system prompt configuration is only accessible to administrators in the
@@ -76,8 +76,8 @@ Platform teams control which templates are available to agents and how the agent
 selects them. When a developer describes a task, the agent reads template
 descriptions to determine which template to provision.
 
-By writing clear template descriptions — for example, "Use this template for
-Python backend services in the payments repo" — platform teams can guide the
+By writing clear template descriptions - for example, "Use this template for
+Python backend services in the payments repo" - platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
@@ -174,8 +174,8 @@ enterprise environments.
 We believe that security-critical behaviors should not depend on the system
 prompt. A system prompt can instruct an agent to "always format branch names like... ," but there is no guarantee the agent will comply every time.
 
-For controls that matter — network boundaries, git push targets, allowed
-hostnames — we intend to enforce them at the infrastructure and network layer.
+For controls that matter - network boundaries, git push targets, allowed
+hostnames - we intend to enforce them at the infrastructure and network layer.
 Examples of what this looks like:
 
 - **Network-restricted templates for agent workloads.** Because the AI comes
@@ -193,14 +193,14 @@ creates several problems for platform teams:
   different configurations. There is no unified way to enforce conventions or
   improve the experience across the organization.
 - **Security is ad-hoc.** If the agent runs inside the workspace, it has access
-  to whatever the workspace has access to — API keys, network endpoints,
+  to whatever the workspace has access to - API keys, network endpoints,
   credentials. Restricting this requires per-workspace configuration that is
   difficult to maintain at scale.
 - **Feedback is anecdotal.** Without centralized analytics, platform teams have
   no way to know which models perform best, which prompts cause failures, or how
   much agents are costing the organization.
-- **Configuration is a developer burden.** Developers — especially those who
-  are not power users — should not need to think about which agent to install,
+- **Configuration is a developer burden.** Developers - especially those who
+  are not power users - should not need to think about which agent to install,
   which API key to use, or how to configure a system prompt. They should
   describe the work they want done.
 

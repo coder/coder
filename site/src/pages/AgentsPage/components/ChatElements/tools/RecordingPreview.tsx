@@ -59,7 +59,7 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 					onError={() => setThumbnailError(true)}
 				/>
 			) : (
-				// No thumbnail available — neutral gray placeholder.
+				// No thumbnail available - neutral gray placeholder.
 				<div className="h-full w-full bg-surface-secondary" />
 			)}
 			<button

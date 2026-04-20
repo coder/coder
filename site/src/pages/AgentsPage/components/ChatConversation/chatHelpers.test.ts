@@ -13,7 +13,7 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory – only required fields. */
+/** Minimal ChatMessage factory - only required fields. */
 const makeMessage = (
 	overrides: Partial<TypesGen.ChatMessage> = {},
 ): TypesGen.ChatMessage =>

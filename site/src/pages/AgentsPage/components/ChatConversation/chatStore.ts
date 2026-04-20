@@ -319,7 +319,7 @@ export const createChatStore = (): ChatStore => {
 		return { isDuplicate, changed: actuallyChanged };
 	};
 
-	// Bulk variant that applies all messages in a single pass —
+	// Bulk variant that applies all messages in a single pass;
 	// one Map copy and one sort instead of N copies and N sorts.
 	const upsertDurableMessages = (
 		messages: readonly TypesGen.ChatMessage[],
@@ -583,7 +583,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 	// response. For "running" status we use the existing broad
 	// check (any non-assistant latest message). For "pending" we
 	// restrict to the case where the latest message is explicitly
-	// a user message — this covers the fresh-send flow (user just
+	// a user message - this covers the fresh-send flow (user just
 	// submitted and the server hasn't started streaming yet) while
 	// avoiding a spurious indicator during multi-turn tool-call
 	// cycles, where the latest durable message is a tool result

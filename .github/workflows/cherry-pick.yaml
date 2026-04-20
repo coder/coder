@@ -104,7 +104,7 @@ jobs:
             # Abort the failed cherry-pick and create an empty commit with
             # instructions so the PR can still be opened.
             git cherry-pick --abort
-            git commit --allow-empty -m "cherry-pick of #${PR_NUMBER} failed — resolve conflicts manually
+            git commit --allow-empty -m "cherry-pick of #${PR_NUMBER} failed - resolve conflicts manually
 
           Cherry-pick of ${MERGE_SHA} onto ${RELEASE_BRANCH} had conflicts.
           To resolve:
@@ -120,7 +120,7 @@ jobs:
           BODY=$(cat <<EOF
           Cherry-pick of ${PR_URL}
 
-          Original PR: #${PR_NUMBER} — ${PR_TITLE}
+          Original PR: #${PR_NUMBER} - ${PR_TITLE}
           Merge commit: ${MERGE_SHA}
           Requested by: @${SENDER}
           EOF

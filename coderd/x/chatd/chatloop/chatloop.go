@@ -189,7 +189,7 @@ type ProviderTool struct {
 
 // stepResult holds the accumulated output of a single streaming
 // step. Since we own the stream consumer, all content is tracked
-// directly here — no shadow draft state needed.
+// directly here - no shadow draft state needed.
 type stepResult struct {
 	content             []fantasy.Content
 	usage               fantasy.Usage

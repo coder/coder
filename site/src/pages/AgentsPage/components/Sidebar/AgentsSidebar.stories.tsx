@@ -258,7 +258,7 @@ export const RunningChatPreservesSpinner: Story = {
 		await expect(spinner).toBeInTheDocument();
 
 		// The toggle button should exist (the node has children) but
-		// must be invisible by default — it only appears on hover of
+		// must be invisible by default - it only appears on hover of
 		// the icon area itself, not the whole row.
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
 		await expect(toggle).toBeInTheDocument();
@@ -1280,7 +1280,7 @@ export const WithUnreadChats: Story = {
 			canvas.queryByTestId("unread-indicator-read-1"),
 		).not.toBeInTheDocument();
 		// Unread chat that IS the active chat should not show
-		// the indicator — the user is already viewing it.
+		// the indicator - the user is already viewing it.
 		expect(
 			canvas.queryByTestId("unread-indicator-unread-active"),
 		).not.toBeInTheDocument();

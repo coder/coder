@@ -1664,7 +1664,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		// Internal fields are stripped at write time in
 		// chatd.updateLastInjectedContext, so no
 		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
+		// errors are suppressed - the column is written by
 		// us with a known schema.
 		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
 			chat.LastInjectedContext = parts

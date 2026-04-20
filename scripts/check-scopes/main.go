@@ -40,7 +40,7 @@ func main() {
 	slices.Sort(missing)
 
 	if len(missing) == 0 {
-		_, _ = fmt.Println("check-scopes: OK — all RBAC <resource>:<action> values exist in api_key_scope enum")
+		_, _ = fmt.Println("check-scopes: OK - all RBAC <resource>:<action> values exist in api_key_scope enum")
 		return
 	}
 

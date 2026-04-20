@@ -590,7 +590,7 @@ func TestDebugCollectProfile(t *testing.T) {
 		}()
 
 		// Wait deterministically for the first request to enter the
-		// collector — no time.Sleep needed.
+		// collector - no time.Sleep needed.
 		testutil.TryReceive(ctx, t, blocker.started)
 
 		// The second request should get 409 Conflict.

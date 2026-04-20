@@ -585,7 +585,7 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		// MaxAge is set so the browser persists the cookie to disk rather
 		// than keeping it in memory as a session cookie. Standalone PWAs
 		// (display: standalone) run in their own browser process, and
-		// mobile OSes kill that process when the app is swiped away —
+		// mobile OSes kill that process when the app is swiped away:
 		// deleting in-memory cookies and forcing an unexpected login.
 		//
 		// We use a long static value (1 year) instead of the key's

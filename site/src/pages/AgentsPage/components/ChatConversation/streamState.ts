@@ -43,7 +43,7 @@ export const applyMessagePartToStreamState = (
 		}
 		case "tool-call": {
 			// Provider-executed tool calls (e.g. web_search) are
-			// handled natively by the provider — skip rendering them
+			// handled natively by the provider - skip rendering them
 			// as tool cards.
 			if (part.provider_executed) {
 				return prev;

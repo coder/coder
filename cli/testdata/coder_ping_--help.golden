@@ -22,5 +22,5 @@ OPTIONS:
       --wait duration (default: 1s)
           Specifies how long to wait between pings.
 
-———
+---
 Run `coder --help` for a list of global options.

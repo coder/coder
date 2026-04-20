@@ -222,7 +222,7 @@ describe("useDesktopConnection", () => {
 			act(() => rfb1.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
 
-			// Disconnect — attempt 0 → 1000ms delay.
+			// Disconnect - attempt 0 → 1000ms delay.
 			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("disconnected");
 
@@ -271,12 +271,12 @@ describe("useDesktopConnection", () => {
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 
-			// First disconnect — 1000ms backoff.
+			// First disconnect - 1000ms backoff.
 			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
 			act(() => vi.advanceTimersByTime(1000));
 			const rfb2 = getLastRFBInstance();
 
-			// Reconnect succeeds — counter resets after stability period.
+			// Reconnect succeeds - counter resets after stability period.
 			act(() => rfb2.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
 
@@ -316,7 +316,7 @@ describe("useDesktopConnection", () => {
 				act(() => rfb.simulateEvent("connect"));
 			}
 
-			// Attempt 5 — should be capped at 30_000, not 32_000.
+			// Attempt 5 - should be capped at 30_000, not 32_000.
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 
 			mockWatchChatDesktop.mockClear();
@@ -440,7 +440,7 @@ describe("useDesktopConnection", () => {
 
 			const rfb = getLastRFBInstance();
 
-			// Disconnect fires before connect — e.g. agent returned 424.
+			// Disconnect fires before connect - e.g. agent returned 424.
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 
 			expect(result.current.status).toBe("error");
@@ -466,7 +466,7 @@ describe("useDesktopConnection", () => {
 			act(() => rfb1.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
 
-			// Drop the connection — triggers a reconnect timer.
+			// Drop the connection - triggers a reconnect timer.
 			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("disconnected");
 
@@ -687,7 +687,7 @@ describe("useDesktopConnection", () => {
 			act(() => vi.advanceTimersByTime(1000));
 			expect(result.current.status).toBe("connecting");
 
-			// Old rfb1 fires a late "disconnect" — should be ignored.
+			// Old rfb1 fires a late "disconnect" - should be ignored.
 			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("connecting");
 		} finally {
@@ -790,7 +790,7 @@ describe("useDesktopConnection", () => {
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("error");
 
-			// Reconnect should work — counter was reset.
+			// Reconnect should work - counter was reset.
 			mockWatchChatDesktop.mockClear();
 			act(() => result.current.reconnect());
 
@@ -848,7 +848,7 @@ describe("useDesktopConnection", () => {
 			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-bbb");
 			expect(result.current.status).toBe("connecting");
 
-			// Old timer should be cancelled — no extra connect.
+			// Old timer should be cancelled - no extra connect.
 			mockWatchChatDesktop.mockClear();
 			act(() => vi.advanceTimersByTime(60_000));
 			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
@@ -885,15 +885,15 @@ describe("useDesktopConnection", () => {
 			);
 
 			const rfb1 = getLastRFBInstance();
-			// Don't fire connect yet — switch chatId first.
+			// Don't fire connect yet - switch chatId first.
 
 			rerender({ chatId: "chat-bbb" });
 			expect(result.current.status).toBe("connecting");
 
-			// Old rfb1 fires a late "connect" — should be ignored.
+			// Old rfb1 fires a late "connect" - should be ignored.
 			act(() => rfb1.simulateEvent("connect"));
 
-			// hasConnected should still be false — the connect was
+			// hasConnected should still be false - the connect was
 			// from the stale session.
 			expect(result.current.hasConnected).toBe(false);
 			expect(result.current.status).toBe("connecting");
@@ -922,7 +922,7 @@ describe("useDesktopConnection", () => {
 		// Reset so we can detect re-assignment.
 		rfb.scaleViewport = false;
 
-		// Container visible again — should force rescale.
+		// Container visible again - should force rescale.
 		act(() => observer.simulateResize(800, 600));
 
 		expect(rfb.scaleViewport).toBe(true);
@@ -943,7 +943,7 @@ describe("useDesktopConnection", () => {
 		// Reset so we can detect re-assignment.
 		rfb.scaleViewport = false;
 
-		// Normal resize — not a hidden→visible transition.
+		// Normal resize - not a hidden→visible transition.
 		act(() => observer.simulateResize(1024, 768));
 
 		expect(rfb.scaleViewport).toBe(false);
@@ -1004,7 +1004,7 @@ describe("useDesktopConnection", () => {
 		// Set nonzero previous dimensions on old observer.
 		act(() => observer1.simulateResize(800, 600));
 
-		// Change chatId — triggers teardown + new connection.
+		// Change chatId - triggers teardown + new connection.
 		rerender({ chatId: "chat-bbb" });
 
 		const rfb2 = getLastRFBInstance();

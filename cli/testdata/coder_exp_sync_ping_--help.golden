@@ -9,5 +9,5 @@ USAGE:
   running and responsive. Useful for troubleshooting startup issues or verifying
   the agent is accessible before running other sync commands.
 
-———
+---
 Run `coder --help` for a list of global options.

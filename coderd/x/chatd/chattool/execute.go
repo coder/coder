@@ -80,7 +80,7 @@ type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute."`
 	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
-	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
+	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes - it will not work correctly. Always use this parameter instead."`
 }
 
 // Execute returns an AgentTool that runs a shell command in the

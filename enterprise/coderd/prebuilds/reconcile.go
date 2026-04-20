@@ -476,7 +476,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 func (c *StoreReconciler) reportHardLimitedPresets(snapshot *prebuilds.GlobalSnapshot) {
 	// presetsMap is a map from key (orgName:templateName:presetName) to list of corresponding presets.
 	// Multiple versions of a preset can exist with the same orgName, templateName, and presetName,
-	// because templates can have multiple versions — or deleted templates can share the same name.
+	// because templates can have multiple versions - or deleted templates can share the same name.
 	presetsMap := make(map[hardLimitedPresetKey][]database.GetTemplatePresetsWithPrebuildsRow)
 	for _, preset := range snapshot.Presets {
 		key := hardLimitedPresetKey{
@@ -1126,7 +1126,7 @@ func (c *StoreReconciler) provision(
 		// We don't specify the version for a delete transition,
 		// because the prebuilt workspace may have been created using an older template version.
 		// If the version isn't explicitly set, the builder will automatically use the version
-		// from the last workspace build — which is the desired behavior.
+		// from the last workspace build - which is the desired behavior.
 		builder = builder.VersionID(template.ActiveVersionID)
 
 		// We only inject the required params when the prebuild is being created.

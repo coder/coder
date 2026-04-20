@@ -751,7 +751,7 @@ const ServerForm: FC<ServerFormProps> = ({
 										<div>
 											<span>{opt.label}</span>
 											<span className="ml-1.5 text-content-secondary">
-												— {opt.description}
+												- {opt.description}
 											</span>
 										</div>
 									</SelectItem>
@@ -809,7 +809,7 @@ const ServerForm: FC<ServerFormProps> = ({
 					</div>
 				</div>
 
-				{/* Footer — pushed to bottom, matches ProviderForm */}
+				{/* Footer - pushed to bottom, matches ProviderForm */}
 				<div className="mt-auto pt-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">

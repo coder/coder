@@ -17,5 +17,5 @@ SUBCOMMANDS:
                          IdP.
     workspace-sharing    Workspace sharing settings for the organization.
 
-———
+---
 Run `coder --help` for a list of global options.

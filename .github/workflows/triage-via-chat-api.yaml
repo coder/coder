@@ -1,12 +1,12 @@
 # This workflow reimplements the AI Triage Automation using the Coder Chat API
 # instead of the Tasks API. The Chat API (/api/experimental/chats) is a simpler
 # interface that does not require a dedicated GitHub Action or workspace
-# provisioning — we just create a chat, poll for completion, and link the
+# provisioning - we just create a chat, poll for completion, and link the
 # result on the issue. All API calls use curl + jq directly.
 #
 # Key differences from the Tasks API workflow (traiage.yaml):
 #   - No checkout of coder/create-task-action; everything is inline curl/jq.
-#   - No template_name / template_preset / prefix inputs — the Chat API handles
+#   - No template_name / template_preset / prefix inputs - the Chat API handles
 #     resource allocation internally.
 #   - Uses POST /api/experimental/chats to create a chat session.
 #   - Polls GET /api/experimental/chats/<id> until the agent finishes.
@@ -44,7 +44,7 @@ jobs:
     steps:
       # ------------------------------------------------------------------
       # Step 1: Determine the GitHub user and issue URL.
-      # Identical to the Tasks API workflow — resolve the actor for
+      # Identical to the Tasks API workflow - resolve the actor for
       # workflow_dispatch or the issue sender for label events.
       # ------------------------------------------------------------------
       - name: Determine Inputs
@@ -136,7 +136,7 @@ jobs:
             5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
           EOF
           )
-          # Perform variable substitution on the prompt — scoped to $ISSUE_URL only.
+          # Perform variable substitution on the prompt - scoped to $ISSUE_URL only.
           # Using envsubst without arguments would expand every env var in scope
           # (including CODER_SESSION_TOKEN), so we name the variable explicitly.
           TASK_PROMPT=$(echo "${TASK_PROMPT}" | envsubst '$ISSUE_URL')
@@ -160,7 +160,7 @@ jobs:
           CHAT_STATUS=$(echo "${RESPONSE}" | jq -r '.status')
 
           if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
-            echo "::error::Failed to create chat — no ID returned"
+            echo "::error::Failed to create chat - no ID returned"
             echo "Response: ${RESPONSE}"
             exit 1
           fi
@@ -183,7 +183,7 @@ jobs:
 
       # ------------------------------------------------------------------
       # Step 4: Poll the chat status until the agent finishes.
-      # The Chat API is asynchronous — after creation the agent begins
+      # The Chat API is asynchronous - after creation the agent begins
       # working in the background. We poll GET /api/experimental/chats/<id>
       # every 5 seconds until the status is "waiting" (agent needs input),
       # "completed" (agent finished), or "error". Timeout after 10 minutes.
@@ -224,7 +224,7 @@ jobs:
                 exit 1
                 ;;
               pending|running)
-                # Still working — keep polling.
+                # Still working - keep polling.
                 ;;
               *)
                 echo "::warning::Unknown chat status: ${STATUS}"

@@ -363,7 +363,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Expiry:       link.OAuthExpiry,
 			}).Token()
 			// Hard error: we actively tried to refresh and the
-			// provider rejected it — surface even on optional-auth
+			// provider rejected it - surface even on optional-auth
 			// routes.
 			if err != nil {
 				return nil, &ValidateAPIKeyError{
@@ -624,7 +624,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				}
 				return optionalWrite(pc.Err.Code, pc.Err.Response)
 			}
-			// Valid — use prechecked data, skip to route-specific logic.
+			// Valid - use prechecked data, skip to route-specific logic.
 			key = &pc.Result.Key
 			actor = pc.Result.Subject
 			userStatus = pc.Result.UserStatus
@@ -699,7 +699,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // is being used with the correct audience/resource server (RFC 8707).
 func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
 	// Get the OAuth2 provider app token to check its audience
-	//nolint:gocritic // OAuth2 system context — audience validation for provider app tokens
+	//nolint:gocritic // OAuth2 system context - audience validation for provider app tokens
 	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID)
 	if err != nil {
 		return xerrors.Errorf("failed to get OAuth2 token: %w", err)

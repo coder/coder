@@ -11,5 +11,5 @@ SUBCOMMANDS:
     set     Update specified organization setting.
     show    Outputs specified organization setting.
 
-———
+---
 Run `coder --help` for a list of global options.

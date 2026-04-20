@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder [global-flags] <subcommand>
 
-  Coder v0.0.0-devel — A tool for provisioning self-hosted development
+  Coder v0.0.0-devel - A tool for provisioning self-hosted development
   environments with Terraform.
     - Start a Coder server:
   
@@ -132,5 +132,5 @@ variables or flags.
   -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.
 
-———
+---
 Report bugs and request features at https://github.com/coder/coder/issues/new

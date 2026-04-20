@@ -72,7 +72,7 @@ export const LOCK_HOLD_MS = 2000;
 /**
  * Coordinate across tabs so that only one tab plays the chime
  * for a given chatID. Uses navigator.locks.request() with
- * ifAvailable: true — the first tab to acquire the lock plays,
+ * ifAvailable: true - the first tab to acquire the lock plays,
  * all others silently skip. The lock is held for LOCK_HOLD_MS
  * to cover the window in which other tabs receive the same
  * WebSocket event.
@@ -94,7 +94,7 @@ function playChime(chatID: string): void {
 		async (lock) => {
 			if (!lock) {
 				// Another tab already holds the lock for this
-				// chatID — skip playback.
+				// chatID - skip playback.
 				return;
 			}
 

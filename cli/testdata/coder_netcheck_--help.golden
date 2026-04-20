@@ -5,5 +5,5 @@ USAGE:
 
   Print network debug information for DERP and STUN
 
-———
+---
 Run `coder --help` for a list of global options.

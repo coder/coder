@@ -9,5 +9,5 @@ SUBCOMMANDS:
     bundle    Generate a support bundle to troubleshoot issues connecting to a
               workspace.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -1,6 +1,6 @@
 # Coder Desktop
 
-Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments—all without installing a CLI or configuring manual port forwarding.
+Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
 
 ## What You'll Need
 
@@ -25,7 +25,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 - **Sync files**: Bidirectional sync between local and remote directories
 - **Work offline**: Edit files locally, sync when reconnected
 
-The VPN extension routes only Coder traffic—your other internet activity remains unchanged.
+The VPN extension routes only Coder traffic. Your other internet activity remains unchanged.
 
 ## Installation
 

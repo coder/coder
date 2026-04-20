@@ -13,5 +13,5 @@ SUBCOMMANDS:
     list          List all organization members
     remove        Remove a new member to the current organization
 
-———
+---
 Run `coder --help` for a list of global options.

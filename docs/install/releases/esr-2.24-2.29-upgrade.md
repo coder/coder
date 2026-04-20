@@ -24,7 +24,7 @@ server and database layers. By 2.29, Tasks were formally promoted to general
 availability, with full CLI support, a task-specific UI, and consistent
 visibility of task states across the dashboard. This transition establishes
 Tasks as a stable automation and job-execution primitive within
-Coder—particularly suited for long-running background operations like bug fixes,
+Coder, particularly suited for long-running background operations like bug fixes,
 documentation generation, PR reviews, and testing/QA.For more information, read
 our documentation [here](https://coder.com/docs/ai-coder/tasks).
 
@@ -49,8 +49,8 @@ token usage, and tool invocations. For more information, read our documentation
 Agent Firewall was introduced in 2.27 and is currently in Early Access. Agent
 Firewall is a process-level firewall in Coder that restricts and audits what
 autonomous programs (like AI agents) can access and do within a workspace. They
-provide network policy enforcement—blocking specific domains and HTTP verbs to
-prevent data exfiltration—and write logs to the workspace for auditability.
+provide network policy enforcement, blocking specific domains and HTTP verbs to
+prevent data exfiltration, and write logs to the workspace for auditability.
 Agent Firewall supports any terminal-based agent, including custom ones, and can be
 easily configured through existing Coder modules like the Claude Code module.
 For more information, read our documentation
@@ -60,7 +60,7 @@ For more information, read our documentation
 
 Performance, particularly at scale, improved across nearly every system layer.
 Database queries were optimized, several new indexes were added, and expensive
-migrations—such as migration 371—were reworked to complete faster on large
+migrations, such as migration 371, were reworked to complete faster on large
 deployments. Caching was introduced for Terraform installer files and
 workspace/agent lookups, reducing repeated calls. Notification performance
 improved through more efficient connection pooling. These changes collectively
@@ -94,7 +94,7 @@ Socket API.
 The following are changes introduced after 2.24.X that might break workflows, or
 require other manual effort to address:
 
-| Initial State (2.24 & before)                                      | New State (2.25–2.29)                                                                                 | Change Required                                                                                                                                                                                                                                                                 |
+| Initial State (2.24 & before)                                      | New State (2.25-2.29)                                                                                 | Change Required                                                                                                                                                                                                                                                                 |
 |--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Workspace updates occur in place without stopping                  | Workspace updates now forcibly stop workspaces before updating                                        | Expect downtime during updates; update any scripted update flows that rely on seamless updates. See [`coder update` CLI reference](https://coder.com/docs/reference/cli/update).                                                                                                |
 | Connection events (SSH, port-forward, browser) logged in Audit Log | Connection events moved to Connection Log; historical entries older than 90 days pruned               | Update compliance, audit, or ingestion pipelines to use the new [Connection Log](https://coder.com/docs/admin/monitoring/connection-logs) instead of [Audit Logs](https://coder.com/docs/admin/security/audit-logs) for connection events.                                      |

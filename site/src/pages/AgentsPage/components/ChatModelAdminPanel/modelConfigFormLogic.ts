@@ -390,7 +390,7 @@ function buildYupSchema(
 			// Top-level field.
 			shape[snakeToCamel(segments[0])] = yupTestForField(field);
 		} else {
-			// Nested — group by first segment.
+			// Nested - group by first segment.
 			const parentKey = snakeToCamel(segments[0]);
 			if (!nested.has(parentKey)) {
 				nested.set(parentKey, []);

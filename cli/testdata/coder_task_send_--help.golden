@@ -20,5 +20,5 @@ OPTIONS:
       --stdin bool
           Reads the input from stdin.
 
-———
+---
 Run `coder --help` for a list of global options.

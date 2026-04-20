@@ -159,7 +159,7 @@ func TestHeartbeatClose(t *testing.T) {
 
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Fire several ticks — pings should succeed each time.
+		// Fire several ticks - pings should succeed each time.
 		for range 3 {
 			mClock.Advance(time.Second).MustWait(ctx)
 

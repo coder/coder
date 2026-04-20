@@ -24,7 +24,7 @@ View logs for a workspace
 | Type    | <code>int</code> |
 | Default | <code>0</code>   |
 
-Only show logs for a specific build number. Defaults to 0, which maps to the most recent build (build numbers start at 1). Negative values are treated as offsets—for example, -1 refers to the previous build.
+Only show logs for a specific build number. Defaults to 0, which maps to the most recent build (build numbers start at 1). Negative values are treated as offsets. For example, -1 refers to the previous build.
 
 ### -f, --follow
 

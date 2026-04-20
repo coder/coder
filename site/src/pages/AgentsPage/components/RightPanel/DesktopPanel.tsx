@@ -31,7 +31,7 @@ export interface DesktopPanelViewProps {
 export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
-	// switched away — mirrors the terminal panel pattern from PR #23231.
+	// switched away - mirrors the terminal panel pattern from PR #23231.
 	const [activated, setActivated] = useState(false);
 	if (isVisible && !activated) {
 		setActivated(true);
@@ -110,7 +110,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	// status === "connected"
 	return (
 		<div className="relative h-full w-full">
-			{/* "Release Control" button — top-right, only when controlling */}
+			{/* "Release Control" button - top-right, only when controlling */}
 			{isControlling && (
 				<Button
 					variant="default"
@@ -122,14 +122,14 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 					Release control
 				</Button>
 			)}
-			{/* VNC container — pointer-events toggled */}
+			{/* VNC container - pointer-events toggled */}
 			<div
 				ref={(el) => {
 					if (el) attach(el);
 				}}
 				className={cn("h-full w-full", !isControlling && "pointer-events-none")}
 			/>
-			{/* "Take Control" hover overlay — only when NOT controlling */}
+			{/* "Take Control" hover overlay - only when NOT controlling */}
 			{!isControlling && (
 				<div className="group/desktop absolute inset-0 z-10 flex items-center justify-center bg-black/0 transition-all duration-200 ease-in-out group-hover/desktop:bg-black/40">
 					<span className="opacity-0 transition-opacity duration-200 ease-in-out group-hover/desktop:opacity-100">

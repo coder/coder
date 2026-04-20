@@ -50,21 +50,21 @@ func SanitizePromptText(s string) string {
 // documented with its Unicode name and rationale.
 func isVisible(r rune) bool {
 	switch {
-	// Soft hyphen — invisible in most renderers, used to hide
+	// Soft hyphen - invisible in most renderers, used to hide
 	// content boundaries.
 	case r == 0x00AD:
 		return false
 
-	// Combining grapheme joiner — invisible, no legitimate
+	// Combining grapheme joiner - invisible, no legitimate
 	// prompt use.
 	case r == 0x034F:
 		return false
 
-	// Arabic letter mark — bidi control, invisible.
+	// Arabic letter mark - bidi control, invisible.
 	case r == 0x061C:
 		return false
 
-	// Mongolian vowel separator — invisible spacing character.
+	// Mongolian vowel separator - invisible spacing character.
 	case r == 0x180E:
 		return false
 
@@ -79,7 +79,7 @@ func isVisible(r rune) bool {
 	// zero-width steganography encodings regardless of whether
 	// ZWNJ survives.
 
-	// Zero-width joiner (U+200D) — also used in compound emoji,
+	// Zero-width joiner (U+200D) - also used in compound emoji,
 	// but actively exploited in steganography. See
 	// SanitizePromptText doc comment.
 	case r == 0x200D:
@@ -93,23 +93,23 @@ func isVisible(r rune) bool {
 	case r == 0x200F:
 		return false
 
-	// Bidi embedding and override controls (U+202A–U+202E):
+	// Bidi embedding and override controls (U+202A-U+202E):
 	// LRE, RLE, PDF, LRO, RLO.
 	case r >= 0x202A && r <= 0x202E:
 		return false
 
-	// Word joiner and invisible operators (U+2060–U+2064):
+	// Word joiner and invisible operators (U+2060-U+2064):
 	// word joiner, function application, invisible times,
 	// invisible separator, invisible plus.
 	case r >= 0x2060 && r <= 0x2064:
 		return false
 
-	// Bidi isolate controls (U+2066–U+2069):
+	// Bidi isolate controls (U+2066-U+2069):
 	// LRI, RLI, FSI, PDI.
 	case r >= 0x2066 && r <= 0x2069:
 		return false
 
-	// Deprecated format characters (U+206A–U+206F): inhibit
+	// Deprecated format characters (U+206A-U+206F): inhibit
 	// symmetric swapping through nominal digit shapes.
 	case r >= 0x206A && r <= 0x206F:
 		return false
@@ -120,7 +120,7 @@ func isVisible(r rune) bool {
 		return false
 
 	// Interlinear annotation anchor, separator, and
-	// terminator (U+FFF9–U+FFFB).
+	// terminator (U+FFF9-U+FFFB).
 	case r >= 0xFFF9 && r <= 0xFFFB:
 		return false
 

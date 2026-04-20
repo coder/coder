@@ -136,7 +136,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			)} remaining`;
 	const usageLimitCurrentPeriod =
 		showUsageLimitCard && usageLimit?.period_start && usageLimit?.period_end
-			? `Current period: ${dayjs(usageLimit.period_start).format("MMM D")} – ${dayjs(
+			? `Current period: ${dayjs(usageLimit.period_start).format("MMM D")} - ${dayjs(
 					usageLimit.period_end,
 				).format("MMM D")}`
 			: "";

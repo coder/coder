@@ -57,5 +57,5 @@ OPTIONS:
       --version bool
           Print version information and exit.
 
-———
+---
 Run `coder --help` for a list of global options.

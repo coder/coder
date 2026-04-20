@@ -22,17 +22,17 @@ stats, review state, and merge outcome.
 
 For PR data to appear in analytics, all of the following must be true:
 
-1. **External auth is configured for your git host** — The external auth
+1. **External auth is configured for your git host** - The external auth
    config must have `type` set to `github` with a regex matching your
    repository URLs. See
    [External Authentication](../../../admin/external-auth/index.md).
 
-1. **Users have linked their external auth** — The user who ran the agent
+1. **Users have linked their external auth** - The user who ran the agent
    task must have authenticated with the relevant external auth provider.
    Without a linked token, the worker cannot fetch PR data and retries on a
    backoff schedule.
 
-1. **The agent reported a git reference** — The agent must push to a branch
+1. **The agent reported a git reference** - The agent must push to a branch
    with a configured remote origin. If no branch or remote origin is
    reported, the worker skips the chat.
 
@@ -45,7 +45,7 @@ required. See [Git Providers](./git-providers.md#github-enterprise-configuration
 
 Verify the user has linked their external auth. Check Coder logs for gitsync
 warnings like `no provider for origin` or token resolution errors. For GitHub
-Enterprise, confirm that `API_BASE_URL` is set — see
+Enterprise, confirm that `API_BASE_URL` is set - see
 [Git Providers](./git-providers.md#troubleshooting).
 
 ### Only github.com PRs appear

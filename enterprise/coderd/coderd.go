@@ -1094,7 +1094,7 @@ func (api *API) CheckBuildUsage(
 	}
 
 	// Verify managed agent entitlement for AI task builds.
-	// The count/limit check is intentionally omitted — breaching the
+	// The count/limit check is intentionally omitted - breaching the
 	// limit is advisory only and surfaced as a warning via entitlements.
 	if transition != database.WorkspaceTransitionStart || task == nil {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil

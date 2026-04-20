@@ -5,7 +5,7 @@ Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
 > Coder Agents is in [Early Access](./early-access.md). Deploy to a
-> **test or development environment** — not production — while evaluating
+> **test or development environment** - not production - while evaluating
 > the feature.
 
 ## Prerequisites
@@ -14,11 +14,11 @@ Before you begin, confirm the following:
 
 - **Coder deployment** running the latest release with the `agents`
   experiment flag available.
-- **LLM provider credentials** — an API key for at least one
+- **LLM provider credentials** - an API key for at least one
   [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI,
   AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
 - **Network access** from the control plane to your LLM provider. Workspaces
-  do not need LLM access — only the control plane does.
+  do not need LLM access - only the control plane does.
 - **At least one template** with a
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
@@ -112,14 +112,14 @@ coder users list -o json \
 1. Type a prompt and send it.
 
 The agent processes the prompt in the control plane. If the task requires
-a workspace — reading files, running commands, editing code — the agent
+a workspace - reading files, running commands, editing code - the agent
 selects a template and provisions one automatically. Conversations that
 don't require compute (planning, Q&A, architecture discussions) start
 immediately with no provisioning delay.
 
 ## Optimize your templates
 
-The agent selects templates based on their **name and description** — it does
+The agent selects templates based on their **name and description** - it does
 not read Terraform. Clear, specific descriptions are the most important factor
 in whether the agent picks the right template.
 
@@ -167,7 +167,7 @@ origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_
 to work. If your access URL uses plain HTTP,
 push notifications may not function.
 
-This does not affect agents themselves — only the browser notification
+This does not affect agents themselves - only the browser notification
 delivery. If you terminate TLS at a reverse proxy, ensure the
 [access URL](../../admin/setup/index.md) is configured with an `https://` scheme.
 
@@ -194,7 +194,7 @@ The agent runs in the control plane, not inside workspaces. This means:
 - **No agent software in workspaces.** No supply chain risk from
   third-party agent tools.
 - **User identity is always attached.** Every action is tied to the user
-  who submitted the prompt — no shared bot accounts.
+  who submitted the prompt - no shared bot accounts.
 - **No privilege escalation.** The agent has exactly the same permissions
   as the prompting user.
 
@@ -217,14 +217,14 @@ token volume. Consider:
 
 ### Pilot with a small group
 
-Identify 3–5 developers and a few concrete use cases for the initial rollout.
+Identify 3-5 developers and a few concrete use cases for the initial rollout.
 Good starting points:
 
-- **Low-risk, high-visibility tasks** — generating unit tests, writing inline
+- **Low-risk, high-visibility tasks** - generating unit tests, writing inline
   documentation, small refactors.
-- **Investigation and triage** — exploring unfamiliar code, triaging bugs,
+- **Investigation and triage** - exploring unfamiliar code, triaging bugs,
   understanding legacy systems.
-- **Prototyping** — building proof-of-concept implementations, simple
+- **Prototyping** - building proof-of-concept implementations, simple
   dashboards, internal tools.
 
 Set expectations that this is an evaluation period. Developers should still
@@ -241,7 +241,7 @@ This is useful for building automations such as:
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
-**Quick example — create a Coder Agent via the API:**
+**Quick example - create a Coder Agent via the API:**
 
 ```sh
 curl -X POST https://coder.example.com/api/experimental/chats \
@@ -295,28 +295,28 @@ already-running workspace instead of provisioning from scratch.
 ## Providing feedback
 
 Coder Agents is a collaborative evaluation between your team and Coder.
-Share feedback — workflow observations, feature requests, bugs, performance
-issues, or operational challenges — through your **customer-specific Slack
+Share feedback - workflow observations, feature requests, bugs, performance
+issues, or operational challenges - through your **customer-specific Slack
 channel** with the Coder team.
 
 Good feedback includes:
 
-- **What you tried** — the prompt, the template, and the model.
-- **What happened** — the agent's behavior, any errors, unexpected results.
-- **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, `chat_id` values, or links to the Agents page help
+- **What you tried** - the prompt, the template, and the model.
+- **What happened** - the agent's behavior, any errors, unexpected results.
+- **What you expected** - the outcome you were looking for.
+- **Context** - screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
 Your input directly influences product direction during Early Access.
 
 ## Next steps
 
-- [Architecture](./architecture.md) — how the control plane, LLM providers,
+- [Architecture](./architecture.md) - how the control plane, LLM providers,
   and workspaces interact.
-- [Models](./models.md) — configure additional providers and models.
-- [Platform Controls](./platform-controls/index.md) — system prompts,
+- [Models](./models.md) - configure additional providers and models.
+- [Platform Controls](./platform-controls/index.md) - system prompts,
   template routing, and admin-level configuration.
-- [Template Optimization](./platform-controls/template-optimization.md) —
+- [Template Optimization](./platform-controls/template-optimization.md) -
   create agent-friendly templates with network boundaries and scoped
   credentials.
-- [Chats API](./chats-api.md) — build programmatic integrations.
+- [Chats API](./chats-api.md) - build programmatic integrations.

@@ -486,7 +486,7 @@ describe("CreateWorkspacePage", () => {
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
-			// Consent dialog appears for mode=auto — confirm to proceed.
+			// Consent dialog appears for mode=auto - confirm to proceed.
 			const confirmButton = await screen.findByRole("button", {
 				name: /confirm and create/i,
 			});

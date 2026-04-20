@@ -210,7 +210,7 @@ export const DefaultAutostopSave: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Toggle ON — fires immediate save with 1h default.
+		// Toggle ON - fires immediate save with 1h default.
 		const toggle = await canvas.findByRole("switch", {
 			name: "Enable default autostop",
 		});

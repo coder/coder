@@ -9,5 +9,5 @@ OPTIONS:
   -b, --build int
           Specify a workspace build to target by name. Defaults to latest.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -312,7 +312,7 @@ your apps:
 
 ## Next steps
 
-- [Working with dev containers](./working-with-dev-containers.md) — SSH, IDE
+- [Working with dev containers](./working-with-dev-containers.md) - SSH, IDE
   integration, and port forwarding
-- [Troubleshooting dev containers](./troubleshooting-dev-containers.md) —
+- [Troubleshooting dev containers](./troubleshooting-dev-containers.md) -
   Diagnose common issues

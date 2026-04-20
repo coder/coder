@@ -569,7 +569,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 		defer res.Body.Close()
 	}
 
-	// No read limit — RFB framebuffer updates can be large.
+	// No read limit - RFB framebuffer updates can be large.
 	conn.SetReadLimit(-1)
 
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
@@ -680,7 +680,7 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 
 // StartDesktopRecording starts a desktop recording session on the
 // agent with the given recording ID. The recording ID is
-// caller-provided and must be unique. Idempotent — if the ID is
+// caller-provided and must be unique. Idempotent - if the ID is
 // already recording, returns success.
 func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error {
 	ctx, span := tracing.StartSpan(ctx)
@@ -700,7 +700,7 @@ func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopR
 // agent and returns the recording as a StopDesktopRecordingResponse.
 // The response body is a multipart/mixed stream containing the
 // video (and optionally a JPEG thumbnail). The caller is
-// responsible for closing the returned Body. Idempotent — safe
+// responsible for closing the returned Body. Idempotent - safe
 // to call on an already-stopped recording.
 func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)

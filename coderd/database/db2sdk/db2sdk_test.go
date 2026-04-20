@@ -951,7 +951,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
-	// field is populated — that would be a separate test for
+	// field is populated - that would be a separate test for
 	// the ChatDiffStatus converter.
 	diffStatus := &database.ChatDiffStatus{
 		ChatID: input.ID,
@@ -983,7 +983,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			continue
 		}
 		require.False(t, v.Field(i).IsZero(),
-			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
+			"codersdk.Chat field %q is zero-valued - db2sdk.Chat may not be populating it",
 			field.Name,
 		)
 	}

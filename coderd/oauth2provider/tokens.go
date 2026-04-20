@@ -217,7 +217,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, errBadSecret
 	}
-	//nolint:gocritic // OAuth2 system context — users cannot read secrets
+	//nolint:gocritic // OAuth2 system context - users cannot read secrets
 	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return codersdk.OAuth2TokenResponse{}, errBadSecret
@@ -236,7 +236,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
-	//nolint:gocritic // OAuth2 system context — no authenticated user during token exchange
+	//nolint:gocritic // OAuth2 system context - no authenticated user during token exchange
 	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(code.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
@@ -269,7 +269,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
-		// Code was issued without a challenge — should not happen
+		// Code was issued without a challenge - should not happen
 		// with authorize endpoint enforcement, but defend in depth.
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
@@ -384,7 +384,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
 	}
-	//nolint:gocritic // OAuth2 system context — no authenticated user during refresh
+	//nolint:gocritic // OAuth2 system context - no authenticated user during refresh
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(token.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
@@ -411,7 +411,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 
 	// Grab the user roles so we can perform the refresh as the user.
-	//nolint:gocritic // OAuth2 system context — need to read the previous API key
+	//nolint:gocritic // OAuth2 system context - need to read the previous API key
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err

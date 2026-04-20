@@ -6,7 +6,7 @@ import { useClipboard } from "#/hooks/useClipboard";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
-	/** When false the hook stays dormant — no WebSocket, no RFB. */
+	/** When false the hook stays dormant - no WebSocket, no RFB. */
 	activated: boolean;
 }
 
@@ -73,7 +73,7 @@ const isMacCopyShortcut = (event: KeyboardEvent): boolean => {
 	return key === "c" && event.metaKey && !event.ctrlKey && !event.altKey;
 };
 
-// Detect Cmd+X on macOS — same remapping rationale as copy.
+// Detect Cmd+X on macOS - same remapping rationale as copy.
 const isMacCutShortcut = (event: KeyboardEvent): boolean => {
 	const key = event.key.toLowerCase();
 	return key === "x" && event.metaKey && !event.ctrlKey && !event.altKey;
@@ -241,7 +241,7 @@ export function useDesktopConnection({
 				rfb.focusOnClick = true;
 
 				// Per-session flags scoped to this RFB instance.
-				// NOT refs — each doConnect() gets fresh copies so
+				// NOT refs - each doConnect() gets fresh copies so
 				// state from a previous session cannot leak.
 				let sessionConnected = false;
 				let securityFailed = false;
@@ -390,7 +390,7 @@ export function useDesktopConnection({
 					// duration. This prevents infinite reconnect
 					// loops when the VNC handshake succeeds but the
 					// connection drops immediately.
-					// No gen check needed — clearAllTimers()
+					// No gen check needed - clearAllTimers()
 					// always cancels this before a new session.
 					reconnectStableTimerRef.current = setTimeout(() => {
 						reconnectAttemptRef.current = 0;
@@ -410,7 +410,7 @@ export function useDesktopConnection({
 					rfbRef.current = null;
 					setRfbInstance(null);
 
-					// Security failures are terminal — the
+					// Security failures are terminal - the
 					// securityfailure handler already moved to
 					// "error". noVNC fires disconnect after
 					// securityfailure; ignore it so we don't
@@ -421,7 +421,7 @@ export function useDesktopConnection({
 
 					// Only retry if THIS session's VNC handshake
 					// completed. A previous session having connected
-					// is irrelevant — the desktop may have become
+					// is irrelevant - the desktop may have become
 					// permanently unavailable.
 					if (!sessionConnected) {
 						setStatus("error");

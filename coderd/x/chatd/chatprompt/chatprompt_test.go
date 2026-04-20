@@ -528,7 +528,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	t.Parallel()
 
 	// The assistant message contains a PE tool call, a PE tool result,
-	// and a text block — mimicking a web_search step where persistStep
+	// and a text block - mimicking a web_search step where persistStep
 	// keeps the PE result inline.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
@@ -584,7 +584,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 // TestProviderExecutedResult_LegacyToolRow verifies backward
 // compatibility: PE tool results that were stored as separate
 // tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes — orphaned PE results are dropped, and
+// by the repair passes - orphaned PE results are dropped, and
 // matching PE results in the same step work via the existing
 // injectMissingToolUses logic.
 func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
@@ -1687,10 +1687,10 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),                     // empty — filtered
-			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),                // empty — filtered
-			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText(""),                     // empty - filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace - filtered
+			codersdk.ChatMessageReasoning(""),                // empty - filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace - filtered
 			codersdk.ChatMessageText("hello"),                // kept
 			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
 			codersdk.ChatMessageReasoning("thinking deeply"), // kept
@@ -1714,7 +1714,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected TextPart at index 0")
 		require.Equal(t, "hello", textPart.Text)
 
-		// Leading/trailing whitespace is preserved — only
+		// Leading/trailing whitespace is preserved - only
 		// all-whitespace parts are dropped.
 		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
 		require.True(t, ok, "expected TextPart at index 1")
@@ -1737,9 +1737,9 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),          // empty — filtered
-			codersdk.ChatMessageText(" "),         // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText(""),          // empty - filtered
+			codersdk.ChatMessageText(" "),         // whitespace - filtered
+			codersdk.ChatMessageReasoning(""),     // empty - filtered
 			codersdk.ChatMessageText("  reply  "), // kept with whitespace
 			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
 		}

@@ -74,7 +74,7 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			Namespace: "coderd",
 			Name:      "prebuilt_workspace_claim_duration_seconds",
 			Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
-			// Higher resolution between 1–5m to show typical prebuild claim times.
+			// Higher resolution between 1-5m to show typical prebuild claim times.
 			// Cap at 5m since longer claims diminish prebuild value.
 			Buckets: []float64{
 				1, // 1s

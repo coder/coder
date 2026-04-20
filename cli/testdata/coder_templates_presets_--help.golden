@@ -20,5 +20,5 @@ SUBCOMMANDS:
     list    List all presets of the specified template. Defaults to the active
             template version.
 
-———
+---
 Run `coder --help` for a list of global options.

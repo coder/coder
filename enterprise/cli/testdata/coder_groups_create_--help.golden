@@ -15,5 +15,5 @@ OPTIONS:
       --display-name string, $CODER_DISPLAY_NAME
           Optional human friendly name for the group.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -94,5 +94,5 @@ OPTIONS:
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
 
-———
+---
 Run `coder --help` for a list of global options.

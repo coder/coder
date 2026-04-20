@@ -19,5 +19,5 @@ OPTIONS:
       --template-version string, $CODER_TEMPLATE_VERSION_NAME
           Specify the template version name to promote.
 
-———
+---
 Run `coder --help` for a list of global options.

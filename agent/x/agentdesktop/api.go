@@ -116,7 +116,7 @@ func (a *API) handleDesktopVNC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No read limit — RFB framebuffer updates can be large.
+	// No read limit - RFB framebuffer updates can be large.
 	conn.SetReadLimit(-1)
 
 	wsCtx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)

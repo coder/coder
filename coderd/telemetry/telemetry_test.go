@@ -1600,7 +1600,7 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Create a soft-deleted model config — should NOT appear in telemetry.
+	// Create a soft-deleted model config - should NOT appear in telemetry.
 	deletedCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		Provider:             "anthropic",
 		Model:                "claude-deleted",
@@ -1727,7 +1727,7 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert a soft-deleted message on root chat with large token values.
-	// This acts as "poison" — if the deleted filter is missing, totals
+	// This acts as "poison" - if the deleted filter is missing, totals
 	// will be inflated and assertions below will fail.
 	poisonMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              rootChat.ID,

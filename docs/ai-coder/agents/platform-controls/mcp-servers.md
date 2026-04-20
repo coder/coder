@@ -51,7 +51,7 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 Each MCP server uses one of four authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
-Secrets are never returned in API responses — boolean flags indicate whether
+Secrets are never returned in API responses - boolean flags indicate whether
 a value is set.
 
 ### None
@@ -64,7 +64,7 @@ authentication.
 Per-user authorization. The administrator configures the OAuth2 provider, and
 each user independently completes the authorization flow.
 
-**Manual configuration** — provide all three fields together:
+**Manual configuration** - provide all three fields together:
 
 | Field              | Description                 |
 |--------------------|-----------------------------|
@@ -79,12 +79,12 @@ Optional fields:
 | `oauth2_client_secret` | OAuth2 client secret.           |
 | `oauth2_scopes`        | Space-separated list of scopes. |
 
-**Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
+**Auto-discovery** - leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
 
-1. RFC 9728 — Protected Resource Metadata
-1. RFC 8414 — Authorization Server Metadata
-1. RFC 7591 — Dynamic Client Registration
+1. RFC 9728 - Protected Resource Metadata
+1. RFC 8414 - Authorization Server Metadata
+1. RFC 7591 - Dynamic Client Registration
 
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically. Users can disconnect

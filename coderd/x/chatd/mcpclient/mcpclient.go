@@ -104,7 +104,7 @@ func ConnectAll(
 					slog.F("server_url", RedactURL(cfg.Url)),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				// Connection failures are not propagated — the
+				// Connection failures are not propagated - the
 				// LLM simply won't have this server's tools.
 				return nil
 			}
@@ -561,9 +561,9 @@ func (t *mcpToolWrapper) SetProviderOptions(
 // call input so the remote MCP server receives only the original
 // arguments. It handles three shapes the model may produce:
 //
-//  1. { model_intent, properties: {...} } — correct format
-//  2. { model_intent, key: val, ... } — flat, no properties wrapper
-//  3. Anything else — returned as-is
+//  1. { model_intent, properties: {...} } - correct format
+//  2. { model_intent, key: val, ... } - flat, no properties wrapper
+//  3. Anything else - returned as-is
 func unwrapModelIntent(input string) string {
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(input), &parsed); err != nil {

@@ -13,5 +13,5 @@ SUBCOMMANDS:
     edit      Edit a user group
     list      List user groups
 
-———
+---
 Run `coder --help` for a list of global options.

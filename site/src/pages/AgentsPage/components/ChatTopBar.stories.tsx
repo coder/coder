@@ -149,7 +149,7 @@ export const WithClosedPR: Story = {
 };
 
 // ---------------------------------------------------------------
-// Mobile viewport stories — constrain width to 390px so the
+// Mobile viewport stories - constrain width to 390px so the
 // responsive md: breakpoint triggers the compact PR number.
 // ---------------------------------------------------------------
 

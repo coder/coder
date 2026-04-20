@@ -17,7 +17,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:  "report unsafe outer-store usage inside database.Store.InTx closures",
 	Run:  run,
 	// ResultType must be set so run can return a typed nil instead
-	// of nil, nil — which the nilnil linter forbids. No downstream
+	// of nil, nil - which the nilnil linter forbids. No downstream
 	// analyzer depends on this result.
 	ResultType: reflect.TypeOf((*struct{})(nil)),
 }

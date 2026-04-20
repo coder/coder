@@ -27,7 +27,7 @@ const WORKSPACE_TOOL_NAMES = new Set(["create_workspace"]);
  * Watches stream tool results for create_workspace completions and
  * invalidates the chat query so the sidebar can display workspace info.
  * The agent now handles all path discovery and scan triggering via
- * the PathStore — no frontend refresh needed.
+ * the PathStore - no frontend refresh needed.
  */
 export function useWorkspaceCreationWatcher({
 	store,

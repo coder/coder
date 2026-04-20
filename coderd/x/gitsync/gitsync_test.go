@@ -750,7 +750,7 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 	assert.Equal(t, "ghe-private-token", tokensByPR[10],
 		"ghes.corp.com PR #10 should use ghe-private-token")
 
-	// Token resolution should be called exactly twice — once per
+	// Token resolution should be called exactly twice - once per
 	// (owner, origin) group.
 	assert.Equal(t, int32(2), tokenCalls.Load(),
 		"TokenResolver should be called once per (owner, origin) group")

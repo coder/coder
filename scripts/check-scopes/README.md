@@ -22,7 +22,7 @@ go run ./tools/check-scopes
 
 Optional flags:
 
-- `-dump path` — override path to `dump.sql` (default `coderd/database/dump.sql`).
+- `-dump path` - override path to `dump.sql` (default `coderd/database/dump.sql`).
 
 ## Remediation
 

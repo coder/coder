@@ -764,7 +764,7 @@ func TestPostChats_ClientType(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Omit ClientType entirely — should default to "api".
+		// Omit ClientType entirely - should default to "api".
 		chat := newChat(t, "")
 		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
 
@@ -1036,7 +1036,7 @@ func TestListChats(t *testing.T) {
 			require.False(t, overlap, "page2 should not contain items from page1")
 		}
 
-		// Fetch third page — should have 1 remaining chat.
+		// Fetch third page - should have 1 remaining chat.
 		page3, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Pagination: codersdk.Pagination{
 				AfterID: uuid.MustParse(page2[len(page2)-1].ID.String()),
@@ -1056,7 +1056,7 @@ func TestListChats(t *testing.T) {
 			require.True(t, found, "chat %s should appear in paginated results", c.ID)
 		}
 
-		// Fetch with offset=3, limit=2 — should return 2 chats.
+		// Fetch with offset=3, limit=2 - should return 2 chats.
 		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Pagination: codersdk.Pagination{Offset: 3, Limit: 2},
 		})
@@ -3719,7 +3719,7 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// GET the chat — files must be hydrated with all metadata fields.
+		// GET the chat - files must be hydrated with all metadata fields.
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, 1)
@@ -3810,7 +3810,7 @@ func TestGetChat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 
-		// Attempt to add one more file — should be rejected (0 rows).
+		// Attempt to add one more file - should be rejected (0 rows).
 		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
 			OwnerID:        firstUser.UserID,
 			OrganizationID: firstUser.OrganizationID,
@@ -3836,7 +3836,7 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// ON CONFLICT DO NOTHING returns 0 rows when the link
-		// already exists, which is fine — the file is still linked.
+		// already exists, which is fine - the file is still linked.
 		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
 
 		// Count should still be exactly MaxChatFileIDs.
@@ -5029,7 +5029,7 @@ func TestChatPinOrder(t *testing.T) {
 		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
 		require.NoError(t, err)
 
-		// Archive the first — pin_order should be cleared.
+		// Archive the first - pin_order should be cleared.
 		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
 
@@ -5419,7 +5419,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				FileName:  "README.md",
 				StartLine: 1,
 				EndLine:   1,
-				// No code content — just a file reference.
+				// No code content - just a file reference.
 			}},
 		})
 		require.NoError(t, err)
@@ -5884,7 +5884,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// GET the chat — file should be linked.
+		// GET the chat - file should be linked.
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, 1)
@@ -5924,7 +5924,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, msgResp.Warnings, "dedup below cap should not produce warnings")
 
-		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
+		// GET - should have exactly 1 file (deduped by SQL DISTINCT).
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, 1, "duplicate file IDs should be deduped")
@@ -6370,7 +6370,7 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// GET the chat — file should be linked.
+		// GET the chat - file should be linked.
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, 1)
@@ -8591,7 +8591,7 @@ func TestWatchChatDesktop(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Try to connect to the desktop endpoint — should fail because
+		// Try to connect to the desktop endpoint - should fail because
 		// chat has no workspace.
 		res, err := client.Request(
 			ctx,
@@ -10311,7 +10311,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		// Uses a random UUID — hits 404 before template validation.
+		// Uses a random UUID - hits 404 before template validation.
 		err := memberClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -10320,7 +10320,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 	t.Run("UnauthenticatedFails", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		anonClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
-		// Uses a random UUID — hits 401 before template validation.
+		// Uses a random UUID - hits 401 before template validation.
 		err := anonClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
@@ -10447,7 +10447,7 @@ func TestGetChatsByWorkspace(t *testing.T) {
 		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
 
-		// Insert two active chats — the second is newer due to insert
+		// Insert two active chats - the second is newer due to insert
 		// ordering and should win the "latest" selection in Go after
 		// the SQL returns both ordered by updated_at DESC.
 		_ = insertChat(ctx, "older active", ws.Workspace.ID)

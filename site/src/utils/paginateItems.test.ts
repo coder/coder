@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { paginateItems } from "./paginateItems";
 
-// 25 items numbered 1–25 for readable assertions.
+// 25 items numbered 1-25 for readable assertions.
 const items = Array.from({ length: 25 }, (_, i) => i + 1);
 
 describe("paginateItems", () => {

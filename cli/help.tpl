@@ -49,7 +49,7 @@ coder {{version}}
         {{- end -}}
     {{- end }}
 {{- end }}
-———
+---
 {{- if .Parent }}
 Run `coder --help` for a list of global options.
 {{- else }}

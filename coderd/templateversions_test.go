@@ -1938,7 +1938,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
 
-	// Shared instance — see TestTemplateVersionByName for rationale.
+	// Shared instance - see TestTemplateVersionByName for rationale.
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {

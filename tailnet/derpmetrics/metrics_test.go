@@ -122,7 +122,7 @@ func TestDERPExpvarCollector(t *testing.T) {
 		for _, m := range metrics {
 			if m.GetName() == "coder_derp_server_connections" {
 				require.Len(t, m.GetMetric(), 1)
-				// Gauge type check — GetGauge should be non-nil.
+				// Gauge type check - GetGauge should be non-nil.
 				assert.NotNil(t, m.GetMetric()[0].GetGauge())
 				assert.Equal(t, float64(0), m.GetMetric()[0].GetGauge().GetValue())
 				return

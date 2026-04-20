@@ -146,7 +146,7 @@ jobs:
           BODY=$(cat <<EOF
           Backport of ${PR_URL}
 
-          Original PR: #${PR_NUMBER} — ${PR_TITLE}
+          Original PR: #${PR_NUMBER} - ${PR_TITLE}
           Merge commit: ${MERGE_SHA}
           Requested by: @${SENDER}
           EOF

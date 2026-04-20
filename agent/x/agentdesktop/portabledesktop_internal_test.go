@@ -62,7 +62,7 @@ func (r *recordedExecer) scriptFor(args []string) string {
 func (r *recordedExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
 	r.record(cmd, args...)
 	script := r.scriptFor(args)
-	//nolint:gosec // Test helper — script content is controlled by the test.
+	//nolint:gosec // Test helper - script content is controlled by the test.
 	return exec.CommandContext(ctx, "sh", "-c", script)
 }
 
@@ -951,7 +951,7 @@ func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
 	// second stop timer is only created after the first stop
 	// completes. Advance past the 15s stop timeout after each
 	// release so the process is forcibly killed instead of
-	// depending on SIGINT (unreliable on macOS — see #1461).
+	// depending on SIGINT (unreliable on macOS - see #1461).
 	stopTrap.MustWait(ctx).MustRelease(ctx)
 	clk.Advance(15 * time.Second).MustWait(ctx)
 	stopTrap.MustWait(ctx).MustRelease(ctx)

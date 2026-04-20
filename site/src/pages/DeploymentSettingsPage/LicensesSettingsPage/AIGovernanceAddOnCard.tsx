@@ -22,7 +22,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	limit,
 	isExceeded,
 }) => {
-	const actualLabel = actual === undefined ? "—" : actual.toLocaleString();
+	const actualLabel = actual === undefined ? "-" : actual.toLocaleString();
 
 	return (
 		<div

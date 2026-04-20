@@ -46,7 +46,7 @@ func main() {
 			gpgFormat, _ := gitOutput("config", "--get", "gpg.format")
 			gpgConfigured := signingKey != "" || gpgFormat != ""
 			if !gpgConfigured {
-				warnf(w, "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag.")
+				warnf(w, "GPG signing is not configured. Tags will be unsigned - there will be no way to verify who pushed the tag.")
 				_, _ = fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
 				if err := confirmWithDefault(inv, "Continue without signing?", cliui.ConfirmNo); err != nil {
 					return err

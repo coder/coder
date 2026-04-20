@@ -185,7 +185,7 @@ const createComponents = (
 		td: ({ children }: MarkdownComponentProps) => (
 			<td className="px-4 py-2">{children}</td>
 		),
-		// Inline code only — fenced blocks are handled by the pre override.
+		// Inline code only - fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
 				{children}

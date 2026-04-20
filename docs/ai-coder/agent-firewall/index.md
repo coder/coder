@@ -174,7 +174,7 @@ environments where namespace capabilities are limited or unavailable.
 ## Audit Logs
 
 Agent Firewall streams audit logs to the Coder control plane, providing
-centralized visibility into HTTP requests made within workspaces—whether from AI
+centralized visibility into HTTP requests made within workspaces, whether from AI
 agents or ad-hoc commands run with `boundary`.
 
 Audit logs are independent of application logs:

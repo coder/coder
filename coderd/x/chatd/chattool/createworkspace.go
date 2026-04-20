@@ -90,7 +90,7 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			"template_id (from list_templates). Optionally provide "+
 			"a name and parameter values (from read_template). "+
 			"If no name is given, one will be generated. "+
-			"This tool is idempotent — if the chat already has a "+
+			"This tool is idempotent - if the chat already has a "+
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -286,7 +286,7 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			// Re-fire after the agent is fully ready so callers
 			// can load instruction files (AGENTS.md) from the
 			// running agent. This must happen after
-			// waitForAgentReady — firing earlier (e.g. right
+			// waitForAgentReady - firing earlier (e.g. right
 			// after waitForBuild) races with the agent startup
 			// and the connection usually times out before the
 			// agent is reachable.
@@ -344,7 +344,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	if err != nil {
 		return existingWorkspaceResult{Err: xerrors.Errorf("load workspace: %w", err)}
 	}
-	// Workspace was soft-deleted — allow creation.
+	// Workspace was soft-deleted - allow creation.
 	if ws.Deleted {
 		return existingWorkspaceResult{}
 	}
@@ -352,7 +352,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	// Check the latest build status.
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil {
-		// Can't determine status — allow creation.
+		// Can't determine status - allow creation.
 		return existingWorkspaceResult{}
 	}
 
@@ -425,7 +425,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			}, Done: true}
 		}
 
-		// Build succeeded — use the agent's recent DB-backed
+		// Build succeeded - use the agent's recent DB-backed
 		// connection status to decide whether the workspace is
 		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
@@ -464,11 +464,11 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				// creation.
 			}
 		}
-		// No agent ID or no agent status — allow creation.
+		// No agent ID or no agent status - allow creation.
 		return existingWorkspaceResult{}
 
 	default:
-		// Failed, canceled, etc — allow creation.
+		// Failed, canceled, etc - allow creation.
 		return existingWorkspaceResult{}
 	}
 }
@@ -511,7 +511,7 @@ func waitForBuild(
 		case database.ProvisionerJobStatusPending,
 			database.ProvisionerJobStatusRunning,
 			database.ProvisionerJobStatusCanceling:
-			// Still in progress — keep waiting.
+			// Still in progress - keep waiting.
 		default:
 			return xerrors.Errorf("unexpected job status: %s", job.JobStatus)
 		}

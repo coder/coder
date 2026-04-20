@@ -160,7 +160,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
-				{/* Tabs — scrollable when they overflow */}
+				{/* Tabs - scrollable when they overflow */}
 				<ScrollArea
 					className="min-w-0 flex-1"
 					orientation="horizontal"

@@ -15,5 +15,5 @@ OPTIONS:
       --prefix Ki|Mi|Gi|Ti (default: Gi)
           SI Prefix for disk measurement.
 
-———
+---
 Run `coder --help` for a list of global options.

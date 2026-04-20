@@ -146,7 +146,7 @@
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
-		/* shadcn-compatible aliases – see :root block for details. */
+		/* shadcn-compatible aliases - see :root block for details. */
 		--background: var(--surface-primary);
 		--foreground: var(--content-primary);
 		--muted: var(--surface-secondary);

@@ -36,5 +36,5 @@ OPTIONS:
           By default, the CLI will generate a new session token when logging in.
           This flag will instead use the provided token as the session token.
 
-———
+---
 Run `coder --help` for a list of global options.

@@ -6,8 +6,8 @@ so the agent itself stays alive under resource pressure.
 
 ## Prerequisites
 
-- **Linux** — The feature is ignored on other operating systems.
-- **`CAP_SYS_NICE`** — Required if the agent needs to lower
+- **Linux** - The feature is ignored on other operating systems.
+- **`CAP_SYS_NICE`** - Required if the agent needs to lower
   the nice value below its current value. In Kubernetes, add
   it to the container's security context:
 
@@ -26,12 +26,12 @@ so the agent itself stays alive under resource pressure.
 Configure the feature with environment variables in the
 environment that launches the agent binary. These must be set
 on the workspace container or host, not in the `coder_agent`
-resource's `env` block — the agent reads them from its own
+resource's `env` block - the agent reads them from its own
 process environment at startup.
 
 | Variable                | Required | Default                       | Description                                                                                                                                                                                   |
 |-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_PROC_PRIO_MGMT`  | Yes      | —                             | Set to enable the feature. The agent checks whether the variable is present, not its value — even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely. |
+| `CODER_PROC_PRIO_MGMT`  | Yes      | -                             | Set to enable the feature. The agent checks whether the variable is present, not its value - even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely. |
 | `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                 |
 | `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority).                                                                                                      |
 
@@ -115,7 +115,7 @@ resource "kubernetes_deployment" "workspace" {
 If you see `failed to adjust oom score` in stderr but the
 process still starts, the agent likely lacks permission to
 write to `/proc/self/oom_score_adj`. Ensure the process is
-dumpable — this is handled automatically by the agent, but
+dumpable - this is handled automatically by the agent, but
 can fail if the container runtime restricts `prctl` calls.
 
 ### Nice value is not applied

@@ -73,7 +73,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		// Store in database - use system context since this is a public endpoint
 		now := dbtime.Now()
 		clientName := req.GenerateClientName()
-		//nolint:gocritic // OAuth2 system context — dynamic registration is a public endpoint
+		//nolint:gocritic // OAuth2 system context - dynamic registration is a public endpoint
 		app, err := db.InsertOAuth2ProviderApp(dbauthz.AsSystemOAuth2(ctx), database.InsertOAuth2ProviderAppParams{
 			ID:                      clientID,
 			CreatedAt:               now,
@@ -121,7 +121,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			return
 		}
 
-		//nolint:gocritic // OAuth2 system context — dynamic registration is a public endpoint
+		//nolint:gocritic // OAuth2 system context - dynamic registration is a public endpoint
 		_, err = db.InsertOAuth2ProviderAppSecret(dbauthz.AsSystemOAuth2(ctx), database.InsertOAuth2ProviderAppSecretParams{
 			ID:            uuid.New(),
 			CreatedAt:     now,
@@ -183,7 +183,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 		}
 
 		// Get app by client ID
-		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
+		//nolint:gocritic // OAuth2 system context - RFC 7592 client configuration endpoint
 		app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
@@ -269,7 +269,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		req = req.ApplyDefaults()
 
 		// Get existing app to verify it exists and is dynamically registered
-		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
+		//nolint:gocritic // OAuth2 system context - RFC 7592 client configuration endpoint
 		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err == nil {
 			aReq.Old = existingApp
@@ -294,7 +294,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 
 		// Update app in database
 		now := dbtime.Now()
-		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
+		//nolint:gocritic // OAuth2 system context - RFC 7592 client configuration endpoint
 		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
 			ID:                      clientID,
 			UpdatedAt:               now,
@@ -377,7 +377,7 @@ func DeleteClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Get existing app to verify it exists and is dynamically registered
-		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
+		//nolint:gocritic // OAuth2 system context - RFC 7592 client configuration endpoint
 		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err == nil {
 			aReq.Old = existingApp
@@ -401,7 +401,7 @@ func DeleteClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Delete the client and all associated data (tokens, secrets, etc.)
-		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
+		//nolint:gocritic // OAuth2 system context - RFC 7592 client configuration endpoint
 		err = db.DeleteOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
@@ -453,7 +453,7 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 			}
 
 			// Get the client and verify the registration access token
-			//nolint:gocritic // OAuth2 system context — RFC 7592 registration access token validation
+			//nolint:gocritic // OAuth2 system context - RFC 7592 registration access token validation
 			app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {

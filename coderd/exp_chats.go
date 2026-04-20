@@ -1939,7 +1939,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No read limit — RFB framebuffer updates can be large.
+	// No read limit - RFB framebuffer updates can be large.
 	conn.SetReadLimit(-1)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -3433,7 +3433,7 @@ func (api *API) resolveChatGitAccessToken(
 					slog.F("user_id", userID),
 					slog.Error(refreshErr),
 				)
-				// Fall through — the existing token may still work
+				// Fall through - the existing token may still work
 				// (e.g. GitHub tokens with no expiry).
 			} else {
 				link = refreshed
@@ -4776,7 +4776,7 @@ func truncateRunes(value string, maxLen int) string {
 // linkFilesToChat inserts file-link rows into the chat_file_links
 // join table. Cap enforcement and dedup are handled atomically in
 // SQL. On success returns (nil, false). On failure returns the full
-// input fileIDs slice — linking is all-or-nothing because the
+// input fileIDs slice - linking is all-or-nothing because the
 // SQL operates on the batch atomically. capExceeded indicates
 // whether the failure was due to the cap being exceeded (true)
 // or a database error (false).
@@ -6407,7 +6407,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	duration := endDate.Sub(startDate)
 	prevStart := startDate.Add(-duration)
 
-	// No owner filter — admin sees all data.
+	// No owner filter - admin sees all data.
 	ownerID := uuid.NullUUID{}
 
 	// Run all queries in parallel.

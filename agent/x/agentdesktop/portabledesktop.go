@@ -137,7 +137,7 @@ func (p *portableDesktop) Start(ctx context.Context) (DisplayConfig, error) {
 				Display: p.session.display,
 			}, nil
 		}
-		// Process died — clean up and recreate.
+		// Process died - clean up and recreate.
 		p.logger.Warn(ctx, "portabledesktop process died, recreating session")
 		p.session.cancel()
 		p.session = nil

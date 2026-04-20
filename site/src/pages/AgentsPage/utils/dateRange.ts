@@ -48,7 +48,7 @@ export function formatUsageDateRange(
 		options?.endDateIsExclusive ?? false,
 	);
 
-	return `${dayjs(adjusted.startDate).format("MMM D")} – ${dayjs(
+	return `${dayjs(adjusted.startDate).format("MMM D")} - ${dayjs(
 		adjusted.endDate,
 	).format("MMM D, YYYY")}`;
 }

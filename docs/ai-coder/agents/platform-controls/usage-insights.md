@@ -13,14 +13,14 @@ processing each chat message.
 
 ### Configuration
 
-- **Enable/disable toggle** — master on/off for the entire limit system.
-- **Period** — `day`, `week`, or `month`. Periods are UTC-aligned: midnight
+- **Enable/disable toggle** - master on/off for the entire limit system.
+- **Period** - `day`, `week`, or `month`. Periods are UTC-aligned: midnight
   UTC for daily, Monday start for weekly, first of the month for monthly.
-- **Default limit** — deployment-wide default in dollars. Applies to all
+- **Default limit** - deployment-wide default in dollars. Applies to all
   users who do not have a more specific override. Leave unset for no limit.
-- **Per-user overrides** — set a custom dollar limit for an individual user.
+- **Per-user overrides** - set a custom dollar limit for an individual user.
   Takes highest priority.
-- **Per-group overrides** — set a limit for a group. When a user belongs to
+- **Per-group overrides** - set a limit for a group. When a user belongs to
   multiple groups, the lowest group limit applies.
 
 ### Priority hierarchy
@@ -78,11 +78,11 @@ name or username, and pagination.
 
 Select a user to see:
 
-- **Summary cards** — total cost, token breakdowns, and message counts.
-- **Usage limit progress** — if a limit is active, a color-coded progress
+- **Summary cards** - total cost, token breakdowns, and message counts.
+- **Usage limit progress** - if a limit is active, a color-coded progress
   bar shows current spend relative to the limit.
-- **Per-model breakdown** — table of costs and token usage by model.
-- **Per-chat breakdown** — table of costs and token usage by chat session.
+- **Per-model breakdown** - table of costs and token usage by model.
+- **Per-chat breakdown** - table of costs and token usage by chat session.
 
 > [!NOTE]
 > Automatic title generation uses lightweight models, such as Claude Haiku or GPT-4o

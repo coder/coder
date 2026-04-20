@@ -144,7 +144,7 @@ func TestUserOIDCClaims(t *testing.T) {
 		t.Parallel()
 
 		fake, ownerClient := newOIDCTest(t)
-		// Use minimal claims — just enough for OIDC login.
+		// Use minimal claims - just enough for OIDC login.
 		claims := jwt.MapClaims{
 			"email":          "minimal@coder.com",
 			"email_verified": true,

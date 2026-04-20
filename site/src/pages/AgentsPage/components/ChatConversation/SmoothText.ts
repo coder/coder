@@ -6,9 +6,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 export const STREAM_SMOOTHING = {
 	/** Baseline reveal speed in characters per second. */
 	BASE_CHARS_PER_SEC: 72,
-	/** Floor — never slower than this even when buffer is nearly empty. */
+	/** Floor - never slower than this even when buffer is nearly empty. */
 	MIN_CHARS_PER_SEC: 24,
-	/** Ceiling — hard cap to prevent overwhelming the markdown renderer. */
+	/** Ceiling - hard cap to prevent overwhelming the markdown renderer. */
 	MAX_CHARS_PER_SEC: 420,
 	/** Backlog level where adaptive reveal runs at MAX_CHARS_PER_SEC. */
 	CATCHUP_BACKLOG_CHARS: 180,
@@ -198,7 +198,7 @@ export class SmoothTextEngine {
 
 		// Budget-gated reveal: only reveal when at least one whole
 		// character has accrued. This makes cadence frame-rate
-		// invariant — a 240Hz display accumulates budget across
+		// invariant - a 240Hz display accumulates budget across
 		// several frames before revealing, rather than forcing
 		// 1 char/frame at any refresh rate.
 		const wholeCharsReady = Math.floor(this.charBudget);
@@ -364,7 +364,7 @@ export function useSmoothStreamingText(
 ): UseSmoothStreamingTextResult {
 	// Store the engine and the streamKey it was created for together
 	// in a single useState. When the streamKey changes during render,
-	// we dispose the old engine and create a fresh one inline — this
+	// we dispose the old engine and create a fresh one inline - this
 	// is the "derive state from props" pattern React documents for
 	// useState, avoiding useEffect for reset logic.
 	const [{ engine, streamKey }, setEngineState] = useState(() => ({

@@ -181,7 +181,7 @@ export const watchChatDesktop = (chatId: string): WebSocket => {
 	const socket = createWebSocket(
 		`/api/experimental/chats/${chatId}/stream/desktop`,
 	);
-	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
+	// RFB is a binary protocol - noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
 };

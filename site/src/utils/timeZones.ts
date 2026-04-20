@@ -9,7 +9,7 @@
  * For some reason though, the timezones allowed by `Intl.DateTimeFormat` in
  * Node diverged slightly from the timezones present in the tzdata package,
  * despite being derived from the same data. Notably, the timezones that we
- * filter out below are not allowed by Node as of v20.18.1 and onward–which is
+ * filter out below are not allowed by Node as of v20.18.1 and onward, which is
  * the version that updated the 20 release line from 2024a to 2024b.
  */
 import tzData from "tzdata";

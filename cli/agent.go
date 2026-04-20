@@ -354,7 +354,7 @@ func workspaceAgent() *serpent.Command {
 				case event, ok := <-reinitEvents:
 					switch {
 					case !ok:
-						// Channel closed — the reinit loop exited
+						// Channel closed - the reinit loop exited
 						// (terminal 409 or context expired). Keep
 						// running the current agent until the parent
 						// context is canceled.
@@ -363,7 +363,7 @@ func workspaceAgent() *serpent.Command {
 						<-ctx.Done()
 						mustExit = true
 					case event.OwnerID != uuid.Nil && event.OwnerID == lastOwnerID:
-						// Duplicate reinit for same owner — already
+						// Duplicate reinit for same owner - already
 						// reinitialized. Cancel the reinit loop
 						// goroutine and keep the current agent.
 						logger.Info(ctx, "skipping redundant reinit, owner unchanged",

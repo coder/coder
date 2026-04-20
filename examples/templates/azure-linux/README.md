@@ -32,7 +32,7 @@ This template provisions the following resources:
 
 ### What happens on stop
 
-When a workspace is **stopped**, only the VM is destroyed. The managed disk, resource group, virtual network, subnet, and network interface all persist. This is by design — the managed disk retains your `/home/coder` data across workspace restarts, and the other resources remain because the disk depends on them.
+When a workspace is **stopped**, only the VM is destroyed. The managed disk, resource group, virtual network, subnet, and network interface all persist. This is by design - the managed disk retains your `/home/coder` data across workspace restarts, and the other resources remain because the disk depends on them.
 
 This means you will see these Azure resources in your subscription even when a workspace is stopped. This is expected behavior.
 

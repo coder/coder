@@ -24,7 +24,7 @@ When Terraform must change an immutable attribute, it replaces the entire r=
 esource.
 If you=E2=80=99re using prebuilds to speed up provisioning, unexpected repl=
 acements will slow down
-workspace startup=E2=80=94even when claiming a prebuilt environment.
+workspace startup, even when claiming a prebuilt environment.
 
 For tips on preventing replacements and improving claim performance, see th=
 is guide (https://coder.com/docs/admin/templates/extending-templates/prebui=
@@ -86,7 +86,7 @@ ostname</em><br>
 e resource.<br>
 If you=E2=80=99re using prebuilds to speed up provisioning, unexpected repl=
 acements will slow down<br>
-workspace startup=E2=80=94even when claiming a prebuilt environment.</p>
+workspace startup, even when claiming a prebuilt environment.</p>
 
 <p>For tips on preventing replacements and improving claim performance, see=
  <a href=3D"https://coder.com/docs/admin/templates/extending-templates/preb=

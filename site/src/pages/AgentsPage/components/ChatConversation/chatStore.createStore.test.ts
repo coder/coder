@@ -91,7 +91,7 @@ describe("replaceMessages", () => {
 			notified = true;
 		});
 
-		// Same object reference — maps compare equal by ref.
+		// Same object reference - maps compare equal by ref.
 		store.replaceMessages([msg]);
 
 		expect(notified).toBe(false);
@@ -148,7 +148,7 @@ describe("upsertDurableMessage", () => {
 		// Update content of existing message (same ID, same map size).
 		store.upsertDurableMessage(makeMessage(2, "assistant", "edited"));
 
-		// Same reference — no reorder needed because the map size
+		// Same reference - no reorder needed because the map size
 		// didn't change and the ID already existed.
 		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
 	});
@@ -734,7 +734,7 @@ describe("duplicate message deduplication", () => {
 		store.replaceMessages([msg1, msg2, msg2Copy]);
 
 		const state = store.getSnapshot();
-		// Map deduplicates by key — only 2 unique entries.
+		// Map deduplicates by key - only 2 unique entries.
 		expect(state.messagesByID.size).toBe(2);
 		// orderedMessageIDs MUST also have only 2 entries.
 		expect(state.orderedMessageIDs).toEqual([1, 2]);

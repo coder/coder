@@ -50,11 +50,11 @@ The following explains how to do certain things related to dogfooding.
     </aside>
 
 4. Run `./scripts/develop.sh` which will start _two_ separate processes:
-    1. `[http://localhost:3000](http://localhost:3000)` — backend API server
+    1. `[http://localhost:3000](http://localhost:3000)` - backend API server
        👈 Backend devs will want to talk to this
-    2. `[http://localhost:8080](http://localhost:8080)` — Node.js dev server
+    2. `[http://localhost:8080](http://localhost:8080)` - Node.js dev server
        👈 Frontend devs will want to talk to this
-5. Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return
+5. Ensure that you’re logged in: `./scripts/coder-dev.sh list` - should return
     no workspace. If this returns an error, double-check the output of running
     `scripts/develop.sh`.
 6. A template named `docker` will have automatically been created for you. If you just

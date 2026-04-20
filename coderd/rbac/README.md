@@ -166,8 +166,8 @@ To learn more about OPA and Rego, see https://www.openpolicyagent.org/docs.
 
 ### Application and Database Integration
 
-- [`rbac/authz.go`](authz.go) – Application layer integration: provides the core authorization logic that integrates with Rego for policy evaluation.
-- [`database/dbauthz/dbauthz.go`](../database/dbauthz/dbauthz.go) – Database layer integration: wraps the database layer with authorization checks to enforce access control.
+- [`rbac/authz.go`](authz.go) - Application layer integration: provides the core authorization logic that integrates with Rego for policy evaluation.
+- [`database/dbauthz/dbauthz.go`](../database/dbauthz/dbauthz.go) - Database layer integration: wraps the database layer with authorization checks to enforce access control.
 
 There are two types of evaluation in OPA:
 

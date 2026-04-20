@@ -116,7 +116,7 @@ For deployments when explicit credentials are preferred, provide an access key a
 
 ### GitHub Copilot
 
-GitHub Copilot offers three plans — Individual, Business, and Enterprise —
+GitHub Copilot offers three plans - Individual, Business, and Enterprise,
 each with its own API endpoint. Configure one or more `copilot` providers
 using the [indexed provider format](#multiple-instances-of-the-same-provider)
 depending on which plans your organization uses.
@@ -164,7 +164,7 @@ export CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://chatgpt.com/backend-api/codex
 
 ### Multiple instances of the same provider
 
-You can configure multiple instances of the same provider type — for example, to
+You can configure multiple instances of the same provider type - for example, to
 route different teams to separate API keys, use different base URLs per region, or
 connect to both a direct API and a proxy simultaneously. Use indexed environment
 variables following the pattern `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>`:
@@ -224,14 +224,14 @@ available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
 
 > [!NOTE]
 > Indices must be contiguous and start at `0`. Each instance must have a unique
-> `NAME` — if two instances of the same `TYPE` omit `NAME`, they will both
+> `NAME` - if two instances of the same `TYPE` omit `NAME`, they will both
 > default to the type name and fail with a duplicate name error.
 >
 > The legacy single-provider environment variables (`CODER_AIBRIDGE_OPENAI_KEY`,
 > `CODER_AIBRIDGE_ANTHROPIC_KEY`, etc.) continue to work. However, setting both
 > a legacy variable and an indexed provider with the same default name (e.g.
 > `CODER_AIBRIDGE_OPENAI_KEY` and an indexed provider named `openai`) will
-> produce a startup error — remove one or the other to resolve the conflict.
+> produce a startup error - remove one or the other to resolve the conflict.
 
 ## Data Retention
 
