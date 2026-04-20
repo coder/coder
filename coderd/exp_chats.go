@@ -1924,9 +1924,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	auditor := api.Auditor.Load()
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
-		Audit:   *auditor,
+		Audit:   *api.Auditor.Load(),
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionWrite,
