@@ -123,9 +123,19 @@ export function useActiveFileTracking({
 			el.scrollIntoView({ block: "start", behavior: "instant" });
 			setTreeActiveFile(scrollToFile);
 			onScrollToFileComplete?.();
+			return;
 		}
-		// If el isn't found, don't clear scrollToFile. Let the effect
-		// re-run when the file list changes (e.g. when a lazy file mounts).
+		// Element not found. If the target isn't even in the current file
+		// list (e.g. stale chip after the diff changed), complete the
+		// request so the parent can clear its scroll target. Otherwise
+		// the target is present but not yet mounted; wait for fileListKey
+		// to change again.
+		const existsInFileList = sortedFilesRef.current.some(
+			(f) => f.name === scrollToFile,
+		);
+		if (!existsInFileList) {
+			onScrollToFileComplete?.();
+		}
 	}, [scrollToFile, onScrollToFileComplete, fileListKey]);
 
 	return {
