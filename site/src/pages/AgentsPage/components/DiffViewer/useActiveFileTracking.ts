@@ -1,12 +1,18 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
+// The IntersectionObserver watches a narrow strip at the top of the
+// viewport. 5% of viewport height means the observation area collapses
+// to a thin band, so the "active file" is effectively "the file whose
+// top edge just crossed the sidebar's line of sight".
+const VIEWPORT_BOTTOM_MARGIN_RATIO = 0.95;
+
 interface UseActiveFileTrackingOptions {
 	viewportRef: RefObject<HTMLElement | null>;
 	sortedFiles: readonly FileDiffMetadata[];
 	enabled: boolean;
 	scrollToFile?: string | null;
-	onScrollComplete?: () => void;
+	onScrollToFileComplete?: () => void;
 }
 
 interface UseActiveFileTrackingReturn {
@@ -20,10 +26,9 @@ export function useActiveFileTracking({
 	sortedFiles,
 	enabled,
 	scrollToFile,
-	onScrollComplete,
+	onScrollToFileComplete,
 }: UseActiveFileTrackingOptions): UseActiveFileTrackingReturn {
 	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-	const activeFileRef = useRef<string | null>(null);
 	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
 
 	const [viewportHeight, setViewportHeight] = useState(0);
@@ -66,7 +71,9 @@ export function useActiveFileTracking({
 		if (!enabled || fileListKey === "" || viewportHeight === 0) return;
 		if (!viewportEl) return;
 
-		const bottomMargin = Math.round(viewportHeight * 0.95);
+		const bottomMargin = Math.round(
+			viewportHeight * VIEWPORT_BOTTOM_MARGIN_RATIO,
+		);
 
 		const intersecting = new Set<string>();
 
@@ -83,7 +90,6 @@ export function useActiveFileTracking({
 				}
 				for (const file of sortedFilesRef.current) {
 					if (intersecting.has(file.name)) {
-						activeFileRef.current = file.name;
 						setTreeActiveFile(file.name);
 						break;
 					}
@@ -107,23 +113,23 @@ export function useActiveFileTracking({
 	const handleFileClick = (name: string) => {
 		const el = fileRefs.current.get(name);
 		if (el) {
-			el.scrollIntoView({ block: "start" });
-			activeFileRef.current = name;
+			el.scrollIntoView({ block: "start", behavior: "instant" });
 			setTreeActiveFile(name);
 		}
 	};
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: fileListKey is an intentional trigger dep — the effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
 	useEffect(() => {
-		if (scrollToFile) {
-			const el = fileRefs.current.get(scrollToFile);
-			if (el) {
-				el.scrollIntoView({ block: "start", behavior: "instant" });
-				activeFileRef.current = scrollToFile;
-				setTreeActiveFile(scrollToFile);
-			}
-			onScrollComplete?.();
+		if (!scrollToFile) return;
+		const el = fileRefs.current.get(scrollToFile);
+		if (el) {
+			el.scrollIntoView({ block: "start", behavior: "instant" });
+			setTreeActiveFile(scrollToFile);
+			onScrollToFileComplete?.();
 		}
-	}, [scrollToFile, onScrollComplete]);
+		// If el isn't found, don't clear scrollToFile. Let the effect
+		// re-run when the file list changes (e.g. when a lazy file mounts).
+	}, [scrollToFile, onScrollToFileComplete, fileListKey]);
 
 	return {
 		treeActiveFile,

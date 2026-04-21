@@ -358,6 +358,11 @@ function FileTreeNodeViewInner({
 	);
 }
 
+// `memo()` effectiveness depends on React Compiler stabilizing prop
+// references. The compiler is enabled for `src/pages/AgentsPage/` via
+// `site/vite.config.mts`. Moving this component out of that scope
+// without adding manual memoization would silently regress scroll
+// performance.
 const FileTreeNodeView = memo(FileTreeNodeViewInner);
 
 // -------------------------------------------------------------------
@@ -504,6 +509,11 @@ function LazyFileDiffInner({
 	);
 }
 
+// `memo()` effectiveness depends on React Compiler stabilizing prop
+// references. The compiler is enabled for `src/pages/AgentsPage/` via
+// `site/vite.config.mts`. Moving this component out of that scope
+// without adding manual memoization would silently regress scroll
+// performance.
 const LazyFileDiff = memo(LazyFileDiffInner);
 
 // -------------------------------------------------------------------
@@ -669,7 +679,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			sortedFiles,
 			enabled: showTree,
 			scrollToFile,
-			onScrollComplete: onScrollToFileComplete,
+			onScrollToFileComplete,
 		},
 	);
 
