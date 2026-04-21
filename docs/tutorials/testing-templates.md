@@ -26,11 +26,31 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 ## Creating the headless user
 
+> [!WARNING]
+> Creating users with `--login-type none` is deprecated.
+> For [Premium](https://coder.com/pricing) deployments, use
+> [service accounts](../admin/users/headless-auth.md) instead.
+> For OSS deployments, use a regular account with password, GitHub, or OIDC
+> authentication.
+
+For Premium deployments, create a service account:
+
+```shell
+coder users create \
+  --username machine-user \
+  --service-account
+
+coder tokens create --user machine-user --lifetime 8760h
+# Copy the token and store it in a secret in your CI environment with the name `CODER_SESSION_TOKEN`
+```
+
+For OSS deployments, create a regular user:
+
 ```shell
 coder users create \
   --username machine-user \
   --email machine-user@example.com \
-  --login-type none
+  --login-type password
 
 coder tokens create --user machine-user --lifetime 8760h
 # Copy the token and store it in a secret in your CI environment with the name `CODER_SESSION_TOKEN`
