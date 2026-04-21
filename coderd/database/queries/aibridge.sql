@@ -473,7 +473,7 @@ session_page AS (
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
 		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)) AS last_active_at
+		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
 	FROM
 		aibridge_interceptions ai
 	LEFT JOIN LATERAL (

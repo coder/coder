@@ -151,11 +151,6 @@ sql:
             go_type: "database/sql.NullTime"
           - column: "task_event_data.first_status_after_resume_at"
             go_type: "database/sql.NullTime"
-          # Workaround for sqlc not inferring the type of COALESCE(MAX(), MIN())
-          # over a derived subquery alias in ListAIBridgeSessions. The expression
-          # is non-nullable (MIN(started_at) guarantees a value), so time.Time.
-          - column: "session_page.last_active_at"
-            go_type: "time.Time"
           - db_type: "pg_catalog.numeric"
             go_type:
               import: "github.com/shopspring/decimal"
