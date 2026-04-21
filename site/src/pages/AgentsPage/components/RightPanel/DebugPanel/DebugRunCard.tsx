@@ -86,7 +86,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary/20"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-0.5 text-left transition-colors hover:bg-surface-secondary/20"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2.5 overflow-hidden">
 							<p className="min-w-0 flex-1 truncate text-sm font-semibold text-content-primary">
@@ -121,7 +121,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 						</div>
 					</button>
 				</CollapsibleTrigger>
-				<CollapsibleContent className="px-4 pb-4 pt-2">
+				<CollapsibleContent className="px-3 pb-3 pt-1">
 					{runDetailQuery.isLoading ? (
 						<div className="flex items-center gap-2 text-sm text-content-secondary">
 							<Spinner size="sm" loading />

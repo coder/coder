@@ -16,7 +16,7 @@ export const DebugRunList: FC<DebugRunListProps> = ({
 	// Empty state is handled by DebugPanel before rendering this
 	// component. No guard here to avoid duplicated copy that drifts.
 	return (
-		<div className="w-full max-w-full min-w-0 space-y-2">
+		<div className="w-full max-w-full min-w-0 space-y-3 p-4">
 			{runs.map((run) => (
 				<DebugRunCard
 					key={run.id}

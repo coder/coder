@@ -51,7 +51,7 @@ export const DebugLoggingSettings: FC<DebugLoggingSettingsProps> = ({
 				<div className="space-y-2">
 					<div className="flex items-center gap-2">
 						<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-							Allow User Debug Logs
+							Let users record chat debug logs
 						</h3>
 						<AdminBadge />
 					</div>
@@ -59,15 +59,15 @@ export const DebugLoggingSettings: FC<DebugLoggingSettingsProps> = ({
 						<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
 							{forcedByDeployment ? (
 								<p className="m-0">
-									Deployment configuration already forces chat debug logging on
-									for every chat. This runtime user opt-in setting is currently
-									ignored.
+									Debug logging is already enabled deployment-wide, so this
+									per-user setting has no effect right now.
 								</p>
 							) : (
 								<p className="m-0">
-									Allow users to opt into normalized model state and raw
-									provider request/response logging from their personal Behavior
-									settings.
+									Lets users turn on debug logging for their own chats from
+									their Behavior settings. When on, Coder saves each chat turn
+									along with the raw API requests and responses sent to the
+									model provider.
 								</p>
 							)}
 						</div>
@@ -91,25 +91,26 @@ export const DebugLoggingSettings: FC<DebugLoggingSettingsProps> = ({
 			<div className="space-y-2">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-						Personal Chat Debug Logs
+						Record debug logs for my chats
 					</h3>
 				</div>
 				<div className="flex items-center justify-between gap-4">
 					<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
 						{forcedByDeployment ? (
 							<p className="m-0">
-								Deployment configuration forces chat debug logging on for every
-								chat. Your personal toggle is read-only while this is enabled.
+								An administrator has enabled debug logging for every chat in
+								this deployment, so this toggle is locked on.
 							</p>
 						) : userToggleAllowed ? (
 							<p className="m-0">
-								Capture normalized model state and raw provider request/response
-								payloads for your own chats.
+								Save a detailed trace of your chats — each turn plus the raw API
+								requests and responses sent to the model provider. Useful for
+								troubleshooting unexpected model behavior.
 							</p>
 						) : (
 							<p className="m-0">
-								An administrator has not enabled user-controlled chat debug
-								logging yet.
+								An administrator hasn't allowed users to record chat debug logs
+								yet.
 							</p>
 						)}
 					</div>
