@@ -1,7 +1,6 @@
 import {
 	type RefObject,
 	useCallback,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -41,7 +40,6 @@ export const useKebabMenu = <T extends TabValue>({
 	overflowTriggerWidth = 44,
 }: UseKebabMenuOptions<T>): UseKebabMenuResult<T> => {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const availableWidthRef = useRef<number | null>(null);
 	// Width cache prevents oscillation when overflow tabs are not mounted.
 	const tabWidthByValueRef = useRef<Record<string, number>>({});
 	const [overflowTabValues, setTabValues] = useState<string[]>([]);
@@ -90,19 +88,23 @@ export const useKebabMenu = <T extends TabValue>({
 		[enabled, isActive, overflowTriggerWidth, tabs],
 	);
 
-	useEffect(() => {
-		if (availableWidthRef.current === null) {
-			// First mount, no measured width yet.
-			return;
-		}
-		recalculateOverflow(availableWidthRef.current);
-	}, [recalculateOverflow]);
-
 	useLayoutEffect(() => {
 		const container = containerRef.current;
-		if (!container || !enabled || !isActive) {
+		if (!enabled || !isActive) {
+			// Keep this update idempotent to avoid render loops.
+			setTabValues((currentValues) => {
+				if (currentValues.length === 0) {
+					return currentValues;
+				}
+				return [];
+			});
 			return;
 		}
+		if (!container) {
+			return;
+		}
+
+		recalculateOverflow(container.clientWidth);
 
 		// Recompute whenever ResizeObserver reports a container width change.
 		const observer = new ResizeObserver(([entry]) => {
@@ -110,7 +112,6 @@ export const useKebabMenu = <T extends TabValue>({
 				return;
 			}
 			const nextAvailableWidth = Math.max(0, entry.contentRect.width);
-			availableWidthRef.current = nextAvailableWidth;
 			recalculateOverflow(nextAvailableWidth);
 		});
 		observer.observe(container);
