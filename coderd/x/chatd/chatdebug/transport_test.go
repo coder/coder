@@ -52,18 +52,6 @@ func (*scriptedReadCloser) Close() error {
 	return nil
 }
 
-// errCloser wraps a Reader and returns err from Close(). Used to
-// simulate transport close failures that surface after a body has
-// already been fully read to EOF.
-type errCloser struct {
-	io.Reader
-	err error
-}
-
-func (e *errCloser) Close() error {
-	return e.err
-}
-
 func TestRecordingTransport_NoSink(t *testing.T) {
 	t.Parallel()
 
@@ -935,9 +923,9 @@ func TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades(t *testing.T) {
 				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
 					StatusCode: http.StatusOK,
 					Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-					Body: &errCloser{
-						Reader: strings.NewReader(ssePayload),
-						err:    closeErr,
+					Body: &failingCloseReader{
+						inner:    strings.NewReader(ssePayload),
+						closeErr: closeErr,
 					},
 					ContentLength: -1,
 				}, nil

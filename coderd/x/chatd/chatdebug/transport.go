@@ -191,10 +191,10 @@ type recordingBody struct {
 	truncated bool
 	sawEOF    bool
 	bytesRead int64
-	// recordedProvisional is true when record() has fired for an SSE
-	// body's Read-path EOF but Close() has not yet run. A subsequent
-	// inner.Close() error in Close() upgrades the provisional entry
-	// in the sink so the close error is not lost.
+	// recordedProvisional is true when recordProvisional() has fired
+	// for an SSE body's Read-path EOF but Close() has not yet run. A
+	// subsequent inner.Close() error in Close() upgrades the
+	// provisional entry in the sink so the close error is not lost.
 	recordedProvisional bool
 
 	recordOnce sync.Once
