@@ -12,6 +12,34 @@ type MediaChangeListener = (event: MediaQueryListEvent) => void;
 const createMatchMediaController = (initialDesktop: boolean) => {
 	let desktop = initialDesktop;
 	const listeners = new Set<MediaChangeListener>();
+	const eventListenerWrappers = new Map<
+		EventListenerOrEventListenerObject,
+		MediaChangeListener
+	>();
+
+	const getWrappedEventListener = (
+		listener: EventListenerOrEventListenerObject | null,
+	): MediaChangeListener | undefined => {
+		if (!listener) {
+			return undefined;
+		}
+
+		const existing = eventListenerWrappers.get(listener);
+		if (existing) {
+			return existing;
+		}
+
+		const wrapped: MediaChangeListener = (event) => {
+			if (typeof listener === "function") {
+				listener(event);
+				return;
+			}
+			listener.handleEvent(event);
+		};
+
+		eventListenerWrappers.set(listener, wrapped);
+		return wrapped;
+	};
 
 	const dispatch = (): void => {
 		const event = {
@@ -29,25 +57,40 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 			matches: isDesktopQuery ? desktop : false,
 			media: query,
 			onchange: null,
-			addEventListener: (_type, listener) => {
+			addEventListener: (
+				_type: string,
+				listener: EventListenerOrEventListenerObject | null,
+			) => {
 				if (isDesktopQuery) {
-					listeners.add(listener as MediaChangeListener);
+					const wrapped = getWrappedEventListener(listener);
+					if (wrapped) {
+						listeners.add(wrapped);
+					}
 				}
 			},
-			removeEventListener: (_type, listener) => {
+			removeEventListener: (
+				_type: string,
+				listener: EventListenerOrEventListenerObject | null,
+			) => {
 				if (isDesktopQuery) {
-					listeners.delete(listener as MediaChangeListener);
+					const wrapped = getWrappedEventListener(listener);
+					if (wrapped) {
+						listeners.delete(wrapped);
+					}
+					if (listener) {
+						eventListenerWrappers.delete(listener);
+					}
 				}
 			},
 			dispatchEvent: () => true,
-			addListener: (listener) => {
+			addListener: (listener: MediaChangeListener) => {
 				if (isDesktopQuery) {
-					listeners.add(listener as MediaChangeListener);
+					listeners.add(listener);
 				}
 			},
-			removeListener: (listener) => {
+			removeListener: (listener: MediaChangeListener) => {
 				if (isDesktopQuery) {
-					listeners.delete(listener as MediaChangeListener);
+					listeners.delete(listener);
 				}
 			},
 		};
