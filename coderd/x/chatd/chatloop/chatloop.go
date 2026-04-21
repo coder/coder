@@ -174,9 +174,7 @@ type RunOptions struct {
 	// When nil, no metrics are recorded.
 	Metrics *Metrics
 
-	// Logger emits structured log lines for tool-call errors and
-	// other notable events inside the chatloop. The zero value
-	// discards all output. Callers should attach correlation
+	// Logger for the chatloop. Callers should attach correlation
 	// fields (chat_id, owner_id, etc.) via Logger.With before
 	// passing the logger in.
 	Logger slog.Logger

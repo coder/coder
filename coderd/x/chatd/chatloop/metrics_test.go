@@ -267,25 +267,11 @@ func TestRecordCompaction(t *testing.T) {
 				return
 			}
 
-			var found bool
-			for _, f := range families {
-				if f.GetName() != "coderd_chatd_compaction_total" {
-					continue
-				}
-				found = true
-				require.Len(t, f.GetMetric(), 1)
-				metric := f.GetMetric()[0]
-				assert.Equal(t, float64(tt.wantCount), metric.GetCounter().GetValue())
-				// Check labels: provider, model, result.
-				labels := map[string]string{}
-				for _, lp := range metric.GetLabel() {
-					labels[lp.GetName()] = lp.GetValue()
-				}
-				assert.Equal(t, "test-provider", labels["provider"])
-				assert.Equal(t, "test-model", labels["model"])
-				assert.Equal(t, tt.wantLabel, labels["result"])
-			}
-			assert.True(t, found, "compaction_total metric not found")
+			requireCounter(t, reg, "coderd_chatd_compaction_total", float64(tt.wantCount), map[string]string{
+				"provider": "test-provider",
+				"model":    "test-model",
+				"result":   tt.wantLabel,
+			})
 		})
 	}
 }
@@ -320,27 +306,11 @@ func TestRecordStreamRetry(t *testing.T) {
 				Kind: tt.kind,
 			})
 
-			families, err := reg.Gather()
-			require.NoError(t, err)
-
-			var found bool
-			for _, f := range families {
-				if f.GetName() != "coderd_chatd_stream_retries_total" {
-					continue
-				}
-				found = true
-				require.Len(t, f.GetMetric(), 1)
-				metric := f.GetMetric()[0]
-				assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-				labels := map[string]string{}
-				for _, lp := range metric.GetLabel() {
-					labels[lp.GetName()] = lp.GetValue()
-				}
-				assert.Equal(t, "test-provider", labels["provider"])
-				assert.Equal(t, "test-model", labels["model"])
-				assert.Equal(t, tt.kind, labels["kind"])
-			}
-			assert.True(t, found, "stream_retries_total metric not found")
+			requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+				"provider": "test-provider",
+				"model":    "test-model",
+				"kind":     tt.kind,
+			})
 		})
 	}
 }
@@ -592,27 +562,11 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	assert.Equal(t, "test-provider", retries[0].classified.Provider)
 
 	// Metric assertion.
-	families, err := reg.Gather()
-	require.NoError(t, err)
-
-	var found bool
-	for _, f := range families {
-		if f.GetName() != "coderd_chatd_stream_retries_total" {
-			continue
-		}
-		found = true
-		require.Len(t, f.GetMetric(), 1)
-		metric := f.GetMetric()[0]
-		assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-		labels := map[string]string{}
-		for _, lp := range metric.GetLabel() {
-			labels[lp.GetName()] = lp.GetValue()
-		}
-		assert.Equal(t, "test-provider", labels["provider"])
-		assert.Equal(t, "test-model", labels["model"])
-		assert.Equal(t, chaterror.KindRateLimit, labels["kind"])
-	}
-	assert.True(t, found, "stream_retries_total metric not found")
+	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+		"provider": "test-provider",
+		"model":    "test-model",
+		"kind":     chaterror.KindRateLimit,
+	})
 }
 
 // TestRun_StreamRetry_CanceledDoesNotIncrement pins the invariant
