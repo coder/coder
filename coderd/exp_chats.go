@@ -538,6 +538,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: req.OrganizationID,
+	})
+	defer commitAudit()
+
 	// Validate organization membership.
 	if req.OrganizationID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -720,6 +729,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
+		// IMPORTANT: users can only create root chats at the time of writing.
+		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -747,6 +758,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = chat
+
+	if chat.ParentChatID.Valid {
+		// Should not be possible. If we get here, something is very wrong. Bail.
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Developer error: ParentChatID got set somehow in api.postChats. This should never happen.",
+		})
+		return
+	}
+
 	// Link any user-uploaded files referenced in the initial
 	// message to this newly created chat (best-effort; cap
 	// enforced in SQL).
@@ -762,6 +783,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = chat
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
@@ -2040,6 +2062,16 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+	aReq.Old = chat
+	aReq.UpdateOrganizationID(chat.OrganizationID)
+
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -2261,6 +2293,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		chat = updatedChat
+	}
+
+	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
+		aReq.New = refreshed
+	} else {
+		aReq.New = chat // fallback
+		api.Logger.Error(ctx, "failed to refresh chat for audit", slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 
 	rw.WriteHeader(http.StatusNoContent)

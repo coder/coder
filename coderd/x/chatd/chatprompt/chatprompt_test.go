@@ -298,7 +298,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_local",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"test"}`,
+			Input:      `{"type":"general","prompt":"test"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_websearch",
@@ -310,7 +310,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 
 	localResult := mustMarshalToolResult(t,
 		"toolu_local", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 
@@ -351,12 +351,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_agent x2 + web_search (PE).
+	// Step 1: assistant calls spawn_agent + legacy spawn_agent + web_search (PE).
 	step1Assistant := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_A",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"a"}`,
+			Input:      `{"type":"general","prompt":"a"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_B",
@@ -373,7 +373,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 
 	resultA := mustMarshalToolResult(t,
 		"toolu_A", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 	resultB := mustMarshalToolResult(t,
@@ -1149,6 +1149,55 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
 	require.NotNil(t, cc, "cache control must survive new write → new read round-trip")
 	require.Equal(t, "ephemeral", cc.Type)
+}
+
+func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"permission denied","detail":"nested payload"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "execute",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"error\":\"permission denied\",\"detail\":\"nested payload\"}"}`,
+		string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"message":"error"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"message\":\"error\"}"}`, string(sdkPart.Result))
 }
 
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles

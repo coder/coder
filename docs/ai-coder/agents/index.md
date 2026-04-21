@@ -229,29 +229,29 @@ model. Developers select from enabled models when starting a chat.
 The agent has access to a set of workspace tools that it uses to accomplish
 tasks:
 
-| Tool                       | Description                                                              |
-|----------------------------|--------------------------------------------------------------------------|
-| `list_templates`           | Browse available workspace templates                                     |
-| `read_template`            | Get template details and configurable parameters                         |
-| `create_workspace`         | Create a workspace from a template                                       |
-| `start_workspace`          | Start a stopped workspace for the current chat                           |
-| `propose_plan`             | Present a Markdown plan file for user review                             |
-| `ask_user_question`        | Ask the user structured clarification questions during plan mode         |
-| `read_file`                | Read file contents from the workspace                                    |
-| `write_file`               | Write a file to the workspace                                            |
-| `edit_files`               | Perform search-and-replace edits across files                            |
-| `execute`                  | Run shell commands in the workspace                                      |
-| `process_output`           | Retrieve output from a background process                                |
-| `process_list`             | List all tracked processes in the workspace                              |
-| `process_signal`           | Send a signal (terminate/kill) to a tracked process                      |
-| `spawn_agent`              | Delegate a task to a sub-agent running in parallel                       |
-| `wait_agent`               | Wait for a sub-agent to complete and collect its result                  |
-| `message_agent`            | Send a follow-up message to a running sub-agent                          |
-| `close_agent`              | Stop a running sub-agent                                                 |
-| `spawn_computer_use_agent` | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard) |
-| `read_skill`               | Read the instructions for a workspace skill by name                      |
-| `read_skill_file`          | Read a supporting file from a skill's directory                          |
-| `web_search`               | Search the internet (provider-native, when enabled)                      |
+| Tool                                        | Description                                                              |
+|---------------------------------------------|--------------------------------------------------------------------------|
+| `list_templates`                            | Browse available workspace templates                                     |
+| `read_template`                             | Get template details and configurable parameters                         |
+| `create_workspace`                          | Create a workspace from a template                                       |
+| `start_workspace`                           | Start a stopped workspace for the current chat                           |
+| `propose_plan`                              | Present a Markdown plan file for user review                             |
+| `ask_user_question`                         | Ask the user structured clarification questions during plan mode         |
+| `read_file`                                 | Read file contents from the workspace                                    |
+| `write_file`                                | Write a file to the workspace                                            |
+| `edit_files`                                | Perform search-and-replace edits across files                            |
+| `execute`                                   | Run shell commands in the workspace                                      |
+| `process_output`                            | Retrieve output from a background process                                |
+| `process_list`                              | List all tracked processes in the workspace                              |
+| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                      |
+| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                       |
+| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                  |
+| `message_agent`                             | Send a follow-up message to a running sub-agent                          |
+| `close_agent`                               | Stop a running sub-agent                                                 |
+| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard) |
+| `read_skill`                                | Read the instructions for a workspace skill by name                      |
+| `read_skill_file`                           | Read a supporting file from a skill's directory                          |
+| `web_search`                                | Search the internet (provider-native, when enabled)                      |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
@@ -259,12 +259,13 @@ the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`wait_agent`, `message_agent`, `close_agent`, `spawn_computer_use_agent`)
+`wait_agent`, `message_agent`, `close_agent`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 
-`spawn_computer_use_agent` additionally requires an Anthropic provider and
-the virtual desktop feature to be enabled by an administrator.
+`spawn_agent` with `type=computer_use` additionally requires an
+Anthropic provider and the virtual desktop feature to be enabled by an
+administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
 

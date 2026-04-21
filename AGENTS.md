@@ -286,6 +286,22 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 ```
 
+### No Emdash or Endash
+
+Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+in code, comments, string literals, or documentation. Use commas,
+semicolons, or periods instead. Restructure the sentence if needed.
+Do not replace an emdash with ` -- `. Unicode emdash and endash are
+caught by `make lint/emdash`.
+
+```go
+// Good: uses a period to separate the clauses.
+// This is slow. We should cache it.
+
+// Good: uses a comma to join related clauses.
+// This is slow, so we should cache it.
+```
+
 ### Avoid Unnecessary Changes
 
 When fixing a bug or adding a feature, don't modify code unrelated to your

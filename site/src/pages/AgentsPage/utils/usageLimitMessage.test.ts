@@ -97,6 +97,9 @@ describe("chatDetailErrorsEqual", () => {
 		expect(chatDetailErrorsEqual(error, { ...error, statusCode: 500 })).toBe(
 			false,
 		);
+		expect(
+			chatDetailErrorsEqual(error, { ...error, detail: "Bad image." }),
+		).toBe(false);
 	});
 });
 

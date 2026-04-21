@@ -89,7 +89,7 @@ Propose a plan when:
 
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
 Once a workspace is available:
-1. Use spawn_explore_agent and wait_agent to research the codebase and gather context as needed. Reserve spawn_agent for writable delegated work.
+` + defaultSystemPromptPlanningGuidance + `
 2. Use write_file to create a Markdown plan file at the absolute
    chat-specific path from the <plan-file-path> block below when it is
    available.
@@ -101,21 +101,29 @@ When the <plan-file-path> block below is present, use that exact path.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
 </planning>`
 
-// PlanningOverlayPrompt contains plan-mode-only instructions appended
-// when the chat is in plan mode.
-const PlanningOverlayPrompt = `You are in Plan Mode.
+var planningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.
 The only intentional authored workspace artifact is the plan file at the path specified in the <plan-file-path> block below.
 You may use execute and process_output for exploration, including cloning repositories, searching code, and running inspection commands needed to build the plan.
 Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 If no workspace is attached to this chat yet, create and start one with create_workspace and start_workspace before investigating.
 If the plan file already exists, read it first with read_file before replacing or refining it.
-Use read_file, execute, process_output, list_templates, read_template, and spawn_agent to gather context. In Plan Mode, spawn_agent delegation is for investigation and planning support, not code writing or implementation.
+` + planningOverlaySubagentGuidance() + `
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.
 After a successful propose_plan call, stop immediately. Do not produce follow-up output.
 ` + defaultSystemPromptPlanPathBlockPlaceholder
+
+// PlanningOverlayPrompt returns the plan-mode-only instructions appended
+// when the chat is in plan mode.
+func PlanningOverlayPrompt() string {
+	return planningOverlayPrompt
+}
+
+// Root plan mode may use approved external MCP tools, but delegated
+// plan-mode subagents stay on the narrower built-in-only boundary
+// because their trust boundary is narrower than the root chat's.
 
 // PlanningSubagentOverlayPrompt contains plan-mode instructions for
 // delegated child chats. Child chats may investigate with shell tools
