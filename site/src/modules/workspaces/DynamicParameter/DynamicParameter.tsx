@@ -1,12 +1,12 @@
 import {
-	CircleAlert,
-	Eye,
-	EyeOff,
-	Hourglass,
-	Info,
+	CircleAlertIcon,
+	EyeIcon,
+	EyeOffIcon,
+	HourglassIcon,
+	InfoIcon,
 	LinkIcon,
-	Settings,
-	TriangleAlert,
+	SettingsIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import { type FC, useId, useRef, useState } from "react";
 import * as Yup from "yup";
@@ -142,7 +142,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
 										<Badge size="sm" variant="warning">
-											<TriangleAlert />
+											<TriangleAlertIcon />
 											Immutable
 										</Badge>
 									</span>
@@ -160,7 +160,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
 										<Badge size="sm" variant="green">
-											<Hourglass />
+											<HourglassIcon />
 											Ephemeral
 										</Badge>
 									</span>
@@ -178,7 +178,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
 										<Badge size="sm">
-											<Settings />
+											<SettingsIcon />
 											Preset
 										</Badge>
 									</span>
@@ -529,9 +529,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOff className="h-4 w-4" />
+						<EyeOffIcon className="h-4 w-4" />
 					) : (
-						<Eye className="h-4 w-4" />
+						<EyeIcon className="h-4 w-4" />
 					)}
 				</Button>
 			)}
@@ -583,9 +583,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOff className="h-4 w-4" />
+						<EyeOffIcon className="h-4 w-4" />
 					) : (
-						<Eye className="h-4 w-4" />
+						<EyeIcon className="h-4 w-4" />
 					)}
 				</Button>
 			)}
@@ -637,7 +637,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Info className="w-3.5 h-3.5 text-content-secondary" />
+							<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
 						</TooltipTrigger>
 						<TooltipContent side="right" sideOffset={10}>
 							{option.description}
@@ -934,13 +934,13 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (
-							<CircleAlert
+							<CircleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
 								aria-hidden="true"
 							/>
 						)}
 						{diagnostic.severity === "warning" && (
-							<TriangleAlert
+							<TriangleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
 								aria-hidden="true"
 							/>

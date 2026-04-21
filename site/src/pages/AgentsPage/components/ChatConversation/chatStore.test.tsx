@@ -219,6 +219,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 });
 
 const makeMessage = (

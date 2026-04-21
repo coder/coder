@@ -3171,6 +3171,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
+		const response = await this.axios.post<{ title: string }>(
+			`/api/experimental/chats/${chatId}/title/propose`,
+		);
+		return response.data;
+	};
+
 	createChatMessage = async (
 		chatId: string,
 		req: CreateChatMessageRequestWithClearablePlanMode,
@@ -3272,6 +3279,24 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/plan-mode-instructions",
+			req,
+		);
+	};
+
+	getChatExploreModelOverride =
+		async (): Promise<TypesGen.ChatExploreModelOverrideResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatExploreModelOverrideResponse>(
+					"/api/experimental/chats/config/explore-model-override",
+				);
+			return response.data;
+		};
+
+	updateChatExploreModelOverride = async (
+		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/explore-model-override",
 			req,
 		);
 	};

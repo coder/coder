@@ -18,7 +18,7 @@ import {
 	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { isDevBuild } from "#/utils/buildInfo";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 interface SidebarProps {
 	user: User;
@@ -45,7 +45,8 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="external-auth" icon={GitIcon}>
 				External Authentication
 			</SidebarNavItem>
-			{(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+			{(experiments.includes("oauth2") ||
+				getPrereleaseFlag(buildInfo) === "devel") && (
 				<SidebarNavItem href="oauth2-provider" icon={ShieldIcon}>
 					OAuth2 Applications
 				</SidebarNavItem>

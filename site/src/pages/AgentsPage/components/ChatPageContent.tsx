@@ -25,8 +25,7 @@ import {
 } from "./ChatConversation/chatStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
-	buildComputerUseSubagentIds,
-	buildSubagentTitles,
+	buildSubagentMaps,
 	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
@@ -87,8 +86,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		})
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
-	const subagentTitles = buildSubagentTitles(parsedMessages);
-	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
+	const { titles: subagentTitles, variants: subagentVariants } =
+		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -108,6 +107,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
 					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
 					onImplementPlan={onImplementPlan}
@@ -115,7 +115,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
-					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={false}
 				/>
 				<LiveStreamTail
@@ -124,7 +123,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>

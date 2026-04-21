@@ -54,6 +54,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -87,7 +88,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
-		onRegenerateTitle: fn(),
+		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
@@ -110,13 +111,18 @@ type Story = StoryObj<typeof AgentsSidebar>;
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-1", title: "Root agent" }),
 			buildChat({
-				id: "child-running",
-				title: "Running child",
-				status: "running",
-				parent_chat_id: "root-1",
-				root_chat_id: "root-1",
+				id: "root-1",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-running",
+						title: "Running child",
+						status: "running",
+						parent_chat_id: "root-1",
+						root_chat_id: "root-1",
+					}),
+				],
 			}),
 		],
 	},
@@ -140,13 +146,18 @@ export const RunningDelegatedChat: Story = {
 export const PendingDelegatedChat: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-pending", title: "Root agent" }),
 			buildChat({
-				id: "child-pending",
-				title: "Pending child",
-				status: "pending",
-				parent_chat_id: "root-pending",
-				root_chat_id: "root-pending",
+				id: "root-pending",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-pending",
+						title: "Pending child",
+						status: "pending",
+						parent_chat_id: "root-pending",
+						root_chat_id: "root-pending",
+					}),
+				],
 			}),
 		],
 	},
@@ -170,12 +181,17 @@ export const PendingDelegatedChat: Story = {
 export const ExpandCollapse: Story = {
 	args: {
 		chats: [
-			buildChat({ id: "root-2", title: "Root for collapse" }),
 			buildChat({
-				id: "child-collapse",
-				title: "Nested child",
-				parent_chat_id: "root-2",
-				root_chat_id: "root-2",
+				id: "root-2",
+				title: "Root for collapse",
+				children: [
+					buildChat({
+						id: "child-collapse",
+						title: "Nested child",
+						parent_chat_id: "root-2",
+						root_chat_id: "root-2",
+					}),
+				],
 			}),
 		],
 	},
@@ -212,12 +228,14 @@ export const RunningChatPreservesSpinner: Story = {
 				id: "root-running",
 				title: "Running root agent",
 				status: "running",
-			}),
-			buildChat({
-				id: "child-of-running",
-				title: "Child of running",
-				parent_chat_id: "root-running",
-				root_chat_id: "root-running",
+				children: [
+					buildChat({
+						id: "child-of-running",
+						title: "Child of running",
+						parent_chat_id: "root-running",
+						root_chat_id: "root-running",
+					}),
+				],
 			}),
 		],
 	},
@@ -257,13 +275,15 @@ export const IdleParentWithRunningChild: Story = {
 				id: "idle-parent",
 				title: "Idle parent agent",
 				status: "waiting",
-			}),
-			buildChat({
-				id: "running-child",
-				title: "Running sub-agent",
-				status: "running",
-				parent_chat_id: "idle-parent",
-				root_chat_id: "idle-parent",
+				children: [
+					buildChat({
+						id: "running-child",
+						title: "Running sub-agent",
+						status: "running",
+						parent_chat_id: "idle-parent",
+						root_chat_id: "idle-parent",
+					}),
+				],
 			}),
 		],
 	},
@@ -289,6 +309,10 @@ export const IdleParentWithRunningChild: Story = {
 };
 
 export const ActiveChatAncestryExpanded: Story = {
+	// This story uses the flat-sibling shape (parent_chat_id on each
+	// entry) rather than embedded children. It intentionally
+	// exercises the defensive fallback loop in buildChatTree for
+	// stale cache data from before root-only pagination landed.
 	args: {
 		chats: [
 			buildChat({ id: "root-active", title: "Active root" }),
@@ -332,11 +356,62 @@ export const ActiveChatAncestryExpanded: Story = {
 	},
 };
 
+export const MixedCacheDoesNotDuplicateChild: Story = {
+	// Simulates the rollout window where a stale cache entry for a child
+	// chat still appears as a flat sibling in the paginated list while
+	// the same child is also embedded under its parent. Without the
+	// guard in buildChatTree (`if (!parentById.has(chat.id))` around
+	// setting the parent link to undefined), the flat entry would
+	// overwrite the embedded parent link and the defensive fallback
+	// would re-add the child to its parent's children list, producing
+	// a React duplicate-key warning and double-render.
+	args: {
+		chats: [
+			buildChat({
+				id: "mixed-root",
+				title: "Mixed root",
+				children: [
+					buildChat({
+						id: "mixed-child",
+						title: "Mixed child",
+						parent_chat_id: "mixed-root",
+						root_chat_id: "mixed-root",
+					}),
+				],
+			}),
+			// Stale flat entry for the same child still present in the
+			// cache. It must not cause a duplicate render.
+			buildChat({
+				id: "mixed-child",
+				title: "Mixed child",
+				parent_chat_id: "mixed-root",
+				root_chat_id: "mixed-root",
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/mixed-child",
+				pathParams: { agentId: "mixed-child" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Mixed root")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Mixed child")).toHaveLength(1);
+		});
+	},
+};
+
 // Use a fixed offset so the value always falls in the "Today" bucket
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
 
-export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
+export const RenameChatAvailableDuringRegeneration: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -351,6 +426,8 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		],
 		regeneratingTitleChatIds: ["regenerating-chat"],
+		onProposeTitle: fn(async () => "Proposed replacement"),
+		onRenameTitle: fn(async () => {}),
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -373,13 +450,13 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Generate new title" }),
-		).toHaveAttribute("data-disabled");
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		).toBeInTheDocument();
 
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
 			expect(
-				body.queryByRole("menuitem", { name: "Generate new title" }),
+				body.queryByRole("menuitem", { name: "Rename chat" }),
 			).not.toBeInTheDocument();
 		});
 
@@ -389,10 +466,380 @@ export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
 			}),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Generate new title" }),
-		).not.toHaveAttribute("data-disabled");
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		).toBeInTheDocument();
 	},
 };
+
+export const RenameChatSubmitsNewTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-target",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await waitFor(() => {
+			expect(input).toHaveValue("Original title");
+			expect(input.selectionStart).toBe(0);
+			expect(input.selectionEnd).toBe("Original title".length);
+		});
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "Renamed title", { delay: null });
+		await waitFor(() => {
+			expect(input).toHaveValue("Renamed title");
+		});
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(args.onRenameTitle).toHaveBeenCalledWith(
+				"rename-target",
+				"Renamed title",
+			);
+		});
+		await waitFor(() => {
+			expect(
+				body.queryByRole("heading", { name: "Rename chat" }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const CancellingRenameDialogKeepsTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-cancel",
+				title: "Keep me",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep me",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.clear(input);
+		await userEvent.type(input, "Discarded edit");
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+		expect(canvas.getByText("Keep me")).toBeInTheDocument();
+	},
+};
+
+export const RenameChatGenerateFillsInput: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate",
+				title: "Old title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => "AI suggested title"),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Old title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+		await waitFor(() => {
+			expect(input).toHaveValue("AI suggested title");
+		});
+		expect(args.onProposeTitle).toHaveBeenCalledWith("rename-generate");
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+	},
+};
+
+export const RenameChatGenerateErrorSurfacesAlert: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-error",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw new Error("Proposal provider is temporarily unavailable.");
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"Proposal provider is temporarily unavailable.",
+		);
+		await waitFor(() => {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		});
+		expect(input).toHaveValue("Original title");
+	},
+};
+
+export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-cancel",
+				title: "Keep this one",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => "Server suggestion"),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep this one",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+		await waitFor(() => {
+			expect(input).toHaveValue("Server suggestion");
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		expect(args.onRenameTitle).not.toHaveBeenCalled();
+		expect(canvas.getByText("Keep this one")).toBeInTheDocument();
+	},
+};
+
+export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-a",
+				title: "Chat A",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "rename-generate-b",
+				title: "Chat B",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn((chatId: string) => {
+			if (chatId === "rename-generate-a") {
+				return new Promise<string>((resolve) => {
+					setTimeout(() => resolve("Late suggestion for A"), 150);
+				});
+			}
+			return Promise.resolve(`Proposal for ${chatId}`);
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open actions for Chat A" }),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: "Open actions for Chat B",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		const inputB = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		expect(inputB).toHaveValue("Chat B");
+		await userEvent.clear(inputB);
+		await userEvent.type(inputB, "User edit for B");
+
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		expect(inputB).toHaveValue("User edit for B");
+		expect(body.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
+export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
+	{
+		args: {
+			chats: [
+				buildChat({
+					id: "rename-generate-same",
+					title: "Chat same",
+					updated_at: recentTimestamp,
+				}),
+			],
+			onProposeTitle: fn(() => {
+				return new Promise<string>((resolve) => {
+					setTimeout(() => resolve("Late suggestion"), 150);
+				});
+			}),
+			onRenameTitle: fn(() => Promise.resolve()),
+		},
+		parameters: {
+			reactRouter: reactRouterParameters({
+				location: { path: "/agents" },
+				routing: agentsRouting,
+			}),
+		},
+		play: async ({ canvasElement }) => {
+			const canvas = within(canvasElement);
+			const body = within(document.body);
+
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Open actions for Chat same" }),
+			);
+			await userEvent.click(
+				await body.findByRole("menuitem", { name: "Rename chat" }),
+			);
+			await body.findByRole<HTMLInputElement>("textbox", {
+				name: "Chat title",
+			});
+			await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+			await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+			await userEvent.click(
+				await canvas.findByRole("button", {
+					name: "Open actions for Chat same",
+				}),
+			);
+			await userEvent.click(
+				await body.findByRole("menuitem", { name: "Rename chat" }),
+			);
+			const input = await body.findByRole<HTMLInputElement>("textbox", {
+				name: "Chat title",
+			});
+			expect(input).toHaveValue("Chat same");
+			await userEvent.clear(input);
+			await userEvent.type(input, "User edit");
+
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			expect(input).toHaveValue("User edit");
+			expect(body.queryByRole("alert")).not.toBeInTheDocument();
+		},
+	};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {

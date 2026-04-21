@@ -190,12 +190,13 @@ export function useFileAttachments(
 		() => new Map<File, string>(),
 	);
 
-	// Revoke blob URLs on unmount to prevent memory leaks.
 	const revokePreviewUrls = useEffectEvent(() => {
 		for (const [, url] of previewUrls) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 	});
+
+	// Revoke blob URLs on unmount to prevent memory leaks.
 	useEffect(() => {
 		return () => revokePreviewUrls();
 	}, []);
@@ -345,7 +346,9 @@ export function useFileAttachments(
 	};
 
 	const resetAttachments = () => {
-		revokePreviewUrls();
+		for (const [, url] of previewUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 		setPreviewUrls(new Map());
 		setTextContents(new Map());
 		setUploadStates(new Map());

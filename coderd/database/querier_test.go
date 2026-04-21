@@ -11524,8 +11524,9 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	require.NoError(t, err)
 
 	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
-		ChatID:    chat.ID,
-		MessageID: cutoff,
+		ChatID:        chat.ID,
+		MessageID:     cutoff,
+		StartedBefore: time.Now().Add(time.Minute),
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, deletedRows)
@@ -11651,7 +11652,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- orphanStep: in_progress step whose run is already completed ---
-	// its own updated_at is old, so it should be finalized directly.
+	// Its own updated_at is old, so it should be finalized directly.
+	// The step must be inserted while the run is still open because
+	// InsertChatDebugStep requires finished_at IS NULL on the parent
+	// run (atomic guard against appending steps to finalized runs).
 	completedRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
@@ -11662,7 +11666,19 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Mark the run as completed with a finished_at timestamp.
+	// Insert the step while the run is still open (finished_at IS NULL).
+	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      completedRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "in_progress",
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Now mark the run as completed with a finished_at timestamp,
+	// leaving the step orphaned in in_progress state.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     completedRun.ID,
 		ChatID: completedRun.ChatID,
@@ -11671,16 +11687,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	orphanStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      completedRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "in_progress",
-		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11715,6 +11722,16 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The InsertChatDebugStep CTE atomically bumps the parent run's
+	// updated_at to NOW(). Reset it back to staleTime so the run is
+	// still caught by the age predicate in FinalizeStaleChatDebugRows.
+	err = store.TouchChatDebugRunUpdatedAt(ctx, database.TouchChatDebugRunUpdatedAtParams{
+		ID:     cascadeRun.ID,
+		ChatID: chat.ID,
+		Now:    staleTime,
+	})
+	require.NoError(t, err)
+
 	// --- alreadyDone: completed run/step --- should NOT be touched.
 	doneRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
@@ -11726,6 +11743,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      doneRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     doneRun.ID,
 		ChatID: doneRun.ChatID,
@@ -11734,15 +11762,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	doneStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      doneRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "completed",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11754,6 +11774,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11769,6 +11790,17 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Insert step while run is still open.
+	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      errorRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "error",
+	})
+	require.NoError(t, err)
+
+	// Now finalize both run and step.
 	_, err = store.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 		ID:     errorRun.ID,
 		ChatID: errorRun.ChatID,
@@ -11777,15 +11809,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	errorStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
-		RunID:      errorRun.ID,
-		ChatID:     chat.ID,
-		StepNumber: 1,
-		Operation:  "stream",
-		Status:     "error",
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11797,6 +11821,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 			Time:  time.Now(),
 			Valid: true,
 		},
+		Now: time.Now(),
 	})
 	require.NoError(t, err)
 
@@ -11828,7 +11853,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
-	result, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 
 	// staleRun + cascadeRun were finalized; completedRun and doneRun
@@ -11921,7 +11949,10 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should not have a finished_at timestamp")
 
 	// A second sweep should be a no-op.
-	result2, err := store.FinalizeStaleChatDebugRows(ctx, staleThreshold)
+	result2, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
+		Now:           time.Now(),
+		UpdatedBefore: staleThreshold,
+	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, result2.RunsFinalized,
 		"second sweep should find nothing to finalize")
@@ -12034,6 +12065,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugRun should fail when chat_id does not match")
@@ -12051,6 +12083,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 				Time:  time.Now(),
 				Valid: true,
 			},
+			Now: time.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"UpdateChatDebugStep should fail when chat_id does not match")
@@ -12137,6 +12170,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12144,9 +12178,9 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.RootChatID, updated.RootChatID,
@@ -12257,6 +12291,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 			Time:  now,
 			Valid: true,
 		},
+		Now: now,
 	})
 	require.NoError(t, err)
 
@@ -12264,9 +12299,9 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	require.Equal(t, "completed", updated.Status)
 	require.True(t, updated.FinishedAt.Valid)
 
-	// UpdatedAt should advance (set to NOW() unconditionally).
-	require.True(t, updated.UpdatedAt.After(original.UpdatedAt) ||
-		updated.UpdatedAt.Equal(original.UpdatedAt))
+	// UpdatedAt should be set to the @now value we passed in.
+	require.WithinDuration(t, now, updated.UpdatedAt, time.Millisecond,
+		"updated_at should equal the @now parameter")
 
 	// Every field not in the update call must be preserved exactly.
 	require.Equal(t, original.HistoryTipMessageID, updated.HistoryTipMessageID,
@@ -12372,8 +12407,9 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	// Delete with an arbitrary cutoff. The run and its step should
 	// survive because NULL > cutoff evaluates to NULL, not TRUE.
 	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
-		ChatID:    chat.ID,
-		MessageID: 1,
+		ChatID:        chat.ID,
+		MessageID:     1,
+		StartedBefore: time.Now().Add(time.Minute),
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 0, deletedRows, "rows with NULL message IDs must not be deleted")
@@ -12388,6 +12424,215 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, remainingSteps, 1)
 	require.Equal(t, nullMsgStep.ID, remainingSteps[0].ID)
+}
+
+// TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns
+// verifies the started_before bound on DeleteChatDebugDataAfterMessageID.
+// The bound exists so that retried cleanup (e.g. after edit or archive)
+// cannot delete runs started by a replacement turn that races ahead of
+// the retry window. Without this filter, a stale cleanup would wipe
+// fresh debug rows.
+func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-started-before-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-started-before-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 50
+
+	// oldRun started an hour ago: must be deleted because it started
+	// before the bound.
+	oldStartedAt := time.Now().Add(-1 * time.Hour).UTC().
+		Truncate(time.Microsecond)
+	oldRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff + 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		StartedAt:           sql.NullTime{Time: oldStartedAt, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: oldStartedAt, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Bound sits between the two runs. Any run whose started_at is at
+	// or after this instant must survive.
+	cutoffTime := time.Now().Add(-30 * time.Minute).UTC().
+		Truncate(time.Microsecond)
+
+	// newRun started after cutoffTime with identical message_id values
+	// that would otherwise match the delete predicate. It must survive
+	// because started_before excludes it.
+	newStartedAt := time.Now().UTC().Truncate(time.Microsecond)
+	newRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: cutoff + 1, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 1, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "in_progress",
+		Provider:            sql.NullString{String: providerName, Valid: true},
+		Model:               sql.NullString{String: modelName, Valid: true},
+		StartedAt:           sql.NullTime{Time: newStartedAt, Valid: true},
+		UpdatedAt:           sql.NullTime{Time: newStartedAt, Valid: true},
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:        chat.ID,
+		MessageID:     cutoff,
+		StartedBefore: cutoffTime,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deletedRows,
+		"only the pre-cutoff run should be deleted")
+
+	// oldRun must be gone.
+	_, err = store.GetChatDebugRunByID(ctx, oldRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// newRun must survive the retry window.
+	remaining, err := store.GetChatDebugRunByID(ctx, newRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, newRun.ID, remaining.ID)
+}
+
+// TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns verifies
+// the started_before bound on DeleteChatDebugDataByChatID. Archive
+// cleanup retries rely on this bound to avoid deleting runs created
+// by a replacement turn that starts after an unarchive races ahead of
+// the retry window.
+func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-by-chat-started-before-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-by-chat-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	oldStartedAt := time.Now().Add(-1 * time.Hour).UTC().
+		Truncate(time.Microsecond)
+	oldRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: providerName, Valid: true},
+		Model:         sql.NullString{String: modelName, Valid: true},
+		StartedAt:     sql.NullTime{Time: oldStartedAt, Valid: true},
+		UpdatedAt:     sql.NullTime{Time: oldStartedAt, Valid: true},
+	})
+	require.NoError(t, err)
+
+	cutoffTime := time.Now().Add(-30 * time.Minute).UTC().
+		Truncate(time.Microsecond)
+
+	newStartedAt := time.Now().UTC().Truncate(time.Microsecond)
+	newRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Kind:          "chat_turn",
+		Status:        "in_progress",
+		Provider:      sql.NullString{String: providerName, Valid: true},
+		Model:         sql.NullString{String: modelName, Valid: true},
+		StartedAt:     sql.NullTime{Time: newStartedAt, Valid: true},
+		UpdatedAt:     sql.NullTime{Time: newStartedAt, Valid: true},
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataByChatID(ctx, database.DeleteChatDebugDataByChatIDParams{
+		ChatID:        chat.ID,
+		StartedBefore: cutoffTime,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deletedRows,
+		"only the pre-cutoff run should be deleted")
+
+	_, err = store.GetChatDebugRunByID(ctx, oldRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	remaining, err := store.GetChatDebugRunByID(ctx, newRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, newRun.ID, remaining.ID)
 }
 
 func TestChatHasUnread(t *testing.T) {

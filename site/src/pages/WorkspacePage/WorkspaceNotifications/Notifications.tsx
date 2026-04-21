@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -37,7 +37,8 @@ export const Notifications: FC<NotificationsProps> = ({
 			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
 				<TooltipTrigger asChild>
 					<div
-						css={styles.pillContainer}
+						// Adds some spacing from the Tooltip content
+						className="py-2"
 						data-testid={`${severity}-notifications`}
 					>
 						<NotificationPill
@@ -94,10 +95,12 @@ interface NotificationItemProps {
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
-		<article css={styles.notificationItem}>
+		<article className="p-5 leading-normal border-0 border-t border-solid first:border-t-0">
 			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
-				<p css={styles.notificationDetail}>{notification.detail}</p>
+				<p className="m-0 text-content-secondary leading-relaxed block mt-2">
+					{notification.detail}
+				</p>
 			)}
 			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
 		</article>
@@ -107,26 +110,3 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 export const NotificationActionButton: FC<ButtonProps> = (props) => {
 	return <Button variant="default" size="sm" {...props} />;
 };
-
-const styles = {
-	// Adds some spacing from the Tooltip content
-	pillContainer: {
-		padding: "8px 0",
-	},
-	notificationItem: (theme) => ({
-		padding: 20,
-		lineHeight: "1.5",
-		borderTop: `1px solid ${theme.palette.divider}`,
-
-		"&:first-of-type": {
-			borderTop: 0,
-		},
-	}),
-	notificationDetail: (theme) => ({
-		margin: 0,
-		color: theme.palette.text.secondary,
-		lineHeight: 1.6,
-		display: "block",
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

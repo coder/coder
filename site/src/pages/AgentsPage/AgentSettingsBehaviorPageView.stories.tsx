@@ -27,6 +27,11 @@ const baseProps = {
 	} as TypesGen.ChatWorkspaceTTLResponse,
 	isWorkspaceTTLLoading: false,
 	isWorkspaceTTLLoadError: false,
+	retentionDaysData: {
+		retention_days: 30,
+	} as TypesGen.ChatRetentionDaysResponse,
+	isRetentionDaysLoading: false,
+	isRetentionDaysLoadError: false,
 	modelConfigsData: [] as TypesGen.ChatModelConfig[],
 	modelConfigsError: undefined as unknown,
 	isLoadingModelConfigs: false,
@@ -43,6 +48,8 @@ const baseProps = {
 	isSaveDesktopEnabledError: false,
 	isSavingWorkspaceTTL: false,
 	isSaveWorkspaceTTLError: false,
+	isSavingRetentionDays: false,
+	isSaveRetentionDaysError: false,
 };
 
 const meta = {
@@ -55,6 +62,7 @@ const meta = {
 		onSaveUserPrompt: fn(),
 		onSaveDesktopEnabled: fn(),
 		onSaveWorkspaceTTL: fn(),
+		onSaveRetentionDays: fn(),
 		onSaveThreshold: fn(),
 		onResetThreshold: fn(),
 	},

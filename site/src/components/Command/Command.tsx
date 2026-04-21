@@ -1,5 +1,5 @@
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
+import { SearchIcon } from "lucide-react";
 import { cn } from "#/utils/cn";
 
 export const Command: React.FC<
@@ -21,7 +21,7 @@ export const CommandInput: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-			<Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+			<SearchIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
 			<CommandPrimitive.Input
 				className={cn(
 					`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none border-none

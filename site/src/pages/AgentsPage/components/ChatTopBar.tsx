@@ -190,20 +190,16 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							align="end"
 							className="[&_[role=menuitem]]:text-[13px]"
 						>
-							{!isArchived && (
+							{!isArchived && onRegenerateTitle && (
 								<>
-									{onRegenerateTitle && (
-										<>
-											<DropdownMenuItem
-												disabled={isRegenerateTitleDisabled}
-												onSelect={onRegenerateTitle}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									)}
+									<DropdownMenuItem
+										disabled={isRegenerateTitleDisabled}
+										onSelect={onRegenerateTitle}
+									>
+										<WandSparklesIcon className="h-3.5 w-3.5" />
+										Generate new title
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
 								</>
 							)}
 							{isArchived ? (

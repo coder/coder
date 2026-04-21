@@ -100,37 +100,52 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "client-id-123", created.OAuth2ClientID)
 	require.Equal(t, "default_on", created.Availability)
 	require.True(t, created.Enabled)
+	require.False(t, created.AllowInPlanMode)
 
 	// Verify the secret is indicated but never returned.
 	require.True(t, created.HasOAuth2Secret)
 
-	// Verify the config appears in the list.
+	// Verify the config appears in the list and direct get responses.
 	configs, err := client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, created.ID, configs[0].ID)
 	require.True(t, configs[0].HasOAuth2Secret)
+	require.False(t, configs[0].AllowInPlanMode)
 
-	// Update display name and availability.
+	fetched, err := client.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, fetched.ID)
+	require.False(t, fetched.AllowInPlanMode)
+
+	// Update display name, availability, and allow_in_plan_mode.
 	newName := "Renamed Server"
 	newAvail := "force_on"
+	allowInPlanMode := true
 	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
-		DisplayName:  &newName,
-		Availability: &newAvail,
+		DisplayName:     &newName,
+		Availability:    &newAvail,
+		AllowInPlanMode: &allowInPlanMode,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Renamed Server", updated.DisplayName)
 	require.Equal(t, "force_on", updated.Availability)
+	require.True(t, updated.AllowInPlanMode)
 	// Unchanged fields should remain the same.
 	require.Equal(t, "my-mcp-server", updated.Slug)
 	require.Equal(t, "oauth2", updated.AuthType)
 
-	// Verify the update took effect through the list.
+	// Verify the update took effect through the list and direct get.
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, "Renamed Server", configs[0].DisplayName)
 	require.Equal(t, "force_on", configs[0].Availability)
+	require.True(t, configs[0].AllowInPlanMode)
+
+	fetched, err = client.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.True(t, fetched.AllowInPlanMode)
 
 	// Delete it.
 	err = client.DeleteMCPServerConfig(ctx, created.ID)

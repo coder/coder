@@ -81,6 +81,49 @@ func attemptSinkFromContext(ctx context.Context) *attemptSink {
 
 var stepCounters sync.Map // map[uuid.UUID]*atomic.Int32
 
+// runRefCounts tracks how many live RunContext instances reference each
+// RunID. Cleanup of shared state (step counters) is deferred until the
+// last RunContext for a given RunID is garbage collected.
+var (
+	runRefCounts sync.Map // map[uuid.UUID]*atomic.Int32
+	// refCountMu serializes trackRunRef and releaseRunRef so the
+	// decrement-to-zero check and subsequent map deletions are
+	// atomic with respect to new references being added.
+	refCountMu sync.Mutex
+)
+
+func trackRunRef(runID uuid.UUID) {
+	refCountMu.Lock()
+	defer refCountMu.Unlock()
+	val, _ := runRefCounts.LoadOrStore(runID, &atomic.Int32{})
+	counter, ok := val.(*atomic.Int32)
+	if !ok {
+		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
+	}
+	counter.Add(1)
+}
+
+// releaseRunRef decrements the reference count for runID and cleans up
+// shared state when the last reference is released. The mutex ensures
+// no concurrent trackRunRef can increment between the zero check and
+// the map deletions.
+func releaseRunRef(runID uuid.UUID) {
+	refCountMu.Lock()
+	defer refCountMu.Unlock()
+	val, ok := runRefCounts.Load(runID)
+	if !ok {
+		return
+	}
+	counter, ok := val.(*atomic.Int32)
+	if !ok {
+		panic("chatdebug: runRefCounts contains non-*atomic.Int32 value")
+	}
+	if counter.Add(-1) <= 0 {
+		runRefCounts.Delete(runID)
+		stepCounters.Delete(runID)
+	}
+}
+
 func nextStepNumber(runID uuid.UUID) int32 {
 	val, _ := stepCounters.LoadOrStore(runID, &atomic.Int32{})
 	counter, ok := val.(*atomic.Int32)
@@ -129,13 +172,16 @@ type stepHandle struct {
 	sink     *attemptSink
 	svc      *Service
 	opts     RecorderOptions
-	once     sync.Once
 	mu       sync.Mutex
 	status   Status
 	response any
 	usage    any
 	err      any
 	metadata any
+	// hadError tracks whether a prior finalization wrote an error
+	// payload. Used to decide whether a successful retry needs to
+	// explicitly clear the error field via jsonClear.
+	hadError bool
 }
 
 // beginStep validates preconditions, creates a debug step, and returns a
@@ -223,11 +269,11 @@ func beginStep(
 	return handle, enriched
 }
 
-// finish updates the debug step with final status and data.
-// sync.Once prevents data races when concurrent callers (e.g.
-// retried stream wrappers sharing a reuse handle) both attempt
-// to finalize the same step. Only the first finish call takes
-// effect.
+// finish updates the debug step with final status and data.  A mutex
+// guards the write so concurrent callers (e.g. retried stream wrappers
+// sharing a reuse handle) don't race.  Later retries are allowed to
+// overwrite earlier failure results so the step reflects the final
+// outcome, but stale callbacks cannot regress a terminal state.
 func (h *stepHandle) finish(
 	ctx context.Context,
 	status Status,
@@ -240,38 +286,63 @@ func (h *stepHandle) finish(
 		return
 	}
 
-	h.once.Do(func() {
-		h.mu.Lock()
-		h.status = status
-		h.response = response
-		h.usage = usage
-		h.err = errPayload
-		h.metadata = metadata
-		h.mu.Unlock()
-		if h.svc == nil {
-			return
-		}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-		updateCtx, cancel := stepFinalizeContext(ctx)
-		defer cancel()
+	// Reject stale callbacks that would regress a terminal state.
+	// Status priority: in_progress < interrupted < error < completed.
+	// A tardy safety-net writing "interrupted" cannot clobber a step
+	// that already reached "completed" or "error" from a real retry.
+	// Equal-priority updates are allowed so that retries ending in the
+	// same terminal class (e.g. error → error under ReuseStep) can
+	// still update the step with newer attempt data.
+	if h.status.IsTerminal() && status.Priority() < h.status.Priority() {
+		return
+	}
 
-		if _, updateErr := h.svc.UpdateStep(updateCtx, UpdateStepParams{
-			ID:                 h.stepCtx.StepID,
-			ChatID:             h.stepCtx.ChatID,
-			Status:             status,
-			NormalizedResponse: response,
-			Usage:              usage,
-			Attempts:           h.sink.snapshot(),
-			Error:              errPayload,
-			Metadata:           metadata,
-			FinishedAt:         time.Now(),
-		}); updateErr != nil {
-			h.svc.log.Warn(updateCtx, "failed to finalize chat debug step",
-				slog.Error(updateErr),
-				slog.F("step_id", h.stepCtx.StepID),
-				slog.F("chat_id", h.stepCtx.ChatID),
-				slog.F("status", status),
-			)
-		}
-	})
+	h.status = status
+	h.response = response
+	h.usage = usage
+	h.err = errPayload
+	h.metadata = metadata
+	if errPayload != nil {
+		h.hadError = true
+	}
+	if h.svc == nil {
+		return
+	}
+
+	updateCtx, cancel := stepFinalizeContext(ctx)
+	defer cancel()
+
+	// When the step completes successfully after a prior failed
+	// attempt, the error field must be explicitly cleared.  A plain
+	// nil would leave the COALESCE-based SQL untouched, so we send
+	// jsonClear{} which serializes as a valid JSONB null.  Only do
+	// this when a prior error was actually recorded; otherwise
+	// clean successes would get a spurious JSONB null that downstream
+	// aggregation could misread as an error.
+	errValue := errPayload
+	if errValue == nil && status == StatusCompleted && h.hadError {
+		errValue = jsonClear{}
+	}
+
+	if _, updateErr := h.svc.UpdateStep(updateCtx, UpdateStepParams{
+		ID:                 h.stepCtx.StepID,
+		ChatID:             h.stepCtx.ChatID,
+		Status:             status,
+		NormalizedResponse: response,
+		Usage:              usage,
+		Attempts:           h.sink.snapshot(),
+		Error:              errValue,
+		Metadata:           metadata,
+		FinishedAt:         h.svc.clock.Now(),
+	}); updateErr != nil {
+		h.svc.log.Warn(updateCtx, "failed to finalize chat debug step",
+			slog.Error(updateErr),
+			slog.F("step_id", h.stepCtx.StepID),
+			slog.F("chat_id", h.stepCtx.ChatID),
+			slog.F("status", status),
+		)
+	}
 }

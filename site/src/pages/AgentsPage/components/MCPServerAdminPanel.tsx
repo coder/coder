@@ -228,6 +228,7 @@ interface MCPServerFormValues {
 	availability: string;
 	enabled: boolean;
 	modelIntent: boolean;
+	allowInPlanMode: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -257,6 +258,7 @@ const buildInitialValues = (
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
 	modelIntent: server?.model_intent ?? false,
+	allowInPlanMode: server?.allow_in_plan_mode ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
@@ -311,6 +313,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				availability: values.availability,
 				enabled: values.enabled,
 				model_intent: values.modelIntent,
+				allow_in_plan_mode: values.allowInPlanMode,
 				...(values.authType === "oauth2" && {
 					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
@@ -774,6 +777,26 @@ const ServerForm: FC<ServerFormProps> = ({
 							checked={form.values.modelIntent}
 							onCheckedChange={(v) => {
 								form.setFieldValue("modelIntent", v);
+							}}
+							disabled={isDisabled}
+						/>
+					</div>
+					<div className="flex items-center justify-between">
+						<div>
+							<Label htmlFor={`${formId}-allow-in-plan-mode`}>
+								Allow all tools from this MCP server in root plan mode
+							</Label>
+							<p className="text-sm text-content-secondary">
+								When enabled, the root plan-mode agent can call these tools
+								during planning. Workspace MCP and plan-mode subagents remain
+								restricted.
+							</p>
+						</div>
+						<Switch
+							id={`${formId}-allow-in-plan-mode`}
+							checked={form.values.allowInPlanMode}
+							onCheckedChange={(v) => {
+								form.setFieldValue("allowInPlanMode", v);
 							}}
 							disabled={isDisabled}
 						/>
