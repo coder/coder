@@ -2,7 +2,7 @@
  * Copied from shadc/ui on 04/04/2025
  * @see {@link https://ui.shadcn.com/docs/components/radio-group}
  */
-import { Circle } from "lucide-react";
+import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 
@@ -33,7 +33,7 @@ export const RadioGroupItem: React.FC<
 			{...props}
 		>
 			<RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-				<Circle className="absolute h-2.5 w-2.5 fill-surface-invert-primary" />
+				<CircleIcon className="absolute h-2.5 w-2.5 fill-surface-invert-primary" />
 			</RadioGroupPrimitive.Indicator>
 		</RadioGroupPrimitive.Item>
 	);
