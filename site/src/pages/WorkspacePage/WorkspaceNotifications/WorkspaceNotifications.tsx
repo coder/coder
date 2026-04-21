@@ -295,7 +295,7 @@ const findTroubleshootingURL = (
 /**
  * Returns true when every failing agent's lifecycle state is "start_error",
  * meaning the agent process is running but a startup script exited with an
- * error. Restarting the workspace will not fix this — the template admin
+ * error. Restarting the workspace will not fix this because the template admin
  * must correct the startup script.
  */
 const isStartupScriptFailure = (workspace: Workspace): boolean => {
