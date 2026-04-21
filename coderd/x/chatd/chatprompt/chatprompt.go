@@ -792,7 +792,12 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	case fantasy.ToolResultOutputContentError:
 		isError = true
 		if output.Error != nil {
-			result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+			raw := json.RawMessage(strings.TrimSpace(output.Error.Error()))
+			if isSubagentLifecycleToolName(content.ToolName) && hasErrorField(raw) {
+				result = raw
+			} else {
+				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+			}
 		} else {
 			result = []byte(`{"error":""}`)
 		}
@@ -817,6 +822,25 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+// Keep in sync with coderd/x/chatd/subagent.go.
+func isSubagentLifecycleToolName(name string) bool {
+	switch name {
+	case "spawn_agent", "wait_agent", "message_agent", "close_agent":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasErrorField(raw json.RawMessage) bool {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	_, ok := payload["error"]
+	return ok
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {

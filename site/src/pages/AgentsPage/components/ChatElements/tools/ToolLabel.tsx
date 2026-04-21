@@ -1,5 +1,54 @@
 import type React from "react";
+import {
+	getProvidedSubagentTitle,
+	getSubagentDescriptor,
+} from "./subagentDescriptor";
 import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
+
+const renderSubagentLabel = (
+	name: string,
+	args: unknown,
+	result: unknown,
+): React.ReactNode | null => {
+	const descriptor = getSubagentDescriptor({ name, args, result });
+	if (!descriptor) {
+		return null;
+	}
+
+	const providedTitle = getProvidedSubagentTitle({ args, result });
+	const fallbackTitle = descriptor.fallbackTitle;
+	const text = (() => {
+		switch (descriptor.action) {
+			case "spawn":
+				if (providedTitle) {
+					return `Spawning ${providedTitle}`;
+				}
+				if (descriptor.variant === "explore") {
+					return "Spawning Explore agent…";
+				}
+				if (descriptor.variant === "computer_use") {
+					return "Spawning computer use sub-agent…";
+				}
+				return `Spawning ${fallbackTitle}…`;
+			case "wait":
+				return providedTitle
+					? `Waiting for ${providedTitle}`
+					: `Waiting for ${fallbackTitle}…`;
+			case "message":
+				return providedTitle
+					? `Messaging ${providedTitle}`
+					: `Messaging ${fallbackTitle}…`;
+			case "close":
+				return providedTitle
+					? `Terminating ${providedTitle}`
+					: `Terminating ${fallbackTitle}`;
+		}
+	})();
+
+	return (
+		<span className="truncate text-sm text-content-secondary">{text}</span>
+	);
+};
 
 export const ToolLabel: React.FC<{
 	name: string;
@@ -9,6 +58,14 @@ export const ToolLabel: React.FC<{
 }> = ({ name, args, result, mcpSlug }) => {
 	const parsed = parseArgs(args);
 	const parsedResult = asRecord(result);
+	const subagentLabel = renderSubagentLabel(
+		name,
+		parsed ?? args,
+		parsedResult ?? result,
+	);
+	if (subagentLabel) {
+		return subagentLabel;
+	}
 
 	switch (name) {
 		case "execute": {
@@ -156,52 +213,6 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
-		case "spawn_explore_agent": {
-			const spawnTitle =
-				(parsedResult ? asString(parsedResult.title) : "") ||
-				(parsed ? asString(parsed.title) : "");
-			return (
-				<span className="truncate text-sm text-content-secondary">
-					{spawnTitle ? `Spawning ${spawnTitle}` : "Spawning Explore agent…"}
-				</span>
-			);
-		}
-		case "spawn_agent": {
-			const spawnTitle =
-				(parsedResult ? asString(parsedResult.title) : "") ||
-				(parsed ? asString(parsed.title) : "");
-			return (
-				<span className="truncate text-sm text-content-secondary">
-					{spawnTitle ? `Spawning ${spawnTitle}` : "Spawning sub-agent…"}
-				</span>
-			);
-		}
-		case "wait_agent": {
-			const awaitTitle =
-				(parsedResult ? asString(parsedResult.title) : "") ||
-				(parsed ? asString(parsed.title) : "");
-			return (
-				<span className="truncate text-sm text-content-secondary">
-					{awaitTitle ? `Waiting for ${awaitTitle}` : "Waiting for sub-agent…"}
-				</span>
-			);
-		}
-		case "message_agent": {
-			const msgTitle =
-				(parsedResult ? asString(parsedResult.title) : "") ||
-				(parsed ? asString(parsed.title) : "");
-			return (
-				<span className="truncate text-sm text-content-secondary">
-					{msgTitle ? `Messaging ${msgTitle}` : "Messaging sub-agent…"}
-				</span>
-			);
-		}
-		case "close_agent":
-			return (
-				<span className="truncate text-sm text-content-secondary">
-					Terminating sub-agent
-				</span>
-			);
 		case "chat_summarized":
 			return (
 				<span className="truncate text-sm text-content-secondary">

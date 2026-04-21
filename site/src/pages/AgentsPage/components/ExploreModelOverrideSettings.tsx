@@ -100,7 +100,8 @@ export const ExploreModelOverrideSettings: FC<
 					</div>
 					<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 						Optional deployment-wide model override for read-only Explore
-						subagents spawned with <code>spawn_explore_agent</code>.
+						subagents spawned with <code>spawn_agent</code> using
+						<code>type=explore</code>.
 					</p>
 				</>
 			)}

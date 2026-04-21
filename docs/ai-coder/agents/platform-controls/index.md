@@ -107,7 +107,8 @@ See [MCP Servers](./mcp-servers.md) for configuration details.
 ### Virtual desktop
 
 Administrators can enable a virtual desktop within agent workspaces.
-When enabled, agents can use `spawn_computer_use_agent` to interact with a
+When enabled, agents can use `spawn_agent` with
+`type=computer_use` to interact with a
 desktop environment using screenshots, mouse, and keyboard input.
 
 This setting is available under **Agents** > **Settings** > **Behavior**.
