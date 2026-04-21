@@ -44,4 +44,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof AgentSettingsCompactionPageView>;
 
+// Interaction coverage for threshold save and reset lives in
+// UserCompactionThresholdSettings.stories.tsx because this page view only wraps
+// that component with a section header.
 export const Default: Story = {};

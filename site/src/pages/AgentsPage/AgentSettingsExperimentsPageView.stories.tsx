@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	AgentSettingsExperimentsPageView,
 	type AgentSettingsExperimentsPageViewProps,
@@ -22,3 +22,28 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsExperimentsPageView>;
 
 export const Default: Story = {};
+
+export const DesktopSetting: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Virtual Desktop");
+		await canvas.findByText(
+			/Allow agents to use a virtual, graphical desktop within workspaces./i,
+		);
+		await canvas.findByRole("switch", { name: "Enable" });
+	},
+};
+
+export const TogglesDesktop: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", { name: "Enable" });
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveDesktopEnabled).toHaveBeenCalledWith({
+				enable_desktop: true,
+			});
+		});
+	},
+};

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
@@ -24,3 +24,83 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsGeneralPageView>;
 
 export const Default: Story = {};
+
+// These warning stories moved here because PersonalInstructionsSettings now
+// lives on the General page.
+export const InvisibleUnicodeWarningUserPrompt: Story = {
+	args: {
+		userPromptData: {
+			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByText("Personal Instructions");
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("2");
+	},
+};
+
+export const InvisibleUnicodeWarningOnType: Story = {
+	args: {
+		userPromptData: {
+			custom_prompt: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional behavior, style, and tone preferences",
+		);
+
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+		await userEvent.type(textarea, "hello\u200bworld");
+
+		await waitFor(() => {
+			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const SavesUserPrompt: Story = {
+	args: {
+		userPromptData: {
+			custom_prompt: "",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional behavior, style, and tone preferences",
+		);
+
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+		await userEvent.type(
+			textarea,
+			"Prefer concise answers with clear next steps.",
+		);
+
+		const promptForm = textarea.closest("form");
+		if (!(promptForm instanceof HTMLFormElement)) {
+			throw new Error(
+				"Expected personal instructions textarea to live inside a form.",
+			);
+		}
+		const saveButton = within(promptForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveUserPrompt).toHaveBeenCalledWith(
+				{ custom_prompt: "Prefer concise answers with clear next steps." },
+				expect.anything(),
+			);
+		});
+	},
+};
