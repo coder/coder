@@ -1,7 +1,6 @@
 import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
-	Check,
 	CheckIcon,
 	ChevronRightIcon,
 	ImageIcon,
@@ -10,13 +9,11 @@ import {
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
-	Square,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import {
 	type FC,
-	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useRef,
@@ -448,11 +445,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
-
-	const composerRefCallback = useCallback((el: HTMLDivElement | null) => {
-		if (!el) return;
+	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+	useEffect(() => {
+		if (!composerElement) return;
 		const update = () => {
-			const rect = el.getBoundingClientRect();
+			const rect = composerElement.getBoundingClientRect();
 			const bottom = window.innerHeight - rect.top - 68;
 			document.documentElement.style.setProperty(
 				"--mobile-dropdown-bottom",
@@ -461,9 +460,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		};
 		update();
 		const ro = new ResizeObserver(update);
-		ro.observe(el);
-		return () => ro.disconnect();
-	}, []);
+		ro.observe(composerElement);
+		return () => {
+			ro.disconnect();
+			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+		};
+	}, [composerElement]);
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
@@ -691,7 +693,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			<div
-				ref={composerRefCallback}
+				ref={setComposerElement}
 				className={cn(
 					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",

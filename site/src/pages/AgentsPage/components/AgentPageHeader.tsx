@@ -10,7 +10,7 @@ import {
 	VolumeOffIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
@@ -48,6 +48,29 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 	const webPush = useWebpushNotifications();
+	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+		if (typeof window === "undefined") {
+			return false;
+		}
+		return window.matchMedia("(min-width: 768px)").matches;
+	});
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const mediaQuery = window.matchMedia("(min-width: 768px)");
+		const onMediaChange = (event: MediaQueryListEvent) => {
+			setIsDesktop(event.matches);
+		};
+
+		setIsDesktop(mediaQuery.matches);
+		mediaQuery.addEventListener("change", onMediaChange);
+		return () => {
+			mediaQuery.removeEventListener("change", onMediaChange);
+		};
+	}, []);
 
 	const handleChimeToggle = () => {
 		const next = !chimeEnabled;
@@ -104,11 +127,11 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
-			{children && (
+			{children && isDesktop && (
 				<div className="hidden items-center gap-2 md:flex">{children}</div>
 			)}{" "}
 			{/* Mobile: meatball menu with all actions */}
-			{!mobileBack && (
+			{!mobileBack && !isDesktop && (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
