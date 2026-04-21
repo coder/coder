@@ -237,7 +237,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		if callCount.Add(1) == 1 {
 			// Root chat: model calls spawn_agent.
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"do the thing","title":"sub"}`),
 			)
 		}
 		// Subsequent calls (including the subagent): just reply.
@@ -379,6 +379,37 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken)
 
+	// Start an external MCP server whose tools should remain available to the
+	// root plan-mode chat but stay hidden from plan-mode subagents.
+	mcpSrv := mcpserver.NewMCPServer("plan-root-mcp", "1.0.0")
+	mcpSrv.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	mcpConfig, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:     "Plan Root MCP",
+		Slug:            "plan-root-mcp",
+		Transport:       "streamable_http",
+		URL:             mcpTS.URL,
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+	})
+	require.NoError(t, err)
+
 	var toolsMu sync.Mutex
 	toolsByCall := make([][]string, 0, 2)
 	requestsByCall := make([]recordedOpenAIRequest, 0, 2)
@@ -400,7 +431,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"inspect the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"inspect the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -408,7 +439,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err = expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -428,6 +459,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		PlanMode:       codersdk.ChatPlanModePlan,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -486,6 +518,8 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		"root plan-mode chat should have execute")
 	require.Contains(t, rootCalls[0], "process_output",
 		"root plan-mode chat should have process_output")
+	require.Contains(t, rootCalls[0], "plan-root-mcp__echo",
+		"root plan-mode chat should have approved external MCP tools")
 	require.NotContains(t, childCalls[0], "ask_user_question",
 		"plan-mode subagent should NOT have ask_user_question")
 	require.NotContains(t, childCalls[0], "write_file",
@@ -496,6 +530,8 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		"plan-mode subagent should have execute")
 	require.Contains(t, childCalls[0], "process_output",
 		"plan-mode subagent should have process_output")
+	require.NotContains(t, childCalls[0], "plan-root-mcp__echo",
+		"plan-mode subagent should NOT have external MCP tools")
 	require.True(t, requestHasSystemSubstring(rootRequests[0], "You are in Plan Mode."))
 	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Plan Mode as a delegated sub-agent."))
 	require.False(t, requestHasSystemSubstring(childRequests[0], "When the plan is ready, call propose_plan"))
@@ -551,7 +587,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_explore_agent", `{"prompt":"investigate the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"explore","prompt":"investigate the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -595,7 +631,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		sawRoot := false
 		sawChild := false
 		for _, tools := range toolsByCall {
-			if slice.Contains(tools, "spawn_explore_agent") {
+			if slice.Contains(tools, "spawn_agent") {
 				sawRoot = true
 				continue
 			}
@@ -616,7 +652,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	var rootCalls, childCalls [][]string
 	var rootRequests, childRequests []recordedOpenAIRequest
 	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_explore_agent") {
+		if slice.Contains(tools, "spawn_agent") {
 			rootCalls = append(rootCalls, tools)
 			rootRequests = append(rootRequests, recordedRequests[i])
 			continue
@@ -630,13 +666,11 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
 	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
 	require.Contains(t, rootCalls[0], "spawn_agent")
-	require.Contains(t, rootCalls[0], "spawn_explore_agent")
 	require.Contains(t, rootCalls[0], "write_file")
 	require.Contains(t, rootCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "write_file")
 	require.NotContains(t, childCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "spawn_agent")
-	require.NotContains(t, childCalls[0], "spawn_explore_agent")
 	require.NotContains(t, childCalls[0], "wait_agent")
 	require.Contains(t, childCalls[0], "read_file")
 	require.Contains(t, childCalls[0], "execute")
@@ -661,6 +695,227 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		}
 	}
 	require.Len(t, exploreChildren, 1)
+}
+
+func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	echoMCP := mcpserver.NewMCPServer("plan-visibility-echo", "1.0.0")
+	echoMCP.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	echoTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(echoMCP))
+	t.Cleanup(echoTS.Close)
+
+	filteredMCP := mcpserver.NewMCPServer("plan-visibility-filtered", "1.0.0")
+	filteredMCP.AddTools(
+		mcpserver.ServerTool{
+			Tool: mcpgo.NewTool("visible",
+				mcpgo.WithDescription("Visible tool"),
+				mcpgo.WithString("input",
+					mcpgo.Description("The input string"),
+					mcpgo.Required(),
+				),
+			),
+			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+				input, _ := req.GetArguments()["input"].(string)
+				return mcpgo.NewToolResultText("visible: " + input), nil
+			},
+		},
+		mcpserver.ServerTool{
+			Tool: mcpgo.NewTool("hidden",
+				mcpgo.WithDescription("Hidden tool"),
+				mcpgo.WithString("input",
+					mcpgo.Description("The input string"),
+					mcpgo.Required(),
+				),
+			),
+			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+				input, _ := req.GetArguments()["input"].(string)
+				return mcpgo.NewToolResultText("hidden: " + input), nil
+			},
+		},
+	)
+	filteredTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(filteredMCP))
+	t.Cleanup(filteredTS.Close)
+
+	var (
+		requests   []recordedOpenAIRequest
+		requestsMu sync.Mutex
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	approvedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Plan Approved MCP",
+		Slug:            "plan-approved-mcp",
+		Url:             echoTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	blockedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Plan Blocked MCP",
+		Slug:            "plan-blocked-mcp",
+		Url:             echoTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: false,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	filteredConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Plan Filtered MCP",
+		Slug:            "plan-filtered-mcp",
+		Url:             filteredTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{"visible"},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	workspaceToolName := "workspace-plan-mcp__echo"
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-plan-mcp",
+			Name:        workspaceToolName,
+			Description: "Workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}}}, nil).
+		Times(1)
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	planChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "plan-mode-root-mcp-visibility",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		MCPServerIDs:   []uuid.UUID{approvedConfig.ID, blockedConfig.ID, filteredConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List the available tools in plan mode."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, planChat.ID, server)
+
+	planChatResult, err := db.GetChatByID(ctx, planChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, planChatResult.Status)
+
+	askChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "ask-mode-root-mcp-visibility",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		MCPServerIDs:   []uuid.UUID{approvedConfig.ID, blockedConfig.ID, filteredConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List the available tools outside plan mode."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, askChat.ID, server)
+
+	askChatResult, err := db.GetChatByID(ctx, askChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, askChatResult.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 2, "expected exactly one streamed model call per chat")
+
+	planTools := recorded[0].Tools
+	askTools := recorded[1].Tools
+
+	require.Contains(t, planTools, "plan-approved-mcp__echo",
+		"root plan mode should expose approved external MCP tools")
+	require.NotContains(t, planTools, "plan-blocked-mcp__echo",
+		"root plan mode should hide unapproved external MCP tools")
+	require.Contains(t, planTools, "plan-filtered-mcp__visible",
+		"root plan mode should keep allowlisted tools from approved MCP servers")
+	require.NotContains(t, planTools, "plan-filtered-mcp__hidden",
+		"root plan mode should still respect MCP tool allowlists")
+	require.NotContains(t, planTools, workspaceToolName,
+		"root plan mode should exclude workspace MCP tools")
+
+	require.Contains(t, askTools, "plan-approved-mcp__echo",
+		"ask mode should keep approved external MCP tools")
+	require.Contains(t, askTools, "plan-blocked-mcp__echo",
+		"ask mode should keep unapproved-for-plan external MCP tools")
+	require.Contains(t, askTools, "plan-filtered-mcp__visible",
+		"ask mode should keep allowlisted tools from external MCP servers")
+	require.NotContains(t, askTools, "plan-filtered-mcp__hidden",
+		"ask mode should continue respecting MCP tool allowlists")
+	require.Contains(t, askTools, workspaceToolName,
+		"ask mode should continue exposing workspace MCP tools")
 }
 
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
@@ -1151,16 +1406,18 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(recorded[0], "You are in Plan Mode."))
 	require.True(t, requestHasSystemSubstring(recorded[0], "The only intentional authored workspace artifact is the plan file"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {
 		if msg.Role != "system" {
 			continue
 		}
-		// The overlay constant includes a placeholder that is replaced at
+		// The overlay prompt includes a placeholder that is replaced at
 		// runtime, so strip only the stable body text before checking.
 		overlayBody := strings.TrimSuffix(
-			chatd.PlanningOverlayPrompt,
+			chatd.PlanningOverlayPrompt(),
 			"{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}",
 		)
 		sanitized := strings.ReplaceAll(msg.Content, overlayBody, "")
@@ -1291,13 +1548,15 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 
-	// Only the initial user message should be in chat_messages.
+	// Only messages from the initial processing round should be in
+	// chat_messages (user + assistant). The "interrupt" message must
+	// be in the queue, not inserted directly.
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
+	require.Len(t, messages, 2)
 }
 
 func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
@@ -1685,8 +1944,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 3)
-	require.Equal(t, database.ChatMessageRoleUser, messages[2].Role)
+	require.Len(t, messages, 4)
+	require.Equal(t, database.ChatMessageRoleUser, messages[3].Role)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
@@ -4476,7 +4735,8 @@ func seedChatDependencies(
 	db database.Store,
 ) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
-	return seedChatDependenciesWithProvider(ctx, t, db, "openai", "")
+	openAIURL := chattest.OpenAI(t)
+	return seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
 }
 
 // seedChatDependenciesWithProvider creates a user, organization,
@@ -5237,7 +5497,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	t.Cleanup(anthropicSrv.Close)
 
 	// OpenAI mock for the root chat. The first streaming call
-	// triggers spawn_computer_use_agent; subsequent calls reply
+	// triggers spawn_agent; subsequent calls reply
 	// with text.
 	var openAICallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -5247,8 +5507,8 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		if openAICallCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk(
-					"spawn_computer_use_agent",
-					`{"prompt":"do the desktop thing","title":"cu-sub"}`,
+					"spawn_agent",
+					`{"type":"computer_use","prompt":"do the desktop thing","title":"cu-sub"}`,
 				),
 			)
 		}
@@ -5395,7 +5655,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
-		"spawn_agent", "spawn_computer_use_agent",
+		"spawn_agent",
 		"wait_agent", "message_agent", "close_agent",
 	}
 	for _, tool := range subagentTools {
@@ -5966,6 +6226,286 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	}, testutil.IntervalFast)
 	require.True(t, foundToolMessage,
 		"MCP tool result should be persisted as a tool message in the database")
+}
+
+func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := mcpserver.NewMCPServer("plan-mode-mcp", "1.0.0")
+	mcpSrv.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	var (
+		callCount      atomic.Int32
+		llmToolNames   []string
+		llmToolsMu     sync.Mutex
+		foundMCPResult atomic.Bool
+	)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		if callCount.Add(1) == 1 {
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			llmToolsMu.Lock()
+			llmToolNames = names
+			llmToolsMu.Unlock()
+
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"plan-mode-mcp__echo",
+					`{"input":"hello from root plan mode"}`,
+				),
+			)
+		}
+
+		for _, msg := range req.Messages {
+			if msg.Role == "tool" && strings.Contains(msg.Content, "echo: hello from root plan mode") {
+				foundMCPResult.Store(true)
+			}
+		}
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Planning complete.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Plan Mode MCP",
+		Slug:            "plan-mode-mcp",
+		Url:             mcpTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "plan-mode-mcp-invocation",
+		ModelConfigID:  model.ID,
+		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Use the approved MCP tool while planning."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+	chatResult, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	llmToolsMu.Lock()
+	recordedNames := append([]string(nil), llmToolNames...)
+	llmToolsMu.Unlock()
+	require.Contains(t, recordedNames, "plan-mode-mcp__echo",
+		"approved external MCP tools should be available in root plan mode")
+	require.True(t, foundMCPResult.Load(),
+		"approved external MCP tool results should feed back into the follow-up plan-mode turn")
+}
+
+func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := mcpserver.NewMCPServer("plan-workflow-mcp", "1.0.0")
+	mcpSrv.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	var (
+		callCount          atomic.Int32
+		llmToolNames       []string
+		llmToolsMu         sync.Mutex
+		sawMCPResult       atomic.Bool
+		proposePlanReached atomic.Bool
+	)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		switch callCount.Add(1) {
+		case 1:
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			llmToolsMu.Lock()
+			llmToolNames = names
+			llmToolsMu.Unlock()
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"plan-workflow-mcp__echo",
+					`{"input":"prepare the plan"}`,
+				),
+			)
+		case 2:
+			for _, msg := range req.Messages {
+				if msg.Role == "tool" && strings.Contains(msg.Content, "echo: prepare the plan") {
+					sawMCPResult.Store(true)
+				}
+			}
+			proposePlanReached.Store(true)
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("propose_plan", `{}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("should not continue")...,
+			)
+		}
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Plan Workflow MCP",
+		Slug:            "plan-workflow-mcp",
+		Url:             mcpTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, path string, _, _ int64) (io.ReadCloser, string, error) {
+			if strings.HasSuffix(path, ".md") {
+				return io.NopCloser(strings.NewReader("# Plan\n- Use the approved MCP tool findings.\n")), "", nil
+			}
+			return io.NopCloser(strings.NewReader("")), "", nil
+		}).AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "plan-mode-mcp-propose-plan",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Use the approved MCP tool, then propose the plan."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+	chatResult, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	llmToolsMu.Lock()
+	recordedNames := append([]string(nil), llmToolNames...)
+	llmToolsMu.Unlock()
+	require.Contains(t, recordedNames, "plan-workflow-mcp__echo",
+		"approved external MCP tools should be available in the root plan-mode workflow")
+	require.True(t, sawMCPResult.Load(),
+		"the root plan-mode workflow should feed the approved MCP result into the propose_plan turn")
+	require.True(t, proposePlanReached.Load(),
+		"the root plan-mode workflow should reach propose_plan after using the approved MCP tool")
+	require.Equal(t, int32(2), callCount.Load(),
+		"the workflow should stop immediately after propose_plan succeeds")
+
+	var foundProposePlanResult bool
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			if msg.Role != database.ChatMessageRoleTool {
+				continue
+			}
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "propose_plan" {
+					foundProposePlanResult = true
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.True(t, foundProposePlanResult,
+		"the root plan-mode workflow should persist a propose_plan tool result")
 }
 
 // TestMCPServerOAuth2TokenRefresh verifies that when a chat uses an

@@ -25,6 +25,7 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { deriveMessageDisplayState } from "./messageHelpers";
@@ -88,7 +89,7 @@ export const BlockList: FC<{
 	keyPrefix: string;
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -107,7 +108,7 @@ export const BlockList: FC<{
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
@@ -200,6 +201,7 @@ export const BlockList: FC<{
 									status="running"
 									isError={false}
 									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
 									mcpServers={mcpServers}
 								/>
@@ -215,7 +217,7 @@ export const BlockList: FC<{
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
 								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
+								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
@@ -268,7 +270,7 @@ export const BlockList: FC<{
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
@@ -314,7 +316,7 @@ const ChatMessageItem = memo<{
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -340,7 +342,7 @@ const ChatMessageItem = memo<{
 		urlTransform,
 		mcpServers,
 		subagentTitles,
-		computerUseSubagentIds,
+		subagentVariants,
 		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
@@ -389,7 +391,7 @@ const ChatMessageItem = memo<{
 										tools={parsed.tools}
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
-										computerUseSubagentIds={computerUseSubagentIds}
+										subagentVariants={subagentVariants}
 										showDesktopPreviews={showDesktopPreviews}
 										onImplementPlan={onImplementPlan}
 										onSendAskUserQuestionResponse={
@@ -774,6 +776,7 @@ const StickyUserMessage = memo<{
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -785,7 +788,6 @@ interface ConversationTimelineProps {
 	isChatCompleted?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	isTurnActive?: boolean;
 }
@@ -794,6 +796,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		parsedMessages,
 		subagentTitles,
+		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
 		onImplementPlan,
@@ -801,7 +804,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isChatCompleted,
 		urlTransform,
 		mcpServers,
-		computerUseSubagentIds,
 		showDesktopPreviews,
 	}) => {
 		if (parsedMessages.length === 0) {
@@ -897,7 +899,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							hideActions={!isLastInChain}
 							mcpServers={mcpServers}
 							subagentTitles={subagentTitles}
-							computerUseSubagentIds={computerUseSubagentIds}
+							subagentVariants={subagentVariants}
 							showDesktopPreviews={showDesktopPreviews}
 						/>
 					);

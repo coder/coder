@@ -1,5 +1,12 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
+import {
+	getProvidedSubagentTitle,
+	getSubagentChatId,
+	getSubagentDescriptor,
+	isSubagentToolName,
+	type SubagentVariant,
+} from "../ChatElements/tools/subagentDescriptor";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -17,13 +24,6 @@ const appendText = (current: string, next: string): string => {
 	}
 	return `${current}${next}`;
 };
-
-const isSubagentToolName = (name: string): boolean =>
-	name === "spawn_agent" ||
-	name === "spawn_explore_agent" ||
-	name === "spawn_computer_use_agent" ||
-	name === "wait_agent" ||
-	name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,
@@ -325,51 +325,50 @@ export const parseMessagesWithMergedTools = (
 	return rawParsed;
 };
 
-export const buildSubagentTitles = (
+export const buildSubagentMaps = (
 	parsedMessages: readonly ParsedMessageEntry[],
-): Map<string, string> => {
-	const map = new Map<string, string>();
-	for (const { parsed } of parsedMessages) {
-		for (const tool of parsed.tools) {
-			if (
-				tool.name !== "spawn_agent" &&
-				tool.name !== "spawn_explore_agent" &&
-				tool.name !== "spawn_computer_use_agent"
-			) {
-				continue;
-			}
-			const rec = asRecord(tool.result);
-			if (!rec) {
-				continue;
-			}
-			const chatId = asString(rec.chat_id);
-			const title = asString(rec.title);
-			if (chatId && title) {
-				map.set(chatId, title);
-			}
-		}
-	}
-	return map;
-};
+): {
+	titles: Map<string, string>;
+	variants: Map<string, SubagentVariant>;
+} => {
+	const titles = new Map<string, string>();
+	const variants = new Map<string, SubagentVariant>();
 
-export const buildComputerUseSubagentIds = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): Set<string> => {
-	const ids = new Set<string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "spawn_computer_use_agent") {
+			if (!isSubagentToolName(tool.name)) {
 				continue;
 			}
-			const rec = asRecord(tool.result);
-			if (!rec) {
+
+			const chatId = getSubagentChatId({
+				args: tool.args,
+				result: tool.result,
+			});
+			if (!chatId) {
 				continue;
 			}
-			const chatId = asString(rec.chat_id);
-			if (chatId) {
-				ids.add(chatId);
+
+			const descriptor = getSubagentDescriptor({
+				name: tool.name,
+				args: tool.args,
+				result: tool.result,
+				inferredVariant: variants.get(chatId),
+			});
+			if (!descriptor) {
+				continue;
+			}
+
+			variants.set(chatId, descriptor.variant);
+
+			const providedTitle = getProvidedSubagentTitle({
+				args: tool.args,
+				result: tool.result,
+			});
+			if (providedTitle) {
+				titles.set(chatId, providedTitle);
 			}
 		}
 	}
-	return ids;
+
+	return { titles, variants };
 };

@@ -24,13 +24,17 @@ import type { RetryState } from "./types";
 
 const normalizeChatDetailError = (
 	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => ({
-	message: error?.message.trim() || "Chat processing failed.",
-	kind: error?.kind?.trim() || "generic",
-	provider: error?.provider?.trim() || undefined,
-	retryable: error?.retryable,
-	statusCode: error?.status_code,
-});
+): ChatDetailError => {
+	const detail = error?.detail?.trim();
+	return {
+		message: error?.message.trim() || "Chat processing failed.",
+		kind: error?.kind?.trim() || "generic",
+		provider: error?.provider?.trim() || undefined,
+		retryable: error?.retryable,
+		statusCode: error?.status_code,
+		...(detail ? { detail } : {}),
+	};
+};
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
