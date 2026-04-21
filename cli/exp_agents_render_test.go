@@ -582,6 +582,19 @@ func TestExpAgentsRender(t *testing.T) {
 				require.Contains(t, output, "Changes present but could not be summarized.")
 				require.NotContains(t, output, "No changes detected.")
 			}},
+			{name: "FlagsPartiallyUnparsableMultiRepoDiff", diff: codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n+added line\nTotal diff too large to show. Size: 12 MiB. Showing branch and remote only."}, assert: func(t *testing.T, output string) {
+				// Multi-repo aggregates can legitimately interleave
+				// real `diff --git` chunks from small repos with
+				// agent/agentgit's oversize placeholder for repos
+				// whose UnifiedDiff exceeded maxTotalDiffSize.
+				// renderChatDiffSummary must both count the real
+				// chunks and flag the omitted oversized repo, so
+				// the user is not misled into thinking the files
+				// listed are the whole changeset.
+				require.Contains(t, output, "1 file changed:")
+				require.Contains(t, output, "modified a.txt")
+				require.Contains(t, output, "some repositories omitted")
+			}},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {

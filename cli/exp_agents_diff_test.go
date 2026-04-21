@@ -415,11 +415,11 @@ func TestFetchChatDiffContents(t *testing.T) {
 		// payload that exceeds the client's websocket read limit.
 		// When that happens coder/websocket closes the connection
 		// with StatusMessageTooBig. fetchChatDiffContents must map
-		// that specific close status onto errLocalDiffMessageTooLarge
+		// that specific close status onto errLocalDiffWatchClosed
 		// and fall back to the remote empty diff rather than
 		// surfacing a hard error to the TUI. Without this subtest,
 		// removing the StatusMessageTooBig branch in
-		// fetchLocalChatDiffContents or the errLocalDiffMessageTooLarge
+		// fetchLocalChatDiffContents or the errLocalDiffWatchClosed
 		// branch in shouldIgnoreLocalDiffFallbackError would
 		// silently regress the large-multi-repo case this feature is
 		// meant to improve.
@@ -440,6 +440,50 @@ func TestFetchChatDiffContents(t *testing.T) {
 				_, _, err = conn.Read(ctx)
 				require.NoError(t, err)
 				require.NoError(t, conn.Close(websocket.StatusMessageTooBig, "too big"))
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+		require.Equal(t, chatID, diff.ChatID)
+		require.Empty(t, diff.Diff)
+	})
+
+	t.Run("IgnoresWatcherGoingAwayCloses", func(t *testing.T) {
+		t.Parallel()
+
+		// The coderd watchChatGit proxy always closes the client
+		// stream with StatusGoingAway regardless of why the
+		// upstream agent->coderd hop failed. In particular, when
+		// that hop's 4 MiB read limit (workspacesdk/agentconn.go)
+		// is exceeded, the agent closes its end with
+		// StatusMessageTooBig but the proxy does not propagate
+		// that status, so the client only observes
+		// StatusGoingAway. That is the exact scenario this PR's
+		// 32 MiB client read limit is meant to handle, so the
+		// TUI must degrade to the remote empty diff for
+		// StatusGoingAway just like it does for
+		// StatusMessageTooBig. Without this subtest, narrowing
+		// the close-status match back to StatusMessageTooBig
+		// only would silently regress multi-repo worktrees whose
+		// aggregate Changes payload sits between the 4 MiB
+		// upstream limit and the 32 MiB client limit.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+			case path + "/stream/git":
+				conn, err := websocket.Accept(rw, r, nil)
+				require.NoError(t, err)
+				_, _, err = conn.Read(ctx)
+				require.NoError(t, err)
+				require.NoError(t, conn.Close(websocket.StatusGoingAway, "proxy tear-down"))
 			default:
 				http.NotFound(rw, r)
 			}

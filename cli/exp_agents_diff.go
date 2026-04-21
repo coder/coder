@@ -25,18 +25,32 @@ const localChatDiffWatchTimeout = 5 * time.Second
 // and a Changes payload can aggregate many repos plus metadata, so
 // 4 MiB is too tight for realistic multi-repo worktrees. 32 MiB
 // covers ~10 maxed-out repos; pathological payloads beyond that still
-// fall back to the remote empty diff via
-// errLocalDiffMessageTooLarge / shouldIgnoreLocalDiffFallbackError.
+// fall back to the remote empty diff via errLocalDiffWatchClosed /
+// shouldIgnoreLocalDiffFallbackError.
 const localChatDiffReadLimit = 32 << 20 // 32 MiB
 
-// errLocalDiffMessageTooLarge is returned when the chat git watcher
-// produces a Changes payload that exceeds localChatDiffReadLimit.
-// shouldIgnoreLocalDiffFallbackError treats it as ignorable so the
-// TUI degrades to the remote empty diff rather than surfacing a hard
-// error. Generic websocket close / decode errors are intentionally
-// still surfaced so real protocol regressions do not silently
-// disappear behind the fallback.
-var errLocalDiffMessageTooLarge = xerrors.New("chat git watcher payload exceeded client read limit")
+// errLocalDiffWatchClosed is returned when the chat git watcher
+// websocket closes during the Changes read loop with one of the
+// known-safe close statuses:
+//
+//   - StatusMessageTooBig: the Changes payload exceeded our local
+//     32 MiB client read limit (localChatDiffReadLimit).
+//   - StatusGoingAway: the coderd watchChatGit proxy tore the
+//     client stream down. This is the status the proxy always uses
+//     in coderd/exp_chats.go, so it also covers the upstream 4 MiB
+//     read limit on agent->coderd messages (see
+//     workspacesdk/agentconn.go): when that limit is exceeded the
+//     agent closes with StatusMessageTooBig, but the proxy does not
+//     propagate that status and the client only ever observes
+//     StatusGoingAway.
+//
+// Both cases degrade to the remote empty diff returned by /diff:
+// the local watcher is a supplementary enrichment source that
+// cannot improve on the remote when its stream is cut short. Other
+// close statuses (StatusInternalError, StatusProtocolError, ...)
+// and non-close read errors still surface as hard errors so real
+// protocol regressions are not hidden behind the fallback.
+var errLocalDiffWatchClosed = xerrors.New("chat git watcher connection closed before delivering a Changes message")
 
 func fetchChatDiffContents(
 	ctx context.Context,
@@ -97,7 +111,7 @@ func fetchChatDiffContents(
 // This intentionally bypasses wsjson.NewStream and reads the websocket
 // directly so we can inspect the close status: an oversized Changes
 // payload must degrade to the remote empty diff via
-// errLocalDiffMessageTooLarge + shouldIgnoreLocalDiffFallbackError,
+// errLocalDiffWatchClosed + shouldIgnoreLocalDiffFallbackError,
 // but wsjson.Decoder swallows the read error (logs at debug) and
 // closes the channel, which would collapse that specific case into
 // the same generic "connection closed" bucket as server crashes or
@@ -142,11 +156,22 @@ func fetchLocalChatDiffContents(
 			}
 			// A Changes payload that exceeds localChatDiffReadLimit
 			// causes coder/websocket to close the connection with
-			// StatusMessageTooBig. Surface that as the narrow
-			// sentinel so the caller can fall back to the remote
-			// empty diff instead of surfacing a hard error.
-			if websocket.CloseStatus(err) == websocket.StatusMessageTooBig {
-				return codersdk.ChatDiffContents{}, false, errLocalDiffMessageTooLarge
+			// StatusMessageTooBig. The coderd watchChatGit proxy
+			// also always closes the client with StatusGoingAway
+			// (see coderd/exp_chats.go), which is how we observe
+			// the upstream 4 MiB agent->coderd read-limit breach:
+			// the agent closes its own hop with StatusMessageTooBig,
+			// but the proxy does not propagate that status, so the
+			// client only ever sees StatusGoingAway. Map both onto
+			// the narrow sentinel so shouldIgnoreLocalDiffFallbackError
+			// can degrade to the remote empty diff instead of
+			// surfacing a hard error. Every other close status
+			// (StatusInternalError, StatusProtocolError, ...) and
+			// every non-close read error still propagates so real
+			// protocol regressions reach the user.
+			switch websocket.CloseStatus(err) {
+			case websocket.StatusMessageTooBig, websocket.StatusGoingAway:
+				return codersdk.ChatDiffContents{}, false, errLocalDiffWatchClosed
 			}
 			return codersdk.ChatDiffContents{}, false, xerrors.Errorf("read git watch: %w", err)
 		}
@@ -266,13 +291,13 @@ func shouldIgnoreLocalDiffFallbackError(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	// An oversized Changes payload is a best-effort degradation
-	// point: the remote /diff endpoint already returns the empty
-	// placeholder in this case, so fall back to it instead of
-	// surfacing a hard error. Scoped narrowly to the explicit
-	// StatusMessageTooBig sentinel so generic websocket close /
-	// decode errors still reach the user.
-	if errors.Is(err, errLocalDiffMessageTooLarge) {
+	// A watcher stream closed with StatusMessageTooBig or
+	// StatusGoingAway is a best-effort degradation point: the
+	// remote /diff endpoint already returns the empty placeholder
+	// in this case, so fall back to it instead of surfacing a hard
+	// error. See errLocalDiffWatchClosed for the rationale on why
+	// those two close statuses are safe while others still surface.
+	if errors.Is(err, errLocalDiffWatchClosed) {
 		return true
 	}
 

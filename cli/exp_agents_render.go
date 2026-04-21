@@ -568,6 +568,38 @@ func stripUnifiedDiffPrefix(path string) string {
 	}
 }
 
+// agentgitOversizePlaceholderPrefix matches the literal prefix that
+// agent/agentgit substitutes for a repository's UnifiedDiff when the
+// raw diff exceeds maxTotalDiffSize (3 MiB). See
+// agent/agentgit/agentgit.go. Multi-repo aggregates assembled by
+// buildLocalChatDiffContents can mix real `diff --git` chunks with
+// this placeholder, in which case parseChatGitChangesFromUnifiedDiff
+// returns a non-zero count for the real chunks while silently
+// dropping the placeholder repo. Detecting the prefix separately
+// lets renderChatDiffSummary flag the omission so the user is not
+// misled into thinking the summary is exhaustive. Kept as a local
+// prefix match because the coupling is narrow and the string is
+// stable.
+const agentgitOversizePlaceholderPrefix = "Total diff too large to show. Size:"
+
+// hasOversizedRepoPlaceholder reports whether the combined unified
+// diff contains at least one agentgit oversize-repo placeholder.
+// Matching is scoped to lines that start with the placeholder prefix
+// so a false positive from a diff body that legitimately contains the
+// phrase (e.g. as a `+` added line inside a real patch) cannot
+// trigger the omission notice. agentgit always writes the
+// placeholder as the entire UnifiedDiff for a repo, and
+// buildLocalChatDiffContents joins segments with "\n", so a real
+// placeholder repo always appears on its own line after the join.
+func hasOversizedRepoPlaceholder(diff string) bool {
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, agentgitOversizePlaceholderPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func renderChatDiffSummary(diff codersdk.ChatDiffContents) string {
 	changes := parseChatGitChangesFromUnifiedDiff(diff)
 	if len(changes) == 0 {
@@ -598,6 +630,15 @@ func renderChatDiffSummary(diff codersdk.ChatDiffContents) string {
 			line = fmt.Sprintf("%s (%s)", line, sanitizeTerminalRenderableText(*change.DiffSummary))
 		}
 		lines = append(lines, line)
+	}
+	// A multi-repo aggregate can mix real diff chunks (counted
+	// above) with agentgit's oversize placeholder for repos whose
+	// raw diff exceeds maxTotalDiffSize. The placeholder does not
+	// contribute to the files-changed count because it is not in
+	// `diff --git` format, so without this notice the summary would
+	// silently underreport the changeset.
+	if hasOversizedRepoPlaceholder(diff.Diff) {
+		lines = append(lines, "  (some repositories omitted: diff too large to summarize)")
 	}
 	return strings.Join(lines, "\n")
 }
