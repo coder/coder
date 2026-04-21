@@ -8,7 +8,7 @@ linters-settings:
 
   depguard:
     rules:
-      aibridge_boundary:
+      aibridge_import_isolation:
         list-mode: lax
         files:
           - "aibridge/*.go"
