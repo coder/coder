@@ -702,8 +702,8 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByText("Agent admin"));
-		await userEvent.click(screen.getByText("Spend"));
+		await userEvent.click(screen.getByRole("link", { name: "Agent admin" }));
+		await userEvent.click(screen.getByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -713,9 +713,13 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Step back to the top-level settings panel, then back to conversations.
-		const backToSettingsButton = screen.getByLabelText("Back to Settings");
+		const backToSettingsButton = screen.getByRole("link", {
+			name: "Back to Settings",
+		});
 		await userEvent.click(backToSettingsButton);
-		const backToAgentsButton = screen.getByLabelText("Back to Agents");
+		const backToAgentsButton = screen.getByRole("link", {
+			name: "Back to Agents",
+		});
 		await userEvent.click(backToAgentsButton);
 
 		// Re-open settings, should reset to General
