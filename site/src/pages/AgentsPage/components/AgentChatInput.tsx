@@ -453,7 +453,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (!composerElement) return;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const bottom = window.innerHeight - rect.top - 68;
+			const bottom = Math.max(0, window.innerHeight - rect.bottom);
 			document.documentElement.style.setProperty(
 				"--mobile-dropdown-bottom",
 				`${bottom}px`,
@@ -462,8 +462,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		update();
 		const ro = new ResizeObserver(update);
 		ro.observe(composerElement);
+		window.addEventListener("resize", update);
+		const viewport = window.visualViewport;
+		viewport?.addEventListener("resize", update);
+		viewport?.addEventListener("scroll", update);
 		return () => {
 			ro.disconnect();
+			window.removeEventListener("resize", update);
+			viewport?.removeEventListener("resize", update);
+			viewport?.removeEventListener("scroll", update);
 			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
 		};
 	}, [composerElement]);
