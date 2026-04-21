@@ -123,6 +123,38 @@ func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Co
 	return s.Store.GetChatSystemPromptConfig(ctx)
 }
 
+type failNextUpdateChatModelConfigStore struct {
+	database.Store
+
+	failNextUpdateChatModelConfig *atomic.Bool
+}
+
+func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
+	return &failNextUpdateChatModelConfigStore{
+		Store:                         store,
+		failNextUpdateChatModelConfig: &atomic.Bool{},
+	}
+}
+
+func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextUpdateChatModelConfigStore{
+			Store:                         tx,
+			failNextUpdateChatModelConfig: s.failNextUpdateChatModelConfig,
+		})
+	}, txOpts)
+}
+
+func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
+	ctx context.Context,
+	arg database.UpdateChatModelConfigParams,
+) (database.ChatModelConfig, error) {
+	if s.failNextUpdateChatModelConfig.CompareAndSwap(true, false) {
+		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	return s.Store.UpdateChatModelConfig(ctx, arg)
+}
+
 func requireChatUsageLimitExceededError(
 	t *testing.T,
 	err error,
@@ -2653,6 +2685,80 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.Empty(t, userKeys)
 	})
 
+	t.Run("SuccessWithHistoricalChatsAndNoReplacementConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "only-provider-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		isDefault := true
+		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     provider.Provider,
+			Model:        "gpt-4o-only-provider",
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+		})
+		require.NoError(t, err)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			ModelConfigID:  ptr.Ref(config.ID),
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "only provider delete history " + t.Name(),
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, config.ID, chat.LastModelConfigID)
+
+		insertAssistantCostMessage(ctx, t, db, chat.ID, config.ID, 250)
+
+		err = client.DeleteChatProvider(ctx, provider.ID)
+		require.NoError(t, err)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+		for _, listed := range providers {
+			require.NotEqual(t, provider.ID, listed.ID)
+		}
+
+		_, err = db.GetChatProviderByID(dbauthz.AsSystemRestricted(ctx), provider.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		_, err = db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), config.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		_, err = db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx))
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Empty(t, configs)
+
+		gotChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, config.ID, gotChat.LastModelConfigID)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		foundHistoricalMessage := false
+		for _, message := range messages.Messages {
+			if message.ModelConfigID != nil && *message.ModelConfigID == config.ID {
+				foundHistoricalMessage = true
+				break
+			}
+		}
+		require.True(t, foundHistoricalMessage)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -3640,6 +3746,28 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Chat provider is not configured.", sdkErr.Message)
+	})
+
+	t.Run("NotFoundWhenTargetRowDisappearsInTx", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		store.failNextUpdateChatModelConfig.Store(true)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "missing in tx",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

@@ -5934,6 +5934,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
+		case xerrors.Is(err, sql.ErrNoRows):
+			httpapi.ResourceNotFound(rw)
+			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update chat model config.",
