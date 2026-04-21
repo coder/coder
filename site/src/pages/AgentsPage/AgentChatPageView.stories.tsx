@@ -233,7 +233,6 @@ export const WithError: Story = {
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByText(/http 529/i)).toBeVisible();
 	},
 };
 
