@@ -950,9 +950,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								showDesktopPreviews={showDesktopPreviews}
 							/>
 						);
-						})}
-					</div>
-				</ExpiredFileIdsProvider>
+					})}
+				</div>
+			</ExpiredFileIdsProvider>
 		);
 	},
 );
