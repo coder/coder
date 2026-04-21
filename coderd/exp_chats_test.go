@@ -123,10 +123,14 @@ func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Co
 	return s.Store.GetChatSystemPromptConfig(ctx)
 }
 
+// failNextUpdateChatModelConfigStore shares its failure state across InTx
+// wrappers so tests can force a specific in-transaction model-config update to
+// return sql.ErrNoRows.
 type failNextUpdateChatModelConfigStore struct {
 	database.Store
 
-	failNextUpdateChatModelConfig *atomic.Bool
+	failNextUpdateChatModelConfig   *atomic.Bool
+	failNextUpdateChatModelConfigID uuid.UUID
 }
 
 func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
@@ -139,8 +143,9 @@ func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdate
 func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
 		return function(&failNextUpdateChatModelConfigStore{
-			Store:                         tx,
-			failNextUpdateChatModelConfig: s.failNextUpdateChatModelConfig,
+			Store:                           tx,
+			failNextUpdateChatModelConfig:   s.failNextUpdateChatModelConfig,
+			failNextUpdateChatModelConfigID: s.failNextUpdateChatModelConfigID,
 		})
 	}, txOpts)
 }
@@ -149,7 +154,8 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 	ctx context.Context,
 	arg database.UpdateChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
-	if s.failNextUpdateChatModelConfig.CompareAndSwap(true, false) {
+	if arg.ID == s.failNextUpdateChatModelConfigID &&
+		s.failNextUpdateChatModelConfig.CompareAndSwap(true, false) {
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
@@ -3762,12 +3768,53 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
+		store.failNextUpdateChatModelConfigID = modelConfig.ID
 		store.failNextUpdateChatModelConfig.Store(true)
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "missing in tx",
 		})
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("InternalServerErrorWhenDefaultCandidateDisappearsInTx", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "anthropic",
+			APIKey:   "candidate-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		isDefault := false
+		candidateConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			Model:        "claude-3-5-sonnet",
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+		})
+		require.NoError(t, err)
+
+		store.failNextUpdateChatModelConfigID = candidateConfig.ID
+		store.failNextUpdateChatModelConfig.Store(true)
+
+		_, err = client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+		require.Equal(t, "Failed to update chat model config.", sdkErr.Message)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

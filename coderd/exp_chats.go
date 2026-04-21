@@ -5897,6 +5897,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
 			return err
 		}
 
@@ -5915,6 +5918,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				// Do not wrap with %w. The outer handler maps target misses to 404.
+				return xerrors.Errorf("refresh updated chat model config: %v", err)
+			}
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
 		updated = refreshedConfig
@@ -5934,7 +5941,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case xerrors.Is(err, sql.ErrNoRows):
+		case xerrors.Is(err, errChatModelConfigNotFound):
 			httpapi.ResourceNotFound(rw)
 			return
 		default:
@@ -6037,6 +6044,11 @@ func ensureDefaultChatModelConfig(
 	params := chatModelConfigToUpdateParams(candidateConfig)
 	params.IsDefault = true
 	if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Do not wrap with %w. Callers map target misses to 404, but a
+			// default-candidate race is an internal retryable failure.
+			return xerrors.Errorf("set default model config: %v", err)
+		}
 		return xerrors.Errorf("set default model config: %w", err)
 	}
 	return nil
@@ -6326,8 +6338,14 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
-var errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+var (
+	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
+	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+)
 
+// requireChatProviderForModelConfig takes a FOR UPDATE lock on the provider
+// row to serialize model-config writes with deleteChatProvider. Do not swap
+// this call for the non-locking provider lookup.
 func requireChatProviderForModelConfig(
 	ctx context.Context,
 	tx database.Store,
