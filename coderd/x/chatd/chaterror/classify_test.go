@@ -603,7 +603,7 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	))
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "The AI provider returned an unexpected error.",
+		Message:    "The AI provider returned an unexpected error (HTTP 400).",
 		Detail:     "Image exceeds 5 MB maximum.",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "",
