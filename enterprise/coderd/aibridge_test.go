@@ -755,7 +755,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		})
 
 		// Session 3: Standalone interception (no client_session_id, no thread_root_id).
-		// No prompt — last_active_at falls back to started_at.
+		// No prompt; last_active_at falls back to started_at.
 		s3EndedAt := now.Add(-2*time.Hour + time.Minute)
 		s3i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -1617,7 +1617,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			CreatedAt:      now,
 		})
 
-		// Session B: no prompt at all — exercises the MIN(started_at) fallback.
+		// Session B: no prompt at all, exercises the MIN(started_at) fallback.
 		bEndedAt := now.Add(time.Minute)
 		bInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
