@@ -1104,11 +1104,20 @@ const AgentChatPage: FC = () => {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
+		scrollToBottomRef.current?.();
+		onChatReady();
+		let settleFrame: number | null = null;
 		const frame = requestAnimationFrame(() => {
-			scrollToBottomRef.current?.();
-			onChatReady();
+			settleFrame = requestAnimationFrame(() => {
+				scrollToBottomRef.current?.();
+			});
 		});
-		return () => cancelAnimationFrame(frame);
+		return () => {
+			cancelAnimationFrame(frame);
+			if (settleFrame !== null) {
+				cancelAnimationFrame(settleFrame);
+			}
+		};
 	}, [
 		onChatReady,
 		storeMessageCount,

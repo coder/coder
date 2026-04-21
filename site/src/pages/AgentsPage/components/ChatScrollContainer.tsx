@@ -134,6 +134,15 @@ function useChatViewportController({
 		}
 	});
 
+	const pinToLatest = useEffectEvent(() => {
+		const container = scrollElementRef.current;
+		if (!container) {
+			return;
+		}
+		container.scrollTop = container.scrollHeight;
+		previousScrollTopRef.current = container.scrollTop;
+	});
+
 	const scheduleDeferredPinToLatest = useEffectEvent((frames: number) => {
 		cancelDeferredPin();
 		const step = (remainingFrames: number) => {
@@ -142,8 +151,7 @@ function useChatViewportController({
 				deferredPinFrameRef.current = null;
 				return;
 			}
-			container.scrollTop = container.scrollHeight;
-			previousScrollTopRef.current = container.scrollTop;
+			pinToLatest();
 			if (remainingFrames <= 0) {
 				deferredPinFrameRef.current = null;
 				return;
@@ -210,6 +218,19 @@ function useChatViewportController({
 		requestAnimationFrame(() => {
 			isRestoringRef.current = false;
 		});
+	});
+
+	const syncViewportToCurrentMode = useEffectEvent(() => {
+		if (modeRef.current === "following-latest") {
+			if (isPointerDownRef.current || isTouchActiveRef.current) {
+				return;
+			}
+			anchorRef.current = null;
+			isProgrammaticScrollRef.current = false;
+			pinToLatest();
+			return;
+		}
+		restoreAnchor();
 	});
 
 	useEffect(() => {
@@ -386,6 +407,20 @@ function useChatViewportController({
 			return;
 		}
 
+		// WebKit can paint one frame of stale scroll geometry after transcript
+		// commits or parent layout shifts before ResizeObserver delivers. Apply
+		// the current scroll policy during layout so pinned and detached views do
+		// not visibly jump between React-driven commits.
+		syncViewportToCurrentMode();
+	});
+
+	useLayoutEffect(() => {
+		const scrollElement = scrollElementRef.current;
+		const contentElement = contentElementRef.current;
+		if (!scrollElement || !contentElement) {
+			return;
+		}
+
 		previousContentHeightRef.current =
 			contentElement.getBoundingClientRect().height;
 		if (modeRef.current === "following-latest") {
@@ -393,6 +428,20 @@ function useChatViewportController({
 			isProgrammaticScrollRef.current = false;
 			scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
 		}
+
+		const mutationObserver = new MutationObserver(() => {
+			// Reading the content box here forces WebKit to resolve layout before
+			// we decide whether to pin or restore, which avoids a one-frame gap
+			// after transcript mutations.
+			previousContentHeightRef.current =
+				contentElement.getBoundingClientRect().height;
+			syncViewportToCurrentMode();
+		});
+		mutationObserver.observe(contentElement, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+		});
 
 		const resizeObserver = new ResizeObserver(() => {
 			const nextHeight = contentElement.getBoundingClientRect().height;
@@ -414,7 +463,10 @@ function useChatViewportController({
 		});
 		resizeObserver.observe(contentElement);
 		resizeObserver.observe(scrollElement);
-		return () => resizeObserver.disconnect();
+		return () => {
+			mutationObserver.disconnect();
+			resizeObserver.disconnect();
+		};
 	}, []);
 
 	useEffect(() => {
