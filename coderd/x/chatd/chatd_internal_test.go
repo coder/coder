@@ -287,6 +287,99 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 // TestArchiveChatWaitsForEveryInterruptedChat were removed along with
 // the process-local activeChats mechanism. Archive cleanup is now
 // best-effort; stale finalization handles any orphaned rows.
+
+func TestRenameChatTitle(t *testing.T) {
+	t.Parallel()
+
+	setupRealWorkerLock := func(
+		db *dbmock.MockStore,
+		chatID uuid.UUID,
+		lockedChat database.Chat,
+	) {
+		lockTx := dbmock.NewMockStore(gomock.NewController(t))
+		unlockTx := dbmock.NewMockStore(gomock.NewController(t))
+		gomock.InOrder(
+			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(lockTx)
+				},
+			),
+			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(unlockTx)
+				},
+			),
+		)
+		lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+		unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+	}
+
+	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		chatID := uuid.New()
+		workerID := uuid.New()
+		stored := database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			Title:    "original",
+		}
+		updated := stored
+		updated.Title = "renamed"
+
+		server := &Server{db: db, logger: logger}
+
+		setupRealWorkerLock(db, chatID, stored)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+			ID:    chatID,
+			Title: "renamed",
+		}).Return(updated, nil)
+
+		got, wrote, err := server.RenameChatTitle(ctx, stored, "renamed")
+		require.NoError(t, err)
+		require.True(t, wrote, "fresh rename must report wrote=true")
+		require.Equal(t, updated, got)
+	})
+
+	t.Run("SkipsWriteWhenAlreadyAtNewTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		chatID := uuid.New()
+		workerID := uuid.New()
+		stale := database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			Title:    "pre-race",
+		}
+		landed := stale
+		landed.Title = "landed-concurrently"
+
+		server := &Server{db: db, logger: logger}
+
+		setupRealWorkerLock(db, chatID, landed)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
+
+		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
+		require.NoError(t, err)
+		require.False(t, wrote,
+			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
+		require.Equal(t, landed, got)
+	})
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
