@@ -41,7 +41,7 @@ const BREADCRUMB_SEGMENT_CLASS = cn(
 	"flex items-center flex-row flex-nowrap gap-2",
 	"max-w-40 whitespace-nowrap cursor-default",
 );
-const BREADCRUMB_TEXT_CLASS = cn("overflow-x-hidden text-ellipsis");
+const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
 interface WorkspaceTopbarProps {
 	isUpdating: boolean;
