@@ -238,7 +238,6 @@ export const StartError: Story = {
 export const StartErrorWithTimings: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
 
 		const scriptTab = await canvas.findByRole("tab", {
 			name: "Startup Script",
@@ -251,7 +250,7 @@ export const StartErrorWithTimings: Story = {
 		agent: {
 			...M.MockWorkspaceAgentStartError,
 			logs_length: 2,
-			log_sources: [M.MockWorkspaceAgentLogSource, startupScriptLogSource],
+			log_sources: [startupScriptLogSource],
 		},
 		agentScriptTimings: [
 			{
