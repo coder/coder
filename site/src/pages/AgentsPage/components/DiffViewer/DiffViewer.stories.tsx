@@ -468,11 +468,11 @@ export const LargeDiff: Story = {
 		// file that is NOT the very first one in the list.
 		await waitFor(() => {
 			const activeBtn = canvasElement.querySelector<HTMLElement>(
-				"nav button.border-content-link",
+				'nav button[aria-current="true"]',
 			);
 			expect(activeBtn).not.toBeNull();
-			// The first file is src/module0.ts, so after scrolling to
-			// the middle the active highlight should be elsewhere.
+			// First file is src/module0.ts; scrolling to the middle should
+			// move the active highlight elsewhere.
 			expect(activeBtn!.title).not.toBe("src/module0.ts");
 		});
 	},

@@ -325,6 +325,7 @@ function FileTreeNodeViewInner({
 	return (
 		<button
 			type="button"
+			aria-current={isActive ? "true" : undefined}
 			onClick={() => onFileClick(node.fullPath)}
 			className={cn(
 				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer outline-none border-0 border-r-2 border-solid border-transparent",
