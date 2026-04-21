@@ -1,5 +1,5 @@
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import { type FC, type ReactEventHandler, useEffect, useRef } from "react";
+import type { FC, ReactEventHandler } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -7,6 +7,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { useLatestAbortController } from "../hooks/useLatestAbortController";
+import { isAbortError } from "../utils/chatAttachments";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
@@ -56,11 +58,7 @@ export const AttachmentPreview: FC<{
 	onTextPreview,
 	onInlineText,
 }) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
+	const textAttachmentRequest = useLatestAbortController();
 
 	if (attachments.length === 0) return null;
 
@@ -68,20 +66,18 @@ export const AttachmentPreview: FC<{
 		content: string | undefined,
 		fileId: string | undefined,
 	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
+		textAttachmentRequest.abort();
 		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
 			return content;
 		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
+		const controller = textAttachmentRequest.start();
 		try {
 			const result = await fetchTextAttachmentContent(
 				fileId,
 				controller.signal,
 			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
+			if (!textAttachmentRequest.clear(controller)) {
+				return undefined;
 			}
 			if (result.kind === "loaded") {
 				return result.content;
@@ -89,10 +85,10 @@ export const AttachmentPreview: FC<{
 			console.warn("Failed to load text attachment:", result);
 			return undefined;
 		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
+			if (!textAttachmentRequest.clear(controller)) {
+				return undefined;
 			}
-			if (err instanceof Error && err.name === "AbortError") {
+			if (isAbortError(err)) {
 				return undefined;
 			}
 			console.warn("Failed to load text attachment:", err);

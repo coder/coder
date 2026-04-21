@@ -1,17 +1,23 @@
 import { AlertTriangleIcon, FileTextIcon } from "lucide-react";
-import { type FC, Fragment, useEffect, useRef, useState } from "react";
+import { type FC, Fragment, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
+	attachmentFailureFromError,
+	getChatFileURL,
+	isAbortError,
+	probeAttachmentFailure,
+} from "../../utils/chatAttachments";
+import {
 	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
-	probeAttachmentFailure,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
 import { Message, MessageContent } from "../ChatElements";
@@ -85,17 +91,7 @@ const TextAttachmentButton: FC<{
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
 	);
-	const controllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => controllerRef.current?.abort();
-	}, []);
-
-	useEffect(() => {
-		if (isKnownExpired) {
-			controllerRef.current?.abort();
-		}
-	}, [isKnownExpired]);
+	const request = useLatestAbortController(isKnownExpired);
 
 	if (failureState.kind === "expired" || isKnownExpired) {
 		return (
@@ -126,16 +122,13 @@ const TextAttachmentButton: FC<{
 					return;
 				}
 
-				controllerRef.current?.abort();
-				const controller = new AbortController();
-				controllerRef.current = controller;
+				const controller = request.start();
 
 				void fetchTextAttachmentContent(fileId, controller.signal)
 					.then((result) => {
-						if (controllerRef.current !== controller) {
+						if (!request.clear(controller)) {
 							return;
 						}
-						controllerRef.current = null;
 						if (result.kind === "loaded") {
 							setContent(result.content);
 							onPreview?.(result.content);
@@ -147,17 +140,14 @@ const TextAttachmentButton: FC<{
 						setFailureState(result);
 					})
 					.catch((error) => {
-						if (controllerRef.current === controller) {
-							controllerRef.current = null;
+						if (!request.clear(controller)) {
+							return;
 						}
-						if (error instanceof Error && error.name === "AbortError") {
+						if (isAbortError(error)) {
 							return;
 						}
 						console.warn("Failed to load text attachment:", error);
-						setFailureState({
-							kind: "failed",
-							detail: error instanceof Error ? error.message : undefined,
-						});
+						setFailureState(attachmentFailureFromError(error));
 					});
 			}}
 		/>
@@ -218,17 +208,7 @@ const ChatImageBlock: FC<{
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
 	);
-	const probeControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => probeControllerRef.current?.abort();
-	}, []);
-
-	useEffect(() => {
-		if (isKnownExpired) {
-			probeControllerRef.current?.abort();
-		}
-	}, [isKnownExpired]);
+	const probeRequest = useLatestAbortController(isKnownExpired);
 
 	if (failureState.kind === "expired" || isKnownExpired) {
 		return (
@@ -271,9 +251,7 @@ const ChatImageBlock: FC<{
 						return;
 					}
 
-					probeControllerRef.current?.abort();
-					const controller = new AbortController();
-					probeControllerRef.current = controller;
+					const controller = probeRequest.start();
 					// Optimistically swap to the generic failure tile. The
 					// probe will either upgrade it to "expired" or fill in
 					// a detail; showing a tile without a label flash is
@@ -282,27 +260,22 @@ const ChatImageBlock: FC<{
 
 					void probeAttachmentFailure(source.src, controller.signal)
 						.then((reason) => {
-							if (probeControllerRef.current !== controller) {
+							if (!probeRequest.clear(controller)) {
 								return;
 							}
-							probeControllerRef.current = null;
 							if (reason.kind === "expired") {
 								markExpired(source.fileId);
 							}
 							setFailureState(reason);
 						})
 						.catch((error) => {
-							if (probeControllerRef.current !== controller) {
+							if (!probeRequest.clear(controller)) {
 								return;
 							}
-							probeControllerRef.current = null;
-							if (error instanceof Error && error.name === "AbortError") {
+							if (isAbortError(error)) {
 								return;
 							}
-							setFailureState({
-								kind: "failed",
-								detail: error instanceof Error ? error.message : undefined,
-							});
+							setFailureState(attachmentFailureFromError(error));
 						});
 				}}
 			/>
@@ -340,7 +313,7 @@ export const FileBlock: FC<{
 		? {
 				kind: "file",
 				fileId: block.file_id,
-				src: `/api/experimental/chats/files/${block.file_id}`,
+				src: getChatFileURL(block.file_id),
 			}
 		: {
 				kind: "inline",
