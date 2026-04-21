@@ -406,6 +406,85 @@ func TestFetchChatDiffContents(t *testing.T) {
 		require.Equal(t, remotePR, *diff.PullRequestURL)
 	})
 
+	t.Run("IgnoresWatcherMessageTooBigCloses", func(t *testing.T) {
+		t.Parallel()
+
+		// agentgit caps each repository's UnifiedDiff at ~3 MiB and a
+		// Changes payload aggregates every repo plus metadata, so a
+		// realistic multi-repo workspace can legitimately produce a
+		// payload that exceeds the client's websocket read limit.
+		// When that happens coder/websocket closes the connection
+		// with StatusMessageTooBig. fetchChatDiffContents must map
+		// that specific close status onto errLocalDiffMessageTooLarge
+		// and fall back to the remote empty diff rather than
+		// surfacing a hard error to the TUI. Without this subtest,
+		// removing the StatusMessageTooBig branch in
+		// fetchLocalChatDiffContents or the errLocalDiffMessageTooLarge
+		// branch in shouldIgnoreLocalDiffFallbackError would
+		// silently regress the large-multi-repo case this feature is
+		// meant to improve.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+			case path + "/stream/git":
+				conn, err := websocket.Accept(rw, r, nil)
+				require.NoError(t, err)
+				// Drain the refresh before closing so the client
+				// surfaces the close status from its next Read, not
+				// an unrelated write error.
+				_, _, err = conn.Read(ctx)
+				require.NoError(t, err)
+				require.NoError(t, conn.Close(websocket.StatusMessageTooBig, "too big"))
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+		require.Equal(t, chatID, diff.ChatID)
+		require.Empty(t, diff.Diff)
+	})
+
+	t.Run("SurfacesUnexpectedWatcherCloseErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// The StatusMessageTooBig fallback is intentionally narrow:
+		// a generic websocket close (for example the server
+		// crashing and closing with StatusInternalError) should
+		// surface as an error rather than silently degrading,
+		// because that would hide real protocol regressions behind
+		// the best-effort fallback. This subtest pins that
+		// distinction so a future attempt to blanket-ignore every
+		// close reason immediately breaks the test.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+			case path + "/stream/git":
+				conn, err := websocket.Accept(rw, r, nil)
+				require.NoError(t, err)
+				_, _, err = conn.Read(ctx)
+				require.NoError(t, err)
+				require.NoError(t, conn.Close(websocket.StatusInternalError, "boom"))
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		_, err := fetchChatDiffContents(ctx, client, chatID)
+		require.Error(t, err)
+	})
+
 	t.Run("ReturnsRemoteDiffWithoutDialingWatcher", func(t *testing.T) {
 		t.Parallel()
 

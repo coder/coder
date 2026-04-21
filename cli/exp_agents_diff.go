@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,11 +14,29 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
 
 const localChatDiffWatchTimeout = 5 * time.Second
+
+// localChatDiffReadLimit bounds the size of the Changes message the
+// client is willing to receive from the chat git watcher. agentgit
+// caps each repository's UnifiedDiff at ~3 MiB (maxTotalDiffSize),
+// and a Changes payload can aggregate many repos plus metadata, so
+// 4 MiB is too tight for realistic multi-repo worktrees. 32 MiB
+// covers ~10 maxed-out repos; pathological payloads beyond that still
+// fall back to the remote empty diff via
+// errLocalDiffMessageTooLarge / shouldIgnoreLocalDiffFallbackError.
+const localChatDiffReadLimit = 32 << 20 // 32 MiB
+
+// errLocalDiffMessageTooLarge is returned when the chat git watcher
+// produces a Changes payload that exceeds localChatDiffReadLimit.
+// shouldIgnoreLocalDiffFallbackError treats it as ignorable so the
+// TUI degrades to the remote empty diff rather than surfacing a hard
+// error. Generic websocket close / decode errors are intentionally
+// still surfaced so real protocol regressions do not silently
+// disappear behind the fallback.
+var errLocalDiffMessageTooLarge = xerrors.New("chat git watcher payload exceeded client read limit")
 
 func fetchChatDiffContents(
 	ctx context.Context,
@@ -74,6 +93,17 @@ func fetchChatDiffContents(
 // exactly one contributing repository. The caller uses singleRepo to
 // decide whether it is safe to backfill remote-only metadata onto the
 // local diff. All error paths return singleRepo=false.
+//
+// This intentionally bypasses wsjson.NewStream and reads the websocket
+// directly so we can inspect the close status: an oversized Changes
+// payload must degrade to the remote empty diff via
+// errLocalDiffMessageTooLarge + shouldIgnoreLocalDiffFallbackError,
+// but wsjson.Decoder swallows the read error (logs at debug) and
+// closes the channel, which would collapse that specific case into
+// the same generic "connection closed" bucket as server crashes or
+// decode failures. Reading directly lets us narrowly fall back only
+// for read-limit violations while still surfacing real protocol
+// regressions.
 func fetchLocalChatDiffContents(
 	parentCtx context.Context,
 	client *codersdk.ExperimentalClient,
@@ -89,41 +119,57 @@ func fetchLocalChatDiffContents(
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
-	conn.SetReadLimit(1 << 22) // 4MiB
+	conn.SetReadLimit(localChatDiffReadLimit)
 
-	stream := wsjson.NewStream[
-		codersdk.WorkspaceAgentGitServerMessage,
-		codersdk.WorkspaceAgentGitClientMessage,
-	](conn, websocket.MessageText, websocket.MessageText, client.Logger())
-	if err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+	refreshPayload, err := json.Marshal(codersdk.WorkspaceAgentGitClientMessage{
 		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
-	}); err != nil {
+	})
+	if err != nil {
+		return codersdk.ChatDiffContents{}, false, xerrors.Errorf("marshal git refresh: %w", err)
+	}
+	if err := conn.Write(ctx, websocket.MessageText, refreshPayload); err != nil {
 		return codersdk.ChatDiffContents{}, false, xerrors.Errorf("request git refresh: %w", err)
 	}
 
-	messages := stream.Chan()
 	for {
-		select {
-		case <-ctx.Done():
-			return codersdk.ChatDiffContents{}, false, xerrors.Errorf("watch chat git: %w", ctx.Err())
-		case msg, ok := <-messages:
-			if !ok {
-				if ctx.Err() != nil {
-					return codersdk.ChatDiffContents{}, false, xerrors.Errorf("watch chat git: %w", ctx.Err())
-				}
-				return codersdk.ChatDiffContents{}, false, xerrors.New("git watch connection closed")
+		msgType, payload, err := conn.Read(ctx)
+		if err != nil {
+			// Context expiration gets its own wrapping so it threads
+			// cleanly through shouldIgnoreLocalDiffFallbackError's
+			// context.DeadlineExceeded case.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return codersdk.ChatDiffContents{}, false, xerrors.Errorf("watch chat git: %w", ctxErr)
 			}
-			switch msg.Type {
-			case codersdk.WorkspaceAgentGitServerMessageTypeError:
-				message := strings.TrimSpace(msg.Message)
-				if message == "" {
-					message = "git watch returned an unknown error"
-				}
-				return codersdk.ChatDiffContents{}, false, xerrors.New(message)
-			case codersdk.WorkspaceAgentGitServerMessageTypeChanges:
-				diff, singleRepo := buildLocalChatDiffContents(chatID, msg.Repositories)
-				return diff, singleRepo, nil
+			// A Changes payload that exceeds localChatDiffReadLimit
+			// causes coder/websocket to close the connection with
+			// StatusMessageTooBig. Surface that as the narrow
+			// sentinel so the caller can fall back to the remote
+			// empty diff instead of surfacing a hard error.
+			if websocket.CloseStatus(err) == websocket.StatusMessageTooBig {
+				return codersdk.ChatDiffContents{}, false, errLocalDiffMessageTooLarge
 			}
+			return codersdk.ChatDiffContents{}, false, xerrors.Errorf("read git watch: %w", err)
+		}
+		// Ignore unexpected frame types instead of erroring; the
+		// watcher only emits text frames today and a future binary
+		// heartbeat should not break the overlay.
+		if msgType != websocket.MessageText {
+			continue
+		}
+		var msg codersdk.WorkspaceAgentGitServerMessage
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			return codersdk.ChatDiffContents{}, false, xerrors.Errorf("decode git watch message: %w", err)
+		}
+		switch msg.Type {
+		case codersdk.WorkspaceAgentGitServerMessageTypeError:
+			message := strings.TrimSpace(msg.Message)
+			if message == "" {
+				message = "git watch returned an unknown error"
+			}
+			return codersdk.ChatDiffContents{}, false, xerrors.New(message)
+		case codersdk.WorkspaceAgentGitServerMessageTypeChanges:
+			diff, singleRepo := buildLocalChatDiffContents(chatID, msg.Repositories)
+			return diff, singleRepo, nil
 		}
 	}
 }
@@ -218,6 +264,15 @@ func buildLocalChatDiffContents(
 
 func shouldIgnoreLocalDiffFallbackError(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// An oversized Changes payload is a best-effort degradation
+	// point: the remote /diff endpoint already returns the empty
+	// placeholder in this case, so fall back to it instead of
+	// surfacing a hard error. Scoped narrowly to the explicit
+	// StatusMessageTooBig sentinel so generic websocket close /
+	// decode errors still reach the user.
+	if errors.Is(err, errLocalDiffMessageTooLarge) {
 		return true
 	}
 
