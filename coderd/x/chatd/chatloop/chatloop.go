@@ -1155,7 +1155,13 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		label := toolLabel(tc.ToolName, builtinToolNames)
+		label := tc.ToolName
+		switch {
+		case label == "":
+			label = "unknown"
+		case !builtinToolNames[label]:
+			label = "mcp:" + label
+		}
 		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, label).Observe(
 			float64(ToolResultSize(result)),
 		)

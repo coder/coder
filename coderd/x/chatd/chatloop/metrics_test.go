@@ -382,6 +382,34 @@ func TestRecordStreamBufferDropped(t *testing.T) {
 	})
 }
 
+// requireCounter gathers metrics from reg, finds the named counter
+// family, and asserts it has exactly one series with the given value
+// and labels.
+func requireCounter(t *testing.T, reg *prometheus.Registry, name string, wantValue float64, wantLabels map[string]string) {
+	t.Helper()
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		require.Len(t, f.GetMetric(), 1, "expected exactly one series for %s", name)
+		metric := f.GetMetric()[0]
+		assert.Equal(t, wantValue, metric.GetCounter().GetValue(), "counter value for %s", name)
+		labels := map[string]string{}
+		for _, lp := range metric.GetLabel() {
+			labels[lp.GetName()] = lp.GetValue()
+		}
+		for k, v := range wantLabels {
+			assert.Equal(t, v, labels[k], "label %s for %s", k, name)
+		}
+		return
+	}
+	t.Fatalf("metric %s not found in gathered families", name)
+}
+
 func TestRecordToolError(t *testing.T) {
 	t.Parallel()
 
@@ -398,27 +426,11 @@ func TestRecordToolError(t *testing.T) {
 		m := chatloop.NewMetrics(reg)
 		m.RecordToolError("test-provider", "test-model", "read_file")
 
-		families, err := reg.Gather()
-		require.NoError(t, err)
-
-		var found bool
-		for _, f := range families {
-			if f.GetName() != "coderd_chatd_tool_errors_total" {
-				continue
-			}
-			found = true
-			require.Len(t, f.GetMetric(), 1)
-			metric := f.GetMetric()[0]
-			assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-			labels := map[string]string{}
-			for _, lp := range metric.GetLabel() {
-				labels[lp.GetName()] = lp.GetValue()
-			}
-			assert.Equal(t, "test-provider", labels["provider"])
-			assert.Equal(t, "test-model", labels["model"])
-			assert.Equal(t, "read_file", labels["tool_name"])
-		}
-		assert.True(t, found, "tool_errors_total metric not found")
+		requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+			"provider":  "test-provider",
+			"model":     "test-model",
+			"tool_name": "read_file",
+		})
 	})
 }
 
@@ -704,25 +716,9 @@ func TestRun_ToolError_RecordsMetric(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	families, err := reg.Gather()
-	require.NoError(t, err)
-
-	var found bool
-	for _, f := range families {
-		if f.GetName() != "coderd_chatd_tool_errors_total" {
-			continue
-		}
-		found = true
-		require.Len(t, f.GetMetric(), 1)
-		metric := f.GetMetric()[0]
-		assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-		labels := map[string]string{}
-		for _, lp := range metric.GetLabel() {
-			labels[lp.GetName()] = lp.GetValue()
-		}
-		assert.Equal(t, "test-provider", labels["provider"])
-		assert.Equal(t, "test-model", labels["model"])
-		assert.Equal(t, "failing_tool", labels["tool_name"])
-	}
-	assert.True(t, found, "tool_errors_total metric not found after tool error")
+	requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+		"provider":  "test-provider",
+		"model":     "test-model",
+		"tool_name": "failing_tool",
+	})
 }

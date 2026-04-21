@@ -166,17 +166,6 @@ func (m *Metrics) RecordStreamBufferDropped() {
 	m.StreamBufferDroppedTotal.Inc()
 }
 
-// toolLabel returns the metric label for a tool name. Built-in
-// tools use their name directly. Non-builtin tools (typically MCP)
-// are prefixed with "mcp:" so operators can identify individual
-// MCP tools while keeping a distinct namespace from builtins.
-func toolLabel(name string, builtinToolNames map[string]bool) string {
-	if builtinToolNames[name] {
-		return name
-	}
-	return "mcp:" + name
-}
-
 // EstimatePromptSize returns a cheap byte-size estimate of a
 // fantasy prompt by summing the text content lengths of all
 // message parts. This avoids JSON marshaling overhead.
