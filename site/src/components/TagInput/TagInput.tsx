@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { type FC, useId, useMemo } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -43,7 +43,7 @@ export const TagInput: FC<TagInputProps> = ({
 							}}
 							aria-label={`Remove ${value}`}
 						>
-							<X className="size-3" />
+							<XIcon className="size-3" />
 						</Button>
 					</Badge>
 				))}

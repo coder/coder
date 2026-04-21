@@ -1291,13 +1291,15 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 
-	// Only the initial user message should be in chat_messages.
+	// Only messages from the initial processing round should be in
+	// chat_messages (user + assistant). The "interrupt" message must
+	// be in the queue, not inserted directly.
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
+	require.Len(t, messages, 2)
 }
 
 func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
@@ -1685,8 +1687,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 3)
-	require.Equal(t, database.ChatMessageRoleUser, messages[2].Role)
+	require.Len(t, messages, 4)
+	require.Equal(t, database.ChatMessageRoleUser, messages[3].Role)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
@@ -4476,7 +4478,8 @@ func seedChatDependencies(
 	db database.Store,
 ) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
-	return seedChatDependenciesWithProvider(ctx, t, db, "openai", "")
+	openAIURL := chattest.OpenAI(t)
+	return seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
 }
 
 // seedChatDependenciesWithProvider creates a user, organization,
