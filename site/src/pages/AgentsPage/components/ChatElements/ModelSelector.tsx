@@ -54,6 +54,18 @@ const formatContextLimit = (tokens: number): string => {
 	return `${k}K context window`;
 };
 
+const getOptionLabel = (option: ModelSelectorOption): string => {
+	const displayName = option.displayName.trim();
+	if (displayName) {
+		return displayName;
+	}
+	const model = option.model.trim();
+	if (model) {
+		return model;
+	}
+	return option.id;
+};
+
 export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
@@ -87,13 +99,14 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
 			<SelectTrigger
+				aria-label={selectedModel ? getOptionLabel(selectedModel) : placeholder}
 				className={cn(
-					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+					"h-8 w-auto gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
 			>
 				<SelectValue placeholder={placeholder}>
-					{selectedModel?.displayName ?? placeholder}
+					{selectedModel ? getOptionLabel(selectedModel) : placeholder}
 				</SelectValue>
 			</SelectTrigger>
 			<SelectContent
@@ -139,11 +152,11 @@ const ModelOptionItem: FC<ModelOptionItemProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<SelectItem value={option.id}>{option.displayName}</SelectItem>
+				<SelectItem value={option.id}>{getOptionLabel(option)}</SelectItem>
 			</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={4} className="px-2.5 py-1.5">
 				<span className="block font-semibold text-content-primary leading-tight">
-					{option.displayName} via {providerLabel}
+					{getOptionLabel(option)} via {providerLabel}
 				</span>
 				{option.contextLimit != null && option.contextLimit > 0 && (
 					<span className="block text-content-secondary leading-tight">

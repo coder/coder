@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
+	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -23,9 +24,12 @@ import {
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
+	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatTitle,
+	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -263,10 +267,19 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const renameTitleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
 	>([]);
+	const regeneratingTitlePromisesRef = useRef(
+		new Map<string, Promise<string>>(),
+	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
@@ -422,18 +435,35 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (!addRegeneratingTitleChatId(chatId)) {
-			return;
+	const requestRegenerateTitle = (chatId: string): Promise<string> => {
+		const existing = regeneratingTitlePromisesRef.current.get(chatId);
+		if (existing) {
+			return existing;
 		}
-		void regenerateTitleMutation
-			.mutateAsync(chatId)
-			.catch(() => {
-				// The shared mutation onError already reports the failure.
-			})
-			.finally(() => {
-				removeRegeneratingTitleChatId(chatId);
-			});
+		addRegeneratingTitleChatId(chatId);
+		const clearRegenerateTitleTracking = () => {
+			regeneratingTitlePromisesRef.current.delete(chatId);
+			removeRegeneratingTitleChatId(chatId);
+		};
+		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
+			(updated) => {
+				clearRegenerateTitleTracking();
+				return updated.title;
+			},
+			(error) => {
+				clearRegenerateTitleTracking();
+				throw error;
+			},
+		);
+		regeneratingTitlePromisesRef.current.set(chatId, promise);
+		return promise;
+	};
+	const requestProposeTitle = async (chatId: string): Promise<string> => {
+		const result = await API.experimental.proposeChatTitle(chatId);
+		return result.title;
+	};
+	const requestRenameTitle = async (chatId: string, title: string) => {
+		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -502,19 +532,22 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						// Drop the chat from the flat root list (root or
+						// cascade via root_chat_id) and from any parent's
+						// embedded children (individual child archive).
 						updateInfiniteChatsCache(queryClient, (chats) =>
 							chats.filter(
 								(c) =>
 									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
 							),
 						);
+						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
 							queryKey: chatKey(updatedChat.id),
 							exact: true,
 						});
 						return;
 					}
-
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents — the chat's
 						// diff_status field is already written into the
@@ -560,59 +593,80 @@ const AgentsPage: FC = () => {
 					// page, so a naive prepend would duplicate the
 					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
-						prependToInfiniteChatsCache(queryClient, updatedChat);
+						if (updatedChat.parent_chat_id) {
+							// Child chat: add to its parent's children
+							// array. If the parent is not in any loaded
+							// page, the child is silently dropped.
+							addChildToParentInCache(
+								queryClient,
+								updatedChat,
+								updatedChat.parent_chat_id,
+							);
+						} else {
+							prependToInfiniteChatsCache(queryClient, updatedChat);
+						}
 					} else {
+						// Build a field updater shared between root and
+						// child cache update paths.
+						const applyFields = (c: TypesGen.Chat): TypesGen.Chat => {
+							const nextStatus = isStatusEvent ? updatedChat.status : c.status;
+							const nextTitle = isTitleEvent ? updatedChat.title : c.title;
+							const nextDiffStatus = isDiffStatusEvent
+								? updatedChat.diff_status
+								: c.diff_status;
+							const nextWorkspaceId =
+								updatedChat.workspace_id ?? c.workspace_id;
+							const nextBuildId = updatedChat.build_id ?? c.build_id;
+							const nextUpdatedAt =
+								c.updated_at > updatedChat.updated_at
+									? c.updated_at
+									: updatedChat.updated_at;
+							// The server's pubsub path does not compute
+							// has_unread (it always sends false). For
+							// status_change events on non-active chats,
+							// optimistically mark as unread since the
+							// assistant produced new output.
+							const nextHasUnread =
+								isStatusEvent && updatedChat.id !== activeChatIDRef.current
+									? true
+									: c.has_unread;
+							if (
+								nextStatus === c.status &&
+								nextTitle === c.title &&
+								diffStatusEqual(nextDiffStatus, c.diff_status) &&
+								nextWorkspaceId === c.workspace_id &&
+								nextBuildId === c.build_id &&
+								nextHasUnread === c.has_unread
+							) {
+								return c;
+							}
+							return {
+								...c,
+								status: nextStatus,
+								title: nextTitle,
+								diff_status: nextDiffStatus,
+								workspace_id: nextWorkspaceId,
+								build_id: nextBuildId,
+								updated_at: nextUpdatedAt,
+								has_unread: nextHasUnread,
+							};
+						};
+
+						// Try root-level update first.
 						updateInfiniteChatsCache(queryClient, (chats) => {
 							let didUpdate = false;
 							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
-								const nextStatus = isStatusEvent
-									? updatedChat.status
-									: c.status;
-								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-								const nextDiffStatus = isDiffStatusEvent
-									? updatedChat.diff_status
-									: c.diff_status;
-								const nextWorkspaceId =
-									updatedChat.workspace_id ?? c.workspace_id;
-								const nextBuildId = updatedChat.build_id ?? c.build_id;
-								const nextUpdatedAt =
-									c.updated_at > updatedChat.updated_at
-										? c.updated_at
-										: updatedChat.updated_at;
-								// The server's pubsub path does not compute
-								// has_unread (it always sends false). For
-								// status_change events on non-active chats,
-								// optimistically mark as unread since the
-								// assistant produced new output.
-								const nextHasUnread =
-									isStatusEvent && updatedChat.id !== activeChatIDRef.current
-										? true
-										: c.has_unread;
-								if (
-									nextStatus === c.status &&
-									nextTitle === c.title &&
-									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id &&
-									nextBuildId === c.build_id &&
-									nextHasUnread === c.has_unread
-								) {
-									return c;
-								}
-								didUpdate = true;
-								return {
-									...c,
-									status: nextStatus,
-									title: nextTitle,
-									diff_status: nextDiffStatus,
-									workspace_id: nextWorkspaceId,
-									build_id: nextBuildId,
-									updated_at: nextUpdatedAt,
-									has_unread: nextHasUnread,
-								};
+								const result = applyFields(c);
+								if (result !== c) didUpdate = true;
+								return result;
 							});
 							return didUpdate ? nextChats : chats;
 						});
+
+						// Also update inside parent's children array
+						// in case the event targets a child chat.
+						updateChildInParentCache(queryClient, applyFields, updatedChat.id);
 					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
@@ -718,6 +772,8 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
+				onProposeTitle={requestProposeTitle}
+				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}

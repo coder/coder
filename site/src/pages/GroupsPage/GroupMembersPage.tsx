@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
@@ -259,7 +259,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
 							</Button>
 						</DropdownMenuTrigger>

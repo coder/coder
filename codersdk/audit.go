@@ -46,6 +46,7 @@ const (
 	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
 	ResourceTypeTask         ResourceType = "task"
 	ResourceTypeAISeat       ResourceType = "ai_seat"
+	ResourceTypeChat         ResourceType = "chat"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -106,6 +107,8 @@ func (r ResourceType) FriendlyString() string {
 		return "task"
 	case ResourceTypeAISeat:
 		return "ai seat"
+	case ResourceTypeChat:
+		return "chat"
 	default:
 		return "unknown"
 	}

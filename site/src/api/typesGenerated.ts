@@ -1261,6 +1261,14 @@ export interface Chat {
 	readonly last_injected_context?: readonly ChatMessagePart[];
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
+	/**
+	 * Children holds child (subagent) chats nested under this root
+	 * chat. Always initialized to an empty slice so the JSON field
+	 * is present as []. Child chats cannot create their own
+	 * subagents, so nesting depth is capped at 1 and this slice is
+	 * always empty for child chats.
+	 */
+	readonly children: readonly Chat[];
 }
 
 // From codersdk/chats.go
@@ -1424,10 +1432,9 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
- * ChatDebugRun is the detailed run response including steps.
- * This type is consumed by the run-detail handler added in a later
- * PR in this stack; it is forward-declared here so that all SDK
- * types live in the same schema-layer commit.
+ * ChatDebugRun is the detailed run response returned by the run-detail
+ * endpoint. It includes the same summary fields as ChatDebugRunSummary
+ * along with the full step history for the run.
  */
 export interface ChatDebugRun {
 	readonly id: string;
@@ -1584,6 +1591,20 @@ export interface ChatDiffStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatExploreModelOverrideResponse is the response body for the Explore
+ * subagent model override configuration endpoint.
+ */
+export interface ChatExploreModelOverrideResponse {
+	readonly model_config_id?: string;
+	/**
+	 * HasMalformedOverride reports whether the saved override is malformed and
+	 * is currently being treated as unset.
+	 */
+	readonly has_malformed_override: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -1600,6 +1621,7 @@ export interface ChatFileMetadata {
 export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
+	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -2157,6 +2179,11 @@ export interface ChatStreamError {
 	 * Message is the normalized, user-facing error message.
 	 */
 	readonly message: string;
+	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
 	/**
 	 * Kind classifies the error for consistent client rendering.
 	 */
@@ -2768,6 +2795,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly availability: string;
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
+	readonly allow_in_plan_mode: boolean;
 }
 
 // From codersdk/organizations.go
@@ -4439,6 +4467,7 @@ export interface MCPServerConfig {
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
+	readonly allow_in_plan_mode: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -5678,6 +5707,14 @@ export interface PrometheusConfig {
 	readonly aggregate_agent_stats_by: string;
 }
 
+// From codersdk/chats.go
+/**
+ * ProposeChatTitleResponse is returned by the propose-title endpoint.
+ */
+export interface ProposeChatTitleResponse {
+	readonly title: string;
+}
+
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
 	/**
@@ -6206,6 +6243,7 @@ export interface ResolveAutostartResponse {
 export type ResourceType =
 	| "ai_seat"
 	| "api_key"
+	| "chat"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -6235,6 +6273,7 @@ export type ResourceType =
 export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
+	"chat",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -7583,6 +7622,15 @@ export interface UpdateChatDesktopEnabledRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatExploreModelOverrideRequest is the request body for updating the
+ * Explore subagent model override configuration endpoint.
+ */
+export interface UpdateChatExploreModelOverrideRequest {
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
@@ -7755,6 +7803,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly availability?: string;
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
+	readonly allow_in_plan_mode?: boolean;
 }
 
 // From codersdk/notifications.go

@@ -215,7 +215,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 									<CircleDotIcon
 										className={cn(
 											"!size-3.5 shrink-0",
-											isActive ? "text-amber-400" : "text-amber-400/60",
+											isActive
+												? "text-content-warning"
+												: "text-content-warning/60",
 										)}
 									/>
 									<span className="truncate">

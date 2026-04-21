@@ -1252,6 +1252,18 @@
 									"state": ["early access"]
 								},
 								{
+									"title": "Git Providers",
+									"description": "Git provider configuration for the diff viewer and PR Insights",
+									"path": "./ai-coder/agents/platform-controls/git-providers.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "PR Insights",
+									"description": "Pull request analytics for Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/pr-insights.md",
+									"state": ["early access"]
+								},
+								{
 									"title": "Data Retention",
 									"description": "Automatic cleanup of old conversation data",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md",

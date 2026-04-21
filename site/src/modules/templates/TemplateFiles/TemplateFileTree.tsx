@@ -1,9 +1,24 @@
-import { css } from "@emotion/react";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { type CSSProperties, type FC, type JSX, useState } from "react";
+import {
+	EllipsisIcon,
+	FolderIcon,
+	FolderOpenIcon,
+	PencilIcon,
+	Trash2Icon,
+} from "lucide-react";
+import { type FC, type JSX, useState } from "react";
+import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { cn } from "#/utils/cn";
 import type { FileTree } from "#/utils/filetree";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 
@@ -24,12 +39,6 @@ function compareFileTreeEntries(
 	// folder first.
 	return isFolder(contentA) ? -1 : 1;
 }
-
-type ContextMenu = {
-	path: string;
-	clientX: number;
-	clientY: number;
-};
 
 interface TemplateFilesTreeProps {
 	onSelect: (path: string) => void;
@@ -53,16 +62,15 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	onSelect,
 	Label,
 }) => {
-	const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
-
 	const buildTreeItems = (
 		label: string,
 		filename: string,
 		content?: FileTree | string,
 		parentPath?: string,
+		depth = 0,
 	): JSX.Element => {
 		const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-		// Used to group empty folders in one single label like VSCode does
+		// Used to group empty folders in one single label like VSCode does.
 		const shouldGroupFolder =
 			isFolder(content) &&
 			Object.keys(content).length === 1 &&
@@ -77,175 +85,220 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 				firstChildFileName,
 				child,
 				currentPath,
+				depth,
 			);
 		}
 
-		const templateFileIcon = getTemplateFileIcon(filename, isFolder(content));
+		const isActive = currentPath === activePath;
 
-		return (
-			<TreeItem
-				slots={{ icon: templateFileIcon }}
-				itemId={currentPath}
-				key={currentPath}
-				label={
-					Label ? (
-						<Label
-							path={currentPath}
-							label={label}
-							filename={filename}
-							isFolder={isFolder(content)}
-						/>
-					) : (
-						label
-					)
-				}
-				css={(theme) => css`
-					overflow: hidden;
-					user-select: none;
+		const labelContent = Label ? (
+			<Label
+				path={currentPath}
+				label={label}
+				filename={filename}
+				isFolder={isFolder(content)}
+			/>
+		) : (
+			label
+		);
 
-					& > .MuiTreeItem-content {
-						border-radius: 0;
-						padding: 2px 16px;
-						color: ${
-							isHiddenFile
-								? theme.palette.text.disabled
-								: theme.palette.text.secondary
-						};
-						height: 32px;
-
-						& svg {
-							width: 12px;
-							height: 12px;
-							color: currentColor;
-						}
-
-						& > .MuiTreeItem-label {
-							margin-left: 4px;
-							font-size: 13px;
-							color: inherit;
-							white-space: nowrap;
-						}
-
-						&.Mui-selected {
-							color: ${theme.roles.active.text};
-							background: ${theme.roles.active.background};
-						}
-
-						&.Mui-focused {
-							box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
-						}
-					}
-
-					& .MuiTreeItem-group {
-						margin-left: 0;
-						position: relative;
-
-						// We need to find a better way to recursive padding here
-						& .MuiTreeItem-content {
-							padding-left: calc(8px + (var(--level) + 1) * 8px);
-						}
-					}
-				`}
-				onClick={() => {
-					onSelect(currentPath);
-				}}
-				onContextMenu={(event) => {
-					const hasContextActions = onRename || onDelete;
-					if (!hasContextActions) {
-						return;
-					}
-					event.preventDefault(); // Avoid default browser behavior
-					event.stopPropagation(); // Avoid trigger parent context menu
-					setContextMenu(
-						contextMenu
-							? undefined
-							: {
-									path: currentPath,
-									clientY: event.clientY,
-									clientX: event.clientX,
-								},
-					);
-				}}
-				style={
-					{
-						"--level": parentPath ? parentPath.split("/").length : 0,
-					} as CSSProperties
-				}
-			>
-				{isFolder(content) &&
-					Object.entries(content)
+		if (isFolder(content)) {
+			return (
+				<FolderNode
+					key={currentPath}
+					label={labelContent}
+					isHidden={isHiddenFile}
+					isActive={isActive}
+					depth={depth}
+					onClick={() => onSelect(currentPath)}
+					onDelete={onDelete && (() => onDelete(currentPath))}
+					onRename={onRename && (() => onRename(currentPath))}
+				>
+					{Object.entries(content)
 						.sort(compareFileTreeEntries)
 						.map(([filename, child]) =>
-							buildTreeItems(filename, filename, child, currentPath),
+							buildTreeItems(filename, filename, child, currentPath, depth + 1),
 						)}
-			</TreeItem>
+				</FolderNode>
+			);
+		}
+
+		const Icon = getTemplateFileIcon(filename);
+
+		return (
+			<FileNode
+				key={currentPath}
+				label={labelContent}
+				icon={<Icon className="size-3 shrink-0 text-current" />}
+				isHidden={isHiddenFile}
+				isActive={isActive}
+				depth={depth}
+				onClick={() => onSelect(currentPath)}
+				onDelete={onDelete && (() => onDelete(currentPath))}
+				onRename={onRename && (() => onRename(currentPath))}
+			/>
 		);
 	};
 
 	return (
-		<SimpleTreeView
-			slots={{ collapseIcon: ChevronDownIcon, expandIcon: ChevronRightIcon }}
-			aria-label="Files"
-			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
-			defaultSelectedItems={activePath}
-		>
+		<div>
 			{Object.entries(fileTree)
 				.sort(compareFileTreeEntries)
 				.map(([filename, child]) => buildTreeItems(filename, filename, child))}
-
-			<Menu
-				onClose={() => setContextMenu(undefined)}
-				open={Boolean(contextMenu)}
-				anchorReference="anchorPosition"
-				anchorPosition={
-					contextMenu
-						? {
-								top: contextMenu.clientY,
-								left: contextMenu.clientX,
-							}
-						: undefined
-				}
-				anchorOrigin={{
-					vertical: "top",
-					horizontal: "left",
-				}}
-				transformOrigin={{
-					vertical: "top",
-					horizontal: "left",
-				}}
-			>
-				<MenuItem
-					onClick={() => {
-						if (!contextMenu) {
-							return;
-						}
-						onRename?.(contextMenu.path);
-						setContextMenu(undefined);
-					}}
-				>
-					Rename
-				</MenuItem>
-				<MenuItem
-					onClick={() => {
-						if (!contextMenu) {
-							return;
-						}
-						onDelete?.(contextMenu.path);
-						setContextMenu(undefined);
-					}}
-				>
-					Delete
-				</MenuItem>
-			</Menu>
-		</SimpleTreeView>
+		</div>
 	);
 };
 
-const expandablePaths = (path: string) => {
-	const paths = path.split("/");
-	const result = [];
-	for (let i = 1; i < paths.length; i++) {
-		result.push(paths.slice(0, i).join("/"));
+interface TreeNodeProps {
+	label: React.ReactNode;
+	icon: React.ReactNode;
+	isHidden: boolean;
+	isActive: boolean;
+	depth: number;
+	onClick: () => void;
+	onDelete?: () => void;
+	onRename?: () => void;
+}
+
+const nodeClasses =
+	"flex-grow flex h-8 cursor-pointer select-none items-center gap-2 " +
+	"border-none bg-transparent px-4 text-[13px] text-left " +
+	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
+
+const FileNode: FC<TreeNodeProps> = ({
+	label,
+	icon,
+	isHidden,
+	isActive,
+	depth,
+	onClick,
+	onDelete,
+	onRename,
+}) => {
+	return (
+		<div
+			className={cn(
+				"group/tree-item flex flex-row items-center justify-between",
+				"hover:bg-surface-secondary",
+				isActive && "bg-surface-sky",
+			)}
+		>
+			<button
+				type="button"
+				className={cn(
+					nodeClasses,
+					isHidden ? "text-content-secondary" : "text-content-primary",
+					isActive && "text-content-link",
+				)}
+				style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
+				onClick={onClick}
+			>
+				{icon}
+				<span className="truncate">{label}</span>
+			</button>
+			<MoreMenu onRename={onRename} onDelete={onDelete} />
+		</div>
+	);
+};
+
+interface FolderNodeProps extends Omit<TreeNodeProps, "icon"> {
+	children: React.ReactNode;
+}
+
+const FolderNode: FC<FolderNodeProps> = ({
+	label,
+	isHidden,
+	isActive,
+	depth,
+	onClick,
+	onDelete,
+	onRename,
+	children,
+}) => {
+	const [open, setOpen] = useState(true);
+
+	return (
+		<Collapsible open={open} onOpenChange={setOpen}>
+			<div
+				className={cn(
+					"group/tree-item flex flex-row items-center justify-between",
+					"hover:bg-surface-secondary",
+					isActive && "bg-surface-sky",
+				)}
+			>
+				<CollapsibleTrigger asChild>
+					<button
+						type="button"
+						className={cn(
+							nodeClasses,
+							isHidden ? "text-content-secondary" : "text-content-primary",
+							isActive && "text-content-link",
+						)}
+						aria-expanded={open}
+						style={{ paddingLeft: `${(depth + 1) * 8 + 8}px` }}
+						onClick={onClick}
+					>
+						{open ? (
+							<FolderOpenIcon className="size-3 shrink-0 text-current" />
+						) : (
+							<FolderIcon className="size-3 shrink-0 text-current" />
+						)}
+						<span className="truncate">{label}</span>
+					</button>
+				</CollapsibleTrigger>
+				<MoreMenu onRename={onRename} onDelete={onDelete} />
+			</div>
+			<CollapsibleContent>{children}</CollapsibleContent>
+		</Collapsible>
+	);
+};
+
+interface MoreMenuProps {
+	onRename?: () => void;
+	onDelete?: () => void;
+}
+
+const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+	if (!onRename && !onDelete) {
+		return null;
 	}
-	return result;
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					size="icon"
+					variant="subtle"
+					className={cn(
+						"size-6 shrink-0",
+						"opacity-0 transition-opacity",
+						"group-hover/tree-item:opacity-100",
+						"focus-visible:opacity-100",
+						"data-[state=open]:opacity-100",
+					)}
+					onClick={(e) => e.stopPropagation()}
+				>
+					<EllipsisIcon className="size-4" />
+					<span className="sr-only">File actions</span>
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				{onRename && (
+					<DropdownMenuItem onClick={onRename}>
+						<PencilIcon />
+						Rename
+					</DropdownMenuItem>
+				)}
+				{onDelete && (
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
+						onClick={onDelete}
+					>
+						<Trash2Icon />
+						Delete&hellip;
+					</DropdownMenuItem>
+				)}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
 };

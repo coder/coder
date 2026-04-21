@@ -809,6 +809,19 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		row, err := r.options.Database.GetChatDiffStatusSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat diff status summary: %w", err)
+		}
+		snapshot.ChatDiffStatusSummary = &ChatDiffStatusSummary{
+			Total:  row.Total,
+			Open:   row.Open,
+			Merged: row.Merged,
+			Closed: row.Closed,
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -1540,6 +1553,7 @@ type Snapshot struct {
 	Chats                                []Chat                                `json:"chats"`
 	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
 	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
+	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2173,6 +2187,9 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 		c.Mode = &mode
 	}
 	c.ClientType = string(dbChat.ClientType)
+	if dbChat.PullRequestState.Valid {
+		c.PullRequestState = &dbChat.PullRequestState.String
+	}
 	return c
 }
 
@@ -2347,6 +2364,7 @@ type Chat struct {
 	Archived          bool       `json:"archived"`
 	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
 	ClientType        string     `json:"client_type"`
+	PullRequestState  *string    `json:"pull_request_state"`
 }
 
 // ChatMessageSummary contains per-chat aggregated message metrics
@@ -2378,6 +2396,17 @@ type ChatModelConfig struct {
 	ContextLimit int64     `json:"context_limit"`
 	Enabled      bool      `json:"enabled"`
 	IsDefault    bool      `json:"is_default"`
+}
+
+// ChatDiffStatusSummary contains aggregate PR counts across all
+// agent chats. Total counts unique PRs with a known state
+// (open + merged + closed). Open, Merged, and Closed break that
+// total down by state.
+type ChatDiffStatusSummary struct {
+	Total  int64 `json:"total"`
+	Open   int64 `json:"open"`
+	Merged int64 `json:"merged"`
+	Closed int64 `json:"closed"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

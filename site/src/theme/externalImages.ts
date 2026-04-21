@@ -1,17 +1,17 @@
-import type { CSSObject } from "@emotion/react";
+import type { CSSProperties } from "react";
 
 export interface ExternalImageModeStyles {
 	/**
 	 * monochrome icons will be flattened to a neutral, theme-appropriate color.
 	 * eg. white, light gray, dark gray, black
 	 */
-	monochrome?: CSSObject;
+	monochrome?: CSSProperties;
 	/**
 	 * @default
 	 * fullcolor icons should look their best of any background, with distinct colors
 	 * and good contrast. This is the default, and won't alter the image.
 	 */
-	fullcolor?: CSSObject;
+	fullcolor?: CSSProperties;
 	/**
 	 * whiteWithColor is useful for icons that are primarily white, or contain white text,
 	 * which are hard to see or look incorrect on light backgrounds. This setting will apply
@@ -20,7 +20,7 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	whiteWithColor?: CSSObject;
+	whiteWithColor?: CSSProperties;
 	/**
 	 * blackWithColor is useful for icons that are primarily black, or contain black text,
 	 * which are hard to see or look incorrect on dark backgrounds. This setting will apply
@@ -29,7 +29,7 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	blackWithColor?: CSSObject;
+	blackWithColor?: CSSProperties;
 }
 
 export const forDarkThemes: ExternalImageModeStyles = {
@@ -64,14 +64,14 @@ const multiplier = /^\d+(\.\d+)?%?$/;
  */
 const parseInvertFilterParameters = (
 	params: URLSearchParams,
-	baseStyles?: CSSObject,
+	baseStyles?: CSSProperties,
 ) => {
 	// Only apply additional styles if the current theme supports this mode
 	if (!baseStyles) {
 		return;
 	}
 
-	let extraStyles: CSSObject | undefined;
+	let extraStyles: CSSProperties | undefined;
 
 	const brightness = params.get("brightness") ?? "";
 	if (multiplier.test(brightness)) {
@@ -93,10 +93,10 @@ const parseInvertFilterParameters = (
 export function parseImageParameters(
 	modes: ExternalImageModeStyles,
 	searchString: string,
-): CSSObject | undefined {
+): CSSProperties | undefined {
 	const params = new URLSearchParams(searchString);
 
-	let styles: CSSObject | undefined = modes.fullcolor;
+	let styles: CSSProperties | undefined = modes.fullcolor;
 
 	if (params.has("monochrome")) {
 		styles = modes.monochrome;
@@ -152,6 +152,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/container.svg", "monochrome"],
 	["/icon/copyparty.svg", "blackWithColor"],
 	["/icon/database.svg", "monochrome"],
+	["/icon/devcontainers.svg", "monochrome"],
 	["/icon/docker-white.svg", "monochrome"],
 	["/icon/folder.svg", "monochrome"],
 	["/icon/gemini-monochrome.svg", "monochrome"],

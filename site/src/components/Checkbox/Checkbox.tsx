@@ -2,7 +2,7 @@
  * Copied from shadc/ui on 04/03/2025
  * @see {@link https://ui.shadcn.com/docs/components/checkbox}
  */
-import { Check, Minus } from "lucide-react";
+import { CheckIcon, MinusIcon } from "lucide-react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 
@@ -44,10 +44,10 @@ export const Checkbox: React.FC<
 				)}
 			>
 				{(props.checked === true || props.defaultChecked === true) && (
-					<Check className="size-4" strokeWidth={2.5} />
+					<CheckIcon className="size-4" strokeWidth={2.5} />
 				)}
 				{props.checked === "indeterminate" && (
-					<Minus className="size-4" strokeWidth={2.5} />
+					<MinusIcon className="size-4" strokeWidth={2.5} />
 				)}
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>

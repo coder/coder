@@ -8,6 +8,7 @@ import {
 	Response,
 	Shimmer,
 } from "../ChatElements";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -50,7 +51,7 @@ export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
@@ -60,7 +61,7 @@ export const StreamingOutput: FC<{
 	streamState,
 	streamTools,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
 	startingResetKey,
@@ -106,7 +107,7 @@ export const StreamingOutput: FC<{
 								keyPrefix="stream"
 								isStreaming={isStreaming}
 								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
+								subagentVariants={subagentVariants}
 								subagentStatusOverrides={subagentStatusOverrides}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}

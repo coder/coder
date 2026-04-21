@@ -199,9 +199,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 		if (!parent) {
 			return;
 		}
+		// Use the parent's scrollHeight (not the inner div's) so that
+		// any padding on the scroll container is included in the
+		// calculation and doesn't inflate the "at bottom" zone.
 		const distanceFromBottom =
-			logListDivRef.current.scrollHeight -
-			(props.scrollOffset + parent.clientHeight);
+			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	};
 
@@ -632,6 +634,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 													sources={agent.log_sources}
 													overflowed={agent.logs_overflowed}
 													className="bg-transparent"
+													showSourceIcons={selectedLogTab === "all"}
 												/>
 											)}
 										</AutoSizer>
