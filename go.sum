@@ -334,8 +334,6 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.6.1 h1:bMVBtDNP/1gW58NFRBdzStAQzXlveMrLAnORpwE9tYo=
 github.com/coder/guts v1.6.1/go.mod h1:FaECwB632JE8nYi7nrKfO0PVjbOl4+hSWupKO2Z99JI=
-github.com/coder/hc-install v0.0.0-20260420022855-40b8a19c35d2 h1:krC/qngDMUnWohU/26t4+7uXVYz0mdFP02XgQrZ0QEk=
-github.com/coder/hc-install v0.0.0-20260420022855-40b8a19c35d2/go.mod h1:4LRYeEN2bMIFfIv57ldMWt9awfuZhvpbRt0vWmv51WU=
 github.com/coder/paralleltestctx v0.0.1 h1:eauyehej1XYTGwgzGWMTjeRIVgOpU6XLPNVb2oi6kDs=
 github.com/coder/paralleltestctx v0.0.1/go.mod h1:q/wi6cmlBOhrJKjUtouTn4J9xZlRhK0MbgHvJNdGW3w=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
@@ -721,6 +719,8 @@ github.com/hashicorp/go-version v1.9.0/go.mod h1:fltr4n8CU8Ke44wwGCBoEymUuxUHl09
 github.com/hashicorp/golang-lru v1.0.2 h1:dV3g9Z/unq5DpblPpw+Oqcv4dU/1omnb4Ok8iPY6p1c=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
+github.com/hashicorp/hc-install v0.9.4 h1:KKWOpUG0EqIV63Qk2GGFrZ0s275NVs5lKf9N5vjBNoc=
+github.com/hashicorp/hc-install v0.9.4/go.mod h1:4LRYeEN2bMIFfIv57ldMWt9awfuZhvpbRt0vWmv51WU=
 github.com/hashicorp/hcl v1.0.1-vault-7 h1:ag5OxFVy3QYTFTJODRzTKVZ6xvdfLLCA1cy/Y6xGI0I=
 github.com/hashicorp/hcl v1.0.1-vault-7/go.mod h1:XYhtn6ijBSAj6n4YqAaf7RBPS4I06AItNorpy+MoQNM=
 github.com/hashicorp/hcl/v2 v2.24.0 h1:2QJdZ454DSsYGoaE6QheQZjtKZSUs9Nh2izTWiwQxvE=

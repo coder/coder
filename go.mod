@@ -11,11 +11,6 @@ replace github.com/alecthomas/chroma/v2 => github.com/kylecarbs/chroma/v2 v2.0.0
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e
 
-// Fork picks up the refreshed HashiCorp release-signing key so terraform
-// installs don't fail with `openpgp: key expired`.
-// Required until https://github.com/hashicorp/hc-install/pull/371 ships.
-replace github.com/hashicorp/hc-install => github.com/coder/hc-install v0.0.0-20260420022855-40b8a19c35d2
-
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
@@ -171,7 +166,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.9.0
-	github.com/hashicorp/hc-install v0.9.2
+	github.com/hashicorp/hc-install v0.9.4
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/hashicorp/yamux v0.1.2
