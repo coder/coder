@@ -869,6 +869,8 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, called)
+}
+
 func TestSupportedProviders(t *testing.T) {
 	t.Parallel()
 
@@ -1631,22 +1633,23 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("EmptyModelsReturnsFalse", func(t *testing.T) {
 		t.Parallel()
-		catalog := chatprovider.NewModelCatalog(chatprovider.ProviderAPIKeys{})
-		resp, changed := catalog.ListConfiguredModels(nil, nil)
+		catalog := chatprovider.NewModelCatalog()
+		resp, changed := catalog.ListConfiguredModels(nil, nil, nil, nil)
 		require.False(t, changed)
 		require.Empty(t, resp.Providers)
 	})
 
 	t.Run("SingleModel", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{"openai": "sk-test"},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "openai", Model: "gpt-4o", DisplayName: "GPT-4o"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai": {Available: true},
+		}
+		enabled := map[string]struct{}{"openai": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 1)
@@ -1660,15 +1663,16 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("DuplicateModelDedup", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{"anthropic": "sk-ant"},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "anthropic", Model: "claude-sonnet-4-20250514", DisplayName: "Claude Sonnet"},
 			{Provider: "anthropic", Model: "claude-sonnet-4-20250514", DisplayName: "Claude Sonnet Dup"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"anthropic": {Available: true},
+		}
+		enabled := map[string]struct{}{"anthropic": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 1)
@@ -1679,13 +1683,7 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("ProviderOrdering", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{
-				"openai":    "sk-openai",
-				"anthropic": "sk-ant",
-			},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			// Anthropic listed first, but openai should appear first
 			// in output (supportedProviderNames order: anthropic
@@ -1693,7 +1691,12 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 			{Provider: "openai", Model: "gpt-4o"},
 			{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai":    {Available: true},
+			"anthropic": {Available: true},
+		}
+		enabled := map[string]struct{}{"openai": {}, "anthropic": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 2)
@@ -1705,12 +1708,13 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("UnavailableWithoutKey", func(t *testing.T) {
 		t.Parallel()
-		// No API keys at all.
-		catalog := chatprovider.NewModelCatalog(chatprovider.ProviderAPIKeys{})
+		// No API keys at all, but provider is enabled.
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "openai", Model: "gpt-4o"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		enabled := map[string]struct{}{"openai": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, nil, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 1)
@@ -1723,16 +1727,17 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("ModelsWithinProviderSorted", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{"openai": "sk-test"},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "openai", Model: "gpt-4o"},
 			{Provider: "openai", Model: "gpt-3.5-turbo"},
 			{Provider: "openai", Model: "gpt-4o-mini"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai": {Available: true},
+		}
+		enabled := map[string]struct{}{"openai": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers[0].Models, 3)
@@ -1743,14 +1748,15 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("DisplayNameFallsBackToModel", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{"openai": "sk-test"},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "openai", Model: "gpt-4o", DisplayName: ""},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai": {Available: true},
+		}
+		enabled := map[string]struct{}{"openai": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Equal(t, "gpt-4o", resp.Providers[0].Models[0].DisplayName)
@@ -1760,15 +1766,18 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 		t.Parallel()
 		// Provider has a key via ConfiguredProvider but no models.
 		// Models reference the same provider, so it appears.
-		keys := chatprovider.ProviderAPIKeys{}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		providers := []chatprovider.ConfiguredProvider{
 			{Provider: "openai", APIKey: "sk-test"},
 		}
 		models := []chatprovider.ConfiguredModel{
 			{Provider: "openai", Model: "gpt-4o"},
 		}
-		resp, changed := catalog.ListConfiguredModels(providers, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai": {Available: true},
+		}
+		enabled := map[string]struct{}{"openai": {}}
+		resp, changed := catalog.ListConfiguredModels(providers, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 1)
@@ -1777,15 +1786,16 @@ func TestModelCatalog_ListConfiguredModels(t *testing.T) {
 
 	t.Run("CanonicalModelRef", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			ByProvider: map[string]string{"anthropic": "sk-ant"},
-		}
-		catalog := chatprovider.NewModelCatalog(keys)
+		catalog := chatprovider.NewModelCatalog()
 		models := []chatprovider.ConfiguredModel{
 			// Model with provider:model canonical ref.
 			{Model: "anthropic:claude-sonnet-4-20250514"},
 		}
-		resp, changed := catalog.ListConfiguredModels(nil, models)
+		availability := map[string]chatprovider.ProviderAvailability{
+			"anthropic": {Available: true},
+		}
+		enabled := map[string]struct{}{"anthropic": {}}
+		resp, changed := catalog.ListConfiguredModels(nil, models, availability, enabled)
 
 		require.True(t, changed)
 		require.Len(t, resp.Providers, 1)
@@ -1799,8 +1809,9 @@ func TestModelCatalog_ListConfiguredProviderAvailability(t *testing.T) {
 
 	t.Run("AllUnavailableWithoutKeys", func(t *testing.T) {
 		t.Parallel()
-		catalog := chatprovider.NewModelCatalog(chatprovider.ProviderAPIKeys{})
-		resp := catalog.ListConfiguredProviderAvailability(nil)
+		catalog := chatprovider.NewModelCatalog()
+		allProviders := allSupportedEnabled()
+		resp := catalog.ListConfiguredProviderAvailability(nil, allProviders)
 
 		// All supported providers listed.
 		require.Len(t, resp.Providers, len(chatprovider.SupportedProviders()))
@@ -1818,11 +1829,12 @@ func TestModelCatalog_ListConfiguredProviderAvailability(t *testing.T) {
 
 	t.Run("StaticKeyMakesAvailable", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			OpenAI: "sk-openai",
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai": {Available: true},
 		}
-		catalog := chatprovider.NewModelCatalog(keys)
-		resp := catalog.ListConfiguredProviderAvailability(nil)
+		catalog := chatprovider.NewModelCatalog()
+		allProviders := allSupportedEnabled()
+		resp := catalog.ListConfiguredProviderAvailability(availability, allProviders)
 
 		for _, p := range resp.Providers {
 			if p.Provider == "openai" {
@@ -1836,11 +1848,12 @@ func TestModelCatalog_ListConfiguredProviderAvailability(t *testing.T) {
 
 	t.Run("DBProviderKeyMakesAvailable", func(t *testing.T) {
 		t.Parallel()
-		catalog := chatprovider.NewModelCatalog(chatprovider.ProviderAPIKeys{})
-		dbProviders := []chatprovider.ConfiguredProvider{
-			{Provider: "google", APIKey: "goog-key"},
+		availability := map[string]chatprovider.ProviderAvailability{
+			"google": {Available: true},
 		}
-		resp := catalog.ListConfiguredProviderAvailability(dbProviders)
+		catalog := chatprovider.NewModelCatalog()
+		allProviders := allSupportedEnabled()
+		resp := catalog.ListConfiguredProviderAvailability(availability, allProviders)
 
 		for _, p := range resp.Providers {
 			if p.Provider == "google" {
@@ -1853,15 +1866,14 @@ func TestModelCatalog_ListConfiguredProviderAvailability(t *testing.T) {
 
 	t.Run("MultipleKeysAvailable", func(t *testing.T) {
 		t.Parallel()
-		keys := chatprovider.ProviderAPIKeys{
-			OpenAI:    "sk-openai",
-			Anthropic: "sk-anthropic",
+		availability := map[string]chatprovider.ProviderAvailability{
+			"openai":    {Available: true},
+			"anthropic": {Available: true},
+			"google":    {Available: true},
 		}
-		catalog := chatprovider.NewModelCatalog(keys)
-		dbProviders := []chatprovider.ConfiguredProvider{
-			{Provider: "google", APIKey: "goog-key"},
-		}
-		resp := catalog.ListConfiguredProviderAvailability(dbProviders)
+		catalog := chatprovider.NewModelCatalog()
+		allProviders := allSupportedEnabled()
+		resp := catalog.ListConfiguredProviderAvailability(availability, allProviders)
 
 		available := map[string]bool{}
 		for _, p := range resp.Providers {
@@ -1873,4 +1885,14 @@ func TestModelCatalog_ListConfiguredProviderAvailability(t *testing.T) {
 		require.False(t, available["azure"])
 		require.False(t, available["bedrock"])
 	})
+}
+
+// allSupportedEnabled returns an enabled set containing all supported
+// providers, useful for tests that want every provider visible.
+func allSupportedEnabled() map[string]struct{} {
+	m := make(map[string]struct{})
+	for _, p := range chatprovider.SupportedProviders() {
+		m[p] = struct{}{}
+	}
+	return m
 }
