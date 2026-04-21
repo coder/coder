@@ -90,7 +90,9 @@ function useChatViewportController({
 	const previousScrollTopRef = useRef(0);
 	const isProgrammaticScrollRef = useRef(false);
 	const deferredPinFrameRef = useRef<number | null>(null);
+	const initialFollowLockFrameRef = useRef<number | null>(null);
 	const isRestoringRef = useRef(false);
+	const isInitialFollowLockRef = useRef(true);
 	const isPointerDownRef = useRef(false);
 	const isTouchActiveRef = useRef(false);
 	const activeTouchCountRef = useRef(0);
@@ -131,6 +133,10 @@ function useChatViewportController({
 		if (deferredPinFrameRef.current !== null) {
 			cancelAnimationFrame(deferredPinFrameRef.current);
 			deferredPinFrameRef.current = null;
+		}
+		if (initialFollowLockFrameRef.current !== null) {
+			cancelAnimationFrame(initialFollowLockFrameRef.current);
+			initialFollowLockFrameRef.current = null;
 		}
 	});
 
@@ -230,6 +236,9 @@ function useChatViewportController({
 			pinToLatest();
 			return;
 		}
+		if (isInitialFollowLockRef.current) {
+			return;
+		}
 		restoreAnchor();
 	});
 
@@ -238,6 +247,10 @@ function useChatViewportController({
 			if (deferredPinFrameRef.current !== null) {
 				cancelAnimationFrame(deferredPinFrameRef.current);
 				deferredPinFrameRef.current = null;
+			}
+			if (initialFollowLockFrameRef.current !== null) {
+				cancelAnimationFrame(initialFollowLockFrameRef.current);
+				initialFollowLockFrameRef.current = null;
 			}
 		};
 	}, []);
@@ -294,6 +307,9 @@ function useChatViewportController({
 					: bottomGap <= 1 || (movingDown && bottomGap <= FOLLOW_THRESHOLD_PX)
 						? "following-latest"
 						: "detached";
+			if (isInitialFollowLockRef.current && nextMode === "detached") {
+				return;
+			}
 			if (nextMode !== modeRef.current) {
 				syncMode(nextMode);
 			}
@@ -426,6 +442,16 @@ function useChatViewportController({
 		if (modeRef.current === "following-latest") {
 			anchorRef.current = null;
 			isProgrammaticScrollRef.current = false;
+			isInitialFollowLockRef.current = true;
+			if (initialFollowLockFrameRef.current !== null) {
+				cancelAnimationFrame(initialFollowLockFrameRef.current);
+			}
+			initialFollowLockFrameRef.current = requestAnimationFrame(() => {
+				initialFollowLockFrameRef.current = requestAnimationFrame(() => {
+					initialFollowLockFrameRef.current = null;
+					isInitialFollowLockRef.current = false;
+				});
+			});
 			scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
 		}
 
