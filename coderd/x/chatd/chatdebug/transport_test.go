@@ -825,6 +825,48 @@ func TestRecordingTransport_SSEReadToEOFMarksCompleted(t *testing.T) {
 	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
 }
 
+// TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords verifies
+// that SSE consumers that reach EOF and abandon the response without
+// calling Close() (the pattern fantasy's Anthropic SSE adapter follows)
+// still populate the attempt sink. Close()-only recording would leave
+// the chat_turn step's attempts field permanently empty.
+func TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          io.NopCloser(strings.NewReader(ssePayload)),
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, ssePayload, string(body))
+	// Deliberately do NOT call resp.Body.Close(). The attempt must be
+	// recorded on EOF alone.
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
 func TestRecordingTransport_SSEClosedEarlyMarksFailed(t *testing.T) {
 	t.Parallel()
 

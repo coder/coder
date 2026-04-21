@@ -225,12 +225,21 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 	r.accumulateReadLocked(p, n, err)
 	r.mu.Unlock()
 
-	// Only record non-EOF errors immediately. io.EOF is deferred
-	// to Close() which runs more sophisticated validation (JSON
-	// completeness checks, content-length verification, etc.).
-	// Recording EOF here would preempt Close() via recordOnce.
+	// Record non-EOF errors immediately.
 	if err != nil && !errors.Is(err, io.EOF) {
 		r.record(err)
+		return n, err
+	}
+
+	// For server-sent-events bodies, record eagerly on EOF. Streaming
+	// consumers like fantasy's Anthropic SSE adapter iterate the
+	// response to EOF and abandon it without calling Close(), so the
+	// Close-only recording path would never fire and the attempt would
+	// be lost. Non-SSE bodies stay on the Close-only path so that
+	// JSON integrity, content-length validation, and inner-Close
+	// errors keep their existing semantics.
+	if errors.Is(err, io.EOF) && isSSEContentType(r.contentType) {
+		r.record(io.EOF)
 	}
 	return n, err
 }
@@ -332,6 +341,14 @@ func isJSONLikeContentType(contentType string) bool {
 
 func isNDJSONContentType(contentType string) bool {
 	return parseMediaType(contentType) == "application/x-ndjson"
+}
+
+// isSSEContentType reports whether contentType is a server-sent-events
+// stream. SSE bodies are consumed to EOF by iterating the event stream
+// and are typically abandoned without an explicit Close() call, so the
+// recording transport has to fire on EOF rather than waiting for Close.
+func isSSEContentType(contentType string) bool {
+	return parseMediaType(contentType) == "text/event-stream"
 }
 
 // maxDrainBytes caps how many trailing bytes drainToEOF will consume.
