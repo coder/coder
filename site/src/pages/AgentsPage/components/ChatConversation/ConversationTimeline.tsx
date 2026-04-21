@@ -498,10 +498,6 @@ const ChatMessageItem = memo<{
 							)}
 						</div>
 					)}
-				{/* Spacer for assistant messages without an action bar
-				   (e.g. reasoning-only, sources-only, or no-renderable-content
-				   fallback) so they have consistent bottom padding before the
-				   next user bubble. */}
 				{displayState.needsAssistantBottomSpacer && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}

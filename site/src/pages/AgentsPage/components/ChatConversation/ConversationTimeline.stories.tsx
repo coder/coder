@@ -1111,11 +1111,6 @@ export const SourcesOnlyAssistantSpacing: Story = {
 	},
 };
 
-/**
- * Regression: assistant messages with no renderable content (the fallback
- * "Message has no renderable content." text) must have consistent bottom
- * spacing before the next user bubble via the assistant-bottom-spacer.
- */
 export const NoRenderableContentFallbackSpacing: Story = {
 	args: {
 		...defaultArgs,
