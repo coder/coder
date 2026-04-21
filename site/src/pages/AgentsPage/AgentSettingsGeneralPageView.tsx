@@ -34,6 +34,7 @@ export const AgentSettingsGeneralPageView: FC<
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}
+				// This shared prop kept its old multi-prompt name, and General has one prompt, so this single saving flag is correct.
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
