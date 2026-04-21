@@ -42,15 +42,20 @@ const (
 	maxTelemetryHeartbeatAge = 24 * time.Hour
 	// Chat batch sizes stay smaller than audit/connection log batches because
 	// chat_files rows carry bytea blobs.
-	chatsBatchSize           = 1000
-	chatFilesBatchSize       = 1000
-	chatAutoArchiveBatchSize = 1000
+	chatsBatchSize     = 1000
+	chatFilesBatchSize = 1000
 	// Digest cap; extras surface as "...and N more" in the template.
 	chatAutoArchiveDigestMaxChats = 25
 	// Upper bound for post-commit dispatch (audits + digests) after the
 	// ticker is canceled.
 	chatAutoArchiveDispatchTimeout = 30 * time.Second
 )
+
+// chatAutoArchiveBatchSize bounds how many root chats one tick will
+// archive. Exposed as a var (not const) so tests can shrink it via
+// SetChatAutoArchiveBatchSizeForTest in export_test.go to drive
+// multi-tick pagination without inserting thousands of rows.
+var chatAutoArchiveBatchSize int32 = 1000
 
 // New creates a new periodically purging database instance.
 // Callers must Close the returned instance.

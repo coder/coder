@@ -429,6 +429,63 @@ func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struc
 	return ch
 }
 
+// tickDriver drives one or more dbpurge ticks against a single
+// dbpurge.New instance. Unlike awaitDoTick it must be constructed
+// *before* dbpurge.New so its traps are installed when the forced
+// initial tick fires. awaitInitial waits for the forced tick's
+// doTick to complete without advancing the clock, so no loop
+// iteration has yet run; awaitNext then explicitly drives each
+// subsequent iteration. This keeps each tick's observable state
+// isolated and deterministic, which matters for tests where
+// per-tick work differs (e.g. batch-size pagination).
+type tickDriver struct {
+	clk       *quartz.Mock
+	trapNow   *quartz.Trap
+	trapStop  *quartz.Trap
+	trapReset *quartz.Trap
+}
+
+func newTickDriver(t *testing.T, clk *quartz.Mock) *tickDriver {
+	t.Helper()
+	d := &tickDriver{
+		clk:       clk,
+		trapNow:   clk.Trap().Now(),
+		trapStop:  clk.Trap().TickerStop(),
+		trapReset: clk.Trap().TickerReset(),
+	}
+	return d
+}
+
+// close releases all traps. Call this via defer *after* the defer
+// that closes the dbpurge instance so trap closure releases the
+// shutdown ticker.Stop() rather than blocking on it.
+func (d *tickDriver) close() {
+	d.trapReset.Close()
+	d.trapStop.Close()
+	d.trapNow.Close()
+}
+
+// awaitInitial waits for the forced initial tick's doTick to
+// complete. No loop iteration runs because the clock has not been
+// advanced.
+func (d *tickDriver) awaitInitial(ctx context.Context, t *testing.T) {
+	t.Helper()
+	d.trapNow.MustWait(ctx).MustRelease(ctx)
+	d.trapReset.MustWait(ctx).MustRelease(ctx)
+}
+
+// awaitNext advances the clock by the tick interval, lets the loop
+// receive the tick and run doTick, and waits for the ensuing
+// ticker.Reset so the driver is ready for another awaitNext.
+func (d *tickDriver) awaitNext(ctx context.Context, t *testing.T) {
+	t.Helper()
+	dur, w := d.clk.AdvanceNext()
+	require.Equal(t, 10*time.Minute, dur)
+	w.MustWait(ctx)
+	d.trapStop.MustWait(ctx).MustRelease(ctx)
+	d.trapReset.MustWait(ctx).MustRelease(ctx)
+}
+
 func assertNoWorkspaceAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
 	t.Helper()
 	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
@@ -2412,6 +2469,190 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, chats, 25, "digest caps titles at 25")
 				require.Equal(t, "2", sent[0].Data["additional_archived_count"],
 					"overflow count is total - cap")
+			},
+		},
+		{
+			name: "MultipleOwners",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := archiveTestDeps(ctx, t, db)
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				// Two stale roots per owner, backdated well past
+				// the 30-day cutoff.
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-a", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-b", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-a", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-b", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				enqueuer := notificationstest.NewFakeEnqueuer()
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditor, enqueuer)
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Four audit rows, one per archived root.
+				require.Len(t, auditor.AuditLogs(), 4)
+
+				// One digest per owner, each listing only that owner's
+				// two chats.
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 2, "expected one digest per owner")
+
+				byUser := map[uuid.UUID][]string{}
+				for _, s := range sent {
+					require.Equal(t, notifications.TemplateChatAutoArchiveDigest, s.TemplateID)
+					chats, ok := s.Data["archived_chats"].([]map[string]any)
+					require.True(t, ok, "archived_chats should be []map[string]any")
+					for _, c := range chats {
+						title, _ := c["title"].(string)
+						byUser[s.UserID] = append(byUser[s.UserID], title)
+					}
+				}
+				require.Contains(t, byUser, deps.user.ID)
+				require.Contains(t, byUser, user2.ID)
+				slices.Sort(byUser[deps.user.ID])
+				slices.Sort(byUser[user2.ID])
+				require.Equal(t, []string{"u1-a", "u1-b"}, byUser[deps.user.ID])
+				require.Equal(t, []string{"u2-a", "u2-b"}, byUser[user2.ID])
+			},
+		},
+		{
+			name: "SecondTickIdempotent",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := archiveTestDeps(ctx, t, db)
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				// Two stale roots seeded before the first tick.
+				firstA := createArchiveChat(ctx, t, db, rawDB, deps, "first-a", now.Add(-60*24*time.Hour))
+				firstB := createArchiveChat(ctx, t, db, rawDB, deps, "first-b", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				enqueuer := notificationstest.NewFakeEnqueuer()
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditor, enqueuer)
+				// Defer driver.close() after closer.Close(): defers
+				// run LIFO, so this frees shutdown's ticker.Stop()
+				// before the dbpurge goroutine blocks on it.
+				defer closer.Close()
+				defer driver.close()
+				driver.awaitInitial(ctx, t)
+
+				// Tick 1: both archived, one digest.
+				require.Len(t, auditor.AuditLogs(), 2, "tick 1 audits")
+				require.Len(t, enqueuer.Sent(), 1, "tick 1 digests")
+
+				// Seed a third stale root between ticks so tick 2 has
+				// genuine work and we can distinguish "ignored already
+				// archived" from "ignored everything".
+				third := createArchiveChat(ctx, t, db, rawDB, deps, "second-c", now.Add(-60*24*time.Hour))
+
+				driver.awaitNext(ctx, t)
+
+				// Tick 2: exactly one new audit + one new digest for
+				// the third chat; tick 1's rows must not be re-archived.
+				require.Len(t, auditor.AuditLogs(), 3, "tick 2 cumulative audits")
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 2, "tick 2 cumulative digests")
+				chats, ok := sent[1].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats, 1, "tick 2 digest lists only the new chat")
+				require.Equal(t, "second-c", chats[0]["title"])
+
+				// First-tick chats stayed archived.
+				for _, id := range []uuid.UUID{firstA.ID, firstB.ID, third.ID} {
+					refreshed, err := db.GetChatByID(ctx, id)
+					require.NoError(t, err)
+					require.True(t, refreshed.Archived, "chat %s should remain archived", id)
+				}
+			},
+		},
+		{
+			name: "BatchSizePagination",
+			run: func(t *testing.T) {
+				// With 27 stale roots and batch size 20, tick 1
+				// archives 20, tick 2 archives the remaining 7, and
+				// tick 3 archives none. We assert the dispatch side
+				// effects (audits, digests) follow the same pattern:
+				// dispatch only runs when rows > 0, so tick 3 emits
+				// no new audits or digests.
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				restore := dbpurge.SetChatAutoArchiveBatchSizeForTest(20)
+				t.Cleanup(restore)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := archiveTestDeps(ctx, t, db)
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				const total = 27
+				for i := range total {
+					createArchiveChat(ctx, t, db, rawDB, deps,
+						fmt.Sprintf("page-%02d", i),
+						now.Add(-60*24*time.Hour))
+				}
+
+				auditor := audit.NewMock()
+				enqueuer := notificationstest.NewFakeEnqueuer()
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditor, enqueuer)
+				// Defer driver.close() after closer.Close() so trap
+				// cleanup frees shutdown's ticker.Stop() before the
+				// dbpurge goroutine blocks on it.
+				defer closer.Close()
+				defer driver.close()
+				driver.awaitInitial(ctx, t)
+
+				// Tick 1: first batch (20) archived.
+				require.Len(t, auditor.AuditLogs(), 20, "tick 1 audits")
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "tick 1 digests")
+				chats1, ok := sent[0].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats1, 20, "tick 1 digest lists all 20 titles")
+				require.NotContains(t, sent[0].Data, "additional_archived_count",
+					"no overflow when batch <= digest cap; 20 <= 25")
+
+				driver.awaitNext(ctx, t)
+
+				// Tick 2: remaining 7 archived.
+				require.Len(t, auditor.AuditLogs(), 27, "tick 2 cumulative audits")
+				sent = enqueuer.Sent()
+				require.Len(t, sent, 2, "tick 2 cumulative digests")
+				chats2, ok := sent[1].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats2, 7, "tick 2 digest lists remaining 7")
+
+				driver.awaitNext(ctx, t)
+
+				// Tick 3: nothing left to archive. The dispatch is
+				// gated on len(archivedChats) > 0, so no new audits
+				// or digests are produced. If that gate is ever
+				// removed, update this assertion intentionally.
+				require.Len(t, auditor.AuditLogs(), 27, "tick 3 cumulative audits unchanged")
+				require.Len(t, enqueuer.Sent(), 2, "tick 3 cumulative digests unchanged")
 			},
 		},
 	}
