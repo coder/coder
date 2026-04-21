@@ -19,6 +19,7 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -5161,55 +5162,46 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
-// chatFileResolver returns a FileResolver that fetches chat file
-// content from the database by ID. The provider argument is used to
-// enforce per-provider payload limits (e.g. Anthropic's 5 MiB inline
-// image cap, inherited by Bedrock-hosted Claude via chatprovider.
-// InlineImageByteCap) so oversized attachments are rejected before
-// any upstream request is issued.
+// Rejects oversize images on capped providers before any upstream
+// request is issued.
 //
-// TODO(chat-images): when an oversize image lives in a historical
-// message, this aborts the whole prompt build and bricks the chat on
-// the affected provider. A follow-up should make the resolver skip
-// the offending file with a user-facing warning instead of failing
-// hard, so the conversation can still be continued.
+// Gotcha: a historical oversize image bricks the chat on a capped
+// provider until the user switches providers back, starts a new
+// chat, or edits a message above the offending one (which truncates
+// the prompt forward). A future change should skip the file with a
+// user-facing warning, but that requires altering the FileResolver
+// contract.
 func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		// Look up the provider-specific inline image cap once per
-		// invocation; skipped entirely for providers without a cap.
-		imageCap, hasImageCap := chatprovider.InlineImageByteCap(provider)
+		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
 		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
 				strings.HasPrefix(f.Mimetype, "image/") &&
 				len(f.Data) >= imageCap {
-				// Pre-classify the error so the surfaced message
-				// points the user at the actionable cause rather
-				// than producing a generic upstream failure.
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
 					f.Name, len(f.Data),
 					chatprovider.ProviderDisplayName(normalizedProvider),
 					imageCap,
 				)
+				// User-facing message stays client-agnostic since
+				// older web clients and direct API callers don't
+				// auto-resize; the wrapped error above keeps the
+				// exact byte count for operator logs.
 				return nil, chaterror.WithClassification(err, chaterror.ClassifiedError{
-					Kind:     chaterror.KindConfig,
+					Kind:     codersdk.ChatErrorKindConfig,
 					Provider: normalizedProvider,
-					// Kept client-agnostic on purpose: this backstop
-					// runs for older web clients and direct API
-					// callers that do not auto-resize, so a promise
-					// of "the app will resize it for you" would be a
-					// lie for exactly that audience. State the limit
-					// and let the caller decide how to shrink.
 					Message: fmt.Sprintf(
-						"Image attachment exceeds %s's %d-byte inline image limit. Replace it with a smaller image.",
+						"Image attachment exceeds %s's %s inline image limit. Replace it with a smaller image.",
 						chatprovider.ProviderDisplayName(normalizedProvider),
-						imageCap,
+						//nolint:gosec // imageCap is a small positive constant defined in chatprovider.
+						humanize.IBytes(uint64(imageCap)),
 					),
 					Retryable: false,
 				})

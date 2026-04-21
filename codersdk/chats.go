@@ -33,6 +33,15 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // this limit than to lower it.
 const MaxChatFileIDs = 20
 
+// MaxChatFileSizeBytes is the upload-endpoint cap for chat
+// attachments.
+const MaxChatFileSizeBytes = 10 * 1024 * 1024
+
+// AnthropicInlineImageCapBytes is Anthropic's documented per-image
+// wire limit; the same cap applies to Bedrock-hosted Claude. Other
+// providers have no documented per-image cap.
+const AnthropicInlineImageCapBytes = 5 * 1024 * 1024
+
 // ChatAttachmentMediaType is a media type that is allowed for durable
 // chat file storage. The set is intentionally narrow; byte-level
 // classification and inline-render rules live alongside the enforcement

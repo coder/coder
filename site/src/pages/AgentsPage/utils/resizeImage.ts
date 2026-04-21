@@ -1,21 +1,11 @@
 /**
- * Browser-side image resizing for provider-specific payload budgets.
- *
- * Motivation: Anthropic rejects inline images over 5,242,880 bytes
- * (5 MiB). Our upload endpoint otherwise accepts images up to 10 MiB,
- * so oversized images would reach the model and fail. Resizing on the
- * client avoids having the server decode attacker-controlled image
- * bytes (image-bomb DoS surface).
- *
- * This module is plain TS — no React — so it can be called from any
- * upload pipeline.
+ * Browser-side image re-encoding to a caller-supplied byte budget.
+ * Plain TS (no React) so it can be used by any upload pipeline.
  */
 
-// Formats we know how to safely re-encode. GIFs are intentionally
-// excluded: canvas re-encoding would flatten animation to a single
-// frame, which is worse than failing the budget check. `image/jpg`
-// is a non-IANA alias some OSes/uploaders emit for .jpg files; we
-// accept it as an alias for `image/jpeg`.
+// Formats we re-encode. GIFs are excluded so we don't flatten
+// animation; image/jpg is a non-IANA alias for image/jpeg some
+// OSes emit.
 const RESIZABLE_MIME_TYPES = new Set([
 	"image/png",
 	"image/jpeg",
@@ -23,48 +13,34 @@ const RESIZABLE_MIME_TYPES = new Set([
 	"image/webp",
 ]);
 
-// Canvas dimensions are clamped here because several browsers limit
-// the maximum decoded canvas area (Safari historically ~4096² on
-// mobile, Chrome ~16384 per side on desktop). 8192 is a safe
-// conservative lower bound that still preserves plenty of detail for
-// typical screenshots. Applied at the createImageBitmap boundary so
-// the raw decoded bitmap never exceeds the clamp — a low-byte image
-// with pathologically large pixel extent therefore cannot OOM the
-// tab on decode.
+// Per-axis clamp applied at decode so a low-byte image with
+// pathologically large pixel extent can't OOM the tab. 8192 stays
+// under Safari/Chrome canvas limits while preserving detail for
+// typical screenshots.
 const MAX_INITIAL_DIMENSION = 8192;
 
-// Maximum number of shrink iterations before we give up. Each
-// iteration multiplies dimensions by DIMENSION_STEP, so after N
-// iterations the image is ~DIMENSION_STEP^N of the original on each
-// axis. 8 iterations → ~17% of original dimensions → ~3% of original
-// pixels, which is plenty of headroom for any image that was only
-// modestly over budget.
+// 8 iterations × DIMENSION_STEP per axis gives ~3% of original
+// pixels, plenty of headroom for any modestly-oversize image.
 const MAX_SHRINK_ITERATIONS = 8;
 const DIMENSION_STEP = 0.8;
 
-// Initial and fallback WebP quality parameters. WebP at 0.85 is
-// visually near-lossless for screenshots; 0.7 is the hail-mary that
-// runs only if dimension shrinking alone didn't fit the budget.
+// 0.85 is near-lossless for screenshots; 0.7 is a hail-mary if
+// dimension shrinking alone didn't fit the budget.
 const INITIAL_QUALITY = 0.85;
 const FALLBACK_QUALITY = 0.7;
 
-// Timeout for the legacy <img>-based decode fallback. The fallback
-// is only used when createImageBitmap isn't available (very old
-// Safari, some embedded webviews, some test envs); capping it here
-// prevents a pathological blob that fires neither onload nor
-// onerror from wedging the module queue for the tab's lifetime.
+// Time-bound the legacy <img> decode fallback so a blob that fires
+// neither onload nor onerror can't wedge the module queue.
 const FALLBACK_DECODE_TIMEOUT_MS = 10_000;
 
-// Sequential queue so pasting or dropping many images doesn't spawn
-// many simultaneous decode pipelines. Each call waits for the
-// previous to finish before starting.
+// Sequential queue: pasting many images won't spawn parallel
+// decode pipelines.
 let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-	// Chain fn off both settlement branches so the next queued task
-	// runs regardless of whether the previous one resolved or
-	// rejected; the .catch below then detaches rejection from the
-	// shared tail so later calls don't inherit a poisoned promise.
+	// Chain off both settlement branches so the next task runs
+	// after a rejection too; the .catch below detaches rejection
+	// from the shared tail.
 	const next = queue.then(fn, fn);
 	queue = next.catch(() => undefined);
 	return next;
@@ -91,18 +67,18 @@ export async function resizeImageToMaxBytes(
 	if (!file.type.startsWith("image/")) {
 		return file;
 	}
-	// Animated formats — return as-is rather than silently producing
-	// a single-frame still.
+	// GIFs return as-is so we don't flatten animation.
 	if (file.type === "image/gif") {
 		return file;
 	}
-	// Fast path: already within budget in a format the server allows.
-	// Uses <= to match the caller's gate (useFileAttachments) and the
-	// server-side cap predicate, so a file at exactly `maxBytes` is
-	// consistently treated as "already fits".
-	if (file.size <= maxBytes && RESIZABLE_MIME_TYPES.has(file.type)) {
+	// Already under budget; return as-is regardless of MIME (the
+	// function's contract is "give me something <= maxBytes" and
+	// we already have that).
+	if (file.size <= maxBytes) {
 		return file;
 	}
+	// Over budget but unsupported MIME (e.g. image/bmp): refuse
+	// rather than silently produce a black canvas or wrong file.
 	if (!RESIZABLE_MIME_TYPES.has(file.type)) {
 		return null;
 	}
@@ -122,11 +98,9 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 	}
 
 	try {
-		// createImageBitmap with resizeWidth/resizeHeight has already
-		// clamped the bitmap to at most MAX_INITIAL_DIMENSION per
-		// axis (see decodeToBitmap), preserving aspect ratio. We can
-		// therefore start the shrink loop directly at the bitmap's
-		// reported dimensions without a separate manual clamp.
+		// decodeToBitmap already clamped to MAX_INITIAL_DIMENSION
+		// per axis, so we start the shrink loop from the bitmap's
+		// reported dimensions.
 		let width = bitmap.width;
 		let height = bitmap.height;
 		if (width <= 0 || height <= 0) {
@@ -146,9 +120,9 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 			height = Math.max(1, Math.round(height * DIMENSION_STEP));
 		}
 
-		// Last-ditch attempt at the smallest dimensions with a lower
-		// quality setting. Useful for mostly-photographic images where
-		// dimension shrinking alone saturated.
+		// Last-ditch attempt at the smallest dimensions with a
+		// lower quality, for photographic images where dimension
+		// shrinking alone saturated.
 		const fallbackBlob = await encodeWebP(
 			bitmap,
 			width,
@@ -167,22 +141,88 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 }
 
 async function decodeToBitmap(file: File): Promise<ImageBitmap | null> {
-	// createImageBitmap is the fastest path and avoids ever drawing
-	// through an <img> tag (which would require DOM attachment in
-	// some browsers). The resize* options clamp the decoded bitmap
-	// before it reaches memory, so a small file with pathological
-	// pixel extent cannot blow up RAM here.
-	if (typeof createImageBitmap === "function") {
+	// createImageBitmap's HTML-spec output rules:
+	//   - both resize dims => stretch (destroys aspect ratio).
+	//   - only resizeWidth => width is exact, height proportional.
+	//     Per spec this UPSCALES if resizeWidth > natural width.
+	//   - both omitted => source's natural size.
+	//
+	// Upscaling can blow past Chromium's ~268M-pixel decode limit
+	// (e.g. a 1080x5000 screenshot with resizeWidth: 8192 becomes
+	// ~310M pixels). Probe natural dimensions first to pick the
+	// smallest resize option that fits.
+	if (typeof createImageBitmap !== "function") {
+		return await decodeViaImgFallback(file);
+	}
+	const natural = await probeNaturalDimensions(file);
+	if (!natural) {
+		return await decodeViaImgFallback(file);
+	}
+	const { width, height } = natural;
+	if (width <= 0 || height <= 0) {
+		return null;
+	}
+	// Pick the smallest resize that fits MAX_INITIAL_DIMENSION
+	// without upscaling. Already-small sources pass no options.
+	const needsWidthClamp = width > MAX_INITIAL_DIMENSION;
+	const needsHeightClamp = height > MAX_INITIAL_DIMENSION;
+	if (!needsWidthClamp && !needsHeightClamp) {
+		return await createImageBitmap(file);
+	}
+	// Clamp the longer axis; the shorter axis scales with it.
+	if (width >= height) {
 		return await createImageBitmap(file, {
 			resizeWidth: MAX_INITIAL_DIMENSION,
-			resizeHeight: MAX_INITIAL_DIMENSION,
 			resizeQuality: "medium",
 		});
 	}
-	// Fallback: decode via <img> + Blob URL. Only reached on very
-	// old browsers and in some test environments. This path does
-	// not get the decode-time clamp, but it is intentionally
-	// time-bounded so a stuck decoder can't wedge the shared queue.
+	return await createImageBitmap(file, {
+		resizeHeight: MAX_INITIAL_DIMENSION,
+		resizeQuality: "medium",
+	});
+}
+
+// Reads natural dimensions via <img> without allocating a full
+// ImageBitmap. Returns null on decode/timeout failure.
+async function probeNaturalDimensions(
+	file: File,
+): Promise<{ width: number; height: number } | null> {
+	return await new Promise<{ width: number; height: number } | null>(
+		(resolve) => {
+			const url = URL.createObjectURL(file);
+			const img = new Image();
+			let settled = false;
+			const cleanup = () => {
+				settled = true;
+				URL.revokeObjectURL(url);
+			};
+			const timer = setTimeout(() => {
+				if (settled) return;
+				cleanup();
+				resolve(null);
+			}, FALLBACK_DECODE_TIMEOUT_MS);
+			img.onload = () => {
+				if (settled) return;
+				clearTimeout(timer);
+				cleanup();
+				resolve({ width: img.naturalWidth, height: img.naturalHeight });
+			};
+			img.onerror = () => {
+				if (settled) return;
+				clearTimeout(timer);
+				cleanup();
+				resolve(null);
+			};
+			img.src = url;
+		},
+	);
+}
+
+async function decodeViaImgFallback(file: File): Promise<ImageBitmap | null> {
+	// Decode via <img> + Blob URL. Reached only on browsers
+	// without createImageBitmap (very old Safari, embedded
+	// webviews); time-bounded so a stuck decoder can't wedge the
+	// queue. No decode-time clamp on this path.
 	return await new Promise<ImageBitmap | null>((resolve, reject) => {
 		const url = URL.createObjectURL(file);
 		const img = new Image();
@@ -200,9 +240,8 @@ async function decodeToBitmap(file: File): Promise<ImageBitmap | null> {
 			if (settled) return;
 			clearTimeout(timer);
 			cleanup();
-			// Best-effort cast: HTMLImageElement is acceptable as a
-			// CanvasImageSource and we only need width/height plus the
-			// drawable surface below.
+			// HTMLImageElement is a valid CanvasImageSource;
+			// width/height are all we need downstream.
 			resolve(img as unknown as ImageBitmap);
 		};
 		img.onerror = () => {
@@ -221,8 +260,8 @@ async function encodeWebP(
 	height: number,
 	quality: number,
 ): Promise<Blob | null> {
-	// Prefer OffscreenCanvas when available — its convertToBlob is
-	// fully async and does not require the canvas to be laid out.
+	// OffscreenCanvas's convertToBlob is fully async and doesn't
+	// need the canvas laid out.
 	if (typeof OffscreenCanvas === "function") {
 		const canvas = new OffscreenCanvas(width, height);
 		const ctx = canvas.getContext("2d");
@@ -237,8 +276,7 @@ async function encodeWebP(
 		}
 	}
 
-	// HTMLCanvasElement fallback for environments without
-	// OffscreenCanvas (older Safari, some embedded webviews).
+	// Fallback for environments without OffscreenCanvas.
 	const canvas = document.createElement("canvas");
 	canvas.width = width;
 	canvas.height = height;
@@ -253,18 +291,14 @@ async function encodeWebP(
 }
 
 function toWebPFile(original: File, blob: Blob): File {
-	// Replace the extension (if any) with .webp so the filename
-	// matches the new content type. Some web upload handlers and
-	// file-picker dialogs still key behavior off the extension even
-	// when the MIME type is correct, so keeping them consistent
-	// avoids surprises.
+	// Match the extension to the actual content type; some upload
+	// handlers still key behavior off the extension.
 	const dot = original.name.lastIndexOf(".");
 	const baseName = dot > 0 ? original.name.slice(0, dot) : original.name;
 	const webpName = `${baseName || "image"}.webp`;
-	// Prefer the blob's reported MIME type. canvas.toBlob/
-	// convertToBlob fall back to image/png on browsers without WebP
-	// encode support; trusting the browser's label keeps the File
-	// type honest instead of labelling a PNG as WebP.
+	// Use blob.type: canvas encoders fall back to PNG on browsers
+	// without WebP support; this keeps the File's labelled type
+	// matching its actual content.
 	const effectiveType = blob.type || "image/webp";
 	const effectiveName =
 		effectiveType === "image/webp" ? webpName : original.name;

@@ -83,24 +83,14 @@ func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
 }
 
-// anthropicInlineImageByteCap is Anthropic's documented 5 MiB
-// per-inline-image limit. Kept in sync with ANTHROPIC_IMAGE_BUDGET_BYTES
-// in site/src/pages/AgentsPage/hooks/useFileAttachments.ts.
-const anthropicInlineImageByteCap = 5 * 1024 * 1024
-
-// InlineImageByteCap returns the per-image byte cap that the given
-// provider's upstream API will accept for inline image parts, or
-// (0, false) when no documented cap applies.
-//
-// Bedrock is treated identically to Anthropic because fantasy's
-// bedrock provider is a thin wrapper around the anthropic client
-// (providers/bedrock/bedrock.go calls anthropic.New with
-// anthropic.WithBedrock()) and inherits the same Messages-format
-// per-part inline-image cap.
-func InlineImageByteCap(provider string) (int, bool) {
+// InlineImageCapBytes returns the per-image byte cap for inline
+// image parts, or (0, false) when no documented cap applies.
+// Bedrock shares Anthropic's cap because fantasy's bedrock provider
+// wraps the anthropic client.
+func InlineImageCapBytes(provider string) (int, bool) {
 	switch NormalizeProvider(provider) {
 	case fantasyanthropic.Name, fantasybedrock.Name:
-		return anthropicInlineImageByteCap, true
+		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
 	}

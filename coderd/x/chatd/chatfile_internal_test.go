@@ -1,11 +1,11 @@
 package chatd
 
 import (
-	"bytes"
 	"context"
 	"strconv"
 	"testing"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -15,27 +15,25 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
-// inlineImageCapFor panics if the provider has no documented cap;
-// tests that call this must use a capped provider.
+// inlineImageCapFor returns the provider's inline image cap. Fails
+// the test if the provider has no documented cap.
 func inlineImageCapFor(t *testing.T, provider string) int {
 	t.Helper()
-	imageCap, ok := chatprovider.InlineImageByteCap(provider)
+	imageCap, ok := chatprovider.InlineImageCapBytes(provider)
 	require.Truef(t, ok, "expected provider %q to have an inline image cap", provider)
 	return imageCap
 }
 
-// TestChatFileResolver_RejectsOversizedImages verifies the server-side
-// safety net: even if an oversized image slips past the browser's
-// resize step, chatFileResolver refuses to forward it upstream. This
-// prevents sending a request that the provider's upstream API would
-// reject for exceeding its inline-image cap.
+// TestChatFileResolver_RejectsOversizedImages is the server-side
+// safety net for browser-side resize: oversize images that reach the
+// resolver are rejected before any upstream request.
 func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 	t.Parallel()
 
-	// Computed rather than hardcoded so the table doesn't silently
-	// rot if chatprovider ever retunes the cap.
+	// Computed so the table tracks any future cap retune.
 	anthropicCap := inlineImageCapFor(t, "anthropic")
 
 	tests := []struct {
@@ -63,11 +61,9 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			expectProviderID: "anthropic",
 		},
 		{
-			// Server uses >= for the boundary, so exactly-at-limit
-			// is also rejected. Anthropic's public docs phrase the
-			// limit as "5 MB maximum" without specifying inclusivity;
-			// rejecting strictly safer than letting the exact-limit
-			// file fail upstream with a generic error.
+			// Boundary is >=: exactly-at-limit is rejected.
+			// Anthropic's docs say "5 MB maximum" without
+			// specifying inclusivity, so reject strictly.
 			name:             "AtLimitAnthropicImage_Rejected",
 			provider:         "anthropic",
 			mimetype:         "image/png",
@@ -92,9 +88,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			expectProviderID: "anthropic",
 		},
 		{
-			// Bedrock reuses Anthropic's wire format and cap (see
-			// chatprovider.InlineImageByteCap); the same oversize
-			// image bound for Bedrock must be rejected.
+			// Bedrock reuses Anthropic's cap.
 			name:             "OversizedBedrockPNG_Rejected",
 			provider:         "bedrock",
 			mimetype:         "image/png",
@@ -144,6 +138,17 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 		},
 	}
 
+	// One shared backing buffer sliced per case. The resolver only
+	// reads len(f.Data), so shared backing is safe and avoids N×max
+	// allocations in parallel.
+	maxSize := 0
+	for _, tc := range tests {
+		if tc.size > maxSize {
+			maxSize = tc.size
+		}
+	}
+	sharedData := make([]byte, maxSize)
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -158,7 +163,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 				ID:       fileID,
 				Name:     "attachment.png",
 				Mimetype: tc.mimetype,
-				Data:     bytes.Repeat([]byte{0x00}, tc.size),
+				Data:     sharedData[:tc.size],
 			}
 			db.EXPECT().
 				GetChatFilesByIDs(gomock.Any(), []uuid.UUID{fileID}).
@@ -171,22 +176,28 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 			if tc.expectReject {
 				require.Error(t, err)
 				require.Nil(t, got)
-				// The error must carry a pre-built classification so
-				// the user sees an actionable message instead of a
-				// generic provider failure.
+				// Classification turns the generic upstream error
+				// into an actionable user-facing message.
 				classified := chaterror.Classify(err)
-				require.Equal(t, chaterror.KindConfig, classified.Kind)
+				require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 				require.Equal(t, tc.expectProviderID, classified.Provider)
 				require.False(t, classified.Retryable)
-				// Surface should include the provider display name
-				// and the byte cap derived from the constant.
+				// User-facing message names the provider and shows
+				// the cap in human units; raw byte count stays in
+				// the wrapped developer error.
 				displayName := chatprovider.ProviderDisplayName(tc.expectProviderID)
 				require.Contains(t, classified.Message, displayName)
-				require.Contains(
+				imageCap := inlineImageCapFor(t, tc.expectProviderID)
+				//nolint:gosec // imageCap is a small positive constant defined in chatprovider.
+				require.Contains(t, classified.Message, humanize.IBytes(uint64(imageCap)))
+				require.NotContains(
 					t,
 					classified.Message,
-					strconv.Itoa(inlineImageCapFor(t, tc.expectProviderID)),
+					strconv.Itoa(imageCap),
+					"user-facing message should not include raw bytes",
 				)
+				// Wrapped error preserves exact bytes for logs.
+				require.Contains(t, err.Error(), strconv.Itoa(imageCap))
 				return
 			}
 			require.NoError(t, err)
@@ -198,9 +209,7 @@ func TestChatFileResolver_RejectsOversizedImages(t *testing.T) {
 }
 
 // TestChatFileResolver_MultiFileFailsFastOnFirstOversized pins the
-// current "first bad file aborts the batch" contract. If this is
-// ever changed to collect all violations, this test should be
-// updated rather than silently dropped.
+// "first bad file aborts the batch" contract.
 func TestChatFileResolver_MultiFileFailsFastOnFirstOversized(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -210,23 +219,25 @@ func TestChatFileResolver_MultiFileFailsFastOnFirstOversized(t *testing.T) {
 	server := &Server{db: db}
 
 	anthropicCap := inlineImageCapFor(t, "anthropic")
+	// Shared buffer; ok files take small prefixes.
+	buf := make([]byte, anthropicCap+1)
 	okFileA := database.ChatFile{
 		ID:       uuid.New(),
 		Name:     "ok-a.png",
 		Mimetype: "image/png",
-		Data:     bytes.Repeat([]byte{0x00}, 1024),
+		Data:     buf[:1024],
 	}
 	oversized := database.ChatFile{
 		ID:       uuid.New(),
 		Name:     "too-big.png",
 		Mimetype: "image/png",
-		Data:     bytes.Repeat([]byte{0x00}, anthropicCap+1),
+		Data:     buf,
 	}
 	okFileB := database.ChatFile{
 		ID:       uuid.New(),
 		Name:     "ok-b.png",
 		Mimetype: "image/png",
-		Data:     bytes.Repeat([]byte{0x00}, 1024),
+		Data:     buf[:1024],
 	}
 	ids := []uuid.UUID{okFileA.ID, oversized.ID, okFileB.ID}
 
@@ -240,7 +251,7 @@ func TestChatFileResolver_MultiFileFailsFastOnFirstOversized(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, got)
 	classified := chaterror.Classify(err)
-	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 	// The error must identify the specific offending file so a user
 	// with several attachments knows which one to replace.
 	require.Contains(t, err.Error(), oversized.Name)
@@ -280,13 +291,15 @@ func TestChatFileResolver_UnknownProviderSkipsCapCheck(t *testing.T) {
 	server := &Server{db: db}
 
 	fileID := uuid.New()
+	// Exactly 1 byte above the Anthropic cap is enough to prove
+	// the backstop is skipped for uncapped providers; no need to
+	// allocate tens of MiB in CI.
+	overAnyCap := inlineImageCapFor(t, "anthropic") + 1
 	row := database.ChatFile{
 		ID:       fileID,
 		Name:     "huge.png",
 		Mimetype: "image/png",
-		// Well above every documented cap; but without a matching
-		// provider the backstop must not fire.
-		Data: bytes.Repeat([]byte{0x00}, 50*1024*1024),
+		Data:     make([]byte, overAnyCap),
 	}
 	db.EXPECT().
 		GetChatFilesByIDs(gomock.Any(), []uuid.UUID{fileID}).

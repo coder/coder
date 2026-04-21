@@ -306,7 +306,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
