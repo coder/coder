@@ -3973,6 +3973,22 @@ func TestPatchChat(t *testing.T) {
 		require.NoError(t, err)
 		return db2sdk.Chat(dbChat, nil, nil)
 	}
+
+	// waitChatSettled polls the chat until its background title-generation
+	// daemon has left the Pending/Running state. Without this, an immediate
+	// UpdateChat can hit a 409 (title regeneration in progress).
+	waitChatSettled := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			c, err := client.GetChat(ctx, chatID)
+			if err != nil {
+				return false
+			}
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
+	}
+
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
@@ -4244,6 +4260,8 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "original title")
 
+			waitChatSettled(ctx, t, client, chat.ID)
+
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("renamed title"),
 			})
@@ -4262,6 +4280,8 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "before trim")
+
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("   padded title   "),
@@ -4360,6 +4380,8 @@ func TestPatchChat(t *testing.T) {
 					_ = createChatModelConfig(t, client)
 
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
+					waitChatSettled(ctx, t, client, chat.ID)
+
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 						Title: ptr.Ref(tc.title),
 					})
@@ -4470,6 +4492,8 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "announce me")
+
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
 			require.NoError(t, err)
