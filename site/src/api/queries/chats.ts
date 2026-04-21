@@ -823,9 +823,6 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		// `regenerateChatTitle` triggers a backend `title_generation` debug
-		// run. Kick the Debug panel query so the new run appears without
-		// waiting for the next poll cycle.
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
@@ -889,14 +886,8 @@ export const createChatMessage = (
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
-		// Fire-and-forget: callers use `mutateAsync` and await send-side UI
-		// updates, so we must not block on a Debug-panel refetch that can
-		// run in the background.
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
-	// The per-chat and sidebar WebSockets cover message/status updates,
-	// but the Debug panel uses polling. Kick its list query immediately
-	// so newly-started runs appear without tab switching.
 });
 
 type EditChatMessageMutationArgs = {
@@ -987,10 +978,6 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
 	onSuccess: () => {
-		// Chat status and sidebar state are covered by the per-chat
-		// and watchChats() WebSockets, but the Debug panel uses polling.
-		// Kick its list query so the run flips to "interrupted" without
-		// waiting for the next poll cycle.
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
@@ -1020,13 +1007,8 @@ export const promoteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: () => {
-		// Fire-and-forget: same reasoning as createChatMessage -- the caller
-		// awaits the promise to upsert the promoted message, so the Debug
-		// panel refetch must not gate the mutation settling.
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
-	// The caller still upserts the promoted message directly, but the
-	// Debug panel needs an explicit refresh to discover the new run.
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -1104,43 +1086,7 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatDebugLoggingKey = ["chat-debug-logging"] as const;
-const userChatDebugLoggingKey = ["user-chat-debug-logging"] as const;
-
-/** @public Consumed by the Debug settings UI in a higher stack layer. */
-export const chatDebugLogging = () => ({
-	queryKey: chatDebugLoggingKey,
-	queryFn: () => API.experimental.getChatDebugLogging(),
-});
-
-/** @public Consumed by the Debug settings UI in a higher stack layer. */
-export const userChatDebugLogging = () => ({
-	queryKey: userChatDebugLoggingKey,
-	queryFn: () => API.experimental.getUserChatDebugLogging(),
-});
-
-/** @public Consumed by the Debug settings UI in a higher stack layer. */
-export const updateChatDebugLogging = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDebugLogging,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDebugLoggingKey,
-		});
-		await queryClient.invalidateQueries({
-			queryKey: userChatDebugLoggingKey,
-		});
-	},
-});
-
-/** @public Consumed by the Debug settings UI in a higher stack layer. */
-export const updateUserChatDebugLogging = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateUserChatDebugLogging,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: userChatDebugLoggingKey,
-		});
-	},
-});
+export * from "./chatDebugLogging";
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 

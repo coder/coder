@@ -256,6 +256,100 @@ describe("coerceStepResponse", () => {
 		expect(response.content).toBe("part one part two");
 		expect(response.finishReason).toBe("length");
 	});
+
+	it("collects tool_calls from the OpenAI choice fallback when none come from content", () => {
+		const response = coerceStepResponse({
+			choices: [
+				{
+					message: {
+						content: "ok",
+						tool_calls: [
+							{
+								id: "call-9",
+								function: { name: "lookup", arguments: '{"q":"x"}' },
+							},
+						],
+					},
+					finish_reason: "tool_calls",
+				},
+			],
+		});
+
+		expect(response.toolCalls).toEqual([
+			{
+				id: "call-9",
+				name: "lookup",
+				arguments: '{\n  "q": "x"\n}',
+			},
+		]);
+		expect(response.finishReason).toBe("tool_calls");
+	});
+
+	it("coerces top-level tool_calls when content is a plain string", () => {
+		const response = coerceStepResponse({
+			content: "hello",
+			tool_calls: [{ id: "c-1", name: "alpha", arguments: '{"q":"a"}' }],
+		});
+
+		expect(response.content).toBe("hello");
+		expect(response.toolCalls).toEqual([
+			{
+				id: "c-1",
+				name: "alpha",
+				arguments: '{\n  "q": "a"\n}',
+			},
+		]);
+	});
+
+	it("captures usage, warnings, and model from the response body", () => {
+		const response = coerceStepResponse({
+			content: "done",
+			usage: { prompt_tokens: "11", completion_tokens: 22 },
+			warnings: [
+				"string warning",
+				{ message: "object warning" },
+				{ details: "object details" },
+				{ other: "ignored" },
+			],
+			model: "gpt-4o",
+		});
+
+		expect(response.usage).toEqual({
+			prompt_tokens: 11,
+			completion_tokens: 22,
+		});
+		expect(response.warnings).toEqual([
+			"string warning",
+			"object warning",
+			"object details",
+		]);
+		expect(response.model).toBe("gpt-4o");
+	});
+
+	it("returns defaults for non-object input", () => {
+		const response = coerceStepResponse(null);
+
+		expect(response).toEqual({
+			content: "",
+			toolCalls: [],
+			finishReason: undefined,
+			usage: {},
+			warnings: [],
+			model: undefined,
+		});
+	});
+
+	it("unwraps JSON-string payloads before coercing", () => {
+		const response = coerceStepResponse(
+			JSON.stringify({
+				content: "via json wrapper",
+				finish_reason: "stop",
+			}),
+		);
+
+		expect(response.content).toBe("via json wrapper");
+		expect(response.finishReason).toBe("stop");
+	});
 });
 
 describe("getRunKindLabel", () => {
@@ -427,6 +521,53 @@ describe("normalizeAttempts", () => {
 
 		expect(attempt?.raw_response).toEqual({ body: "hello world" });
 	});
+
+	it("captures string and object-shaped errors", () => {
+		const [stringAttempt, objectAttempt] = normalizeAttempts([
+			{ attempt_number: 1, status: "error", error: "boom" },
+			{
+				attempt_number: 2,
+				status: "error",
+				error: { code: "ETIMEDOUT", detail: "slow" },
+			},
+		]).parsed;
+
+		expect(stringAttempt?.error).toBe("boom");
+		expect(objectAttempt?.error).toEqual({ code: "ETIMEDOUT", detail: "slow" });
+	});
+
+	it("preserves pre-built raw_request/raw_response records without rebuilding", () => {
+		const [attempt] = normalizeAttempts([
+			{
+				attempt_number: 1,
+				status: "completed",
+				raw_request: { method: "POST", url: "https://api.example/llm" },
+				raw_response: { status: 200, body: { ok: true } },
+				// These scalar fields should be ignored when raw_request/raw_response
+				// are already provided.
+				method: "IGNORED",
+				request_body: "ignored",
+			},
+		]).parsed;
+
+		expect(attempt?.raw_request).toEqual({
+			method: "POST",
+			url: "https://api.example/llm",
+		});
+		expect(attempt?.raw_response).toEqual({
+			status: 200,
+			body: { ok: true },
+		});
+	});
+
+	it("falls back to the positional index when no attempt_number is provided", () => {
+		const parsed = normalizeAttempts([
+			{ status: "completed" },
+			{ status: "error" },
+		]).parsed;
+
+		expect(parsed.map((a) => a.attempt_number)).toEqual([1, 2]);
+	});
 });
 
 describe("computeDurationMs", () => {
@@ -517,6 +658,14 @@ describe("extractTokenCounts", () => {
 			}),
 		).toEqual({ input: 5, output: 7, total: undefined });
 	});
+
+	it("returns undefined fields for an empty usage record", () => {
+		expect(extractTokenCounts({})).toEqual({
+			input: undefined,
+			output: undefined,
+			total: undefined,
+		});
+	});
 });
 
 describe("coerceUsageRecord", () => {
@@ -589,6 +738,20 @@ describe("coerceRunSummary", () => {
 			totalOutputTokens: undefined,
 			warnings: [],
 		});
+	});
+
+	it("unwraps JSON-string payloads before coercing", () => {
+		const summary = coerceRunSummary(
+			JSON.stringify({
+				first_message: "wrapped hello",
+				provider: "openai",
+				stepCount: 4,
+			}),
+		);
+
+		expect(summary.primaryLabel).toBe("wrapped hello");
+		expect(summary.provider).toBe("openai");
+		expect(summary.stepCount).toBe(4);
 	});
 });
 
@@ -663,6 +826,83 @@ describe("coerceStepRequest", () => {
 			policy: {},
 		});
 	});
+
+	it("drops tool definitions without a name", () => {
+		const request = coerceStepRequest({
+			tools: [
+				{ type: "function", function: { description: "nameless" } },
+				{
+					type: "function",
+					function: { name: "valid", description: "kept" },
+				},
+			],
+		});
+
+		expect(request.tools).toEqual([
+			expect.objectContaining({ name: "valid", description: "kept" }),
+		]);
+	});
+
+	it("surfaces tool-call message parts with structured kind metadata", () => {
+		const request = coerceStepRequest({
+			messages: [
+				{
+					role: "assistant",
+					parts: [
+						{
+							type: "tool-call",
+							tool_call_id: "call-42",
+							tool_name: "search_docs",
+							arguments: '{"query":"foo"}',
+						},
+					],
+				},
+				{
+					role: "tool",
+					parts: [
+						{
+							type: "tool-result",
+							tool_call_id: "call-42",
+							tool_name: "search_docs",
+							result: { matches: 3 },
+						},
+					],
+				},
+			],
+		});
+
+		expect(request.messages).toHaveLength(2);
+		expect(request.messages[0]).toMatchObject({
+			role: "assistant",
+			kind: "tool-call",
+			toolCallId: "call-42",
+			toolName: "search_docs",
+			arguments: '{\n  "query": "foo"\n}',
+		});
+		expect(request.messages[1]).toMatchObject({
+			role: "tool",
+			kind: "tool-result",
+			toolCallId: "call-42",
+			toolName: "search_docs",
+			result: expect.stringContaining('"matches"'),
+		});
+	});
+
+	it("unwraps JSON-string payloads including nested options", () => {
+		const request = coerceStepRequest(
+			JSON.stringify({
+				model: "gpt-4",
+				messages: [{ role: "user", content: "hi" }],
+				options: JSON.stringify({ temperature: 0.5 }),
+				policy: JSON.stringify({ tool_choice: "none" }),
+			}),
+		);
+
+		expect(request.model).toBe("gpt-4");
+		expect(request.messages).toHaveLength(1);
+		expect(request.options).toEqual({ temperature: 0.5 });
+		expect(request.policy).toEqual({ tool_choice: "none" });
+	});
 });
 
 describe("clampContent", () => {
@@ -672,5 +912,17 @@ describe("clampContent", () => {
 
 	it("truncates and appends an ellipsis when over the limit", () => {
 		expect(clampContent("hello world", 5)).toBe("hello…");
+	});
+
+	it("returns an empty string for whitespace-only input", () => {
+		expect(clampContent("   ", 10)).toBe("");
+	});
+
+	it("keeps text exactly at the limit unchanged", () => {
+		expect(clampContent("abcde", 5)).toBe("abcde");
+	});
+
+	it("strips trailing whitespace before appending the ellipsis", () => {
+		expect(clampContent("abc     defghij", 6)).toBe("abc…");
 	});
 });
