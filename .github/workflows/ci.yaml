@@ -80,6 +80,7 @@ jobs:
               # Main repo directories for completeness in case other files are
               # touched:
               - "agent/**"
+              - "aibridge/**"
               - "cli/**"
               - "cmd/**"
               - "coderd/**"
