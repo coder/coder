@@ -291,7 +291,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 			endLine,
 			side,
 		);
-		// Single imperative call — chip inserted atomically
+		// Single imperative call: chip inserted atomically
 		// in one Lexical update. No rAF hack needed.
 		chatInputRef?.current?.addFileReference({
 			fileName: box.fileName,
