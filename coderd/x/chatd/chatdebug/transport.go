@@ -230,7 +230,8 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 	r.accumulateReadLocked(p, n, err)
 	r.mu.Unlock()
 
-	// Record non-EOF errors immediately.
+	// Record non-EOF errors immediately. EOF is handled
+	// below for SSE or deferred to Close() for validation.
 	if err != nil && !errors.Is(err, io.EOF) {
 		r.record(err)
 		return n, err
@@ -363,10 +364,8 @@ func isNDJSONContentType(contentType string) bool {
 	return parseMediaType(contentType) == "application/x-ndjson"
 }
 
-// isSSEContentType reports whether contentType is a server-sent-events
-// stream. SSE bodies are consumed to EOF by iterating the event stream
-// and are typically abandoned without an explicit Close() call, so the
-// recording transport has to fire on EOF rather than waiting for Close.
+// isSSEContentType reports whether contentType is a
+// server-sent-events stream.
 func isSSEContentType(contentType string) bool {
 	return parseMediaType(contentType) == "text/event-stream"
 }

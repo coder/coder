@@ -863,7 +863,7 @@ func TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
 	require.NoError(t, err)
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // Intentionally skip Close() to verify EOF-only recording.
 	require.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -877,6 +877,45 @@ func TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords(t *testing.T) {
 	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
 	require.Empty(t, attempts[0].Error)
 	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingTransport_SSEEmptyBodyRecordsOnEOF verifies that an SSE
+// response with zero bytes (immediate EOF on the first Read) still
+// records a completed attempt. This covers the n == 0 && err == io.EOF
+// branch in accumulateReadLocked where the buffer path is skipped but
+// sawEOF must still fire the Read-path recording.
+func TestRecordingTransport_SSEEmptyBodyRecordsOnEOF(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          io.NopCloser(strings.NewReader("")),
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req) //nolint:bodyclose // Intentionally skip Close() to verify EOF-only recording.
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Empty(t, body)
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+	require.Empty(t, attempts[0].ResponseBody)
 }
 
 // TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades verifies
