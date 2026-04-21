@@ -1191,7 +1191,7 @@ COMMENT ON COLUMN aibridge_tool_usages.injected IS 'Whether this tool was inject
 
 COMMENT ON COLUMN aibridge_tool_usages.invocation_error IS 'Only injected tools are invoked.';
 
-COMMENT ON COLUMN aibridge_tool_usages.provider_item_id IS 'The unique output item ID assigned by the provider. Always present for Responses API items. Distinct from provider_tool_call_id, which is the correlation ID used by agentic tools.';
+COMMENT ON COLUMN aibridge_tool_usages.provider_item_id IS 'The unique output item ID assigned by the provider. Distinct from provider_tool_call_id, which is the correlation ID used to match tool calls with their output.';
 
 CREATE TABLE aibridge_user_prompts (
     id uuid NOT NULL,

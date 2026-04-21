@@ -101,7 +101,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
 		ToolCallId:      req.ToolCallID,
-		ItemId:          "", // TODO: wire req.ItemID once aibridge dependency is bumped (coder/aibridge#273)
+		ItemId:          req.ItemID,
 		ServerUrl:       req.ServerURL,
 		Tool:            req.Tool,
 		Input:           string(serialized),
