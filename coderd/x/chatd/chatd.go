@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -564,11 +563,10 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 
 // isAgentUnreachable reports whether the given agent row's
 // status is disconnected or timed out. It uses timestamp
-// arithmetic on the cached row (no DB re-fetch). The
-// "connecting" state is allowed through because it is normal
-// after a fresh workspace build.
-func isAgentUnreachable(agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
-	status := agent.Status(dbtime.Now(), inactiveTimeout)
+// arithmetic on the row. The "connecting" state is allowed
+// through because it is normal after a fresh workspace build.
+func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
+	status := agent.Status(now, inactiveTimeout)
 	return status.Status == database.WorkspaceAgentStatusDisconnected ||
 		status.Status == database.WorkspaceAgentStatusTimeout
 }
@@ -581,23 +579,21 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		agentID := c.agent.ID
 		c.mu.Unlock()
 
 		// Status check on cache hit: re-fetch the agent
 		// row so we see the latest heartbeat rather than
 		// a potentially stale cached copy.
 		if currentConn != nil {
-			c.mu.Lock()
-			agentID := c.agent.ID
-			c.mu.Unlock()
 			if agentID != uuid.Nil {
 				freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
-				if err == nil && isAgentUnreachable(freshAgent, c.server.agentInactiveDisconnectTimeout) {
+				if err == nil && isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
 					c.clearCachedWorkspaceState()
 					return nil, errChatAgentDisconnected
 				}
-				// On DB error we allow through; dial
-				// timeout is the safety net.
+				// On DB error the check re-runs on the
+				// next tool call.
 			}
 			return currentConn, nil
 		}
@@ -612,7 +608,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		// Status check on cache miss: the freshly fetched
 		// agent row may already show disconnected.
-		if isAgentUnreachable(agent, c.server.agentInactiveDisconnectTimeout) {
+		if isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
 			c.clearCachedWorkspaceState()
 			return nil, errChatAgentDisconnected
 		}

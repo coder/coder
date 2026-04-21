@@ -1113,6 +1113,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
+		clock:                          quartz.NewReal(),
 		instructionLookupTimeout:       5 * time.Second,
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
@@ -1280,6 +1281,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
+		clock:                          quartz.NewReal(),
 		instructionLookupTimeout:       5 * time.Second,
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
@@ -1367,6 +1369,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
+		clock:                          quartz.NewReal(),
 		instructionLookupTimeout:       5 * time.Second,
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
@@ -1597,6 +1600,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	var dialed []uuid.UUID
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
 	}
@@ -1661,6 +1665,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
 	}
@@ -3748,6 +3753,7 @@ func TestGetWorkspaceConn_DisconnectedAgentCacheMiss(t *testing.T) {
 	var dialCalled bool
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
 	}
@@ -3828,6 +3834,7 @@ func TestGetWorkspaceConn_DisconnectedAgentCacheHit(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
 	}
@@ -3905,6 +3912,7 @@ func TestGetWorkspaceConn_TimedOutAgentCacheMiss(t *testing.T) {
 	var dialCalled bool
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
 	}
@@ -3973,6 +3981,7 @@ func TestGetWorkspaceConn_ConnectingAgentProceeds(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
 	}
@@ -4041,6 +4050,7 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
 	}
@@ -4110,6 +4120,7 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Use a very long dial timeout so the parent cancel fires
 		// first.
@@ -4201,6 +4212,7 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	dialErr := xerrors.New("authentication failed")
 	server := &Server{
 		db:                             db,
+		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Generous timeout so the dial error fires well before
 		// the timeout.
@@ -4227,4 +4239,159 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	require.NotErrorIs(t, err, errChatDialTimeout)
 	// The original dial error should propagate.
 	require.ErrorContains(t, err, "authentication failed")
+}
+
+func TestGetWorkspaceConn_CacheHitHealthyAgent(t *testing.T) {
+	// When a cached connection exists and the agent is still
+	// healthy (LastConnectedAt near now), getWorkspaceConn
+	// should return the cached connection without error and
+	// without calling releaseConn.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// Agent with a recent LastConnectedAt is healthy.
+	healthyAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-5 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(healthyAgent, nil).
+		Times(1)
+
+	cachedConn := agentconnmock.NewMockAgentConn(ctrl)
+	var releaseCalled bool
+
+	server := &Server{
+		db:                             db,
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, xerrors.New("should not be called")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	// Pre-populate cache to simulate a previously working
+	// connection.
+	workspaceCtx.agent = healthyAgent
+	workspaceCtx.agentLoaded = true
+	workspaceCtx.conn = cachedConn
+	workspaceCtx.releaseConn = func() { releaseCalled = true }
+	workspaceCtx.cachedWorkspaceID = chat.WorkspaceID
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, cachedConn, gotConn)
+	require.False(t, releaseCalled,
+		"releaseConn should not be called for a healthy cached connection")
+}
+
+func TestGetWorkspaceConn_CacheHitDBError(t *testing.T) {
+	// When a cached connection exists but GetWorkspaceAgentByID
+	// returns an error, getWorkspaceConn should fall through
+	// gracefully and return the cached connection.
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	cachedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-5 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	// DB error on re-fetch.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(database.WorkspaceAgent{}, xerrors.New("connection reset")).
+		Times(1)
+
+	cachedConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	server := &Server{
+		db:                             db,
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, xerrors.New("should not be called")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	// Pre-populate cache.
+	workspaceCtx.agent = cachedAgent
+	workspaceCtx.agentLoaded = true
+	workspaceCtx.conn = cachedConn
+	workspaceCtx.releaseConn = func() {}
+	workspaceCtx.cachedWorkspaceID = chat.WorkspaceID
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, cachedConn, gotConn)
 }
