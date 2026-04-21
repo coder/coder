@@ -43,7 +43,7 @@ export const AgentSettingsSystemInstructionsPageView: FC<
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
-				label="System Instructions"
+				label="Instructions"
 				description="Control the system prompts and plan mode instructions used across the deployment."
 				badge={<AdminBadge />}
 			/>

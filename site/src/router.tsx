@@ -736,6 +736,8 @@ export const router = createBrowserRouter(
 							path="instructions"
 							element={<AgentSettingsSystemInstructionsPage />}
 						/>
+						{/* Permanent backward-compat for bookmarks to the old URL. Do not remove. */}
+						{/* If /agents/settings/instructions is renamed, update this redirect target. */}
 						<Route
 							path="system-instructions"
 							element={<Navigate to="/agents/settings/instructions" replace />}
