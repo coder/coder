@@ -678,11 +678,11 @@ func nodesEqual(a, b *proto.Node) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	aAsOf, bAsOf := a.AsOf, b.AsOf
-	a.AsOf = nil
-	b.AsOf = nil
-	defer func() { a.AsOf = aAsOf; b.AsOf = bAsOf }()
-	return gProto.Equal(a, b)
+	aClone := gProto.Clone(a).(*proto.Node)
+	bClone := gProto.Clone(b).(*proto.Node)
+	aClone.AsOf = nil
+	bClone.AsOf = nil
+	return gProto.Equal(aClone, bClone)
 }
 
 // retrieveBinding gets the latest binding for a key.
