@@ -209,7 +209,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				role="tablist"
 				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 			>
-				{/* Back button (mobile) – placed before the tab strip */}
+				{/* Back button (mobile), placed before the tab strip */}
 				{onClose && (
 					<Button
 						variant="subtle"
