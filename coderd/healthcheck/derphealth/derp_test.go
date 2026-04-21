@@ -64,6 +64,9 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
+		for _, warning := range report.Warnings {
+			assert.NotEqual(t, health.CodeDERPNoNodes, warning.Code)
+		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			for _, node := range region.NodeReports {
@@ -361,7 +364,7 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
-	t.Run("STUNOnly/OK", func(t *testing.T) {
+	t.Run("STUNOnly/WarnsNoDERP", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -389,7 +392,9 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
-		assert.Equal(t, health.SeverityOK, report.Severity)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		require.Len(t, report.Warnings, 1)
+		assert.Equal(t, health.CodeDERPNoNodes, report.Warnings[0].Code)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.Equal(t, health.SeverityOK, region.Severity)
@@ -403,6 +408,27 @@ func TestDERP(t *testing.T) {
 				assert.Nil(t, node.STUN.Error)
 			}
 		}
+	})
+
+	t.Run("NoDERP/EmptyMap", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = context.Background()
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{},
+				},
+			}
+		)
+
+		report.Run(ctx, opts)
+
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		require.Len(t, report.Warnings, 1)
+		assert.Equal(t, health.CodeDERPNoNodes, report.Warnings[0].Code)
+		assert.Empty(t, report.Regions)
 	})
 
 	t.Run("STUNOnly/OneBadOneGood", func(t *testing.T) {
@@ -443,9 +469,15 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
-		if assert.Len(t, report.Warnings, 1) {
-			assert.Equal(t, health.CodeDERPOneNodeUnhealthy, report.Warnings[0].Code)
-		}
+		assert.Len(t, report.Warnings, 2)
+		assert.Contains(t, []health.Code{
+			report.Warnings[0].Code,
+			report.Warnings[1].Code,
+		}, health.CodeDERPOneNodeUnhealthy)
+		assert.Contains(t, []health.Code{
+			report.Warnings[0].Code,
+			report.Warnings[1].Code,
+		}, health.CodeDERPNoNodes)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
 			assert.Equal(t, health.SeverityWarning, region.Severity)
