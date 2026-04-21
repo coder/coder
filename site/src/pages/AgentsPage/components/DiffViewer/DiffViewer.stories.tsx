@@ -436,6 +436,7 @@ export const LargeDiff: Story = {
 		parsedFiles: parsePatchFiles(generateLargeDiff(40, 60)).flatMap(
 			(p) => p.files,
 		),
+		isExpanded: true,
 	},
 	decorators: [
 		(Story) => (
@@ -444,4 +445,35 @@ export const LargeDiff: Story = {
 			</div>
 		),
 	],
+	play: async ({ canvasElement }) => {
+		// Wait for the file tree sidebar to render, proving that
+		// isExpanded activates the tree + observer code path.
+		await waitFor(() => {
+			const nav = canvasElement.querySelector("nav");
+			expect(nav).not.toBeNull();
+		});
+
+		// Find the diff content viewport (the one containing file
+		// sections) rather than the file-tree sidebar viewport.
+		const fileSection = canvasElement.querySelector("[data-file-name]");
+		const viewport = fileSection?.closest<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!viewport) throw new Error("diff viewport not found");
+
+		// Scroll to roughly the middle of the diff content.
+		viewport.scrollTop = viewport.scrollHeight / 2;
+
+		// Wait for the IntersectionObserver to fire and highlight a
+		// file that is NOT the very first one in the list.
+		await waitFor(() => {
+			const activeBtn = canvasElement.querySelector<HTMLElement>(
+				"nav button.border-content-link",
+			);
+			expect(activeBtn).not.toBeNull();
+			// The first file is src/module0.ts — after scrolling to
+			// the middle the active highlight should be elsewhere.
+			expect(activeBtn!.title).not.toBe("src/module0.ts");
+		});
+	},
 };
