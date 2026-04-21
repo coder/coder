@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -26,6 +27,19 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	values := coderdtest.DeploymentValues(t)
 	values.Experiments = []string{string(codersdk.ExperimentAgents)}
 
+	// Use a mock OpenAI server so chatd does not hit the real API
+	// with a fake key. Without this, seedChat triggers background
+	// processing that fails with an auth error, injecting noise
+	// into the TUI output and causing flaky PTY expects.
+	// The non-streaming handler returns unparseable title JSON so
+	// the original seed-based chat title is preserved.
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("ok")...)
+		}
+		return chattest.OpenAINonStreamingResponse("ok")
+	})
+
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: values,
 	})
@@ -37,6 +51,7 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
 	})
 	require.NoError(t, err)
 

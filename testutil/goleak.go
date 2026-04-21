@@ -21,4 +21,8 @@ var GoleakOptions []goleak.Option = []goleak.Option{
 	// The go-winio library starts a process-level I/O completion port
 	// goroutine via sync.Once that is never terminated.
 	goleak.IgnoreAnyFunction("github.com/Microsoft/go-winio.ioCompletionProcessor"),
+	// Bubble Tea cursor blink goroutine waits on an internal timer
+	// (~530ms) and cannot be canceled. When a TUI test exits faster
+	// than the blink interval the goroutine is still pending.
+	goleak.IgnoreTopFunction("github.com/charmbracelet/bubbles/cursor.(*Model).BlinkCmd.func1"),
 }

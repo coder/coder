@@ -77,8 +77,16 @@ func TestExpAgentsE2E(t *testing.T) {
 		chat := seedChat(t, ctx, expClient, orgID, "direct open seed")
 		session := startExpAgentsSession(t, ctx, client, chat.ID.String())
 
-		session.expect(ctx, "direct open seed")
-		session.expect(ctx, "esc")
+		// Match the short chat ID in the header. The mock's title
+		// generation may have already replaced the seed text, so
+		// the short ID is the only stable identifier.
+		shortID := chat.ID.String()[:8]
+		session.expect(ctx, shortID)
+		// Wait for the full chat view render including the help
+		// row. In the initial render the help row (containing
+		// "esc back") follows the header in the byte stream, so
+		// this expect succeeds without consuming text out of order.
+		session.expect(ctx, "esc back")
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()
