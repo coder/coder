@@ -461,19 +461,27 @@ export const LargeDiff: Story = {
 		);
 		if (!viewport) throw new Error("diff viewport not found");
 
+		// Capture the initial active file (whichever the observer picked
+		// up at mount), then scroll and verify it changed.
+		let initialFile: string | undefined;
+		await waitFor(() => {
+			const btn = canvasElement.querySelector<HTMLElement>(
+				'nav button[aria-current="true"]',
+			);
+			expect(btn).not.toBeNull();
+			initialFile = btn!.title;
+		});
+
 		// Scroll to roughly the middle of the diff content.
 		viewport.scrollTop = viewport.scrollHeight / 2;
 
-		// Wait for the IntersectionObserver to fire and highlight a
-		// file that is NOT the very first one in the list.
+		// The observer should fire and highlight a different file.
 		await waitFor(() => {
-			const activeBtn = canvasElement.querySelector<HTMLElement>(
+			const btn = canvasElement.querySelector<HTMLElement>(
 				'nav button[aria-current="true"]',
 			);
-			expect(activeBtn).not.toBeNull();
-			// First file is src/module0.ts; scrolling to the middle should
-			// move the active highlight elsewhere.
-			expect(activeBtn!.title).not.toBe("src/module0.ts");
+			expect(btn).not.toBeNull();
+			expect(btn!.title).not.toBe(initialFile);
 		});
 	},
 };
