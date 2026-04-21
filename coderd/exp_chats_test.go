@@ -272,10 +272,11 @@ func TestPostChats(t *testing.T) {
 		}
 		require.True(t, foundUserMessage)
 		require.True(t, mAudit.Contains(t, database.AuditLog{
-			Action:       database.AuditActionCreate,
-			ResourceType: database.ResourceTypeChat,
-			ResourceID:   chat.ID,
-			UserID:       member.ID,
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chat.ID,
+			ResourceTarget: chat.ID.String()[:8],
+			UserID:         member.ID,
 		}))
 	})
 
@@ -4564,10 +4565,11 @@ func TestArchiveChat(t *testing.T) {
 		require.True(t, archivedChats[0].Archived)
 
 		require.True(t, mAudit.Contains(t, database.AuditLog{
-			Action:       database.AuditActionWrite,
-			ResourceType: database.ResourceTypeChat,
-			ResourceID:   chatToArchive.ID,
-			UserID:       firstUser.UserID,
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chatToArchive.ID,
+			ResourceTarget: chatToArchive.ID.String()[:8],
+			UserID:         firstUser.UserID,
 		}))
 	})
 	t.Run("NotFound", func(t *testing.T) {
