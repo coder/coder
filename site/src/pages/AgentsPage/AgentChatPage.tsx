@@ -548,6 +548,39 @@ type _UncoveredAgentFields = Omit<
 // to the excluded section of the Omit.
 const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
 
+const CHAT_TRANSCRIPT_FONT = '1rem "Geist Variable"';
+let areChatFontsWarm = false;
+let chatFontsWarmPromise: Promise<void> | null = null;
+
+const primeChatFonts = () => {
+	if (typeof document === "undefined") {
+		areChatFontsWarm = true;
+		return Promise.resolve();
+	}
+	if (areChatFontsWarm) {
+		return Promise.resolve();
+	}
+	if (!chatFontsWarmPromise) {
+		const fontLoad =
+			typeof document.fonts.load === "function"
+				? document.fonts.load(CHAT_TRANSCRIPT_FONT, "BESbswy")
+				: Promise.resolve();
+		chatFontsWarmPromise = fontLoad
+			.then(() => document.fonts.ready)
+			.catch(() => undefined)
+			.then(() => {
+				areChatFontsWarm = true;
+				chatFontsWarmPromise = null;
+			});
+	}
+	return chatFontsWarmPromise;
+};
+
+export const _resetChatFontsWarmForTesting = () => {
+	areChatFontsWarm = false;
+	chatFontsWarmPromise = null;
+};
+
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -566,6 +599,12 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
+	const [areChatFontsReady, setAreChatFontsReady] = useState(() => {
+		if (typeof document === "undefined") {
+			return true;
+		}
+		return areChatFontsWarm;
+	});
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const handleScrollToBottomChange = (scrollToBottom: (() => void) | null) => {
 		scrollToBottomRef.current = scrollToBottom;
@@ -578,6 +617,23 @@ const AgentChatPage: FC = () => {
 				).text
 			: "",
 	);
+
+	// Keep the skeleton visible until the transcript font is ready so
+	// the initial bottom pin does not target fallback text metrics.
+	useEffect(() => {
+		if (areChatFontsReady || typeof document === "undefined") {
+			return;
+		}
+		let cancelled = false;
+		void primeChatFonts().finally(() => {
+			if (!cancelled) {
+				setAreChatFontsReady(true);
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [areChatFontsReady]);
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
@@ -1095,9 +1151,10 @@ const AgentChatPage: FC = () => {
 	const chatReadyFiredRef = useRef<string | null>(null);
 	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
 	const fetchedMessageCount = chatMessagesList?.length ?? 0;
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (
 			chatReadyFiredRef.current === agentId ||
+			!areChatFontsReady ||
 			!chatMessagesQuery.isSuccess ||
 			storeMessageCount < fetchedMessageCount
 		) {
@@ -1108,6 +1165,7 @@ const AgentChatPage: FC = () => {
 		onChatReady();
 		let settleFrame: number | null = null;
 		const frame = requestAnimationFrame(() => {
+			scrollToBottomRef.current?.();
 			settleFrame = requestAnimationFrame(() => {
 				scrollToBottomRef.current?.();
 			});
@@ -1119,6 +1177,7 @@ const AgentChatPage: FC = () => {
 			}
 		};
 	}, [
+		areChatFontsReady,
 		onChatReady,
 		storeMessageCount,
 		fetchedMessageCount,
@@ -1352,7 +1411,11 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
+	if (
+		chatQuery.isLoading ||
+		chatMessagesQuery.isLoading ||
+		!areChatFontsReady
+	) {
 		return (
 			<AgentChatPageLoadingView
 				titleElement={titleElement}

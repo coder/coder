@@ -26,7 +26,10 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage, {
+	_resetChatFontsWarmForTesting,
+	RIGHT_PANEL_OPEN_KEY,
+} from "./AgentChatPage";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
@@ -338,11 +341,15 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		_resetChatFontsWarmForTesting();
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		return () => {
+			_resetChatFontsWarmForTesting();
+			localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		};
 	},
 };
 
@@ -594,6 +601,36 @@ export const MobileOpenStaysPinnedAfterViewportChromeSettles: Story = {
 
 /** Layout changes after chat-ready must not pull mobile off bottom. */
 export const MobileOpenStaysPinnedAfterChatReadyViewportShift: Story = {
+	beforeEach: () => {
+		const originalFonts = document.fonts;
+		let resolveReady: (() => void) | null = null;
+		const ready = new Promise<void>((resolve) => {
+			resolveReady = resolve;
+		});
+		Object.defineProperty(document, "fonts", {
+			configurable: true,
+			value: {
+				...originalFonts,
+				status: "loading",
+				ready,
+			},
+		});
+		const releaseFrame = requestAnimationFrame(() => {
+			resolveReady?.();
+			Object.defineProperty(document, "fonts", {
+				configurable: true,
+				value: originalFonts,
+			});
+		});
+		return () => {
+			cancelAnimationFrame(releaseFrame);
+			resolveReady?.();
+			Object.defineProperty(document, "fonts", {
+				configurable: true,
+				value: originalFonts,
+			});
+		};
+	},
 	render: () => <MobileChatReadyChromeShiftLayout />,
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
