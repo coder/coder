@@ -313,6 +313,10 @@ func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWork
 // Start starts the proxy registration loop. The provided context is only used
 // for the initial registration. Use Close() to stop.
 func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	// The primary's replicaManager marks replicas stale after
+	// 3 × UpdateInterval (default 15s). This must be well under
+	// that threshold so proxies get several heartbeat attempts
+	// before being excluded from the DERP mesh.
 	if l.opts.Interval == 0 {
 		l.opts.Interval = 5 * time.Second
 	}
