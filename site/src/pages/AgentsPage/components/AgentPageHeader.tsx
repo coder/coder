@@ -77,9 +77,17 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 		};
 
 		setIsDesktop(mediaQuery.matches);
-		mediaQuery.addEventListener("change", onMediaChange);
+		if (typeof mediaQuery.addEventListener === "function") {
+			mediaQuery.addEventListener("change", onMediaChange);
+		} else {
+			mediaQuery.addListener(onMediaChange);
+		}
 		return () => {
-			mediaQuery.removeEventListener("change", onMediaChange);
+			if (typeof mediaQuery.removeEventListener === "function") {
+				mediaQuery.removeEventListener("change", onMediaChange);
+			} else {
+				mediaQuery.removeListener(onMediaChange);
+			}
 		};
 	}, []);
 

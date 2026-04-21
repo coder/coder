@@ -38,6 +38,7 @@ interface ModelSelectorProps {
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
 	onTriggerTouchStart?: () => void;
+	enableMobileFullWidthDropdown?: boolean;
 }
 
 const defaultFormatProviderLabel = (provider: string): string => {
@@ -84,6 +85,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	open,
 	onOpenChange,
 	onTriggerTouchStart,
+	enableMobileFullWidthDropdown = false,
 }) => {
 	const selectedModel = options.find((option) => option.id === value);
 	const optionsByProvider = (() => {
@@ -126,7 +128,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
-					"mobile-full-width-dropdown mobile-full-width-dropdown-bottom border-border-default [&_[role=option]]:text-xs",
+					enableMobileFullWidthDropdown &&
+						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
+					"border-border-default [&_[role=option]]:text-xs",
 					contentClassName,
 				)}
 			>

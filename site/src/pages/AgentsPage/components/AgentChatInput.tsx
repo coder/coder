@@ -1058,6 +1058,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
 								dropdownAlign="center"
+								enableMobileFullWidthDropdown
 							/>
 						)}
 						{planModeEnabled && (
