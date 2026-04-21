@@ -33,7 +33,7 @@ interface DebugRunCardProps {
 
 const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 	const durationMs = computeDurationMs(startedAt, finishedAt);
-	return durationMs !== null ? compactDuration(durationMs) : "—";
+	return durationMs !== null ? compactDuration(durationMs) : "-";
 };
 
 export const DebugRunCard: FC<DebugRunCardProps> = ({
@@ -77,8 +77,13 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 			: undefined,
 		durationLabel,
 		tokenLabel || undefined,
-	].filter((item): item is string => item !== undefined);
-	const running = isActiveStatus(run.status);
+	].filter((item) => item !== undefined);
+	// Prefer the detail query's status when available so the badge and
+	// spinner flip to the final state as soon as the detail refetch
+	// observes the transition, rather than waiting for the list query
+	// to catch up on its own polling cycle.
+	const effectiveStatus = runDetailQuery.data?.status ?? run.status;
+	const running = isActiveStatus(effectiveStatus);
 
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
@@ -107,10 +112,10 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 							{running ? <Spinner size="sm" loading /> : null}
 							<Badge
 								size="sm"
-								variant={getStatusBadgeVariant(run.status)}
+								variant={getStatusBadgeVariant(effectiveStatus)}
 								className="shrink-0"
 							>
-								{run.status || "unknown"}
+								{effectiveStatus || "unknown"}
 							</Badge>
 							<ChevronDownIcon
 								className={cn(

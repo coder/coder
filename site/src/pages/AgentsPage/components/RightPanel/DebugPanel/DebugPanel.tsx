@@ -75,11 +75,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 						Debug logging captures LLM request/response data for each chat turn,
 						title generation, and compaction operation.
 					</p>
-					<p>
-						Enable it from <strong>Settings → Behavior</strong> if your admin
-						allows user-controlled debug logging, or ask an admin to turn it on
-						globally.
-					</p>
+					<p>Send a message in this chat to start capturing debug data.</p>
 				</div>
 			</>
 		);

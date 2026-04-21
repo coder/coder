@@ -49,10 +49,10 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 	step,
 	defaultOpen = false,
 }) => {
-	// Single active metadata pill – only one section open at a time.
+	// Single active metadata pill: only one section open at a time.
 	const [activeSection, setActiveSection] = useState<SectionKey | null>(null);
 
-	// Transcript preview – show last N messages by default.
+	// Transcript preview: show last N messages by default.
 	const [showAllMessages, setShowAllMessages] = useState(false);
 
 	const toggleSection = (key: SectionKey) => {
@@ -71,7 +71,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 	const attemptCount = normalizedAttempts.parsed.length;
 
 	const durationMs = computeDurationMs(step.started_at, step.finished_at);
-	const durationLabel = durationMs !== null ? compactDuration(durationMs) : "—";
+	const durationLabel = durationMs !== null ? compactDuration(durationMs) : "-";
 
 	// Model: prefer request model, then response model.
 	const model = request.model ?? response.model;
@@ -108,7 +108,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 		(!!step.error &&
 			typeof step.error === "object" &&
 			Object.keys(step.error).length > 0);
-	const errorCode = stringError ?? safeJsonStringify(step.error);
+	const errorText = stringError ?? safeJsonStringify(step.error);
 
 	return (
 		<Collapsible defaultOpen={defaultOpen}>
@@ -316,14 +316,14 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 						<DebugDataSection title="Output">
 							{hasOutput ? (
 								<div className="space-y-2">
-									{/* Primary response content – visually prominent. */}
+									{/* Primary response content: visually prominent. */}
 									{response.content ? (
 										<p className="max-h-[28rem] overflow-auto whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
 											{response.content}
 										</p>
 									) : null}
 
-									{/* Tool calls – structured cards with arguments. */}
+									{/* Tool calls: structured cards with arguments. */}
 									{response.toolCalls.length > 0 ? (
 										<div className="space-y-1.5">
 											{response.toolCalls.map((tc, idx) => (
@@ -367,7 +367,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 					{hasError ? (
 						<DebugDataSection title="Error">
 							<CopyableCodeBlock
-								code={errorCode}
+								code={errorText}
 								label={
 									stringError !== undefined
 										? "Copy error text"

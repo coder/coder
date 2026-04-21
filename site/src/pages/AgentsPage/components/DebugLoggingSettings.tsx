@@ -103,7 +103,7 @@ export const DebugLoggingSettings: FC<DebugLoggingSettingsProps> = ({
 							</p>
 						) : userToggleAllowed ? (
 							<p className="m-0">
-								Save a detailed trace of your chats — each turn plus the raw API
+								Save a detailed trace of your chats: each turn plus the raw API
 								requests and responses sent to the model provider. Useful for
 								troubleshooting unexpected model behavior.
 							</p>

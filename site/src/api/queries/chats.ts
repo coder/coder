@@ -11,7 +11,6 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { TERMINAL_RUN_STATUSES } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -872,6 +871,28 @@ const chatDebugRunKey = (chatId: string, runId: string) =>
 // the panel still recovers automatically once the request succeeds.
 const DEBUG_RUN_POLL_MS = 5_000;
 const DEBUG_RUN_ERROR_POLL_MS = 30_000;
+
+// Terminal debug-run statuses that stop the detail query from polling.
+// Kept here (rather than imported from the debug panel page) so the
+// api/queries layer has no dependency on the page tree. Must stay in
+// sync with the success/error classification in the debug panel's
+// status-badge logic: any status that renders a non-active badge
+// (green/destructive) must end polling, otherwise a successful run
+// with status "ok" or "succeeded" would be polled forever.
+const TERMINAL_RUN_STATUSES = new Set([
+	// Success-like.
+	"completed",
+	"success",
+	"succeeded",
+	"ok",
+	// Error-like.
+	"failed",
+	"error",
+	"errored",
+	"interrupted",
+	"cancelled",
+	"canceled",
+]);
 
 export const chatDebugRuns = (chatId: string) =>
 	queryOptions({

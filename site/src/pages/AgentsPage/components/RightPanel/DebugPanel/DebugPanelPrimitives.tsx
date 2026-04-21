@@ -2,7 +2,7 @@ import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { cn } from "#/utils/cn";
-import { getRoleBadgeVariant } from "./debugPanelUtils";
+import { getRoleBadgeVariant, safeJsonStringify } from "./debugPanelUtils";
 
 const DEBUG_PANEL_SECTION_TITLE_CLASS_NAME =
 	"text-xs font-medium text-content-secondary";
@@ -56,7 +56,7 @@ export const DebugCodeBlock: FC<DebugCodeBlockProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Copyable code block – code block with an inline copy button.
+// Copyable code block: code block with an inline copy button.
 // ---------------------------------------------------------------------------
 
 interface CopyableCodeBlockProps {
@@ -81,7 +81,7 @@ export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Pill toggle – compact toggle button for optional metadata sections.
+// Pill toggle: compact toggle button for optional metadata sections.
 // ---------------------------------------------------------------------------
 
 interface PillToggleProps {
@@ -89,7 +89,7 @@ interface PillToggleProps {
 	count?: number;
 	isActive: boolean;
 	onToggle: () => void;
-	icon?: React.ReactNode;
+	icon?: ReactNode;
 }
 
 export const PillToggle: FC<PillToggleProps> = ({
@@ -119,7 +119,7 @@ export const PillToggle: FC<PillToggleProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Role badge – role-colored badge for message transcripts.
+// Role badge: role-colored badge for message transcripts.
 // ---------------------------------------------------------------------------
 
 interface RoleBadgeProps {
@@ -135,7 +135,7 @@ export const RoleBadge: FC<RoleBadgeProps> = ({ role }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Empty helper – fallback message for absent data sections.
+// Empty helper: fallback message for absent data sections.
 // ---------------------------------------------------------------------------
 
 interface EmptyHelperProps {
@@ -147,7 +147,7 @@ export const EmptyHelper: FC<EmptyHelperProps> = ({ message }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Key-value grid – shared definition list for Options/Usage/Policy sections.
+// Key-value grid: shared definition list for Options/Usage/Policy sections.
 // ---------------------------------------------------------------------------
 
 interface KeyValueGridProps {
@@ -163,7 +163,7 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 	const fmt =
 		formatValue ??
 		((v: unknown) =>
-			typeof v === "object" && v !== null ? JSON.stringify(v) : String(v));
+			typeof v === "object" && v !== null ? safeJsonStringify(v) : String(v));
 
 	return (
 		<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
@@ -180,7 +180,7 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Metadata item – compact label : value pair for metadata bars.
+// Metadata item: compact label : value pair for metadata bars.
 // ---------------------------------------------------------------------------
 
 interface MetadataItemProps {

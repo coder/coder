@@ -51,7 +51,7 @@ const JsonBlock: FC<JsonBlockProps> = ({ value, fallbackCopy }) => {
 const getAttemptTimingLabel = (attempt: NormalizedAttempt): string => {
 	const startedLabel = attempt.started_at
 		? formatDateTime(attempt.started_at, DATE_FORMAT.TIME_24H)
-		: "—";
+		: "-";
 	const finishedLabel = attempt.finished_at
 		? formatDateTime(attempt.finished_at, DATE_FORMAT.TIME_24H)
 		: "in progress";
@@ -72,7 +72,7 @@ export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
 	rawFallback,
 }) => {
 	if (rawFallback) {
-		// No DebugDataSection wrapper here — the parent already
+		// No DebugDataSection wrapper here. The parent already
 		// wraps us in <DebugDataSection title="Raw attempts">.
 		return (
 			<div className="flex flex-col gap-1.5">

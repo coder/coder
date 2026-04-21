@@ -33,8 +33,24 @@ describe("safeJsonStringify", () => {
 	});
 
 	it("falls back to String(value) when JSON.stringify yields undefined", () => {
-		// Functions are skipped by JSON.stringify at the top level.
+		// Functions are skipped by JSON.stringify at the top level, so the
+		// fallback must hand back a meaningful string representation
+		// (String(fn) returns the function source, which contains "noop").
 		const result = safeJsonStringify(() => "noop");
+		expect(typeof result).toBe("string");
+		expect(result).toContain("noop");
+	});
+
+	it("falls back to String(value) when JSON.stringify throws on circular refs", () => {
+		// JSON.stringify throws TypeError on circular references; the
+		// catch branch is the panel's last line of defense against a
+		// payload that would otherwise crash rendering. Without this
+		// coverage a refactor could silently drop the catch without
+		// breaking any test.
+		type Node = { self?: Node };
+		const circular: Node = {};
+		circular.self = circular;
+		const result = safeJsonStringify(circular);
 		expect(typeof result).toBe("string");
 		expect(result.length).toBeGreaterThan(0);
 	});
@@ -101,6 +117,19 @@ describe("exceedsClampThreshold", () => {
 });
 
 describe("coerceStepResponse", () => {
+	it("passes through plain string content unchanged", () => {
+		// Simple text completions arrive as a top-level `content: string`
+		// without any array/choices wrapper. The string branch is a real
+		// production path and must preserve the text verbatim.
+		const response = coerceStepResponse({
+			content: "hello world",
+		});
+
+		expect(response.content).toBe("hello world");
+		expect(response.toolCalls).toEqual([]);
+		expect(response.finishReason).toBeUndefined();
+	});
+
 	it("keeps tool-result content emitted in normalized response parts", () => {
 		const response = coerceStepResponse({
 			content: [
