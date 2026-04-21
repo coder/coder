@@ -93,6 +93,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 					slog.F("template_name", r.template.Name),
 					slog.F("template_id", r.template.ID),
 				)
+				// Clear any prebuild config on the orphaned template so the
+				// reconciler doesn't keep spawning workspaces while Cleanup()
+				// is trying to delete them.
+				if clearErr := r.pushEmptyTemplateVersion(ctx); clearErr != nil {
+					logger.Warn(ctx, "failed to clear prebuilds config on orphaned template",
+						slog.F("template_id", r.template.ID),
+						slog.Error(clearErr),
+					)
+				}
 			}
 		}
 		r.cfg.Metrics.AddError(templateName, "create_template")
@@ -123,21 +132,12 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DeletionSetupBarrier.Wait()
 	logger.Info(ctx, "prebuilds paused, preparing for deletion")
 
-	// Now prepare for deletion by creating an empty template version
-	// At this point, prebuilds should be paused by the caller
+	// Now prepare for deletion by creating an empty template version.
+	// At this point, prebuilds should be paused by the caller.
 	logger.Info(ctx, "creating empty template version for deletion")
-	emptyVersion, err := r.createTemplateVersion(ctx, r.template.ID, 0, 0)
-	if err != nil {
-		r.cfg.Metrics.AddError(r.template.Name, "create_empty_template_version")
-		return xerrors.Errorf("create empty template version for deletion: %w", err)
-	}
-
-	err = r.client.UpdateActiveTemplateVersion(ctx, r.template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: emptyVersion.ID,
-	})
-	if err != nil {
-		r.cfg.Metrics.AddError(r.template.Name, "update_active_template_version")
-		return xerrors.Errorf("update active template version to empty for deletion: %w", err)
+	if err = r.pushEmptyTemplateVersion(ctx); err != nil {
+		r.cfg.Metrics.AddError(r.template.Name, "clear_template_prebuilds")
+		return xerrors.Errorf("clear template prebuilds for deletion: %w", err)
 	}
 
 	logger.Info(ctx, "waiting for all runners to reach deletion barrier")
@@ -318,6 +318,22 @@ func (r *Runner) createTemplateVersion(ctx context.Context, templateID uuid.UUID
 }
 
 var errTickerDone = xerrors.New("done")
+
+// pushEmptyTemplateVersion pushes a new empty template version (no presets, no
+// prebuilds) and makes it active. This stops the reconciler from spawning new
+// prebuild workspaces for the template.
+func (r *Runner) pushEmptyTemplateVersion(ctx context.Context) error {
+	emptyVersion, err := r.createTemplateVersion(ctx, r.template.ID, 0, 0)
+	if err != nil {
+		return xerrors.Errorf("create empty template version: %w", err)
+	}
+	if err = r.client.UpdateActiveTemplateVersion(ctx, r.template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: emptyVersion.ID,
+	}); err != nil {
+		return xerrors.Errorf("update active template version: %w", err)
+	}
+	return nil
+}
 
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 	logs = loadtestutil.NewSyncWriter(logs)
