@@ -1687,8 +1687,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 3)
-	require.Equal(t, database.ChatMessageRoleUser, messages[2].Role)
+	require.Len(t, messages, 4)
+	require.Equal(t, database.ChatMessageRoleUser, messages[3].Role)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
