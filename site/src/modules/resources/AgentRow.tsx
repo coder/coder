@@ -39,7 +39,6 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
-	TAB_PADDING_X,
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -276,7 +275,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 		tabs: logTabs,
 		enabled: logTabsMeasureEnabled,
 		isActive: showLogs,
-		horizontalInset: TAB_PADDING_X * 2,
 	});
 	const overflowLogTabValuesSet = new Set(
 		overflowLogTabs.map((tab) => tab.value),
@@ -503,13 +501,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 									onValueChange={setSelectedLogTab}
 								>
 									<div className="flex items-stretch">
-										<div
-											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1 overflow-hidden"
-										>
+										<div className="min-w-0 flex-1 overflow-hidden">
 											<TabsList
 												variant="outsideBox"
 												overflowKebabMenu
+												ref={logTabsListContainerRef}
 												className="px-4"
 											>
 												{visibleLogTabs.map((tab) => (

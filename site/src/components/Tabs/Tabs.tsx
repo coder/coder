@@ -3,7 +3,6 @@ import { Tabs as TabsPrimitive } from "radix-ui";
 import {
 	type ComponentProps,
 	createContext,
-	type FC,
 	type HTMLAttributes,
 	useCallback,
 	useContext,
@@ -18,7 +17,7 @@ import { cn } from "#/utils/cn";
 
 type TabsProps = ComponentProps<typeof TabsPrimitive.Root>;
 
-export const Tabs: FC<TabsProps> = ({ ...props }) => {
+export const Tabs = ({ ...props }: TabsProps) => {
 	return <TabsPrimitive.Root data-slot="tabs" {...props} />;
 };
 
@@ -53,14 +52,16 @@ type TabsListProps = ComponentProps<typeof TabsPrimitive.List> &
 		overflowKebabMenu?: boolean;
 	};
 
-export const TabsList: FC<TabsListProps> = ({
+export const TabsList = ({
 	className,
 	variant,
 	overflowKebabMenu = false,
+	ref,
 	...props
-}) => {
+}: TabsListProps) => {
 	return (
 		<TabsPrimitive.List
+			ref={ref}
 			data-slot="tabs-list"
 			className={cn(
 				tabsListVariants({ variant }),
@@ -74,10 +75,10 @@ export const TabsList: FC<TabsListProps> = ({
 
 type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
 
-export const TabsTrigger: FC<TabsTriggerProps> = ({
+export const TabsTrigger = ({
 	type: triggerType = "button",
 	...props
-}) => {
+}: TabsTriggerProps) => {
 	const type = props.asChild ? undefined : triggerType;
 
 	return (
@@ -99,7 +100,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 
 type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
 
-export const TabsContent: FC<TabsContentProps> = ({ ...props }) => {
+export const TabsContent = ({ ...props }: TabsContentProps) => {
 	return <TabsPrimitive.Content data-slot="tabs-content" {...props} />;
 };
 
@@ -118,11 +119,11 @@ const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
 
 type LinkTabsProps = HTMLAttributes<HTMLDivElement> & LinkTabsContextValue;
 
-export const LinkTabs: FC<LinkTabsProps> = ({
+export const LinkTabs = ({
 	className,
 	active,
 	...htmlProps
-}) => {
+}: LinkTabsProps) => {
 	return (
 		<LinkTabsContext.Provider value={{ active }}>
 			<div
@@ -141,10 +142,7 @@ export const LinkTabs: FC<LinkTabsProps> = ({
 
 type LinkTabsListProps = HTMLAttributes<HTMLDivElement>;
 
-export const LinkTabsList: FC<LinkTabsListProps> = ({
-	className,
-	...props
-}) => {
+export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 	const tabsContext = useContext(LinkTabsContext);
 	const listRef = useRef<HTMLDivElement>(null);
 	const indicatorRef = useRef<HTMLDivElement>(null);
@@ -218,11 +216,7 @@ type TabLinkProps = LinkProps & {
 	value: string;
 };
 
-export const TabLink: FC<TabLinkProps> = ({
-	value,
-	className,
-	...linkProps
-}) => {
+export const TabLink = ({ value, className, ...linkProps }: TabLinkProps) => {
 	const tabsContext = useContext(LinkTabsContext);
 	if (!tabsContext) {
 		throw new Error("TabLink must be used inside LinkTabs");

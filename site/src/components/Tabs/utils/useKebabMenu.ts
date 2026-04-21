@@ -16,7 +16,6 @@ type UseKebabMenuOptions<T extends TabValue> = {
 	enabled: boolean;
 	isActive: boolean;
 	overflowTriggerWidth?: number;
-	horizontalInset?: number;
 };
 
 type UseKebabMenuResult<T extends TabValue> = {
@@ -40,7 +39,6 @@ export const useKebabMenu = <T extends TabValue>({
 	enabled,
 	isActive,
 	overflowTriggerWidth = 44,
-	horizontalInset = 0,
 }: UseKebabMenuOptions<T>): UseKebabMenuResult<T> => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const tabsRef = useRef<readonly T[]>(tabs);
@@ -76,7 +74,7 @@ export const useKebabMenu = <T extends TabValue>({
 				previousTabWidthByValue: tabWidthByValueRef.current,
 			});
 			tabWidthByValueRef.current = tabWidthByValue;
-			const tabGap = getTabGap(container, currentTabs);
+			const tabGap = getTabGap(container);
 
 			const nextOverflowValues = calculateTabValues({
 				tabs: currentTabs,
@@ -121,16 +119,13 @@ export const useKebabMenu = <T extends TabValue>({
 			if (!entry) {
 				return;
 			}
-			const nextAvailableWidth = Math.max(
-				0,
-				entry.contentRect.width - horizontalInset,
-			);
+			const nextAvailableWidth = Math.max(0, entry.contentRect.width);
 			availableWidthRef.current = nextAvailableWidth;
 			recalculateOverflow(nextAvailableWidth);
 		});
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [recalculateOverflow, enabled, horizontalInset, isActive]);
+	}, [recalculateOverflow, enabled, isActive]);
 
 	const overflowTabValuesSet = new Set(overflowTabValues);
 	const { visibleTabs, overflowTabs } = tabs.reduce<{
@@ -292,22 +287,8 @@ const findFirstTabIndex = ({
 	return result.firstTabIndex;
 };
 
-const getTabGap = (
-	container: HTMLElement,
-	tabs: readonly TabValue[],
-): number => {
-	let gapSource: HTMLElement = container;
-	for (const tab of tabs) {
-		const tabElement = container.querySelector<HTMLElement>(
-			`[${DATA_ATTR_TAB_VALUE}="${tab.value}"]`,
-		);
-		if (tabElement?.parentElement) {
-			gapSource = tabElement.parentElement;
-			break;
-		}
-	}
-
-	const styles = window.getComputedStyle(gapSource);
+const getTabGap = (container: HTMLElement): number => {
+	const styles = window.getComputedStyle(container);
 	const gap = Number.parseFloat(styles.columnGap);
 	return Number.isFinite(gap) ? gap : 0;
 };
