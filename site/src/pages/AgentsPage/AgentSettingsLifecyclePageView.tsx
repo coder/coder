@@ -4,11 +4,7 @@ import { AdminBadge } from "./components/AdminBadge";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
-
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
+import type { MutationCallbacks } from "./types";
 
 export interface AgentSettingsLifecyclePageViewProps {
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;

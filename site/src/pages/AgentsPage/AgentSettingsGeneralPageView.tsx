@@ -3,11 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
-
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
+import type { MutationCallbacks } from "./types";
 
 export interface AgentSettingsGeneralPageViewProps {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -27,8 +23,6 @@ export const AgentSettingsGeneralPageView: FC<
 	isSavingUserPrompt,
 	isSaveUserPromptError,
 }) => {
-	const isAnyPromptSaving = isSavingUserPrompt;
-
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
@@ -40,7 +34,7 @@ export const AgentSettingsGeneralPageView: FC<
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}
-				isAnyPromptSaving={isAnyPromptSaving}
+				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
 		</div>

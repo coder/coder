@@ -3,11 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { AdminBadge } from "./components/AdminBadge";
 import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
-
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
+import type { MutationCallbacks } from "./types";
 
 export interface AgentSettingsExperimentsPageViewProps {
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
