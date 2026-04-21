@@ -1,0 +1,39 @@
+-- request --
+{
+  "input": "hello",
+  "model": "gpt-6.7"
+}
+
+-- non-streaming --
+{
+  "id": "resp_0388c79043df3e3400695f9f83cd6481959062cec6830d8d51",
+  "object": "response",
+  "created_at": 1767874435,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1767874436,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4o-mini-2024-07-18",
+  "output": [
+    {
+      "id": "msg_0388c79043df3e3400695f9f8447a08195af2ef951966823c4",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "This json is formatted wrong"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
