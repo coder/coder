@@ -372,15 +372,3 @@ export const buildSubagentMaps = (
 
 	return { titles, variants };
 };
-
-export const buildSubagentTitles = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): Map<string, string> => {
-	return buildSubagentMaps(parsedMessages).titles;
-};
-
-export const buildSubagentVariants = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): Map<string, SubagentVariant> => {
-	return buildSubagentMaps(parsedMessages).variants;
-};

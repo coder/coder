@@ -3,8 +3,6 @@ import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
-	buildSubagentTitles,
-	buildSubagentVariants,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -723,8 +721,6 @@ describe("subagent transcript parsing", () => {
 		expect(titles.get("unified-child")).toBe("Unified helper");
 		expect(variants.get("legacy-child")).toBe("general");
 		expect(variants.get("unified-child")).toBe("explore");
-		expect(buildSubagentTitles(parsedMessages)).toEqual(titles);
-		expect(buildSubagentVariants(parsedMessages)).toEqual(variants);
 	});
 
 	it("includes close_agent in the shared subagent parsing path", () => {
