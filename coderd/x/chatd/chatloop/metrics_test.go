@@ -617,125 +617,101 @@ func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
 func TestRun_ToolError_RecordsMetric(t *testing.T) {
 	t.Parallel()
 
-	reg := prometheus.NewRegistry()
-	metrics := chatloop.NewMetrics(reg)
-
-	failingTool := fantasy.NewAgentTool(
-		"failing_tool",
-		"a tool that always fails",
-		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			return fantasy.ToolResponse{
-				Content: "something went wrong",
-				IsError: true,
-			}, nil
+	tests := []struct {
+		name             string
+		toolFn           func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error)
+		builtinToolNames map[string]bool
+		wantLabel        string
+	}{
+		{
+			name: "builtin_tool_IsError",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "something went wrong",
+					IsError: true,
+				}, nil
+			},
+			builtinToolNames: map[string]bool{"failing_tool": true},
+			wantLabel:        "failing_tool",
 		},
-	)
-
-	model := &chattest.FakeModel{
-		ProviderName: "test-provider",
-		ModelName:    "test-model",
-		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-			return func(yield func(fantasy.StreamPart) bool) {
-				parts := []fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
-					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
-					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
-					{
-						Type:          fantasy.StreamPartTypeToolCall,
-						ID:            "tc1",
-						ToolCallName:  "failing_tool",
-						ToolCallInput: `{}`,
-					},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
-				}
-				for _, p := range parts {
-					if !yield(p) {
-						return
-					}
-				}
-			}, nil
+		{
+			name: "mcp_tool_IsError",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "something went wrong",
+					IsError: true,
+				}, nil
+			},
+			builtinToolNames: map[string]bool{},
+			wantLabel:        "mcp",
+		},
+		{
+			name: "tool_Run_returns_error",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{}, xerrors.New("connection refused")
+			},
+			builtinToolNames: map[string]bool{"failing_tool": true},
+			wantLabel:        "failing_tool",
 		},
 	}
 
-	err := chatloop.Run(context.Background(), chatloop.RunOptions{
-		Model:            model,
-		MaxSteps:         1,
-		Tools:            []fantasy.AgentTool{failingTool},
-		ActiveTools:      []string{"failing_tool"},
-		BuiltinToolNames: map[string]bool{"failing_tool": true},
-		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-			return nil
-		},
-		Metrics: metrics,
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
-		"provider":  "test-provider",
-		"model":     "test-model",
-		"tool_name": "failing_tool",
-	})
-}
+			reg := prometheus.NewRegistry()
+			metrics := chatloop.NewMetrics(reg)
 
-func TestRun_ToolError_MCPTool_RecordsMetric(t *testing.T) {
-	t.Parallel()
+			failingTool := fantasy.NewAgentTool(
+				"failing_tool",
+				"a tool that always fails",
+				tt.toolFn,
+			)
 
-	reg := prometheus.NewRegistry()
-	metrics := chatloop.NewMetrics(reg)
+			model := &chattest.FakeModel{
+				ProviderName: "test-provider",
+				ModelName:    "test-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return func(yield func(fantasy.StreamPart) bool) {
+						parts := []fantasy.StreamPart{
+							{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
+							{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
+							{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
+							{
+								Type:          fantasy.StreamPartTypeToolCall,
+								ID:            "tc1",
+								ToolCallName:  "failing_tool",
+								ToolCallInput: `{}`,
+							},
+							{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+						}
+						for _, p := range parts {
+							if !yield(p) {
+								return
+							}
+						}
+					}, nil
+				},
+			}
 
-	failingTool := fantasy.NewAgentTool(
-		"failing_tool",
-		"a tool that always fails",
-		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			return fantasy.ToolResponse{
-				Content: "something went wrong",
-				IsError: true,
-			}, nil
-		},
-	)
+			err := chatloop.Run(context.Background(), chatloop.RunOptions{
+				Model:            model,
+				MaxSteps:         1,
+				Tools:            []fantasy.AgentTool{failingTool},
+				ActiveTools:      []string{"failing_tool"},
+				BuiltinToolNames: tt.builtinToolNames,
+				PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
+					return nil
+				},
+				Metrics: metrics,
+			})
+			require.NoError(t, err)
 
-	model := &chattest.FakeModel{
-		ProviderName: "test-provider",
-		ModelName:    "test-model",
-		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-			return func(yield func(fantasy.StreamPart) bool) {
-				parts := []fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
-					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
-					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
-					{
-						Type:          fantasy.StreamPartTypeToolCall,
-						ID:            "tc1",
-						ToolCallName:  "failing_tool",
-						ToolCallInput: `{}`,
-					},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
-				}
-				for _, p := range parts {
-					if !yield(p) {
-						return
-					}
-				}
-			}, nil
-		},
+			requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+				"provider":  "test-provider",
+				"model":     "test-model",
+				"tool_name": tt.wantLabel,
+			})
+		})
 	}
-
-	err := chatloop.Run(context.Background(), chatloop.RunOptions{
-		Model:            model,
-		MaxSteps:         1,
-		Tools:            []fantasy.AgentTool{failingTool},
-		ActiveTools:      []string{"failing_tool"},
-		BuiltinToolNames: map[string]bool{},
-		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-			return nil
-		},
-		Metrics: metrics,
-	})
-	require.NoError(t, err)
-
-	requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
-		"provider":  "test-provider",
-		"model":     "test-model",
-		"tool_name": "mcp",
-	})
 }
