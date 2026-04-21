@@ -350,7 +350,7 @@ const TaskPage = () => {
 					)}
 				</Panel>
 				<PanelResizeHandle>
-					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+					<div className="w-1 bg-border h-full hover:bg-border-secondary transition-all relative" />
 				</PanelResizeHandle>
 				<Panel className="[&>*]:h-full">
 					<TaskApps task={task} workspace={workspace} />
