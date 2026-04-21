@@ -178,11 +178,9 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
-			"spawn_explore_agent",
 			"wait_agent",
 			"message_agent",
 			"close_agent",
-			"spawn_computer_use_agent",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
@@ -200,7 +198,6 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
-			"spawn_explore_agent",
 			"wait_agent",
 			"read_skill",
 			"read_skill_file",
@@ -223,7 +220,6 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"start_workspace",
 			"propose_plan",
 			"spawn_agent",
-			"spawn_explore_agent",
 			"wait_agent",
 			"read_skill",
 			"read_skill_file",
@@ -321,7 +317,6 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"process_list",
 		"process_signal",
 		"spawn_agent",
-		"spawn_explore_agent",
 		"wait_agent",
 		"read_skill",
 		"read_skill_file",
@@ -348,7 +343,7 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 		return tools
 	}
 
-	allTools := makeTools("read_file", "custom_tool", "spawn_explore_agent")
+	allTools := makeTools("read_file", "custom_tool", "spawn_agent")
 	exploreMode := database.NullChatMode{
 		ChatMode: database.ChatModeExplore,
 		Valid:    true,
@@ -356,7 +351,7 @@ func TestAllowedBehaviorToolNames(t *testing.T) {
 
 	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, []string{"read_file", "custom_tool", "spawn_explore_agent"}, allowedBehaviorToolNames(
+		require.Equal(t, []string{"read_file", "custom_tool", "spawn_agent"}, allowedBehaviorToolNames(
 			allTools,
 			database.NullChatMode{},
 		))

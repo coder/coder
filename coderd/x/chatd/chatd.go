@@ -5248,27 +5248,25 @@ func activeToolNamesForTurn(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":                true,
-		"write_file":               false,
-		"edit_files":               false,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             false,
-		"process_signal":           false,
-		"list_templates":           false,
-		"read_template":            false,
-		"create_workspace":         false,
-		"start_workspace":          false,
-		"propose_plan":             false,
-		"spawn_agent":              false,
-		"spawn_explore_agent":      false,
-		"wait_agent":               false,
-		"message_agent":            false,
-		"close_agent":              false,
-		"spawn_computer_use_agent": false,
-		"read_skill":               true,
-		"read_skill_file":          true,
-		"ask_user_question":        false,
+		"read_file":         true,
+		"write_file":        false,
+		"edit_files":        false,
+		"execute":           true,
+		"process_output":    true,
+		"process_list":      false,
+		"process_signal":    false,
+		"list_templates":    false,
+		"read_template":     false,
+		"create_workspace":  false,
+		"start_workspace":   false,
+		"propose_plan":      false,
+		"spawn_agent":       false,
+		"wait_agent":        false,
+		"message_agent":     false,
+		"close_agent":       false,
+		"read_skill":        true,
+		"read_skill_file":   true,
+		"ask_user_question": false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -5358,7 +5356,7 @@ func buildSystemPrompt(
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
 		if behaviorContext.isRootChat {
-			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt())
 			if behaviorContext.planModeInstructions != "" {
 				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
 			}
