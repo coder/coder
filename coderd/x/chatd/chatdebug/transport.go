@@ -276,20 +276,27 @@ func (r *recordingBody) Close() error {
 		closeErr = r.inner.Close()
 	})
 	if closeErr != nil {
+		// Hold r.mu across the flag check AND the publish/replace so a
+		// concurrent recordProvisional cannot slip its recordOnce
+		// publish between our read of recordedProvisional and our call
+		// into the sink. Without this serialization, Close() could
+		// observe recordedProvisional=false, then lose the race and
+		// see r.record(closeErr) become a no-op once recordOnce has
+		// already fired from the SSE EOF path.
 		r.mu.Lock()
-		wasProvisional := r.recordedProvisional
-		r.recordedProvisional = false
-		r.mu.Unlock()
-
-		if wasProvisional {
+		if r.recordedProvisional {
 			// The SSE EOF path already appended a completed attempt.
 			// inner.Close() surfaced a transport error, so upgrade
 			// that entry to failed instead of losing the close error.
-			upgraded := r.buildAttempt(closeErr)
+			upgraded := r.buildAttemptLocked(closeErr)
 			r.sink.replaceByNumber(upgraded.Number, upgraded)
+			r.recordedProvisional = false
 		} else {
-			r.record(closeErr)
+			r.recordOnce.Do(func() {
+				r.sink.record(r.buildAttemptLocked(closeErr))
+			})
 		}
+		r.mu.Unlock()
 		return closeErr
 	}
 
@@ -425,14 +432,20 @@ func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
 // append path and the provisional-upgrade replace path so both sites
 // apply the same redaction and status rules.
 func (r *recordingBody) buildAttempt(err error) Attempt {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.buildAttemptLocked(err)
+}
+
+// buildAttemptLocked is the mu-held form of buildAttempt. The caller
+// must hold r.mu for the duration of the call.
+func (r *recordingBody) buildAttemptLocked(err error) Attempt {
 	finishedAt := time.Now()
 
-	r.mu.Lock()
 	truncated := r.truncated
 	responseBody := append([]byte(nil), r.buf.Bytes()...)
 	base := r.base
 	startedAt := r.startedAt
-	r.mu.Unlock()
 
 	contentType := r.contentType
 	switch {
@@ -472,14 +485,16 @@ func (r *recordingBody) record(err error) {
 
 // recordProvisional records err via recordOnce and marks the entry as
 // eligible for a later upgrade from Close(). Safe to call multiple
-// times; only the first call appends, and the provisional flag is set
-// only after the attempt is visible in the sink so that a concurrent
-// Close() cannot observe the flag before the entry exists.
+// times; only the first call appends. The publish and the provisional
+// flag are committed atomically under r.mu so a concurrent Close()
+// that takes r.mu to inspect the flag cannot observe a half-finished
+// state where the attempt is in the sink but recordedProvisional is
+// still false.
 func (r *recordingBody) recordProvisional(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.recordOnce.Do(func() {
-		r.sink.record(r.buildAttempt(err))
-		r.mu.Lock()
+		r.sink.record(r.buildAttemptLocked(err))
 		r.recordedProvisional = true
-		r.mu.Unlock()
 	})
 }
