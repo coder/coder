@@ -28,6 +28,7 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatTitle,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
@@ -266,10 +267,19 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const renameTitleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
 	>([]);
+	const regeneratingTitlePromisesRef = useRef(
+		new Map<string, Promise<string>>(),
+	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
@@ -425,18 +435,35 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (!addRegeneratingTitleChatId(chatId)) {
-			return;
+	const requestRegenerateTitle = (chatId: string): Promise<string> => {
+		const existing = regeneratingTitlePromisesRef.current.get(chatId);
+		if (existing) {
+			return existing;
 		}
-		void regenerateTitleMutation
-			.mutateAsync(chatId)
-			.catch(() => {
-				// The shared mutation onError already reports the failure.
-			})
-			.finally(() => {
-				removeRegeneratingTitleChatId(chatId);
-			});
+		addRegeneratingTitleChatId(chatId);
+		const clearRegenerateTitleTracking = () => {
+			regeneratingTitlePromisesRef.current.delete(chatId);
+			removeRegeneratingTitleChatId(chatId);
+		};
+		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
+			(updated) => {
+				clearRegenerateTitleTracking();
+				return updated.title;
+			},
+			(error) => {
+				clearRegenerateTitleTracking();
+				throw error;
+			},
+		);
+		regeneratingTitlePromisesRef.current.set(chatId, promise);
+		return promise;
+	};
+	const requestProposeTitle = async (chatId: string): Promise<string> => {
+		const result = await API.experimental.proposeChatTitle(chatId);
+		return result.title;
+	};
+	const requestRenameTitle = async (chatId: string, title: string) => {
+		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -745,6 +772,8 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
+				onProposeTitle={requestProposeTitle}
+				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}

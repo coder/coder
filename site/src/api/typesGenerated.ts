@@ -1440,10 +1440,9 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
- * ChatDebugRun is the detailed run response including steps.
- * This type is consumed by the run-detail handler added in a later
- * PR in this stack; it is forward-declared here so that all SDK
- * types live in the same schema-layer commit.
+ * ChatDebugRun is the detailed run response returned by the run-detail
+ * endpoint. It includes the same summary fields as ChatDebugRunSummary
+ * along with the full step history for the run.
  */
 export interface ChatDebugRun {
 	readonly id: string;
@@ -2799,6 +2798,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly availability: string;
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
+	readonly allow_in_plan_mode: boolean;
 }
 
 // From codersdk/organizations.go
@@ -4470,6 +4470,7 @@ export interface MCPServerConfig {
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
+	readonly allow_in_plan_mode: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -5707,6 +5708,14 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ProposeChatTitleResponse is returned by the propose-title endpoint.
+ */
+export interface ProposeChatTitleResponse {
+	readonly title: string;
 }
 
 // From codersdk/deployment.go
@@ -7806,6 +7815,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly availability?: string;
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
+	readonly allow_in_plan_mode?: boolean;
 }
 
 // From codersdk/notifications.go

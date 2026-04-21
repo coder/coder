@@ -171,11 +171,11 @@ func TestDevConfigValidate(t *testing.T) {
 
 	base := func() *devConfig {
 		return &devConfig{
-			apiPort:        3000,
-			webPort:        8080,
-			proxyPort:      3010,
-			prometheusPort: 2114,
-			password:       defaultPassword,
+			apiPort:          3000,
+			webPort:          8080,
+			proxyPort:        3010,
+			coderMetricsPort: 2114,
+			password:         defaultPassword,
 		}
 	}
 
@@ -288,7 +288,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortConflictWithAPI", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 3000
+		cfg.coderMetricsPort = 3000
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--prometheus-port 3000 conflicts with")
@@ -297,7 +297,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortConflictWithWeb", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 8080
+		cfg.coderMetricsPort = 8080
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--prometheus-port 8080 conflicts with")
@@ -306,7 +306,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortConflictWithProxy", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 3010
+		cfg.coderMetricsPort = 3010
 		cfg.useProxy = true
 		err := cfg.validate()
 		require.Error(t, err)
@@ -316,21 +316,21 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortZeroDisabled", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 0
+		cfg.coderMetricsPort = 0
 		assert.NoError(t, cfg.validate())
 	})
 
 	t.Run("PrometheusPortValid", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 9090
+		cfg.coderMetricsPort = 9090
 		assert.NoError(t, cfg.validate())
 	})
 
 	t.Run("PrometheusPortTooHigh", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 70000
+		cfg.coderMetricsPort = 70000
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
@@ -339,7 +339,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusPortNegative", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = -1
+		cfg.coderMetricsPort = -1
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--prometheus-port must be 0 (disabled) or between 1 and 65535")
@@ -348,8 +348,82 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PrometheusProxyProxyConflictIgnoredWithoutProxy", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.prometheusPort = 3010
+		cfg.coderMetricsPort = 3010
 		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusServerRequiresMetrics", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.coderMetricsPort = 0
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-server requires prometheus to be enabled")
+	})
+
+	t.Run("PrometheusServerValid", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.coderMetricsPort = 2114
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusServerPortConflictWithAPI", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.apiPort = prometheusServerPort
+		cfg.coderMetricsPort = 2114
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--port")
+		assert.Contains(t, err.Error(), "conflicts with prometheus server")
+	})
+
+	t.Run("PrometheusServerPortConflictWithWeb", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.webPort = prometheusServerPort
+		cfg.coderMetricsPort = 2114
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--web-port")
+		assert.Contains(t, err.Error(), "conflicts with prometheus server")
+	})
+
+	t.Run("PrometheusServerPortConflictWithProxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.useProxy = true
+		cfg.proxyPort = prometheusServerPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--proxy-port")
+		assert.Contains(t, err.Error(), "conflicts with prometheus server")
+	})
+
+	t.Run("PrometheusServerPortNoProxyConflictWithoutFlag", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.proxyPort = prometheusServerPort
+		// useProxy is false, so no conflict.
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("PrometheusServerPortConflictWithMetrics", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.prometheusServer = true
+		cfg.coderMetricsPort = prometheusServerPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port")
+		assert.Contains(t, err.Error(), "conflicts with prometheus server")
 	})
 }
 
@@ -514,4 +588,66 @@ func TestPoll(t *testing.T) {
 		assert.Contains(t, err.Error(), "boom")
 		assert.Equal(t, 2, calls)
 	})
+}
+
+func TestStartPrometheusServerDockerMissing(t *testing.T) {
+	// Not t.Parallel(): mutates PATH via t.Setenv.
+	t.Setenv("PATH", "")
+
+	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+
+	cfg := &devConfig{prometheusServer: true, coderMetricsPort: 2114}
+
+	started, err := startPrometheusServer(t.Context(), logger, cfg)
+	require.NoError(t, err)
+	assert.False(t, started)
+}
+
+func TestPrometheusBannerEntry(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		cfg       *devConfig
+		started   bool
+		wantLabel string
+		wantPort  int64
+	}{
+		{
+			name:      "MetricsDisabled",
+			cfg:       &devConfig{coderMetricsPort: 0},
+			started:   false,
+			wantLabel: "",
+			wantPort:  0,
+		},
+		{
+			name:      "MetricsOnlyDefault",
+			cfg:       &devConfig{coderMetricsPort: 2114},
+			started:   false,
+			wantLabel: "Metrics:",
+			wantPort:  2114,
+		},
+		{
+			name:      "PrometheusServerUp",
+			cfg:       &devConfig{coderMetricsPort: 2114, prometheusServer: true},
+			started:   true,
+			wantLabel: "Prometheus UI:",
+			wantPort:  prometheusServerPort,
+		},
+		{
+			name:      "ServerRequestedButDown",
+			cfg:       &devConfig{coderMetricsPort: 2114, prometheusServer: true},
+			started:   false,
+			wantLabel: "Metrics:",
+			wantPort:  2114,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			label, port := prometheusBannerEntry(tc.cfg, tc.started)
+			assert.Equal(t, tc.wantLabel, label)
+			assert.Equal(t, tc.wantPort, port)
+		})
+	}
 }

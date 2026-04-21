@@ -826,6 +826,38 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+type UpdateChatTitleVariables = {
+	chatId: string;
+	title: string;
+};
+
+export const updateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
+		API.experimental.updateChat(chatId, { title }),
+
+	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
+		queryClient.setQueryData<TypesGen.Chat | undefined>(
+			chatKey(chatId),
+			(chat) => (chat ? { ...chat, title } : chat),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		);
+	},
+
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatTitleVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

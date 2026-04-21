@@ -110,12 +110,16 @@ You may use execute and process_output for exploration, including cloning reposi
 Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 If no workspace is attached to this chat yet, create and start one with create_workspace and start_workspace before investigating.
 If the plan file already exists, read it first with read_file before replacing or refining it.
-Use read_file, execute, process_output, list_templates, read_template, and spawn_agent to gather context. In Plan Mode, spawn_agent delegation is for investigation and planning support, not code writing or implementation.
+Use read_file, execute, process_output, list_templates, read_template, spawn_agent, and approved external MCP tools when available to gather context. Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, close_agent, and spawn_computer_use_agent remain unavailable. In Plan Mode, spawn_agent delegation is for investigation and planning support, not code writing or implementation.
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.
 After a successful propose_plan call, stop immediately. Do not produce follow-up output.
 ` + defaultSystemPromptPlanPathBlockPlaceholder
+
+// Root plan mode may use approved external MCP tools, but delegated
+// plan-mode subagents stay on the narrower built-in-only boundary
+// because their trust boundary is narrower than the root chat's.
 
 // PlanningSubagentOverlayPrompt contains plan-mode instructions for
 // delegated child chats. Child chats may investigate with shell tools

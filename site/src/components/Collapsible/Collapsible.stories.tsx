@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDownIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -20,7 +20,7 @@ const meta: Meta<typeof Collapsible> = {
 					</h4>
 					<CollapsibleTrigger asChild>
 						<Button size="sm">
-							<ChevronsUpDown />
+							<ChevronsUpDownIcon />
 							<span className="sr-only">Toggle</span>
 						</Button>
 					</CollapsibleTrigger>

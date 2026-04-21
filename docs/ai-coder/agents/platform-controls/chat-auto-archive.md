@@ -76,7 +76,7 @@ the `site_configs` table and can also be managed via the API at
 The first tick after enabling auto-archive on a deployment with a
 long history will process up to 1,000 root chats (and their
 children). If your deployment has a large backlog, the initial rollout
-will span many ticks — this is intentional and avoids stalling the
+will span many ticks. This is intentional and avoids stalling the
 rest of `dbpurge` during the first run. If you need to prevent the
 initial backfill entirely during a migration window, set
 `auto_archive_days = 0` before upgrading and re-enable it when you

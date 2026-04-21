@@ -324,14 +324,14 @@ appear in the `files` field on subsequent
 
 ## Chat statuses
 
-| Status      | Meaning                                                      |
-|-------------|--------------------------------------------------------------|
-| `waiting`   | Idle — newly created, finished successfully, or interrupted. |
-| `pending`   | Queued for processing.                                       |
-| `running`   | Agent is actively working.                                   |
-| `paused`    | Agent is paused (e.g. waiting for user input).               |
-| `completed` | Agent finished and the task is complete.                     |
-| `error`     | Agent encountered an error.                                  |
+| Status      | Meaning                                                     |
+|-------------|-------------------------------------------------------------|
+| `waiting`   | Idle. Newly created, finished successfully, or interrupted. |
+| `pending`   | Queued for processing.                                      |
+| `running`   | Agent is actively working.                                  |
+| `paused`    | Agent is paused (e.g. waiting for user input).              |
+| `completed` | Agent finished and the task is complete.                    |
+| `error`     | Agent encountered an error.                                 |
 
 ## Configuration
 
@@ -359,4 +359,4 @@ curl -X PUT -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   https://coder.example.com/api/experimental/chats/config/auto-archive-days
 ```
 
-Accepted range: `0`–`3650` (~10 years).
+Accepted range: `0` to `3650` (~10 years).

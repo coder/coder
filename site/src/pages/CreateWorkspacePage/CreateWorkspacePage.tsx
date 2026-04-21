@@ -99,19 +99,20 @@ const CreateWorkspacePage: FC = () => {
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: ownerId ?? owner.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
+	const sendMessage = (
+		formValues: Record<string, string>,
+		ownerId?: string,
+	) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: ownerId ?? owner.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
+	};
 
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)

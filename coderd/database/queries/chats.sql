@@ -553,6 +553,19 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatPlanModeByID :one
 UPDATE
     chats

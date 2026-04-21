@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -109,6 +110,30 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 		return true
 	}
 	return false
+}
+
+func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
+	if ps == nil {
+		return
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindTitleChange,
+		Chat: db2sdk.Chat(chat, nil, nil),
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat title change event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
 }
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
@@ -1656,6 +1681,57 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// authorizeChatWorkspaceExec enforces the workspace-level permissions
+// shared by the chat stream endpoints that proxy a live websocket into
+// the workspace agent (currently /stream/git and /stream/desktop).
+//
+// The chat row only authorizes the chat owner, so callers also need
+// exec-level access (ApplicationConnect or SSH) to the bound workspace.
+// The chat owner's workspace permissions may have been revoked after
+// the chat was bound; skipping this check enabled CODAGT-184.
+//
+// On any failure the response is written and ok=false is returned.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) authorizeChatWorkspaceExec(
+	rw http.ResponseWriter,
+	r *http.Request,
+	chat database.Chat,
+	noWorkspaceMessage string,
+) (database.Workspace, bool) {
+	ctx := r.Context()
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: noWorkspaceMessage,
+		})
+		return database.Workspace{}, false
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace not found.",
+		})
+		return database.Workspace{}, false
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat workspace.",
+			Detail:  err.Error(),
+		})
+		return database.Workspace{}, false
+	}
+
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return database.Workspace{}, false
+	}
+
+	return workspace, true
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1666,10 +1742,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace to watch.",
-		})
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace to watch."); !ok {
 		return
 	}
 
@@ -1814,23 +1887,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_desktop").With(slog.F("chat_id", chat.ID))
 	)
 
-	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat has no workspace.",
-		})
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
-		})
-		return
-	}
-	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
-		!api.Authorize(r, policy.ActionSSH, workspace) {
-		httpapi.Forbidden(rw)
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace."); !ok {
 		return
 	}
 
@@ -1919,6 +1976,86 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
+func (api *API) applyChatTitleUpdate(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+	rawTitle string,
+) (database.Chat, bool) {
+	trimmedTitle := strings.TrimSpace(rawTitle)
+	if trimmedTitle == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Title cannot be empty.",
+		})
+		return chat, true
+	}
+	const maxChatTitleRunes = 200
+	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+		})
+		return chat, true
+	}
+	if trimmedTitle == chat.Title {
+		return chat, false
+	}
+
+	var (
+		updatedChat database.Chat
+		wrote       bool
+		err         error
+	)
+	if api.chatDaemon != nil {
+		updatedChat, wrote, err = api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+	} else {
+		err = api.Database.InTx(func(tx database.Store) error {
+			currentChat, txErr := tx.GetChatByID(ctx, chat.ID)
+			if txErr != nil {
+				return txErr
+			}
+			if trimmedTitle == currentChat.Title {
+				updatedChat = currentChat
+				wrote = false
+				return nil
+			}
+			updatedChat, txErr = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID:    chat.ID,
+				Title: trimmedTitle,
+			})
+			if txErr != nil {
+				return txErr
+			}
+			wrote = true
+			return nil
+		}, nil)
+	}
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return chat, true
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return chat, true
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat title.",
+			Detail:  err.Error(),
+		})
+		return chat, true
+	}
+	if wrote {
+		if api.chatDaemon != nil {
+			api.chatDaemon.PublishTitleChange(updatedChat)
+		} else {
+			publishChatTitleChange(api.Logger, api.Pubsub, updatedChat)
+		}
+	}
+	return updatedChat, false
+}
+
 // patchChat updates a chat resource. Supports updating labels,
 // workspace binding, archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
@@ -1952,6 +2089,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
+	if req.Title != nil {
+		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
+		if handled {
+			return
+		}
+		chat = updatedChat
+	}
 	if req.Labels != nil {
 		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2763,6 +2907,48 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate chat title.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProposeChatTitleResponse{Title: title})
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -2912,8 +3098,14 @@ func (api *API) chatStartWorkspace(
 	)
 	if err != nil {
 		if updatedToActiveVersion && isChatStartWorkspaceManualUpdateRequiredError(err) {
+			const retryInstructions = "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values. If the correct value for a parameter is not obvious from its description or defaults, ask the user rather than guessing."
+			if responder, ok := httperror.IsResponder(err); ok {
+				status, resp := responder.Response()
+				resp = rewriteChatStartWorkspaceManualUpdateResponse(resp, err.Error(), retryInstructions)
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(status, resp)
+			}
 			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI.",
+				Message: retryInstructions,
 				Detail:  err.Error(),
 			})
 		}
@@ -2921,6 +3113,21 @@ func (api *API) chatStartWorkspace(
 	}
 
 	return apiBuild, nil
+}
+
+func rewriteChatStartWorkspaceManualUpdateResponse(resp codersdk.Response, fallbackDetail string, retryInstructions string) codersdk.Response {
+	originalMessage := resp.Message
+	resp.Message = retryInstructions
+	if len(resp.Validations) == 0 && originalMessage != "" {
+		if resp.Detail == "" {
+			resp.Detail = originalMessage
+		} else {
+			resp.Detail = originalMessage + ": " + resp.Detail
+		}
+	} else if resp.Detail == "" {
+		resp.Detail = fallbackDetail
+	}
+	return resp
 }
 
 func isChatStartWorkspaceManualUpdateRequiredError(err error) bool {
@@ -3660,6 +3867,140 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating desktop setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) deploymentChatDebugLoggingEnabled() bool {
+	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	allowUsers, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDebugLoggingAdminSettings{
+		AllowUsers:         err == nil && allowUsers,
+		ForcedByDeployment: api.deploymentChatDebugLoggingEnabled(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatDebugLoggingAllowUsersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := api.Database.UpsertChatDebugLoggingAllowUsers(ctx, req.AllowUsers); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	forcedByDeployment := api.deploymentChatDebugLoggingEnabled()
+	allowUsers := false
+	if !forcedByDeployment {
+		enabled, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching chat debug logging setting.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		allowUsers = err == nil && enabled
+	}
+
+	debugEnabled := forcedByDeployment
+	if allowUsers {
+		enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, apiKey.UserID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user chat debug logging setting.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		debugEnabled = err == nil && enabled
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatDebugLoggingSettings{
+		DebugLoggingEnabled: debugEnabled,
+		UserToggleAllowed:   !forcedByDeployment && allowUsers,
+		ForcedByDeployment:  forcedByDeployment,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	if api.deploymentChatDebugLoggingEnabled() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat debug logging is already forced on by deployment configuration.",
+		})
+		return
+	}
+
+	allowUsers, err := api.Database.GetChatDebugLoggingAllowUsers(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat debug logging setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err != nil || !allowUsers {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "An administrator has not enabled user-controlled chat debug logging.",
+		})
+		return
+	}
+
+	var req codersdk.UpdateUserChatDebugLoggingRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := api.Database.UpsertUserChatDebugLoggingEnabled(ctx, database.UpsertUserChatDebugLoggingEnabledParams{
+		UserID:              apiKey.UserID,
+		DebugLoggingEnabled: req.DebugLoggingEnabled,
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user chat debug logging setting.",
 			Detail:  err.Error(),
 		})
 		return
@@ -6440,4 +6781,98 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// getChatDebugRuns returns a list of debug run summaries for a chat.
+// EXPERIMENTAL
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	const maxDebugRuns = 100
+	runs, err := api.Database.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: maxDebugRuns,
+	})
+	if err != nil {
+		// The chat may have been deleted or access revoked between
+		// middleware extraction and this query (dbauthz re-authorizes
+		// on read). Surface those races as 404 to match the rest of
+		// this API and avoid leaking backend details.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug runs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	summaries := make([]codersdk.ChatDebugRunSummary, 0, len(runs))
+	for _, run := range runs {
+		summaries = append(summaries, db2sdk.ChatDebugRunSummary(run))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, summaries)
+}
+
+// getChatDebugRun returns a single debug run with its steps.
+// EXPERIMENTAL
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	runIDStr := chi.URLParam(r, "debugRun")
+	runID, err := uuid.Parse(runIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid debug run ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	run, err := api.Database.GetChatDebugRunByID(ctx, runID)
+	if err != nil {
+		// Treat both not-found and authorization failures as 404 to
+		// avoid leaking the existence of runs the caller cannot access.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug run.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Verify the run belongs to this chat.
+	if run.ChatID != chat.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	steps, err := api.Database.GetChatDebugStepsByRunID(ctx, run.ID)
+	if err != nil {
+		// The run may have been deleted or access may have changed
+		// between the two queries. Treat not-found/authz errors as
+		// 404 for consistency with the run lookup above.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching debug steps.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatDebugRunDetail(run, steps))
 }

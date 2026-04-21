@@ -156,50 +156,6 @@
 	}
 }
 
-@layer components {
-	/* Map each stripe variant to a color token so the
-	   pseudo-element rules can stay DRY. */
-	.navbar-stripe-devel {
-		--stripe-color: var(--content-warning);
-	}
-
-	.navbar-stripe-rc {
-		--stripe-color: var(--border-sky);
-	}
-
-	/* Thin stripe bars at the top and bottom edges of the
-	   navbar. Using pseudo-elements keeps the stripes out of
-	   the content area so nav links stay readable. */
-	.navbar-stripe-devel::before,
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::before,
-	.navbar-stripe-rc::after {
-		content: "";
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: repeating-linear-gradient(
-			-45deg,
-			transparent,
-			transparent 4px,
-			hsl(var(--stripe-color) / 0.5) 4px,
-			hsl(var(--stripe-color) / 0.5) 8px
-		);
-		pointer-events: none;
-	}
-
-	.navbar-stripe-devel::before,
-	.navbar-stripe-rc::before {
-		top: 0;
-	}
-
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::after {
-		bottom: 0;
-	}
-}
-
 @layer base {
 	* {
 		@apply border-border;

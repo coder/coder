@@ -162,8 +162,10 @@ and cannot create workspaces or spawn further sub-agents.
 active. In that mode, `write_file` and `edit_files` are restricted to the
 chat-specific plan file, while `execute` and `process_output` remain available
 for exploration such as cloning repositories, searching code, and running
-inspection commands. MCP, dynamic, provider-native, and computer-use tools are
-not available.
+inspection commands. Root plan-mode chats may also receive administrator-approved
+external MCP tools. Workspace MCP tools remain unavailable in plan mode, and
+plan-mode sub-agents still do not receive any MCP tools. Dynamic,
+provider-native, and computer-use tools are not available.
 
 ### Orchestration tools
 
