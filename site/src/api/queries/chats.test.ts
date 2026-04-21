@@ -2,6 +2,10 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	ERROR_STATUSES,
+	SUCCESS_STATUSES,
+} from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -27,6 +31,7 @@ import {
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
 	updateChatPlanMode,
@@ -1891,5 +1896,21 @@ describe("removeChildFromParentInCache", () => {
 		const after = readInfiniteChats(queryClient)?.[0];
 
 		expect(after).toBe(before);
+	});
+});
+
+describe("TERMINAL_RUN_STATUSES", () => {
+	// `TERMINAL_RUN_STATUSES` lives in the api/queries layer to avoid a
+	// dependency on the page tree, but it must stay in sync with the
+	// debug panel's display classification. This test pins that invariant
+	// so adding a new success/error status in the panel is immediately
+	// caught if the polling set is forgotten.
+	it("contains every SUCCESS and ERROR status from the debug panel", () => {
+		for (const status of SUCCESS_STATUSES) {
+			expect(TERMINAL_RUN_STATUSES.has(status)).toBe(true);
+		}
+		for (const status of ERROR_STATUSES) {
+			expect(TERMINAL_RUN_STATUSES.has(status)).toBe(true);
+		}
 	});
 });

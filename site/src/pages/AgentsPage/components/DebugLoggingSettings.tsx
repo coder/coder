@@ -115,7 +115,7 @@ export const DebugLoggingSettings: FC<DebugLoggingSettingsProps> = ({
 						)}
 					</div>
 					<Switch
-						checked={userDebugLoggingEnabled}
+						checked={forcedByDeployment || userDebugLoggingEnabled}
 						onCheckedChange={(checked) =>
 							onSaveUserSetting({ debug_logging_enabled: checked })
 						}

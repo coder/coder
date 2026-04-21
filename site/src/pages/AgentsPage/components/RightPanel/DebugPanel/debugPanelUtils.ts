@@ -24,7 +24,12 @@ const RUN_KIND_LABELS: Record<string, string> = {
 	tool_call: "Tool Call",
 };
 
-const SUCCESS_STATUSES = new Set(["completed", "success", "succeeded", "ok"]);
+export const SUCCESS_STATUSES = new Set([
+	"completed",
+	"success",
+	"succeeded",
+	"ok",
+]);
 const WARNING_STATUSES = new Set([
 	"pending",
 	"queued",
@@ -37,7 +42,7 @@ const INFO_STATUSES = new Set([
 	"processing",
 	"started",
 ]);
-const ERROR_STATUSES = new Set([
+export const ERROR_STATUSES = new Set([
 	"failed",
 	"error",
 	"errored",

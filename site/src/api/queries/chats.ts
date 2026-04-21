@@ -878,8 +878,10 @@ const DEBUG_RUN_ERROR_POLL_MS = 30_000;
 // sync with the success/error classification in the debug panel's
 // status-badge logic: any status that renders a non-active badge
 // (green/destructive) must end polling, otherwise a successful run
-// with status "ok" or "succeeded" would be polled forever.
-const TERMINAL_RUN_STATUSES = new Set([
+// with status "ok" or "succeeded" would be polled forever. A test in
+// chats.test.ts pins this set to the debug panel's SUCCESS/ERROR
+// display sets so drift is caught at CI time.
+export const TERMINAL_RUN_STATUSES = new Set([
 	// Success-like.
 	"completed",
 	"success",

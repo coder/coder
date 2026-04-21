@@ -31,6 +31,9 @@ interface DebugRunCardProps {
 	isVisible: boolean;
 }
 
+// Max characters shown in the run header label before truncation.
+const RUN_LABEL_CLAMP_CHARS = 80;
+
 const getDurationLabel = (startedAt: string, finishedAt?: string): string => {
 	const durationMs = computeDurationMs(startedAt, finishedAt);
 	return durationMs !== null ? compactDuration(durationMs) : "-";
@@ -58,7 +61,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	// Primary label fallback chain: firstMessage → kind.
 	const primaryLabel = clampContent(
 		summaryVm.primaryLabel.trim() || getRunKindLabel(run.kind),
-		80,
+		RUN_LABEL_CLAMP_CHARS,
 	);
 
 	// Token summary for the header.
@@ -78,11 +81,16 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 		durationLabel,
 		tokenLabel || undefined,
 	].filter((item) => item !== undefined);
-	// Prefer the detail query's status when available so the badge and
-	// spinner flip to the final state as soon as the detail refetch
-	// observes the transition, rather than waiting for the list query
-	// to catch up on its own polling cycle.
-	const effectiveStatus = runDetailQuery.data?.status ?? run.status;
+	// Prefer the detail query's status while the card is expanded so
+	// the badge and spinner flip to the final state as soon as the
+	// detail refetch observes the transition, rather than waiting for
+	// the list query to catch up on its own polling cycle. When the
+	// card is collapsed the detail query is disabled, so any cached
+	// `runDetailQuery.data` is stale; fall back to `run.status` from
+	// the list query in that case.
+	const effectiveStatus = isExpanded
+		? (runDetailQuery.data?.status ?? run.status)
+		: run.status;
 	const running = isActiveStatus(effectiveStatus);
 
 	return (

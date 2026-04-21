@@ -162,7 +162,7 @@ export const AgentSettingsBehaviorPageView: FC<
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Behavior"
-				description="Custom instructions and debug controls that shape how the agent responds in your conversations."
+				description="Custom instructions that shape how the agent responds in your conversations, plus debug controls for inspecting model traffic."
 			/>
 			<PersonalInstructionsSettings
 				userPromptData={userPromptData}
