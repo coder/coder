@@ -20,9 +20,20 @@ emdash=$'\xE2\x80\x94'
 endash=$'\xE2\x80\x93'
 pattern="${emdash}|${endash}"
 
+# Path prefixes excluded from the check. These contain captured upstream
+# content where emdash/endash come from the provider.
+exclude_prefixes=(
+	"aibridge/fixtures/"
+)
+
 scan_all_files() {
+	local pathspecs=()
+	local prefix
+	for prefix in "${exclude_prefixes[@]}"; do
+		pathspecs+=(":(exclude)${prefix}**")
+	done
 	local output
-	output=$(git ls-files -z | xargs -0 grep -IEn "$pattern" 2>/dev/null || true)
+	output=$(git ls-files -z -- "${pathspecs[@]}" | xargs -0 grep -IEn "$pattern" 2>/dev/null || true)
 	if [[ -n "$output" ]]; then
 		echo "$output"
 		found=1
@@ -72,9 +83,17 @@ else
 		# Parse the diff to check only added lines for emdash/endash.
 		current_file=""
 		current_line=0
+		file_excluded=0
 		while IFS= read -r diff_line; do
 			if [[ "$diff_line" =~ ^\+\+\+\ b/(.*) ]]; then
 				current_file="${BASH_REMATCH[1]}"
+				file_excluded=0
+				for prefix in "${exclude_prefixes[@]}"; do
+					if [[ "$current_file" == "$prefix"* ]]; then
+						file_excluded=1
+						break
+					fi
+				done
 			fi
 			# Anchored to hunk header structure to avoid matching
 			# digits from trailing function context.
@@ -83,7 +102,7 @@ else
 				continue
 			fi
 			if [[ "$diff_line" =~ ^\+ ]] && [[ ! "$diff_line" =~ ^\+\+\+\ [ab/] ]]; then
-				if echo "$diff_line" | grep -Eq "$pattern"; then
+				if [[ "$file_excluded" -eq 0 ]] && echo "$diff_line" | grep -Eq "$pattern"; then
 					echo "${current_file}:${current_line}:${diff_line:1}"
 					found=1
 				fi
