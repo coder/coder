@@ -188,8 +188,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		// any padding on the scroll container is included in the
 		// calculation and doesn't inflate the "at bottom" zone.
 		const distanceFromBottom =
-			parent.scrollHeight -
-			(props.scrollOffset + parent.clientHeight);
+			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	};
 
