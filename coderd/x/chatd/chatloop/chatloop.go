@@ -1153,23 +1153,22 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		label := tc.ToolName
-		switch {
-		case label == "":
-			label = "unknown"
-		case !builtinToolNames[label]:
-			label = "mcp:" + label
+		metricLabel := tc.ToolName
+		if metricLabel == "" {
+			metricLabel = "unknown"
+		} else if !builtinToolNames[metricLabel] {
+			metricLabel = "mcp"
 		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, label).Observe(
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
 		if errContent, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
-			metrics.RecordToolError(provider, model, label)
+			metrics.RecordToolError(provider, model, metricLabel)
+			// Log the raw tool name (not the metric label) so
+			// operators can identify the specific MCP tool.
 			logger.Warn(ctx, "tool call returned error",
 				slog.F("tool_name", tc.ToolName),
 				slog.F("tool_call_id", tc.ToolCallID),
-				slog.F("provider", provider),
-				slog.F("model", model),
 				slog.Error(errContent.Error),
 			)
 		}

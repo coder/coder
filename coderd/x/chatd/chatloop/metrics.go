@@ -75,7 +75,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "tool_errors_total",
-			Help:      "Total tool call errors, by provider, model, and tool.",
+			Help:      "Total tool calls that returned an error result.",
 		}, []string{"provider", "model", "tool_name"}),
 		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,

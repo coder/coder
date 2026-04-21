@@ -676,3 +676,66 @@ func TestRun_ToolError_RecordsMetric(t *testing.T) {
 		"tool_name": "failing_tool",
 	})
 }
+
+func TestRun_ToolError_MCPTool_RecordsMetric(t *testing.T) {
+	t.Parallel()
+
+	reg := prometheus.NewRegistry()
+	metrics := chatloop.NewMetrics(reg)
+
+	failingTool := fantasy.NewAgentTool(
+		"failing_tool",
+		"a tool that always fails",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.ToolResponse{
+				Content: "something went wrong",
+				IsError: true,
+			}, nil
+		},
+	)
+
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				parts := []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc1",
+						ToolCallName:  "failing_tool",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}
+				for _, p := range parts {
+					if !yield(p) {
+						return
+					}
+				}
+			}, nil
+		},
+	}
+
+	err := chatloop.Run(context.Background(), chatloop.RunOptions{
+		Model:            model,
+		MaxSteps:         1,
+		Tools:            []fantasy.AgentTool{failingTool},
+		ActiveTools:      []string{"failing_tool"},
+		BuiltinToolNames: map[string]bool{},
+		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
+			return nil
+		},
+		Metrics: metrics,
+	})
+	require.NoError(t, err)
+
+	requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+		"provider":  "test-provider",
+		"model":     "test-model",
+		"tool_name": "mcp",
+	})
+}
