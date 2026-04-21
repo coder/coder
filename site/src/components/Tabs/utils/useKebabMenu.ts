@@ -16,6 +16,7 @@ type UseKebabMenuOptions<T extends TabValue> = {
 	enabled: boolean;
 	isActive: boolean;
 	overflowTriggerWidth?: number;
+	horizontalInset?: number;
 };
 
 type UseKebabMenuResult<T extends TabValue> = {
@@ -39,6 +40,7 @@ export const useKebabMenu = <T extends TabValue>({
 	enabled,
 	isActive,
 	overflowTriggerWidth = 44,
+	horizontalInset = 0,
 }: UseKebabMenuOptions<T>): UseKebabMenuResult<T> => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const tabsRef = useRef<readonly T[]>(tabs);
@@ -74,12 +76,14 @@ export const useKebabMenu = <T extends TabValue>({
 				previousTabWidthByValue: tabWidthByValueRef.current,
 			});
 			tabWidthByValueRef.current = tabWidthByValue;
+			const tabGap = getTabGap(container, currentTabs);
 
 			const nextOverflowValues = calculateTabValues({
 				tabs: currentTabs,
 				availableWidth,
 				tabWidthByValue,
 				overflowTriggerWidth,
+				tabGap,
 			});
 
 			setTabValues((currentValues) => {
@@ -117,12 +121,16 @@ export const useKebabMenu = <T extends TabValue>({
 			if (!entry) {
 				return;
 			}
-			availableWidthRef.current = entry.contentRect.width;
-			recalculateOverflow(entry.contentRect.width);
+			const nextAvailableWidth = Math.max(
+				0,
+				entry.contentRect.width - horizontalInset,
+			);
+			availableWidthRef.current = nextAvailableWidth;
+			recalculateOverflow(nextAvailableWidth);
 		});
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [recalculateOverflow, enabled, isActive]);
+	}, [recalculateOverflow, enabled, horizontalInset, isActive]);
 
 	const overflowTabValuesSet = new Set(overflowTabValues);
 	const { visibleTabs, overflowTabs } = tabs.reduce<{
@@ -157,11 +165,13 @@ const calculateTabValues = <T extends TabValue>({
 	availableWidth,
 	tabWidthByValue,
 	overflowTriggerWidth,
+	tabGap,
 }: {
 	tabs: readonly T[];
 	availableWidth: number;
 	tabWidthByValue: Readonly<Record<string, number>>;
 	overflowTriggerWidth: number;
+	tabGap: number;
 }): string[] => {
 	const tabWidthByValueMap = new Map<string, number>();
 	for (const tab of tabs) {
@@ -178,8 +188,12 @@ const calculateTabValues = <T extends TabValue>({
 
 	const alwaysVisibleTabs = tabs.slice(0, firstOptionalTabIndex);
 	const optionalTabs = tabs.slice(firstOptionalTabIndex);
-	const alwaysVisibleWidth = alwaysVisibleTabs.reduce((total, tab) => {
-		return total + (tabWidthByValueMap.get(tab.value) ?? 0);
+	const alwaysVisibleWidth = alwaysVisibleTabs.reduce((total, tab, index) => {
+		return (
+			total +
+			(tabWidthByValueMap.get(tab.value) ?? 0) +
+			(index > 0 ? tabGap : 0)
+		);
 	}, 0);
 	const firstTabIndex = findFirstTabIndex({
 		optionalTabs,
@@ -187,8 +201,10 @@ const calculateTabValues = <T extends TabValue>({
 			return tabWidthByValueMap.get(tab.value) ?? 0;
 		}),
 		startingUsedWidth: alwaysVisibleWidth,
+		startingVisibleCount: alwaysVisibleTabs.length,
 		availableWidth,
 		overflowTriggerWidth,
+		tabGap,
 	});
 
 	if (firstTabIndex === -1) {
@@ -225,14 +241,18 @@ const findFirstTabIndex = ({
 	optionalTabs,
 	optionalTabWidths,
 	startingUsedWidth,
+	startingVisibleCount,
 	availableWidth,
 	overflowTriggerWidth,
+	tabGap,
 }: {
 	optionalTabs: readonly TabValue[];
 	optionalTabWidths: readonly number[];
 	startingUsedWidth: number;
+	startingVisibleCount: number;
 	availableWidth: number;
 	overflowTriggerWidth: number;
+	tabGap: number;
 }): number => {
 	const result = optionalTabs.reduce(
 		(acc, _tab, index) => {
@@ -241,27 +261,55 @@ const findFirstTabIndex = ({
 			}
 
 			const tabWidth = optionalTabWidths[index] ?? 0;
+			const gapBeforeTab = acc.visibleCount > 0 ? tabGap : 0;
+			const usedWidthWithTab = acc.usedWidth + gapBeforeTab + tabWidth;
 			const hasMoreTabs = index < optionalTabs.length - 1;
 			// Reserve kebab trigger width whenever additional tabs remain.
 			const widthNeeded =
-				acc.usedWidth + tabWidth + (hasMoreTabs ? overflowTriggerWidth : 0);
+				usedWidthWithTab + (hasMoreTabs ? tabGap + overflowTriggerWidth : 0);
 
 			if (widthNeeded <= availableWidth) {
 				return {
-					usedWidth: acc.usedWidth + tabWidth,
+					usedWidth: usedWidthWithTab,
+					visibleCount: acc.visibleCount + 1,
 					firstTabIndex: -1,
 				};
 			}
 
 			return {
 				usedWidth: acc.usedWidth,
+				visibleCount: acc.visibleCount,
 				firstTabIndex: index,
 			};
 		},
-		{ usedWidth: startingUsedWidth, firstTabIndex: -1 },
+		{
+			usedWidth: startingUsedWidth,
+			visibleCount: startingVisibleCount,
+			firstTabIndex: -1,
+		},
 	);
 
 	return result.firstTabIndex;
+};
+
+const getTabGap = (
+	container: HTMLElement,
+	tabs: readonly TabValue[],
+): number => {
+	let gapSource: HTMLElement = container;
+	for (const tab of tabs) {
+		const tabElement = container.querySelector<HTMLElement>(
+			`[${DATA_ATTR_TAB_VALUE}="${tab.value}"]`,
+		);
+		if (tabElement?.parentElement) {
+			gapSource = tabElement.parentElement;
+			break;
+		}
+	}
+
+	const styles = window.getComputedStyle(gapSource);
+	const gap = Number.parseFloat(styles.columnGap);
+	return Number.isFinite(gap) ? gap : 0;
 };
 
 const areStringArraysEqual = (

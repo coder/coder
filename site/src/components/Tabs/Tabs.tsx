@@ -39,7 +39,7 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 				"[&_[data-slot=tabs-trigger]]:text-content-secondary [&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
 				"[&_[data-slot=tabs-trigger]]:border-0 [&_[data-slot=tabs-trigger]]:border-y [&_[data-slot=tabs-trigger]]:border-solid",
 				"[&_[data-slot=tabs-trigger]]:border-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-b-white",
-				"[&_[data-slot=tabs-trigger]]:hover:text-content-primary",
+				"[&_[data-slot=tabs-trigger]:hover]:text-content-primary",
 				"[&_[data-slot=tabs-trigger]]:px-1",
 			),
 		},
@@ -85,11 +85,12 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
 			data-slot="tabs-trigger"
 			type={type}
 			className={cn(
-				"border-none py-3 bg-transparent",
+				"border-none py-2.5 bg-transparent",
 				"text-inherit font-normal text-sm",
 				"inline-flex gap-2 items-center",
 				"cursor-pointer",
 				"transition-colors duration-150 ease-linear",
+				"-mb-px",
 			)}
 			{...props}
 		/>

@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
 	TriangleAlertIcon,
@@ -38,6 +39,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
+	TAB_PADDING_X,
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -258,6 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		{
 			title: "All Logs",
 			value: "all",
+			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 		},
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
@@ -273,6 +276,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		tabs: logTabs,
 		enabled: logTabsMeasureEnabled,
 		isActive: showLogs,
+		horizontalInset: TAB_PADDING_X * 2,
 	});
 	const overflowLogTabValuesSet = new Set(
 		overflowLogTabs.map((tab) => tab.value),
@@ -503,7 +507,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 											ref={logTabsListContainerRef}
 											className="min-w-0 flex-1 overflow-hidden"
 										>
-											<TabsList variant="insideBox" overflowKebabMenu>
+											<TabsList
+												variant="outsideBox"
+												overflowKebabMenu
+												className="px-4"
+											>
 												{visibleLogTabs.map((tab) => (
 													<TabsTrigger
 														key={tab.value}
@@ -529,7 +537,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		: "inactive"
 																}
 																aria-label="More log tabs"
-																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+																className={cn(
+																	"cursor-pointer -mb-px",
+																	"inline-flex items-center justify-center",
+																	"border-none py-3 bg-transparent text-inherit",
+																	"transition-colors duration-150 ease-linear",
+																)}
 															>
 																<EllipsisIcon className="size-icon-sm" />
 																<span className="sr-only">More log tabs</span>
