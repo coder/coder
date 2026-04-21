@@ -314,7 +314,7 @@ func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWork
 // for the initial registration. Use Close() to stop.
 func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
 	if l.opts.Interval == 0 {
-		l.opts.Interval = 15 * time.Second
+		l.opts.Interval = 5 * time.Second
 	}
 	if l.opts.MaxFailureCount == 0 {
 		l.opts.MaxFailureCount = 10
