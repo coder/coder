@@ -1,5 +1,5 @@
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
 	useCallback,
@@ -381,7 +381,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					type="button"
 					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
 				>
-					<ArrowLeft size={20} />
+					<ArrowLeftIcon size={20} />
 					Go back
 				</button>
 			</div>

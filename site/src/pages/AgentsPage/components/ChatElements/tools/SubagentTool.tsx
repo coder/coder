@@ -33,6 +33,12 @@ const SUBAGENT_VERBS: Record<
 		error: "Failed to spawn ",
 		timeout: "Timed out spawning ",
 	},
+	spawn_explore_agent: {
+		completed: "Spawned ",
+		running: "Spawning ",
+		error: "Failed to spawn ",
+		timeout: "Timed out spawning ",
+	},
 	wait_agent: {
 		completed: "Waited for ",
 		running: "Waiting for ",

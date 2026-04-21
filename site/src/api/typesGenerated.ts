@@ -41,9 +41,23 @@ export interface AIBridgeBedrockConfig {
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly openai: AIBridgeOpenAIConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly bedrock: AIBridgeBedrockConfig;
+	/**
+	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	 */
+	readonly providers?: readonly AIBridgeProviderConfig[];
 	/**
 	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -53,6 +67,7 @@ export interface AIBridgeConfig {
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
 	readonly send_actor_headers: boolean;
+	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider rate limits (429, 503, 529 overloaded).
@@ -107,6 +122,31 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * AIBridgeProviderConfig represents a single AI Bridge provider instance,
+ * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * This follows the same indexed pattern as ExternalAuthConfig.
+ */
+export interface AIBridgeProviderConfig {
+	/**
+	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 */
+	readonly type: string;
+	/**
+	 * Name is the unique instance identifier used for routing.
+	 * Defaults to Type if not provided.
+	 */
+	readonly name: string;
+	/**
+	 * BaseURL is the base URL of the upstream provider API.
+	 */
+	readonly base_url: string;
+	readonly bedrock_region?: string;
+	readonly bedrock_model?: string;
+	readonly bedrock_small_fast_model?: string;
 }
 
 // From codersdk/deployment.go
@@ -1196,6 +1236,7 @@ export interface Chat {
 	readonly last_model_config_id: string;
 	readonly title: string;
 	readonly status: ChatStatus;
+	readonly plan_mode?: ChatPlanMode;
 	readonly last_error: string | null;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
@@ -1219,12 +1260,26 @@ export interface Chat {
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
 	readonly warnings?: readonly string[];
+	readonly client_type: ChatClientType;
+	/**
+	 * Children holds child (subagent) chats nested under this root
+	 * chat. Always initialized to an empty slice so the JSON field
+	 * is present as []. Child chats cannot create their own
+	 * subagents, so nesting depth is capped at 1 and this slice is
+	 * always empty for child chats.
+	 */
+	readonly children: readonly Chat[];
 }
 
 // From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+
+// From codersdk/chats.go
+export type ChatClientType = "api" | "ui";
+
+export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
 
 // From codersdk/chats.go
 /**
@@ -1377,10 +1432,9 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
- * ChatDebugRun is the detailed run response including steps.
- * This type is consumed by the run-detail handler added in a later
- * PR in this stack; it is forward-declared here so that all SDK
- * types live in the same schema-layer commit.
+ * ChatDebugRun is the detailed run response returned by the run-detail
+ * endpoint. It includes the same summary fields as ChatDebugRunSummary
+ * along with the full step history for the run.
  */
 export interface ChatDebugRun {
 	readonly id: string;
@@ -1537,6 +1591,20 @@ export interface ChatDiffStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatExploreModelOverrideResponse is the response body for the Explore
+ * subagent model override configuration endpoint.
+ */
+export interface ChatExploreModelOverrideResponse {
+	readonly model_config_id?: string;
+	/**
+	 * HasMalformedOverride reports whether the saved override is malformed and
+	 * is currently being treated as unset.
+	 */
+	readonly has_malformed_override: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -1553,6 +1621,7 @@ export interface ChatFileMetadata {
 export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
+	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -1982,6 +2051,20 @@ export interface ChatModelVercelProviderOptions {
 export interface ChatModelsResponse {
 	readonly providers: readonly ChatModelProvider[];
 }
+
+// From codersdk/chats.go
+export type ChatPlanMode = "plan";
+
+// From codersdk/chats.go
+/**
+ * ChatPlanModeInstructionsResponse is the response body for the
+ * plan mode instructions configuration endpoint.
+ */
+export interface ChatPlanModeInstructionsResponse {
+	readonly plan_mode_instructions: string;
+}
+
+export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
@@ -2563,6 +2646,11 @@ export interface CreateChatMessageRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
 	readonly busy_behavior?: ChatBusyBehavior;
+	/**
+	 * PlanMode switches the chat's persistent plan mode.
+	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 */
+	readonly plan_mode?: ChatPlanMode;
 }
 
 // From codersdk/chats.go
@@ -2624,6 +2712,8 @@ export interface CreateChatRequest {
 	 * subject to change.
 	 */
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
+	readonly plan_mode?: ChatPlanMode;
+	readonly client_type?: ChatClientType;
 }
 
 // From codersdk/users.go
@@ -5610,6 +5700,14 @@ export interface PrometheusConfig {
 	readonly aggregate_agent_stats_by: string;
 }
 
+// From codersdk/chats.go
+/**
+ * ProposeChatTitleResponse is returned by the propose-title endpoint.
+ */
+export interface ProposeChatTitleResponse {
+	readonly title: string;
+}
+
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
 	/**
@@ -7515,6 +7613,15 @@ export interface UpdateChatDesktopEnabledRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatExploreModelOverrideRequest is the request body for updating the
+ * Explore subagent model override configuration endpoint.
+ */
+export interface UpdateChatExploreModelOverrideRequest {
+	readonly model_config_id?: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
@@ -7526,6 +7633,15 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatPlanModeInstructionsRequest is the request body for
+ * updating the plan mode instructions configuration.
+ */
+export interface UpdateChatPlanModeInstructionsRequest {
+	readonly plan_mode_instructions: string;
 }
 
 // From codersdk/chats.go
@@ -7549,6 +7665,7 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	readonly workspace_id?: string;
 	/**
 	 * PinOrder controls the chat's pinned state and position.
 	 * - nil: no change to pin state.
@@ -7562,6 +7679,11 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+	/**
+	 * PlanMode switches the chat's persistent plan mode.
+	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 */
+	readonly plan_mode?: ChatPlanMode;
 }
 
 // From codersdk/chats.go

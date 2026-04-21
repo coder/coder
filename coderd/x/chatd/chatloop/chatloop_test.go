@@ -101,6 +101,150 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
 }
 
+func TestRun_ActiveToolsRejectsDisallowedExecution(t *testing.T) {
+	t.Parallel()
+
+	var blockedCalls atomic.Int32
+	blockedToolName := "write_file"
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-blocked", ToolCallName: blockedToolName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-blocked", Delta: `{"path":"/tmp/nope"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-blocked"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-blocked",
+					ToolCallName:  blockedToolName,
+					ToolCallInput: `{"path":"/tmp/nope"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	blockedTool := fantasy.NewAgentTool(
+		blockedToolName,
+		"blocked tool",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			blockedCalls.Add(1)
+			return fantasy.NewTextResponse("should not run"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "try the blocked tool"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool(activeToolName),
+			blockedTool,
+		},
+		ActiveTools: []string{activeToolName},
+		MaxSteps:    1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Zero(t, blockedCalls.Load(), "disallowed tool must not execute")
+
+	var foundToolError bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != blockedToolName {
+			continue
+		}
+		errResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok)
+		assert.EqualError(t, errResult.Error, "Tool not active in this turn: "+blockedToolName)
+		foundToolError = true
+	}
+	require.True(t, foundToolError, "persisted step should include the rejected tool result")
+}
+
+func TestRun_ActiveToolsAllowsProviderRunnerExecution(t *testing.T) {
+	t.Parallel()
+
+	providerRunnerName := "computer"
+	var runnerCalls atomic.Int32
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-provider-runner", ToolCallName: providerRunnerName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-provider-runner", Delta: `{}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-provider-runner"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-provider-runner",
+					ToolCallName:  providerRunnerName,
+					ToolCallInput: `{}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	runnerTool := fantasy.NewAgentTool(
+		providerRunnerName,
+		"provider runner",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			runnerCalls.Add(1)
+			return fantasy.NewTextResponse("ran provider runner"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "use the computer"),
+		},
+		Tools:       []fantasy.AgentTool{newNoopTool(activeToolName)},
+		ActiveTools: []string{activeToolName},
+		ProviderTools: []ProviderTool{
+			{
+				Definition: fantasy.FunctionTool{
+					Name:        providerRunnerName,
+					Description: "provider runner",
+					InputSchema: map[string]any{
+						"type":       "object",
+						"properties": map[string]any{},
+					},
+				},
+				Runner: runnerTool,
+			},
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), runnerCalls.Load(),
+		"provider runner should execute even when omitted from active tools")
+
+	var foundToolResult bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != providerRunnerName {
+			continue
+		}
+		textResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok)
+		assert.Equal(t, "ran provider runner", textResult.Text)
+		foundToolResult = true
+	}
+	require.True(t, foundToolResult,
+		"persisted step should include the provider runner result")
+}
+
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +488,85 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 		require.ErrorIs(t, cause, errStartupTimeout)
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for startup timeout cause")
+	}
+}
+
+// TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout proves the
+// provider comes from Model.Provider() (not from sniffing the error
+// text) by using an error string with no provider hint and running
+// the same assertion across two providers.
+func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
+	t.Parallel()
+
+	providers := []string{"anthropic", "openai"}
+	for _, provider := range providers {
+		t.Run(provider, func(t *testing.T) {
+			t.Parallel()
+
+			const startupTimeout = 5 * time.Millisecond
+
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				testutil.WaitShort,
+			)
+			defer cancel()
+
+			mClock := quartz.NewMock(t)
+			trap := mClock.Trap().AfterFunc("startupGuard")
+			defer trap.Close()
+
+			attempts := 0
+			var retries []chatretry.ClassifiedError
+			model := &chattest.FakeModel{
+				ProviderName: provider,
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					attempts++
+					if attempts == 1 {
+						// Bare transport error; Provider must
+						// come from Model.Provider().
+						return nil, xerrors.New(
+							"http2: client connection force closed via ClientConn.Close",
+						)
+					}
+					return streamFromParts([]fantasy.StreamPart{{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+					}}), nil
+				},
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- Run(context.Background(), RunOptions{
+					Model:          model,
+					MaxSteps:       1,
+					StartupTimeout: startupTimeout,
+					Clock:          mClock,
+					PersistStep: func(_ context.Context, _ PersistedStep) error {
+						return nil
+					},
+					OnRetry: func(
+						_ int,
+						_ error,
+						classified chatretry.ClassifiedError,
+						_ time.Duration,
+					) {
+						retries = append(retries, classified)
+					},
+				})
+			}()
+
+			// One guard per attempt.
+			trap.MustWait(ctx).MustRelease(ctx)
+			trap.MustWait(ctx).MustRelease(ctx)
+
+			require.NoError(t, awaitRunResult(ctx, t, done))
+			require.Equal(t, 2, attempts)
+			require.Len(t, retries, 1)
+			require.Equal(t, chaterror.KindTimeout, retries[0].Kind, "Kind")
+			require.True(t, retries[0].Retryable, "Retryable")
+			require.Equal(t, provider, retries[0].Provider, "Provider")
+		})
 	}
 }
 
@@ -919,6 +1142,144 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 		"tool-call step must record when the tool result was produced")
 	require.False(t, toolStep.ToolResultCreatedAt["tc-1"].Before(toolStep.ToolCallCreatedAt["tc-1"]),
 		"tool-result timestamp must be >= tool-call timestamp")
+}
+
+func TestStopAfterTool_Success(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-plan",
+					ToolCallName:  "propose_plan",
+					ToolCallInput: `{"path":"/tmp/plan.md"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("plan saved"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	persistStepCalls := 0
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistStepCalls++
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrStopAfterTool)
+	require.Equal(t, 1, streamCalls)
+	require.Equal(t, 1, persistStepCalls)
+	require.Len(t, persistedSteps, 1)
+
+	var foundToolResult bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		foundToolResult = true
+		_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.False(t, isErr, "stop-after-tool should only trigger on successful tool results")
+	}
+	require.True(t, foundToolResult, "persisted step should include the successful tool result before stopping")
+}
+
+func TestStopAfterTool_IgnoresErrorResults(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			if streamCalls == 1 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-plan",
+						ToolCallName:  "propose_plan",
+						ToolCallInput: `{"path":"/tmp/plan.md"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "tool failed, continue"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("plan failed"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+
+	var foundToolError bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		_, foundToolError = toolResult.Result.(fantasy.ToolResultOutputContentError)
+	}
+	require.True(t, foundToolError, "first step should persist the failed tool result")
 }
 
 func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
@@ -1551,4 +1912,206 @@ func TestRun_PersistStepInterruptedFallback(t *testing.T) {
 		}
 	}
 	require.True(t, foundText, "fallback should persist the text content")
+}
+
+func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
+	t.Parallel()
+
+	const injectedInstruction = "You are working in /home/coder/project. Follow AGENTS.md guidelines."
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+
+	// Step 0 calls a tool. Step 1 sees the injected system message.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	// Simulate: after the tool executes (step 0), instruction
+	// becomes available. PrepareMessages injects it before step 1.
+	instructionInjected := make(chan struct{})
+	var instructionAvailable atomic.Value
+	// The tool sets instruction after execution.
+	tool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			instructionAvailable.Store(injectedInstruction)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and open a PR"),
+		},
+		Tools:    []fantasy.AgentTool{tool},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			select {
+			case <-instructionInjected:
+				return nil
+			default:
+			}
+			instr, ok := instructionAvailable.Load().(string)
+			if !ok || instr == "" {
+				return nil
+			}
+			close(instructionInjected)
+			// Insert a system message after existing system messages.
+			result := make([]fantasy.Message, 0, len(msgs)+1)
+			inserted := false
+			for i, msg := range msgs {
+				result = append(result, msg)
+				if !inserted && msg.Role == fantasy.MessageRoleSystem {
+					// Insert after the last system message.
+					if i+1 >= len(msgs) || msgs[i+1].Role != fantasy.MessageRoleSystem {
+						result = append(result, fantasy.Message{
+							Role: fantasy.MessageRoleSystem,
+							Content: []fantasy.MessagePart{
+								fantasy.TextPart{Text: instr},
+							},
+						})
+						inserted = true
+					}
+				}
+			}
+			if !inserted {
+				// No system messages — prepend.
+				result = append([]fantasy.Message{{
+					Role: fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: instr},
+					},
+				}}, result...)
+			}
+			return result
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+
+	// The second LLM call should contain the injected instruction.
+	require.NotEmpty(t, secondCallPrompt)
+	var foundInstruction bool
+	for _, msg := range secondCallPrompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			continue
+		}
+		for _, part := range msg.Content {
+			if tp, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+				if strings.Contains(tp.Text, "AGENTS.md") {
+					foundInstruction = true
+				}
+			}
+		}
+	}
+	require.True(t, foundInstruction,
+		"step 1 prompt should contain the injected system instruction")
+}
+
+func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	// Three steps: tool call, tool call, text. PrepareMessages
+	// should inject on step 1 and return nil on step 2.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step < 2 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-" + strings.Repeat("x", step+1), ToolCallName: "noop"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-" + strings.Repeat("x", step+1), Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-" + strings.Repeat("x", step+1)},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-" + strings.Repeat("x", step+1),
+						ToolCallName:  "noop",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var prepareCalls atomic.Int32
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "do something"),
+		},
+		Tools:    []fantasy.AgentTool{newNoopTool("noop")},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			call := prepareCalls.Add(1)
+			if call == 1 {
+				// First call: inject a message.
+				return append(msgs, fantasy.Message{
+					Role:    fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "injected"}},
+				})
+			}
+			// Subsequent calls: no changes.
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 3, streamCalls)
+	// PrepareMessages is called before each of the 3 steps.
+	require.Equal(t, 3, int(prepareCalls.Load()))
 }

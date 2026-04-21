@@ -81,13 +81,15 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
-// See: https://github.com/coder/fantasy/commits/7aaf56df81f9
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
+// 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
+// 6) Anthropic EffortXHigh constant for Claude Opus 4.7
+// See: https://github.com/coder/fantasy/commits/959aa39579d2
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260416152503-959aa39579d2
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.
-// See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
+// See: https://github.com/coder/anthropic-sdk-go/commits/a31d7d0e7067
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260415160422-a31d7d0e7067
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262
@@ -164,7 +166,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.9.0
-	github.com/hashicorp/hc-install v0.9.2
+	github.com/hashicorp/hc-install v0.9.4
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/hashicorp/yamux v0.1.2
@@ -266,7 +268,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/ProtonMail/go-crypto v1.3.0 // indirect
+	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -317,7 +319,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/go-chi/hostrouter v0.3.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -494,9 +496,10 @@ require (
 require (
 	charm.land/fantasy v0.8.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
+	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.1-0.20260410135158-9ac7525ed947
+	github.com/coder/aibridge v1.1.3-0.20260420072253-d474d6813420
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8
@@ -504,7 +507,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.17.1
+	github.com/go-git/go-git/v5 v5.18.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/shopspring/decimal v1.4.0

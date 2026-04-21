@@ -37,6 +37,17 @@ var (
 		"broken pipe",
 		"bad gateway",
 		"gateway timeout",
+		// "client conn" covers all of the stdlib http2 ClientConn errors:
+		// "client conn is closed", "client conn not usable",
+		// "client conn could not be established",
+		// "client connection force closed via ClientConn.Close",
+		// and "client connection lost".
+		"client conn",
+		// Transport-layer failures (HTTP/2 force-closed streams,
+		// GOAWAY, closed network connections) so we retry.
+		"goaway",
+		"http2: stream closed",
+		"use of closed network connection",
 	}
 	authStrongPatterns = []string{
 		"authentication",

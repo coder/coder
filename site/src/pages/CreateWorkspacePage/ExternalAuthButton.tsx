@@ -1,4 +1,4 @@
-import { Check, Redo } from "lucide-react";
+import { CheckIcon, RedoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -47,7 +47,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 			<span className="flex flex-row items-center gap-2">
 				{auth.authenticated ? (
 					<>
-						<Check className="w-4 h-4 text-content-success" />
+						<CheckIcon className="w-4 h-4 text-content-success" />
 						<p className="text-xs font-semibold text-content-secondary m-0">
 							Authenticated
 						</p>
@@ -75,7 +75,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button variant="outline" size="icon" onClick={onStartPolling}>
-								<Redo />
+								<RedoIcon />
 								<span className="sr-only">Refresh external auth</span>
 							</Button>
 						</TooltipTrigger>

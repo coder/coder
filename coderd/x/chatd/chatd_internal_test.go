@@ -33,6 +33,353 @@ import (
 	"github.com/coder/quartz"
 )
 
+type testAgentTool struct {
+	info            fantasy.ToolInfo
+	providerOptions fantasy.ProviderOptions
+}
+
+func newTestAgentTool(name string) fantasy.AgentTool {
+	return &testAgentTool{info: fantasy.ToolInfo{Name: name}}
+}
+
+func (t *testAgentTool) Info() fantasy.ToolInfo {
+	return t.info
+}
+
+func (t *testAgentTool) Run(context.Context, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	_ = t
+	return fantasy.ToolResponse{}, nil
+}
+
+func (t *testAgentTool) ProviderOptions() fantasy.ProviderOptions {
+	return t.providerOptions
+}
+
+func (t *testAgentTool) SetProviderOptions(opts fantasy.ProviderOptions) {
+	t.providerOptions = opts
+}
+
+func TestAllowedPlanToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	t.Run("RootPlanModeIncludesOnlyAllowlistedBuiltIns", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"process_list",
+			"process_signal",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"message_agent",
+			"close_agent",
+			"spawn_computer_use_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), uuid.NullUUID{})
+
+		require.Equal(t, []string{
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		}, got)
+	})
+
+	t.Run("ChildPlanModeAllowsExplorationOnly", func(t *testing.T) {
+		t.Parallel()
+
+		got := allowedPlanToolNames(makeTools(
+			"read_file",
+			"write_file",
+			"edit_files",
+			"execute",
+			"process_output",
+			"list_templates",
+			"read_template",
+			"create_workspace",
+			"start_workspace",
+			"propose_plan",
+			"spawn_agent",
+			"spawn_explore_agent",
+			"wait_agent",
+			"read_skill",
+			"read_skill_file",
+			"ask_user_question",
+		), uuid.NullUUID{UUID: uuid.New(), Valid: true})
+
+		require.Equal(t, []string{
+			"read_file",
+			"execute",
+			"process_output",
+			"read_skill",
+			"read_skill_file",
+		}, got)
+	})
+}
+
+func TestAllowedExploreToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	got := allowedExploreToolNames(makeTools(
+		"read_file",
+		"write_file",
+		"edit_files",
+		"execute",
+		"process_output",
+		"process_list",
+		"process_signal",
+		"spawn_agent",
+		"spawn_explore_agent",
+		"wait_agent",
+		"read_skill",
+		"read_skill_file",
+		"ask_user_question",
+	))
+
+	require.Equal(t, []string{
+		"read_file",
+		"execute",
+		"process_output",
+		"read_skill",
+		"read_skill_file",
+	}, got)
+}
+
+func TestAllowedBehaviorToolNames(t *testing.T) {
+	t.Parallel()
+
+	makeTools := func(names ...string) []fantasy.AgentTool {
+		tools := make([]fantasy.AgentTool, 0, len(names))
+		for _, name := range names {
+			tools = append(tools, newTestAgentTool(name))
+		}
+		return tools
+	}
+
+	allTools := makeTools("read_file", "custom_tool", "spawn_explore_agent")
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "custom_tool", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("PlanModeUsesPlanAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file", "spawn_explore_agent"}, allowedBehaviorToolNames(
+			allTools,
+			planMode,
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
+			allTools,
+			database.NullChatPlanMode{},
+			exploreMode,
+			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		))
+	})
+}
+
+func TestStopAfterBehaviorTools(t *testing.T) {
+	t.Parallel()
+
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	t.Run("DefaultModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterBehaviorTools(
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
+	})
+
+	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan":      {},
+			"ask_user_question": {},
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{}))
+	})
+
+	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, map[string]struct{}{
+			"propose_plan": {},
+		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+	})
+
+	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, stopAfterBehaviorTools(planMode, exploreMode, uuid.NullUUID{}))
+	})
+}
+
+// TestWaitForActiveChatStop and TestWaitForActiveChatStop_WaitsForReplacementRun
+// were removed along with the process-local activeChats mechanism.
+// Debug cleanup is now best-effort; stale finalization handles orphaned rows.
+
+// TestArchiveChatWaitsForActiveChatStop and
+// TestArchiveChatWaitsForEveryInterruptedChat were removed along with
+// the process-local activeChats mechanism. Archive cleanup is now
+// best-effort; stale finalization handles any orphaned rows.
+
+func TestRenameChatTitle(t *testing.T) {
+	t.Parallel()
+
+	setupRealWorkerLock := func(
+		db *dbmock.MockStore,
+		chatID uuid.UUID,
+		lockedChat database.Chat,
+	) {
+		lockTx := dbmock.NewMockStore(gomock.NewController(t))
+		unlockTx := dbmock.NewMockStore(gomock.NewController(t))
+		gomock.InOrder(
+			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(lockTx)
+				},
+			),
+			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(unlockTx)
+				},
+			),
+		)
+		lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+		unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+	}
+
+	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		chatID := uuid.New()
+		workerID := uuid.New()
+		stored := database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			Title:    "original",
+		}
+		updated := stored
+		updated.Title = "renamed"
+
+		server := &Server{db: db, logger: logger}
+
+		setupRealWorkerLock(db, chatID, stored)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+			ID:    chatID,
+			Title: "renamed",
+		}).Return(updated, nil)
+
+		got, wrote, err := server.RenameChatTitle(ctx, stored, "renamed")
+		require.NoError(t, err)
+		require.True(t, wrote, "fresh rename must report wrote=true")
+		require.Equal(t, updated, got)
+	})
+
+	t.Run("SkipsWriteWhenAlreadyAtNewTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		chatID := uuid.New()
+		workerID := uuid.New()
+		stale := database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			Title:    "pre-race",
+		}
+		landed := stale
+		landed.Title = "landed-concurrently"
+
+		server := &Server{db: db, logger: logger}
+
+		setupRealWorkerLock(db, chatID, landed)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
+
+		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
+		require.NoError(t, err)
+		require.False(t, wrote,
+			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
+		require.Equal(t, landed, got)
+	})
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -2610,6 +2957,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		chatHeartbeatInterval: time.Minute,
 		configCache:           newChatConfigCache(ctx, db, clock),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+		metrics:               chatloop.NopMetrics(),
 	}
 
 	// Publish a stale "pending" notification on the control channel
@@ -2642,6 +2990,10 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 			return database.Chat{ID: chatID, Status: params.Status}, nil
 		},
 	)
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusError},
+		nil,
+	)
 
 	// resolveChatModel fails immediately — that's fine, we only
 	// need processChat to get past initialization without being
@@ -2671,6 +3023,69 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+func TestShouldPublishFinishedChatState(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{db: db}
+	updatedChat := database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}, nil)
+
+	require.True(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat))
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+	}, nil)
+
+	require.False(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat))
+}
+
+// TestShouldPublishFinishedChatState_DBErrorPublishes pins the
+// deliberate fail-open behavior when the re-read query errors: we
+// surface the finished state anyway so watchers don't get stuck
+// waiting for a status update that never arrives. The error path is
+// easy to regress into a fail-closed default otherwise.
+func TestShouldPublishFinishedChatState_DBErrorPublishes(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+
+	server := &Server{db: db}
+	updatedChat := database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{}, xerrors.New("boom"),
+	)
+
+	require.True(t, server.shouldPublishFinishedChatState(ctx, logger, updatedChat),
+		"fail-open: a re-read error must not swallow the status change")
 }
 
 // TestHeartbeatTick_StolenChatIsInterrupted verifies that when the
@@ -2798,4 +3213,320 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 	// returned early.
 	require.NoError(t, chatCtx.Err(),
 		"chat context should not be canceled on transient DB error")
+}
+
+// TestSubscribeCancelDuringGrace_ReapedBySweep verifies that a
+// subscriber detach inside bufferRetainGracePeriod (the OSS trigger
+// for the retained-buffer leak) leaves the state mapped, and the
+// next sweep past the grace window reaps it.
+func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: logger,
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	start := mClock.Now()
+
+	// Just-finished chat: processing done, buffer retained for
+	// late-connecting relay subscribers.
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: start,
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+			},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	// Real subscribeToStream cancel path: the WS subscriber detach
+	// that leaks in prod.
+	_, _, cancelSub := server.subscribeToStream(chatID)
+
+	mClock.Advance(bufferRetainGracePeriod / 2)
+	cancelSub()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok,
+		"entry should remain during grace window after subscriber detach")
+
+	mClock.Advance(bufferRetainGracePeriod)
+	server.sweepIdleStreams()
+
+	_, ok = server.chatStreams.Load(chatID)
+	require.False(t, ok,
+		"entry should be reaped after grace period expires and sweep runs")
+}
+
+// TestSweepIdleStreams_ReapsStaleRetainedBuffer: grace expired, no
+// subscribers, not buffering -> reaped.
+func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.False(t, ok, "stale retained state should be reaped")
+}
+
+// TestSweepIdleStreams_DoesNotReapActiveBuffering: buffering=true
+// blocks reap even long after any grace would have expired.
+func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(time.Hour)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "actively-buffering state must not be reaped")
+}
+
+// TestSweepIdleStreams_DoesNotReapWithSubscribers: attached
+// subscribers block reap even when grace has expired.
+func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
+			uuid.New(): make(chan codersdk.ChatStreamEvent, 1),
+		},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "state with subscribers must not be reaped")
+}
+
+// TestSweepIdleStreams_DefersDuringGracePeriod: sweep inside grace
+// is a no-op; the next sweep past grace reaps.
+func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	start := mClock.Now()
+	state := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: start,
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+		buffer: []codersdk.ChatStreamEvent{{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	mClock.Advance(bufferRetainGracePeriod / 2)
+	server.sweepIdleStreams()
+
+	_, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok, "sweep inside grace window must not reap")
+
+	mClock.Advance(bufferRetainGracePeriod)
+	server.sweepIdleStreams()
+
+	_, ok = server.chatStreams.Load(chatID)
+	require.False(t, ok, "sweep after grace window must reap")
+}
+
+// TestPublishToStream_DropZeroesBackingSlot verifies that evicting
+// the oldest buffered event at capacity zeroes the dropped slot so
+// its *ChatStreamMessagePart becomes GC-eligible immediately.
+func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+
+	// Over-allocate by one so the post-drop append fits in place and
+	// exercises the backing-array reuse this test is checking.
+	buf := make([]codersdk.ChatStreamEvent, maxStreamBufferSize, maxStreamBufferSize+1)
+	for i := range buf {
+		buf[i] = codersdk.ChatStreamEvent{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{},
+		}
+	}
+	// Sentinel in slot 0 distinguishes "slot was zeroed" from "slot
+	// was overwritten by a later append".
+	sentinel := &codersdk.ChatStreamMessagePart{
+		Role: codersdk.ChatMessageRoleAssistant,
+	}
+	buf[0] = codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: sentinel,
+	}
+	// Alias over the full backing array so we can still observe slot
+	// 0 after publishToStream reslices state.buffer forward.
+	origBacking := buf[:cap(buf)]
+
+	state := &chatStreamState{
+		buffering:   true,
+		buffer:      buf,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	newPart := &codersdk.ChatStreamMessagePart{
+		Role: codersdk.ChatMessageRoleAssistant,
+	}
+	server.publishToStream(chatID, codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: newPart,
+	})
+
+	require.Equal(t, codersdk.ChatStreamEvent{}, origBacking[0],
+		"dropped slot must be zero-valued so its *ChatStreamMessagePart "+
+			"is eligible for GC; got %+v", origBacking[0])
+
+	// Sanity-check the in-place append path the fix targets: if Go's
+	// growth policy ever makes this append reallocate, this fails
+	// loudly so the test author revisits the setup.
+	require.Same(t, newPart, origBacking[len(origBacking)-1].MessagePart,
+		"append must have landed in the original backing array; the "+
+			"zero-out invariant only matters when cap > len")
+}
+
+// TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry covers
+// the race where a caller holds a pointer to a no-longer-mapped
+// state (e.g. a janitor Range callback racing a fresh
+// getOrCreateStreamState) and would otherwise evict the fresh entry.
+// With CompareAndDelete in cleanupStreamIfIdle the stale delete is
+// a no-op.
+func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+
+	// Stale pointer: reapable (not buffering, no subscribers, grace
+	// expired) but no longer the map's live entry.
+	stale := &chatStreamState{
+		buffering:        false,
+		bufferRetainedAt: mClock.Now(),
+		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+
+	// Fresh entry: the state getOrCreateStreamState would install
+	// after a racing processChat run. Actively buffering, so not
+	// reapable. Only this state is in the map.
+	fresh := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, fresh)
+
+	mClock.Advance(bufferRetainGracePeriod + time.Second)
+
+	// Stale caller mirrors the janitor Range callback after the map
+	// entry has already been replaced.
+	stale.mu.Lock()
+	server.cleanupStreamIfIdle(chatID, stale)
+	stale.mu.Unlock()
+
+	got, ok := server.chatStreams.Load(chatID)
+	require.True(t, ok,
+		"fresh entry must remain mapped when cleanup is called with a stale pointer")
+	require.Same(t, fresh, got,
+		"cleanup must not replace the fresh entry with the stale one")
+}
+
+// TestSafeSweepIdleStreams_RecoversFromPanic verifies that an
+// unexpected panic inside sweepIdleStreams is recovered rather than
+// killing the janitor goroutine. Without this guard, a panic would
+// silently reintroduce the very leak the janitor exists to prevent.
+func TestSafeSweepIdleStreams_RecoversFromPanic(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:  quartz.NewMock(t),
+	}
+
+	chatID := uuid.New()
+	// A nil *chatStreamState passes the type assertion in sweepIdleStreams
+	// but panics on state.mu.Lock with a nil-pointer deref. Any future
+	// panic source in the sweep would trigger the same recovery path.
+	var nilState *chatStreamState
+	server.chatStreams.Store(chatID, nilState)
+
+	require.NotPanics(t, func() {
+		server.safeSweepIdleStreams(context.Background())
+	}, "safeSweepIdleStreams must recover panics so the janitor loop keeps running")
 }

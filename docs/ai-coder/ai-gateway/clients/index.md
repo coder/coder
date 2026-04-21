@@ -66,30 +66,40 @@ while allowing individual users to bring their own.
 
 See individual client pages for configuration details.
 
+### Enabling or disabling BYOK
+
+BYOK is enabled by default. Administrators can disable it using `--aibridge-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
+
+```sh
+coder server --aibridge-allow-byok=false
+```
+
+When disabled, BYOK requests are rejected with a `403 Forbidden` response and only centralized key authentication is permitted.
+
 ## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Gateway.
 
-| Client                           | OpenAI | Anthropic | Notes                                                                                                                                                  |
-|----------------------------------|--------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Mux](./mux.md)                  | ✅      | ✅         |                                                                                                                                                        |
-| [Claude Code](./claude-code.md)  | -      | ✅         |                                                                                                                                                        |
-| [Codex CLI](./codex.md)          | ✅      | -         |                                                                                                                                                        |
-| [OpenCode](./opencode.md)        | ✅      | ✅         |                                                                                                                                                        |
-| [Factory](./factory.md)          | ✅      | ✅         |                                                                                                                                                        |
-| [Cline](./cline.md)              | ✅      | ✅         |                                                                                                                                                        |
-| [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                                                                                                                                        |
-| [Roo Code](./roo-code.md)        | ✅      | ✅         |                                                                                                                                                        |
-| [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
-| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
-| [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
-| WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
-| Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
-| Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |
-| Kiro                             | ❌      | ❌         | No option to override base URL.                                                                                                                        |
-| Gemini CLI                       | ❌      | ❌         | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
-| Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+| Client                           | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
+|----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Mux](./mux.md)                  | ✅      | ✅         | -    |                                                                                                                                                        |
+| [Claude Code](./claude-code.md)  | -      | ✅         | ✅    |                                                                                                                                                        |
+| [Codex CLI](./codex.md)          | ✅      | -         | ✅    |                                                                                                                                                        |
+| [OpenCode](./opencode.md)        | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Factory](./factory.md)          | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Cline](./cline.md)              | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Kilo Code](./kilo-code.md)      | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [Roo Code](./roo-code.md)        | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [VS Code](./vscode.md)           | ✅      | ❌         | ❌    | Only supports Custom Base URL for OpenAI.                                                                                                              |
+| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
+| [Zed](./zed.md)                  | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
+| WindSurf                         | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Cursor                           | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
+| Sourcegraph Amp                  | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Kiro                             | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Gemini CLI                       | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
+| Antigravity                      | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
 |
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*

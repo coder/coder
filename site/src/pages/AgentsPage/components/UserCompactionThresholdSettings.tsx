@@ -2,6 +2,7 @@ import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -20,6 +21,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
+import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "./TemporarySavedState";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
@@ -49,6 +55,18 @@ const parseThresholdDraft = (value: string): number | null => {
 	return parsedValue;
 };
 
+const ContextCompactionHeader: FC = () => (
+	<div className="flex flex-col gap-2">
+		<h3 className="m-0 text-sm font-semibold text-content-primary">
+			Context Compaction
+		</h3>
+		<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+			Control when conversation context is automatically summarized for each
+			model. Setting 100% means the conversation will never auto-compact.
+		</p>
+	</div>
+);
+
 export const UserCompactionThresholdSettings: FC<
 	UserCompactionThresholdSettingsProps
 > = ({
@@ -64,6 +82,7 @@ export const UserCompactionThresholdSettings: FC<
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
 	const overridesByModelID = new Map(
@@ -149,6 +168,7 @@ export const UserCompactionThresholdSettings: FC<
 				.then(() => {
 					clearDraft(modelConfigId);
 					clearRowError(modelConfigId);
+					return true;
 				})
 				.catch((error: unknown) => {
 					setRowErrors((currentErrors) => ({
@@ -158,12 +178,17 @@ export const UserCompactionThresholdSettings: FC<
 							"Failed to save compaction threshold.",
 						),
 					}));
+					return false;
 				})
 				.finally(() => {
 					removePending(modelConfigId);
 				});
 		});
-		void Promise.allSettled(saves);
+		void Promise.all(saves).then((results) => {
+			if (results.length > 0 && results.every(Boolean)) {
+				showSavedState();
+			}
+		});
 	};
 
 	const handleCancelAll = () => {
@@ -174,17 +199,13 @@ export const UserCompactionThresholdSettings: FC<
 	const hasAnyPending = pendingModels.size > 0;
 	const hasAnyErrors = Object.keys(rowErrors).length > 0;
 	const hasAnyDrafts = Object.keys(drafts).length > 0;
+	const shouldShowActions =
+		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
 
 	if (isThresholdsLoading) {
 		return (
-			<div className="space-y-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Context Compaction
-				</h3>
-				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when conversation context is automatically summarized for each
-					model. Setting 100% means the conversation will never auto-compact.
-				</p>
+			<div className="flex flex-col gap-2">
+				<ContextCompactionHeader />
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="h-4 w-4" />
 					Loading thresholds...
@@ -195,14 +216,8 @@ export const UserCompactionThresholdSettings: FC<
 
 	if (thresholdsError != null) {
 		return (
-			<div className="space-y-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Context Compaction
-				</h3>
-				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Control when conversation context is automatically summarized for each
-					model. Setting 100% means the conversation will never auto-compact.
-				</p>
+			<div className="flex flex-col gap-2">
+				<ContextCompactionHeader />
 				<p className="m-0 text-xs text-content-destructive">
 					{getErrorMessage(
 						thresholdsError,
@@ -214,14 +229,8 @@ export const UserCompactionThresholdSettings: FC<
 	}
 
 	return (
-		<div className="space-y-2">
-			<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-				Context Compaction
-			</h3>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-				Control when conversation context is automatically summarized for each
-				model. Setting 100% means the conversation will never auto-compact.
-			</p>
+		<div className="flex flex-col gap-3">
+			<ContextCompactionHeader />
 			{isLoadingModelConfigs ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="h-4 w-4" />
@@ -243,7 +252,7 @@ export const UserCompactionThresholdSettings: FC<
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Model</TableHead>
+							<TableHead className="text-content-secondary">Model</TableHead>
 							<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
 							<TableHead className="w-0 whitespace-nowrap">Threshold</TableHead>
 						</TableRow>
@@ -270,8 +279,14 @@ export const UserCompactionThresholdSettings: FC<
 
 							return (
 								<TableRow key={modelConfig.id}>
-									<TableCell className="text-[13px] font-medium text-content-primary">
-										{modelName}
+									<TableCell className="text-sm font-medium text-content-primary">
+										<Badge size="sm" variant="default" className="w-fit">
+											<ProviderIcon
+												provider={modelConfig.provider}
+												className="h-4 w-4"
+											/>
+											{modelName}
+										</Badge>
 										{rowError && (
 											<p
 												aria-live="polite"
@@ -288,31 +303,40 @@ export const UserCompactionThresholdSettings: FC<
 										<div className="flex items-center gap-1.5">
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<Input
-														aria-label={`${modelName} compaction threshold`}
-														aria-invalid={isInvalid || undefined}
-														type="number"
-														min={0}
-														max={100}
-														inputMode="numeric"
-														className={cn(
-															"h-7 w-16 px-2 text-xs tabular-nums",
-															isInvalid &&
-																"border-content-destructive focus:ring-content-destructive/30",
-														)}
-														value={draftValue}
-														placeholder={String(
-															modelConfig.compression_threshold,
-														)}
-														onChange={(event) => {
-															setDrafts((currentDrafts) => ({
-																...currentDrafts,
-																[modelConfig.id]: event.target.value,
-															}));
-															clearRowError(modelConfig.id);
-														}}
-														disabled={isThisModelMutating}
-													/>
+													<div className="relative">
+														<Input
+															aria-label={`${modelName} compaction threshold`}
+															aria-invalid={isInvalid || undefined}
+															type="text"
+															min={0}
+															max={100}
+															maxLength={3}
+															inputMode="numeric"
+															className={cn(
+																"h-7 w-16 px-2 pr-5 text-xs tabular-nums",
+																isInvalid &&
+																	"border-content-destructive focus:ring-content-destructive/30",
+															)}
+															value={draftValue}
+															placeholder={String(
+																modelConfig.compression_threshold,
+															)}
+															onChange={(event) => {
+																setDrafts((currentDrafts) => ({
+																	...currentDrafts,
+																	[modelConfig.id]: event.target.value,
+																}));
+																clearRowError(modelConfig.id);
+															}}
+															disabled={isThisModelMutating}
+														/>
+														<span
+															aria-hidden="true"
+															className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-content-secondary"
+														>
+															%
+														</span>
+													</div>
 												</TooltipTrigger>
 												{(isInvalid || isDraftDisablingCompaction) && (
 													<TooltipContent>
@@ -322,7 +346,6 @@ export const UserCompactionThresholdSettings: FC<
 													</TooltipContent>
 												)}
 											</Tooltip>
-											<span className="text-xs text-content-secondary">%</span>
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<Button
@@ -367,37 +390,46 @@ export const UserCompactionThresholdSettings: FC<
 							);
 						})}
 					</TableBody>
-					{(dirtyRows.length > 0 || hasAnyErrors || hasAnyDrafts) && (
-						<TableFooter className="bg-transparent">
-							<TableRow className="border-0">
-								<TableCell colSpan={3} className="border-0 p-0">
-									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
-										<Button
-											size="sm"
-											variant="outline"
-											type="button"
-											onClick={handleCancelAll}
-											disabled={hasAnyPending}
-										>
-											Cancel
-										</Button>
-										{dirtyRows.length > 0 && (
-											<Button
-												size="sm"
-												type="button"
-												disabled={hasAnyPending}
-												onClick={handleSaveAll}
-											>
-												{hasAnyPending
-													? "Saving..."
-													: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-											</Button>
-										)}
-									</div>
-								</TableCell>
-							</TableRow>
-						</TableFooter>
-					)}
+					<TableFooter className="bg-transparent">
+						<TableRow className="border-0">
+							<TableCell colSpan={3} className="border-0 p-0">
+								<div className="mt-2 flex h-6 items-center justify-end gap-2 px-3">
+									{isSavedVisible ? (
+										<TemporarySavedState />
+									) : (
+										shouldShowActions && (
+											<>
+												<Button
+													size="xs"
+													variant="outline"
+													type="button"
+													onClick={handleCancelAll}
+													disabled={hasAnyPending}
+												>
+													Cancel
+												</Button>
+												{dirtyRows.length > 0 && (
+													<Button
+														size="xs"
+														type="button"
+														disabled={hasAnyPending}
+														onClick={handleSaveAll}
+													>
+														{hasAnyPending && (
+															<Spinner loading className="h-4 w-4" />
+														)}
+														{hasAnyPending
+															? "Saving..."
+															: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
+													</Button>
+												)}
+											</>
+										)
+									)}
+								</div>
+							</TableCell>
+						</TableRow>
+					</TableFooter>
 				</Table>
 			)}
 		</div>

@@ -42,6 +42,52 @@ Users can view their public key in their account settings:
 > SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
+## User Secrets
+
+User secrets let each user store their own secret values in Coder and make
+them available in workspaces without adding those values to template code.
+They are a good fit for per-user credentials such as API keys, cloud
+credentials, or other values that should follow a user across workspaces.
+
+Use the CLI to create and manage user secrets:
+
+```sh
+# Create a secret from stdin and inject it into workspaces as an environment
+# variable.
+printf %s "$API_KEY" | coder secret create api-key \
+  --description "API key for workspace tools" \
+  --env API_KEY
+
+# Create a secret from stdin and inject it into a file in your workspace.
+printf %s "$TOOL_CONFIG_CONTENTS" | coder secret create tool-config \
+  --description "Tool configuration" \
+  --file ~/.config/tool/config.json
+
+# List all of your secrets.
+coder secret list
+
+# Show a single secret by name.
+coder secret list api-key
+
+# Delete a secret you no longer need.
+coder secret delete api-key
+```
+
+Use `--env` to inject a secret into your workspaces as an environment
+variable. Use `--file` to inject it as a file in the workspace. File
+paths must start with `~/` or `/`. Provide a secret value with `--value`,
+or non-interactive stdin (pipe or redirect). Stdin is read verbatim. This
+means `echo "$API_KEY" | ...` usually adds a trailing newline to the stored
+value. Prefer `printf %s "$API_KEY" | ...` or `echo -n "$API_KEY" | ...`
+when you do not want that newline.
+
+You can update a secret later with `coder secret update`, including rotating
+the value or clearing an injection target by passing an empty string. Use
+`coder secret delete` to remove a secret entirely. The secret value itself is
+never returned by the API or CLI list output. For full command details, see
+[`coder secret`](../../reference/cli/secret.md) and the
+[Secrets API reference](../../reference/api/secrets.md).
+
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically

@@ -52,6 +52,15 @@ const (
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
+// ChatClientType indicates whether a chat was created from the
+// web UI or programmatically via the API.
+type ChatClientType string
+
+const (
+	ChatClientTypeUI  ChatClientType = "ui"
+	ChatClientTypeAPI ChatClientType = "api"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
@@ -65,6 +74,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID          `json:"last_model_config_id" format:"uuid"`
 	Title             string             `json:"title"`
 	Status            ChatStatus         `json:"status"`
+	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
 	LastError         *string            `json:"last_error"`
 	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
@@ -84,6 +94,13 @@ type Chat struct {
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
+	ClientType          ChatClientType    `json:"client_type"`
+	// Children holds child (subagent) chats nested under this root
+	// chat. Always initialized to an empty slice so the JSON field
+	// is present as []. Child chats cannot create their own
+	// subagents, so nesting depth is capped at 1 and this slice is
+	// always empty for child chats.
+	Children []Chat `json:"children"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -201,6 +218,7 @@ type ChatMessagePart struct {
 	URL               string              `json:"url" variants:"source"`
 	Title             string              `json:"title,omitempty" variants:"source?"`
 	MediaType         string              `json:"media_type" variants:"file"`
+	Name              string              `json:"name,omitempty" variants:"file?"`
 	Data              []byte              `json:"data,omitempty" variants:"file?"`
 	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
 	FileName          string              `json:"file_name" variants:"file-reference"`
@@ -316,11 +334,12 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 }
 
 // ChatMessageFile builds a file chat message part.
-func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+func ChatMessageFile(fileID uuid.UUID, mediaType string, name string) ChatMessagePart {
 	return ChatMessagePart{
 		Type:      ChatMessagePartTypeFile,
 		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
 		MediaType: mediaType,
+		Name:      name,
 	}
 }
 
@@ -392,13 +411,16 @@ type CreateChatRequest struct {
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
-	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
+	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
+	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
+	ClientType         ChatClientType `json:"client_type,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    *string `json:"title,omitempty"`
-	Archived *bool   `json:"archived,omitempty"`
+	Title       *string    `json:"title,omitempty"`
+	Archived    *bool      `json:"archived,omitempty"`
+	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
 	// - nil: no change to pin state.
 	// - 0: unpin the chat.
@@ -410,6 +432,9 @@ type UpdateChatRequest struct {
 	//   value is clamped to [1, pinned_count].
 	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
+	// PlanMode switches the chat's persistent plan mode.
+	// nil: no change, ptr to "plan": enable, ptr to "": clear.
+	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
@@ -427,12 +452,23 @@ const (
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
+// ChatPlanMode represents the persistent plan mode state of a chat.
+type ChatPlanMode string
+
+const (
+	// ChatPlanModePlan activates plan mode for the chat.
+	ChatPlanModePlan ChatPlanMode = "plan"
+)
+
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart  `json:"content"`
 	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
 	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	// PlanMode switches the chat's persistent plan mode.
+	// nil: no change, ptr to "plan": enable, ptr to "": clear.
+	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -512,6 +548,33 @@ type ChatSystemPromptResponse struct {
 type UpdateChatSystemPromptRequest struct {
 	SystemPrompt               string `json:"system_prompt"`
 	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
+}
+
+// ChatPlanModeInstructionsResponse is the response body for the
+// plan mode instructions configuration endpoint.
+type ChatPlanModeInstructionsResponse struct {
+	PlanModeInstructions string `json:"plan_mode_instructions"`
+}
+
+// UpdateChatPlanModeInstructionsRequest is the request body for
+// updating the plan mode instructions configuration.
+type UpdateChatPlanModeInstructionsRequest struct {
+	PlanModeInstructions string `json:"plan_mode_instructions"`
+}
+
+// ChatExploreModelOverrideResponse is the response body for the Explore
+// subagent model override configuration endpoint.
+type ChatExploreModelOverrideResponse struct {
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// HasMalformedOverride reports whether the saved override is malformed and
+	// is currently being treated as unset.
+	HasMalformedOverride bool `json:"has_malformed_override"`
+}
+
+// UpdateChatExploreModelOverrideRequest is the request body for updating the
+// Explore subagent model override configuration endpoint.
+type UpdateChatExploreModelOverrideRequest struct {
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -659,10 +722,9 @@ type ChatDebugRunSummary struct {
 	FinishedAt *time.Time       `json:"finished_at,omitempty" format:"date-time"`
 }
 
-// ChatDebugRun is the detailed run response including steps.
-// This type is consumed by the run-detail handler added in a later
-// PR in this stack; it is forward-declared here so that all SDK
-// types live in the same schema-layer commit.
+// ChatDebugRun is the detailed run response returned by the run-detail
+// endpoint. It includes the same summary fields as ChatDebugRunSummary
+// along with the full step history for the run.
 type ChatDebugRun struct {
 	ID                  uuid.UUID        `json:"id" format:"uuid"`
 	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
@@ -885,7 +947,7 @@ type ChatModelAnthropicThinkingOptions struct {
 type ChatModelAnthropicProviderOptions struct {
 	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
-	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
+	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,xhigh,max"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
 	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
@@ -1891,6 +1953,62 @@ func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req Upd
 	return nil
 }
 
+// GetChatPlanModeInstructions returns the deployment-wide plan mode instructions.
+func (c *ExperimentalClient) GetChatPlanModeInstructions(ctx context.Context) (ChatPlanModeInstructionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/plan-mode-instructions", nil)
+	if err != nil {
+		return ChatPlanModeInstructionsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPlanModeInstructionsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatPlanModeInstructionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatPlanModeInstructions updates the deployment-wide plan mode instructions.
+func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context, req UpdateChatPlanModeInstructionsRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/plan-mode-instructions", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatExploreModelOverride returns the deployment-wide Explore subagent
+// model override.
+func (c *ExperimentalClient) GetChatExploreModelOverride(ctx context.Context) (ChatExploreModelOverrideResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/explore-model-override", nil)
+	if err != nil {
+		return ChatExploreModelOverrideResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatExploreModelOverrideResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatExploreModelOverrideResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatExploreModelOverride updates the deployment-wide Explore subagent
+// model override.
+func (c *ExperimentalClient) UpdateChatExploreModelOverride(ctx context.Context, req UpdateChatExploreModelOverrideRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/explore-model-override", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
 func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
@@ -2224,6 +2342,93 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 	}), nil
 }
 
+// GetChatDebugLogging returns the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) GetChatDebugLogging(ctx context.Context) (ChatDebugLoggingAdminSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-logging", nil)
+	if err != nil {
+		return ChatDebugLoggingAdminSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugLoggingAdminSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugLoggingAdminSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugLogging updates the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) UpdateChatDebugLogging(ctx context.Context, req UpdateChatDebugLoggingAllowUsersRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatDebugLogging returns whether chat debug logging is active
+// for the current user and whether the user may change it.
+func (c *ExperimentalClient) GetUserChatDebugLogging(ctx context.Context) (UserChatDebugLoggingSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-debug-logging", nil)
+	if err != nil {
+		return UserChatDebugLoggingSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatDebugLoggingSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserChatDebugLoggingSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatDebugLogging updates the current user's chat debug
+// logging preference.
+func (c *ExperimentalClient) UpdateUserChatDebugLogging(ctx context.Context, req UpdateUserChatDebugLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRuns returns the debug runs for a chat.
+func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRunSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatDebugRunSummary
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDebugRun returns a single debug run along with its full step
+// history. Use GetChatDebugRuns when only the run summary list is needed.
+func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
+	if err != nil {
+		return ChatDebugRun{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRun{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRun
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
@@ -2351,6 +2556,25 @@ func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uui
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// ProposeChatTitleResponse is returned by the propose-title endpoint.
+type ProposeChatTitleResponse struct {
+	Title string `json:"title"`
+}
+
+// ProposeChatTitle requests the server to generate a suggested chat title without persisting it.
+func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.UUID) (ProposeChatTitleResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/propose", chatID), nil)
+	if err != nil {
+		return ProposeChatTitleResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ProposeChatTitleResponse{}, readBodyAsChatUsageLimitError(res)
+	}
+	var resp ProposeChatTitleResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChatGitChanges returns git changes for a chat.

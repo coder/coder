@@ -3050,6 +3050,22 @@ export type CreateTaskFeedbackRequest = {
 	comment?: string;
 };
 
+export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
+
+export type CreateChatMessageRequestWithClearablePlanMode = Omit<
+	TypesGen.CreateChatMessageRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
+type UpdateChatRequestWithClearablePlanMode = Omit<
+	TypesGen.UpdateChatRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
 //
@@ -3143,7 +3159,7 @@ class ExperimentalApiMethods {
 
 	updateChat = async (
 		chatId: string,
-		req: TypesGen.UpdateChatRequest,
+		req: UpdateChatRequestWithClearablePlanMode,
 	): Promise<void> => {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
@@ -3155,9 +3171,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
+		const response = await this.axios.post<{ title: string }>(
+			`/api/experimental/chats/${chatId}/title/propose`,
+		);
+		return response.data;
+	};
+
 	createChatMessage = async (
 		chatId: string,
-		req: TypesGen.CreateChatMessageRequest,
+		req: CreateChatMessageRequestWithClearablePlanMode,
 	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
 			`/api/experimental/chats/${chatId}/messages`,
@@ -3240,6 +3263,42 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatSystemPromptRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
+	};
+
+	getChatPlanModeInstructions =
+		async (): Promise<TypesGen.ChatPlanModeInstructionsResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPlanModeInstructionsResponse>(
+					"/api/experimental/chats/config/plan-mode-instructions",
+				);
+			return response.data;
+		};
+
+	updateChatPlanModeInstructions = async (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/plan-mode-instructions",
+			req,
+		);
+	};
+
+	getChatExploreModelOverride =
+		async (): Promise<TypesGen.ChatExploreModelOverrideResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatExploreModelOverrideResponse>(
+					"/api/experimental/chats/config/explore-model-override",
+				);
+			return response.data;
+		};
+
+	updateChatExploreModelOverride = async (
+		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/explore-model-override",
+			req,
+		);
 	};
 
 	getChatDesktopEnabled =

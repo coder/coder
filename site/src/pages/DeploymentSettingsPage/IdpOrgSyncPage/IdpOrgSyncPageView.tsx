@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
@@ -327,7 +327,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}}
 								>
 									<Spinner loading={form.isSubmitting}>
-										<Plus />
+										<PlusIcon />
 									</Spinner>
 									Add IdP organization
 								</Button>
@@ -455,7 +455,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					{!exists && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								<TriangleAlertIcon className="size-icon-xs cursor-pointer text-content-warning" />
 							</TooltipTrigger>
 							<TooltipContent
 								align="start"
@@ -482,7 +482,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
-					<Trash />
+					<TrashIcon />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>

@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -19,6 +20,136 @@ import (
 
 func TestWriteFile(t *testing.T) {
 	t.Parallel()
+
+	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		getWorkspaceConnCalled := false
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				getWorkspaceConnCalled = true
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"/home/coder/README.md","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "during plan turns, write_file is restricted to "+planPath, resp.Content)
+		assert.False(t, getWorkspaceConnCalled)
+	})
+
+	t.Run("PlanTurnAllowsResolvedPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		resolvePlanPathCalls := 0
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(planPath, nil)
+		mockConn.EXPECT().
+			WriteFile(gomock.Any(), planPath, gomock.Any()).
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+				data, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, planPath, path)
+				require.Equal(t, "# Plan", string(data))
+				return nil
+			})
+
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				resolvePlanPathCalls++
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"` + planPath + `","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, 1, resolvePlanPathCalls)
+		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
+	})
+
+	t.Run("PlanTurnAllowsLegacyAgentWithoutResolvePath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().
+			ResolvePath(gomock.Any(), planPath).
+			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
+		mockConn.EXPECT().
+			WriteFile(gomock.Any(), planPath, gomock.Any()).
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+				data, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, planPath, path)
+				require.Equal(t, "# Plan", string(data))
+				return nil
+			})
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"` + planPath + `","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, `{"ok":true}`, strings.TrimSpace(resp.Content))
+	})
+
+	t.Run("PlanTurnRejectsSymlinkedPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return("/home/coder/README.md", nil)
+		tool := chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "write_file",
+			Input: `{"path":"` + planPath + `","content":"# Plan"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns", resp.Content)
+	})
 
 	t.Run("RejectsHomeRootPlanVariantsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
 		t.Parallel()

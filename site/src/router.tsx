@@ -360,6 +360,9 @@ const AgentSettingsPage = lazy(
 const AgentSettingsBehaviorPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsBehaviorPage"),
 );
+const AgentSettingsAgentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
+);
 const AgentSettingsProvidersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
 );
@@ -709,6 +712,7 @@ export const router = createBrowserRouter(
 					<Route path="settings" element={<AgentSettingsPage />}>
 						<Route index element={<AgentSettingsBehaviorPage />} />
 						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
+						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />
 						<Route path="models" element={<AgentSettingsModelsPage />} />
