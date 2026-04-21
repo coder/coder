@@ -66,7 +66,9 @@ export const deriveMessageDisplayState = ({
 		!hideActions &&
 		!isUser &&
 		!hasCopyableContent &&
-		(Boolean(parsed.reasoning) || parsed.sources.length > 0 || !hasRenderableContent);
+		(Boolean(parsed.reasoning) ||
+			parsed.sources.length > 0 ||
+			!hasRenderableContent);
 	const hasToolResultsOnly =
 		parsed.toolResults.length > 0 &&
 		parsed.toolCalls.length === 0 &&
