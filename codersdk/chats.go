@@ -2618,20 +2618,6 @@ func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.U
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// GetChatGitChanges returns git changes for a chat.
-func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var changes []ChatGitChange
-	return changes, json.NewDecoder(res.Body).Decode(&changes)
-}
-
 // GetChatDiffContents returns resolved diff contents for a chat.
 func (c *ExperimentalClient) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff", chatID), nil)

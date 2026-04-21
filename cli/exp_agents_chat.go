@@ -311,7 +311,13 @@ type chatViewModel struct {
 	// full (potentially 4 MiB) diff text, so recomputing it on every
 	// keypress or resize stalls the TUI for large diffs.
 	diffSummary string
-	diffErr     error
+	// diffStyledBody caches the lipgloss-styled unified-diff body for
+	// diffContents. renderStyledDiffBody sanitizes, splits, and styles
+	// every line of the (potentially 4 MiB) diff, and styles are stable
+	// across redraws (setRenderer runs once at startup), so we
+	// invalidate on the same trigger as diffSummary.
+	diffStyledBody string
+	diffErr        error
 
 	modelPickerFlat   []codersdk.ChatModel
 	modelPickerCursor int
@@ -478,6 +484,7 @@ func (m *chatViewModel) setChat(chat codersdk.Chat) {
 	m.diffStatus = chat.DiffStatus
 	m.diffContents = nil
 	m.diffSummary = ""
+	m.diffStyledBody = ""
 	m.diffErr = nil
 }
 
@@ -1183,9 +1190,13 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		diff := msg.diff
 		m.diffContents = &diff
-		// Pre-render the summary once so View() redraws reuse it
-		// instead of re-parsing the full diff on every keypress.
+		// Pre-render the summary and styled body once so View()
+		// redraws reuse them instead of re-parsing and re-styling
+		// the full diff on every keypress. Styles are stable after
+		// setRenderer, so these caches only need to be refreshed
+		// when diffContents changes.
 		m.diffSummary = renderChatDiffSummary(diff)
+		m.diffStyledBody = renderStyledDiffBody(m.styles, diff.Diff)
 		return m, nil
 
 	default:

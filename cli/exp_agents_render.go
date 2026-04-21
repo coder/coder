@@ -652,17 +652,25 @@ func styleUnifiedDiffLine(styles tuiStyles, line string, inHunk bool) string {
 }
 
 // renderDiffDrawer builds the diff overlay contents. The caller is
-// responsible for producing summary with renderChatDiffSummary so that
-// every View() redraw does not walk the full (potentially 4 MiB) diff
-// through parseChatGitChangesFromUnifiedDiff again. chatViewModel
-// caches the summary in diffSummary for this reason.
-func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, summary string, width, height int) string {
+// responsible for producing summary with renderChatDiffSummary and
+// styledBody with renderStyledDiffBody so that every View() redraw
+// does not walk the full (potentially 4 MiB) diff through
+// parseChatGitChangesFromUnifiedDiff or re-style every line through
+// lipgloss. chatViewModel caches both in diffSummary and
+// diffStyledBody for this reason. If styledBody is empty the caller
+// had no cache (for example tests that construct diffs directly), so
+// fall back to computing it here instead of silently rendering an
+// empty body.
+func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, summary, styledBody string, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
 	if meta := diffMetadataLines(diff); len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
-	diffBody := renderStyledDiffBody(styles, diff.Diff)
+	diffBody := styledBody
+	if diffBody == "" {
+		diffBody = renderStyledDiffBody(styles, diff.Diff)
+	}
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4
 	availableBodyLines := max(height-overhead, 0)

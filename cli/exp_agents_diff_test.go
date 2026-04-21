@@ -129,12 +129,14 @@ func TestFetchChatDiffContents(t *testing.T) {
 		// return when the chat cannot be observed through the workspace
 		// agent. fetchChatDiffContents should swallow the error and fall
 		// back to the empty remote diff instead of surfacing a hard
-		// error in the TUI.
+		// error in the TUI. Drive the subtests from the shared codersdk
+		// constants so a server-side rewording automatically flows
+		// through the test matrix.
 		for _, message := range []string{
-			"Chat has no workspace to watch.",
-			"Chat workspace not found.",
-			"Chat workspace has no agents.",
-			`Agent state is "connecting", it must be in the "connected" state.`,
+			codersdk.ChatGitWatchNoWorkspaceMessage,
+			codersdk.ChatGitWatchWorkspaceNotFoundMessage,
+			codersdk.ChatGitWatchWorkspaceNoAgentsMessage,
+			codersdk.ChatGitWatchAgentStateMessage(codersdk.WorkspaceAgentConnecting),
 		} {
 			t.Run(message, func(t *testing.T) {
 				t.Parallel()
@@ -162,6 +164,124 @@ func TestFetchChatDiffContents(t *testing.T) {
 				require.Empty(t, diff.Diff)
 			})
 		}
+	})
+
+	t.Run("IgnoresForbiddenWatcherFallbackErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// authorizeChatWorkspaceExec in coderd/exp_chats.go returns 403
+		// when the chat owner's workspace exec permission is revoked.
+		// The remote /diff endpoint does not re-check workspace
+		// permissions, so fetchChatDiffContents must swallow the 403
+		// and fall back to the empty remote diff just like it does for
+		// the 400 variants above. Without this subtest, removing the
+		// `case http.StatusForbidden` branch in
+		// shouldIgnoreLocalDiffFallbackError would silently regress.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+			case path + "/stream/git":
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(http.StatusForbidden)
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "forbidden"}))
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+		require.Equal(t, chatID, diff.ChatID)
+		require.Empty(t, diff.Diff)
+	})
+
+	t.Run("BackfillsRemoteMetadataWhenLocalDiffIsSingleRepo", func(t *testing.T) {
+		t.Parallel()
+
+		// The scenario this PR was written for: a chat has remote
+		// metadata (provider, pull-request URL, etc.) but the server
+		// returns an empty Diff because the remote watcher has not
+		// observed changes yet. The CLI fetches the local watcher
+		// diff and must carry the remote metadata forward so the
+		// Diff overlay still shows the PR URL / origin.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		remoteBranch := "feature/remote-branch"
+		remoteOrigin := "https://github.com/coder/coder.git"
+		remotePR := "https://github.com/coder/coder/pull/42"
+		remoteProvider := "github"
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{
+					ChatID:         chatID,
+					Provider:       &remoteProvider,
+					RemoteOrigin:   &remoteOrigin,
+					Branch:         &remoteBranch,
+					PullRequestURL: &remotePR,
+				}))
+			case path + "/stream/git":
+				conn, err := websocket.Accept(rw, r, nil)
+				require.NoError(t, err)
+				defer conn.Close(websocket.StatusNormalClosure, "")
+
+				_, payload, err := conn.Read(ctx)
+				require.NoError(t, err)
+				var refresh codersdk.WorkspaceAgentGitClientMessage
+				require.NoError(t, json.Unmarshal(payload, &refresh))
+				require.Equal(t, codersdk.WorkspaceAgentGitClientMessageTypeRefresh, refresh.Type)
+
+				writer, err := conn.Writer(ctx, websocket.MessageText)
+				require.NoError(t, err)
+				// Return exactly one repo so buildLocalChatDiffContents
+				// sets Branch/RemoteOrigin, which is the signal that
+				// fetchChatDiffContents uses to backfill missing
+				// metadata from the remote response (Provider, PR URL)
+				// without overwriting fields the local watcher
+				// already populated.
+				require.NoError(t, json.NewEncoder(writer).Encode(codersdk.WorkspaceAgentGitServerMessage{
+					Type: codersdk.WorkspaceAgentGitServerMessageTypeChanges,
+					Repositories: []codersdk.WorkspaceAgentRepoChanges{{
+						RepoRoot:     "/workspace/repo",
+						Branch:       "feature/local-branch",
+						RemoteOrigin: "https://github.com/coder/local.git",
+						UnifiedDiff:  "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n",
+					}},
+				}))
+				require.NoError(t, writer.Close())
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+
+		// The aggregated diff comes from the local watcher.
+		require.Contains(t, diff.Diff, "diff --git a/a.txt b/a.txt")
+		require.Contains(t, diff.Diff, "+new")
+
+		// Branch and RemoteOrigin were populated by the single-repo
+		// local watcher result, so they must NOT be overwritten by
+		// the remote response.
+		require.NotNil(t, diff.Branch)
+		require.Equal(t, "feature/local-branch", *diff.Branch)
+		require.NotNil(t, diff.RemoteOrigin)
+		require.Equal(t, "https://github.com/coder/local.git", *diff.RemoteOrigin)
+
+		// Provider and PullRequestURL were nil on the local diff,
+		// so they must be backfilled from the remote metadata.
+		require.NotNil(t, diff.Provider)
+		require.Equal(t, remoteProvider, *diff.Provider)
+		require.NotNil(t, diff.PullRequestURL)
+		require.Equal(t, remotePR, *diff.PullRequestURL)
 	})
 
 	t.Run("ReturnsRemoteDiffWithoutDialingWatcher", func(t *testing.T) {

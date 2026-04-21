@@ -588,7 +588,7 @@ func TestExpAgentsRender(t *testing.T) {
 				t.Parallel()
 				var output string
 				require.NotPanics(t, func() {
-					output = plainText(renderDiffDrawer(styles, tt.diff, renderChatDiffSummary(tt.diff), 90, 20))
+					output = plainText(renderDiffDrawer(styles, tt.diff, renderChatDiffSummary(tt.diff), "", 90, 20))
 				})
 				tt.assert(t, output)
 			})
@@ -852,7 +852,7 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		diff := codersdk.ChatDiffContents{Diff: "diff --git a/a.txt b/a.txt\n+safe\x1b]52;c;clipboard\x07line"}
-		rawOutput := renderDiffDrawer(styles, diff, renderChatDiffSummary(diff), 90, 20)
+		rawOutput := renderDiffDrawer(styles, diff, renderChatDiffSummary(diff), "", 90, 20)
 		output := plainText(rawOutput)
 
 		require.Contains(t, output, "diff --git a/a.txt b/a.txt")

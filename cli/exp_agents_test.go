@@ -572,9 +572,10 @@ func TestExpAgents(t *testing.T) {
 			model.chat.chat = &chat
 			generation := model.chat.chatGeneration
 
-			// A successful diffContentsMsg pre-renders the summary so
-			// View() redraws do not re-parse the full diff on every
-			// keypress (see chatViewModel.diffSummary).
+			// A successful diffContentsMsg pre-renders the summary
+			// and the lipgloss-styled body so View() redraws do not
+			// re-parse or re-style the full diff on every keypress
+			// (see chatViewModel.diffSummary and diffStyledBody).
 			diff := codersdk.ChatDiffContents{
 				ChatID: chat.ID,
 				Diff:   "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new",
@@ -583,11 +584,19 @@ func TestExpAgents(t *testing.T) {
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.NotNil(t, updated.chat.diffContents)
 			require.Equal(t, "1 file changed:\n  modified a.txt (+1 -1)", updated.chat.diffSummary)
+			require.NotEmpty(t, updated.chat.diffStyledBody)
+			// The cached styled body still contains the diff text
+			// verbatim: lipgloss wraps lines in escape codes without
+			// replacing them, so every original line of the input
+			// diff must survive the round-trip.
+			require.Contains(t, plainText(updated.chat.diffStyledBody), "diff --git a/a.txt b/a.txt")
+			require.Contains(t, plainText(updated.chat.diffStyledBody), "+new")
 
-			// setChat clears the cached summary so a new chat does
-			// not inherit a stale summary from the previous session.
+			// setChat clears both caches so a new chat does not
+			// inherit stale render output from the previous session.
 			(&updated.chat).setChat(testChat(codersdk.ChatStatusCompleted))
 			require.Empty(t, updated.chat.diffSummary)
+			require.Empty(t, updated.chat.diffStyledBody)
 			require.Nil(t, updated.chat.diffContents)
 		})
 
