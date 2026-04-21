@@ -1414,10 +1414,10 @@ func TestPlanTurnPromptContract(t *testing.T) {
 		if msg.Role != "system" {
 			continue
 		}
-		// The overlay constant includes a placeholder that is replaced at
+		// The overlay prompt includes a placeholder that is replaced at
 		// runtime, so strip only the stable body text before checking.
 		overlayBody := strings.TrimSuffix(
-			chatd.PlanningOverlayPrompt,
+			chatd.PlanningOverlayPrompt(),
 			"{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}",
 		)
 		sanitized := strings.ReplaceAll(msg.Content, overlayBody, "")

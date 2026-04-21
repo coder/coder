@@ -17,6 +17,12 @@ const (
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
+
+	defaultSystemPromptPlanningGuidance = "1. Use " + spawnAgentToolName +
+		" with type=\"" + subagentTypeExplore +
+		"\" and wait_agent to research the codebase and gather context as needed. " +
+		"Reserve type=\"" + subagentTypeGeneral +
+		"\" for writable delegated work."
 )
 
 type spawnAgentArgs struct {
@@ -249,13 +255,6 @@ func formatSubagentDefinitionsWithDescriptionOverrides(
 		parts = append(parts, def.id+" ("+description+")")
 	}
 	return strings.Join(parts, ", ")
-}
-
-func defaultSystemPromptPlanningGuidance() string {
-	return "1. Use " + spawnAgentToolName + " with type=\"" +
-		subagentTypeExplore + "\" and wait_agent to research the codebase and " +
-		"gather context as needed. Reserve type=\"" +
-		subagentTypeGeneral + "\" for writable delegated work."
 }
 
 func planningOverlaySubagentGuidance() string {

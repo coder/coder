@@ -5356,7 +5356,7 @@ func buildSystemPrompt(
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
 		if behaviorContext.isRootChat {
-			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt())
 			if behaviorContext.planModeInstructions != "" {
 				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
 			}
