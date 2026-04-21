@@ -386,7 +386,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"workspace_id":          ActionTrack,
 		"build_id":              ActionIgnore, // Internal lifecycle.
 		"agent_id":              ActionIgnore, // Internal lifecycle.
-		"title":                 ActionTrack,
+		"title":                 ActionSecret,
 		"status":                ActionIgnore, // Churns every message.
 		"worker_id":             ActionIgnore, // Internal.
 		"started_at":            ActionIgnore,

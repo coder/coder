@@ -237,6 +237,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
 		});
 
 		let notified = false;
@@ -246,6 +247,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
 		});
 
 		expect(notified).toBe(false);
