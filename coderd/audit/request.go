@@ -135,7 +135,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AiSeatState:
 		return "AI Seat"
 	case database.Chat:
-		return typed.Title
+		return typed.ID.String()[:8]
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
