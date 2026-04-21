@@ -22,7 +22,6 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
@@ -30,6 +29,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import { ReasoningDisclosure } from "./ReasoningDisclosure";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -55,46 +55,6 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
-
-const ReasoningDisclosure = memo<{
-	id: string;
-	text: string;
-	isStreaming?: boolean;
-	urlTransform?: UrlTransform;
-}>(({ id, text, isStreaming = false, urlTransform }) => {
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming,
-		bypassSmoothing: !isStreaming,
-		streamKey: id,
-	});
-	const displayText = isStreaming ? visibleText : text;
-	const hasText = displayText.trim().length > 0;
-
-	if (hasText) {
-		return (
-			<div className="w-full">
-				<Response
-					className="text-[11px] text-content-secondary"
-					urlTransform={urlTransform}
-					streaming={isStreaming}
-				>
-					{displayText}
-				</Response>
-			</div>
-		);
-	}
-
-	return (
-		<div className="w-full">
-			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-				<span className="text-sm">
-					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
-				</span>
-			</div>
-		</div>
-	);
-});
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
