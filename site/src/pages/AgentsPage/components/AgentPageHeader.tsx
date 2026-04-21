@@ -34,11 +34,19 @@ interface AgentPageHeaderProps {
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the settings/analytics nav buttons. */
 	mobileBack?: { to: string; label: string };
+	chimeEnabled?: boolean;
+	onToggleChime?: () => void;
+	webPush?: ReturnType<typeof useWebpushNotifications>;
+	onToggleNotifications?: () => Promise<void> | void;
 }
 
 export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	children,
 	mobileBack,
+	chimeEnabled: controlledChimeEnabled,
+	onToggleChime,
+	webPush: controlledWebPush,
+	onToggleNotifications,
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
@@ -46,8 +54,11 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const logoUrl = appearance.logo_url;
 	const location = useLocation();
 
-	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
-	const webPush = useWebpushNotifications();
+	const [internalChimeEnabled, setInternalChimeEnabled] =
+		useState(getChimeEnabled);
+	const internalWebPush = useWebpushNotifications();
+	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
+	const webPush = controlledWebPush ?? internalWebPush;
 	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
 		if (typeof window === "undefined") {
 			return false;
@@ -73,12 +84,20 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	}, []);
 
 	const handleChimeToggle = () => {
+		if (onToggleChime) {
+			onToggleChime();
+			return;
+		}
 		const next = !chimeEnabled;
-		setChimeEnabledState(next);
+		setInternalChimeEnabled(next);
 		setChimeEnabled(next);
 	};
 
 	const handleNotificationToggle = async () => {
+		if (onToggleNotifications) {
+			await onToggleNotifications();
+			return;
+		}
 		try {
 			if (webPush.subscribed) {
 				await webPush.unsubscribe();
