@@ -262,8 +262,9 @@ func planningOverlaySubagentGuidance() string {
 		subagentTypeGeneral: "delegated investigation, planning support, and non-mutating exploration",
 	}
 
-	return "Use read_file, execute, process_output, list_templates, read_template, and " +
-		spawnAgentToolName + " to gather context. In Plan Mode, " +
+	return "Use read_file, execute, process_output, list_templates, read_template, " +
+		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
+		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, close_agent, and computer-use actions remain unavailable. In Plan Mode, " +
 		spawnAgentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Allowed type " +
 		"values in Plan Mode: " +
