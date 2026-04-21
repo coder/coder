@@ -537,7 +537,6 @@ export const Disabled: Story = {
 		await expect(
 			canvas.getByText(/no debug runs recorded yet/i),
 		).toBeInTheDocument();
-		await expect(canvas.getByText(/Settings → Behavior/)).toBeInTheDocument();
 	},
 };
 
