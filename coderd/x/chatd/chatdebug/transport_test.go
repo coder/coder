@@ -8,10 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 func newTestSinkContext(t *testing.T) (context.Context, *attemptSink) {
@@ -954,6 +958,59 @@ func TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades(t *testing.T) {
 	require.Equal(t, attemptStatusFailed, attempts[0].Status)
 	require.Contains(t, attempts[0].Error, "boom: connection reset")
 	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingBody_SSEConcurrentReadCloseNoDeadlock exercises the
+// lock-ordering contract between record() and recordProvisional()
+// under concurrent Read/Close on an SSE body. An earlier revision
+// where record() entered recordOnce.Do before acquiring r.mu (while
+// recordProvisional() acquired r.mu first) deadlocked when one
+// goroutine won the Once but then blocked on r.mu while the other
+// held r.mu and blocked on the Once.
+func TestRecordingBody_SSEConcurrentReadCloseNoDeadlock(t *testing.T) {
+	t.Parallel()
+
+	const iterations = 200
+	ssePayload := []byte("data: ping\n\n")
+
+	for i := range iterations {
+		sink := &attemptSink{}
+		body := &recordingBody{
+			inner:         io.NopCloser(strings.NewReader(string(ssePayload))),
+			contentLength: -1,
+			contentType:   "text/event-stream",
+			sink:          sink,
+			startedAt:     time.Now(),
+			base:          Attempt{Number: sink.nextAttemptNumber()},
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			buf := make([]byte, 64)
+			for {
+				if _, err := body.Read(buf); err != nil {
+					return
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			_ = body.Close()
+		}()
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(testutil.WaitShort):
+			t.Fatalf("deadlock detected on iteration %d", i)
+		}
+	}
 }
 
 func TestRecordingTransport_SSEClosedEarlyMarksFailed(t *testing.T) {

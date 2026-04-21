@@ -427,17 +427,10 @@ func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
 	return errors.Is(decoder.Decode(&extra), io.EOF)
 }
 
-// buildAttempt materializes the final Attempt from the current buffered
-// response data plus err. Callers use this from both the record-once
-// append path and the provisional-upgrade replace path so both sites
-// apply the same redaction and status rules.
-func (r *recordingBody) buildAttempt(err error) Attempt {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.buildAttemptLocked(err)
-}
-
-// buildAttemptLocked is the mu-held form of buildAttempt. The caller
+// buildAttemptLocked materializes the final Attempt from the current
+// buffered response data plus err. Callers use this from both the
+// record-once append path and the provisional-upgrade replace path so
+// both sites apply the same redaction and status rules. The caller
 // must hold r.mu for the duration of the call.
 func (r *recordingBody) buildAttemptLocked(err error) Attempt {
 	finishedAt := time.Now()
@@ -477,9 +470,17 @@ func (r *recordingBody) buildAttemptLocked(err error) Attempt {
 	return base
 }
 
+// record acquires r.mu before entering recordOnce.Do so it shares a
+// single lock-acquisition order with recordProvisional. Without this,
+// a concurrent Read (in recordProvisional, holding r.mu) and Close (in
+// record, about to take r.mu inside the Do callback) would deadlock:
+// the Do winner would block on r.mu while the loser would block on
+// recordOnce. Callers must not hold r.mu.
 func (r *recordingBody) record(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.recordOnce.Do(func() {
-		r.sink.record(r.buildAttempt(err))
+		r.sink.record(r.buildAttemptLocked(err))
 	})
 }
 
