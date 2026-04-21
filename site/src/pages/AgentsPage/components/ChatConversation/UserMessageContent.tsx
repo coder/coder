@@ -1,6 +1,5 @@
 import { AlertTriangleIcon, FileTextIcon } from "lucide-react";
 import { type FC, Fragment, useEffect, useRef, useState } from "react";
-import { isApiErrorResponse } from "#/api/errors";
 import {
 	Tooltip,
 	TooltipContent,
@@ -8,9 +7,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import {
+	type AttachmentFailure,
 	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
+	probeAttachmentFailure,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
 import { Message, MessageContent } from "../ChatElements";
@@ -26,40 +27,24 @@ type ChatImageSource =
 	| { kind: "file"; fileId: string; src: string }
 	| { kind: "inline"; src: string };
 
-type ImageFailure = { kind: "expired" } | { kind: "failed"; detail?: string };
+type AttachmentFailureState = { kind: "idle" } | AttachmentFailure;
 
-type ImageFailureState = { kind: "idle" } | ImageFailure;
+type AttachmentFailureLabels = {
+	expired: string;
+	failed: string;
+};
 
-const undisplayableFileDetail = "File exists but could not be displayed.";
+const attachmentRetentionTooltip =
+	"Chat attachments are deleted after the retention window set for this deployment.";
 
-const classifyRemoteImageFailure = async (
-	src: string,
-	signal?: AbortSignal,
-): Promise<ImageFailure> => {
-	const response = await fetch(src, { signal });
-	if (response.status === 404) {
-		return { kind: "expired" };
-	}
-	if (response.ok) {
-		return { kind: "failed", detail: undisplayableFileDetail };
-	}
+const imageAttachmentFailureLabels: AttachmentFailureLabels = {
+	expired: "Image expired",
+	failed: "Image failed to load",
+};
 
-	// Prefer the API's structured error message (coderd returns
-	// codersdk.Response { message, detail }). Fall back to the status
-	// line when the body isn't JSON, for example when a proxy inserted
-	// an HTML page, so the tooltip still surfaces something concrete.
-	let detail = response.statusText
-		? `${response.status} ${response.statusText}`
-		: `HTTP ${response.status}`;
-	try {
-		const body: unknown = await response.json();
-		if (isApiErrorResponse(body) && body.message.trim()) {
-			detail = body.message;
-		}
-	} catch {
-		// Body wasn't JSON; stick with the status line.
-	}
-	return { kind: "failed", detail };
+const textAttachmentFailureLabels: AttachmentFailureLabels = {
+	expired: "Attachment expired",
+	failed: "Attachment failed to load",
 };
 
 const InlineTextAttachmentButton: FC<{
@@ -94,18 +79,48 @@ const TextAttachmentButton: FC<{
 	fileId: string;
 	onPreview?: (content: string) => void;
 }> = ({ fileId, onPreview }) => {
+	const { hasExpired, markExpired } = useExpiredFileIds();
+	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
+	const [failureState, setFailureState] = useState<AttachmentFailureState>(
+		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
+	);
 	const controllerRef = useRef<AbortController | null>(null);
 
 	useEffect(() => {
 		return () => controllerRef.current?.abort();
 	}, []);
 
+	useEffect(() => {
+		if (isKnownExpired) {
+			controllerRef.current?.abort();
+		}
+	}, [isKnownExpired]);
+
+	if (failureState.kind === "expired" || isKnownExpired) {
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={textAttachmentFailureLabels}
+				className="h-16 w-28"
+			/>
+		);
+	}
+	if (failureState.kind === "failed") {
+		return (
+			<AttachmentFallbackTile
+				state={failureState}
+				labels={textAttachmentFailureLabels}
+				className="h-16 w-28"
+			/>
+		);
+	}
+
 	return (
 		<InlineTextAttachmentButton
 			content={content ?? "Pasted text"}
 			isPlaceholder={content === null}
-			onPreview={async () => {
+			onPreview={() => {
 				if (content !== null) {
 					onPreview?.(content);
 					return;
@@ -115,44 +130,55 @@ const TextAttachmentButton: FC<{
 				const controller = new AbortController();
 				controllerRef.current = controller;
 
-				let fetchedContent: string;
-				try {
-					fetchedContent = await fetchTextAttachmentContent(
-						fileId,
-						controller.signal,
-					);
-				} catch (error) {
-					if (controllerRef.current === controller) {
+				void fetchTextAttachmentContent(fileId, controller.signal)
+					.then((result) => {
+						if (controllerRef.current !== controller) {
+							return;
+						}
 						controllerRef.current = null;
-					}
-					if (error instanceof Error && error.name === "AbortError") {
-						return;
-					}
-					console.error("Failed to load text attachment:", error);
-					return;
-				}
-
-				if (controllerRef.current === controller) {
-					controllerRef.current = null;
-				}
-				setContent(fetchedContent);
-				onPreview?.(fetchedContent);
+						if (result.kind === "loaded") {
+							setContent(result.content);
+							onPreview?.(result.content);
+							return;
+						}
+						if (result.kind === "expired") {
+							markExpired(fileId);
+						}
+						setFailureState(result);
+					})
+					.catch((error) => {
+						if (controllerRef.current === controller) {
+							controllerRef.current = null;
+						}
+						if (error instanceof Error && error.name === "AbortError") {
+							return;
+						}
+						console.warn("Failed to load text attachment:", error);
+						setFailureState({
+							kind: "failed",
+							detail: error instanceof Error ? error.message : undefined,
+						});
+					});
 			}}
 		/>
 	);
 };
 
-const ImageFallbackTile: FC<{
-	state: ImageFailure;
-}> = ({ state }) => {
-	const label =
-		state.kind === "expired" ? "Image expired" : "Image failed to load";
+const AttachmentFallbackTile: FC<{
+	state: AttachmentFailure;
+	labels: AttachmentFailureLabels;
+	className?: string;
+}> = ({ state, labels, className = "h-16 w-16" }) => {
+	const label = state.kind === "expired" ? labels.expired : labels.failed;
 
 	const tile = (
 		<div
 			role="img"
 			aria-label={label}
-			className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-tertiary px-1 text-center text-2xs text-content-secondary"
+			className={cn(
+				"flex flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
+				className,
+			)}
 		>
 			<AlertTriangleIcon
 				className="size-icon-sm shrink-0 text-content-warning"
@@ -168,9 +194,7 @@ const ImageFallbackTile: FC<{
 	// A bare "failed" (e.g. an inline base64 decode failure, where the
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
-		state.kind === "expired"
-			? "Chat attachments are deleted after the retention window set for this deployment."
-			: state.detail;
+		state.kind === "expired" ? attachmentRetentionTooltip : state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -191,8 +215,8 @@ const ChatImageBlock: FC<{
 }> = ({ source, onImageClick }) => {
 	const { hasExpired, markExpired } = useExpiredFileIds();
 	const isKnownExpired = source.kind === "file" && hasExpired(source.fileId);
-	const [failureState, setFailureState] = useState<ImageFailureState>(() =>
-		isKnownExpired ? { kind: "expired" } : { kind: "idle" },
+	const [failureState, setFailureState] = useState<AttachmentFailureState>(
+		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
 	);
 	const probeControllerRef = useRef<AbortController | null>(null);
 
@@ -207,10 +231,20 @@ const ChatImageBlock: FC<{
 	}, [isKnownExpired]);
 
 	if (failureState.kind === "expired" || isKnownExpired) {
-		return <ImageFallbackTile state={{ kind: "expired" }} />;
+		return (
+			<AttachmentFallbackTile
+				state={{ kind: "expired" }}
+				labels={imageAttachmentFailureLabels}
+			/>
+		);
 	}
 	if (failureState.kind === "failed") {
-		return <ImageFallbackTile state={failureState} />;
+		return (
+			<AttachmentFallbackTile
+				state={failureState}
+				labels={imageAttachmentFailureLabels}
+			/>
+		);
 	}
 
 	return (
@@ -246,7 +280,7 @@ const ChatImageBlock: FC<{
 					// preferable to leaving the broken-image icon up.
 					setFailureState({ kind: "failed" });
 
-					void classifyRemoteImageFailure(source.src, controller.signal)
+					void probeAttachmentFailure(source.src, controller.signal)
 						.then((reason) => {
 							if (probeControllerRef.current !== controller) {
 								return;

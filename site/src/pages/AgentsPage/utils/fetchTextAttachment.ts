@@ -1,8 +1,61 @@
+import { isApiErrorResponse } from "#/api/errors";
+
 /**
  * Roughly 1-2 lines of typical code at normal terminal width.
  * Short enough to fit in attachment previews without excessive wrapping.
  */
 const TEXT_ATTACHMENT_PREVIEW_LENGTH = 150;
+const undisplayableFileDetail = "File exists but could not be displayed.";
+
+export type AttachmentFailure =
+	| { kind: "expired" }
+	| { kind: "failed"; detail?: string };
+
+type TextAttachmentLoadResult =
+	| { kind: "loaded"; content: string }
+	| AttachmentFailure;
+
+/**
+ * Converts a chat attachment HTTP response into an availability classification.
+ */
+async function classifyAttachmentFailureResponse(
+	response: Response,
+): Promise<AttachmentFailure> {
+	if (response.status === 404) {
+		return { kind: "expired" };
+	}
+	if (response.ok) {
+		return { kind: "failed", detail: undisplayableFileDetail };
+	}
+
+	// Prefer the API's structured error message (coderd returns
+	// codersdk.Response { message, detail }). Fall back to the status
+	// line when the body isn't JSON, for example when a proxy inserted
+	// an HTML page, so the tooltip still surfaces something concrete.
+	let detail = response.statusText
+		? `${response.status} ${response.statusText}`
+		: `HTTP ${response.status}`;
+	try {
+		const body: unknown = await response.json();
+		if (isApiErrorResponse(body) && body.message.trim()) {
+			detail = body.message;
+		}
+	} catch {
+		// Body wasn't JSON; stick with the status line.
+	}
+	return { kind: "failed", detail };
+}
+
+/**
+ * Performs a follow-up fetch for an attachment that failed to render locally.
+ */
+export async function probeAttachmentFailure(
+	src: string,
+	signal?: AbortSignal,
+): Promise<AttachmentFailure> {
+	const response = await fetch(src, { signal });
+	return classifyAttachmentFailureResponse(response);
+}
 
 export function formatTextAttachmentPreview(
 	text: string,
@@ -35,12 +88,12 @@ export function decodeInlineTextAttachment(content: string): string {
 export async function fetchTextAttachmentContent(
 	fileId: string,
 	signal?: AbortSignal,
-): Promise<string> {
+): Promise<TextAttachmentLoadResult> {
 	const response = await fetch(`/api/experimental/chats/files/${fileId}`, {
 		signal,
 	});
-	if (!response.ok) {
-		throw new Error("Failed to fetch file");
+	if (response.ok) {
+		return { kind: "loaded", content: await response.text() };
 	}
-	return response.text();
+	return classifyAttachmentFailureResponse(response);
 }

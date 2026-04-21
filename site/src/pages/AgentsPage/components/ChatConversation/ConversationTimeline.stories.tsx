@@ -67,65 +67,91 @@ const askUserQuestionSubmittedResponse = [
 	"2. Release Plan: Small beta",
 ].join("\n");
 
-const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
+type AttachmentResponse = {
+	status: number;
+	body: string;
+	contentType?: string;
+};
+
+const FAILED_ATTACHMENT_API_MESSAGE = "Failed to get chat file.";
+
+const UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE =
+	"File exists but could not be displayed.";
+
+const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 	[
 		"storybook-test-text",
-		"Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
+		{
+			status: 200,
+			body: "Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
+		},
 	],
 	[
 		"storybook-text-only",
-		"Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
+		{
+			status: 200,
+			body: "Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
+		},
 	],
 	[
 		"storybook-text-1",
-		"First context file: deployment checklist and rollback instructions for the release candidate.",
+		{
+			status: 200,
+			body: "First context file: deployment checklist and rollback instructions for the release candidate.",
+		},
 	],
 	[
 		"storybook-text-2",
-		"Second context file: service logs showing a transient timeout while the cache warmed up.",
+		{
+			status: 200,
+			body: "Second context file: service logs showing a transient timeout while the cache warmed up.",
+		},
 	],
 	[
 		"storybook-text-3",
-		"Third context file: local development configuration overrides for reproducing the issue.",
+		{
+			status: 200,
+			body: "Third context file: local development configuration overrides for reproducing the issue.",
+		},
 	],
-]);
-
-type ImageAttachmentResponse = {
-	status: number;
-	body?: string;
-};
-
-const FAILED_IMAGE_API_MESSAGE = "Failed to get chat file.";
-
-const UNDISPLAYABLE_REMOTE_IMAGE_MESSAGE =
-	"File exists but could not be displayed.";
-
-const IMAGE_ATTACHMENT_RESPONSES = new Map<string, ImageAttachmentResponse>([
-	["storybook-expired-image", { status: 404 }],
-	["storybook-undisplayable-image", { status: 200 }],
+	["storybook-expired-image", { status: 404, body: "" }],
+	["storybook-undisplayable-image", { status: 200, body: "" }],
 	[
 		"storybook-failed-image",
 		{
 			status: 500,
 			body: JSON.stringify({
-				message: FAILED_IMAGE_API_MESSAGE,
+				message: FAILED_ATTACHMENT_API_MESSAGE,
 				detail: "db: connection reset",
 			}),
+			contentType: "application/json",
+		},
+	],
+	["storybook-expired-text", { status: 404, body: "" }],
+	[
+		"storybook-failed-text",
+		{
+			status: 500,
+			body: JSON.stringify({
+				message: FAILED_ATTACHMENT_API_MESSAGE,
+				detail: "db: connection reset",
+			}),
+			contentType: "application/json",
 		},
 	],
 ]);
 
-let imageAttachmentFetchCounts = new Map<string, number>();
+let attachmentFetchCounts = new Map<string, number>();
 
-const recordImageAttachmentFetch = (fileId: string) => {
-	imageAttachmentFetchCounts.set(
+const recordAttachmentFetch = (fileId: string) => {
+	attachmentFetchCounts.set(
 		fileId,
-		(imageAttachmentFetchCounts.get(fileId) ?? 0) + 1,
+		(attachmentFetchCounts.get(fileId) ?? 0) + 1,
 	);
 };
 
-const getImageAttachmentFetchCount = (fileId: string) =>
-	imageAttachmentFetchCounts.get(fileId) ?? 0;
+const getAttachmentFetchCount = (fileId: string) =>
+	attachmentFetchCounts.get(fileId) ?? 0;
 
 const mockAttachmentFetch = () => {
 	const originalFetch = globalThis.fetch;
@@ -137,19 +163,13 @@ const mockAttachmentFetch = () => {
 					? input.toString()
 					: input.url;
 
-		for (const [fileId, content] of TEXT_ATTACHMENT_RESPONSES) {
+		for (const [fileId, response] of ATTACHMENT_RESPONSES) {
 			if (url.endsWith(fileId)) {
-				return new Response(content, { status: 200 });
-			}
-		}
-
-		for (const [fileId, response] of IMAGE_ATTACHMENT_RESPONSES) {
-			if (url.endsWith(fileId)) {
-				recordImageAttachmentFetch(fileId);
-				return new Response(response.body ?? "", {
+				recordAttachmentFetch(fileId);
+				return new Response(response.body, {
 					status: response.status,
-					headers: response.body
-						? { "Content-Type": "application/json" }
+					headers: response.contentType
+						? { "Content-Type": response.contentType }
 						: undefined,
 				});
 			}
@@ -177,7 +197,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		),
 	],
 	beforeEach: () => {
-		imageAttachmentFetchCounts = new Map();
+		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
 	},
 };
@@ -377,7 +397,7 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 				canvas.getAllByRole("img", { name: "Image expired" }),
 			).toHaveLength(2),
 		);
-		expect(getImageAttachmentFetchCount("storybook-expired-image")).toBe(1);
+		expect(getAttachmentFetchCount("storybook-expired-image")).toBe(1);
 		expect(
 			canvas.queryByRole("button", { name: "View image" }),
 		).not.toBeInTheDocument();
@@ -432,7 +452,7 @@ export const UserMessageWithFailedRemoteImage: Story = {
 			canvas.getByRole("img", { name: "Image failed to load" }),
 		);
 		const failedTooltip = await screen.findByRole("tooltip");
-		expect(failedTooltip).toHaveTextContent(FAILED_IMAGE_API_MESSAGE);
+		expect(failedTooltip).toHaveTextContent(FAILED_ATTACHMENT_API_MESSAGE);
 	},
 };
 
@@ -472,7 +492,9 @@ export const UserMessageWithUndisplayableRemoteImage: Story = {
 			canvas.getByRole("img", { name: "Image failed to load" }),
 		);
 		const failedTooltip = await screen.findByRole("tooltip");
-		expect(failedTooltip).toHaveTextContent(UNDISPLAYABLE_REMOTE_IMAGE_MESSAGE);
+		expect(failedTooltip).toHaveTextContent(
+			UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE,
+		);
 	},
 };
 /** Invalid inline image data skips the probe and renders the generic failure tile. */
@@ -612,6 +634,99 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 		expect(
 			await canvas.findByText(/Runbook note: restart the worker/i),
 		).toBeInTheDocument();
+	},
+};
+
+export const UserMessageWithExpiredTextAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "This pasted context has expired" },
+					{
+						type: "file",
+						file_id: "storybook-expired-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		await userEvent.click(textButton);
+		const expiredTile = await canvas.findByRole("img", {
+			name: "Attachment expired",
+		});
+		expect(canvas.getByText("Attachment expired")).toBeInTheDocument();
+		expect(
+			canvas.getByText("This pasted context has expired"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View text attachment" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.hover(expiredTile);
+		const expiredTooltip = await screen.findByRole("tooltip");
+		expect(expiredTooltip).toHaveTextContent(
+			/deleted after the retention window/i,
+		);
+	},
+};
+
+export const UserMessageWithFailedTextAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "This pasted context failed to load" },
+					{
+						type: "file",
+						file_id: "storybook-failed-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		await userEvent.click(textButton);
+		expect(
+			await canvas.findByRole("img", { name: "Attachment failed to load" }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Attachment failed to load")).toBeInTheDocument();
+		expect(
+			canvas.getByText("This pasted context failed to load"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View text attachment" }),
+		).not.toBeInTheDocument();
+
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("img", { name: "Attachment failed to load" }),
+			).toHaveAttribute("data-state"),
+		);
+		await userEvent.hover(
+			canvas.getByRole("img", { name: "Attachment failed to load" }),
+		);
+		const failedTooltip = await screen.findByRole("tooltip");
+		expect(failedTooltip).toHaveTextContent(FAILED_ATTACHMENT_API_MESSAGE);
 	},
 };
 

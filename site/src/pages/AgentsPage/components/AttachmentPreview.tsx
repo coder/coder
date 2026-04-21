@@ -76,14 +76,18 @@ export const AttachmentPreview: FC<{
 		const controller = new AbortController();
 		textAttachmentLoadControllerRef.current = controller;
 		try {
-			const fetchedContent = await fetchTextAttachmentContent(
+			const result = await fetchTextAttachmentContent(
 				fileId,
 				controller.signal,
 			);
 			if (textAttachmentLoadControllerRef.current === controller) {
 				textAttachmentLoadControllerRef.current = null;
 			}
-			return fetchedContent;
+			if (result.kind === "loaded") {
+				return result.content;
+			}
+			console.warn("Failed to load text attachment:", result);
+			return undefined;
 		} catch (err) {
 			if (textAttachmentLoadControllerRef.current === controller) {
 				textAttachmentLoadControllerRef.current = null;
@@ -91,7 +95,7 @@ export const AttachmentPreview: FC<{
 			if (err instanceof Error && err.name === "AbortError") {
 				return undefined;
 			}
-			console.error("Failed to load text attachment:", err);
+			console.warn("Failed to load text attachment:", err);
 			return undefined;
 		}
 	};
