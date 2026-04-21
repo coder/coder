@@ -1701,6 +1701,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
 		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
+		ProviderItemID:     takeFirst(seed.ProviderItemID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),

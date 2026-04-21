@@ -94,6 +94,7 @@ message RecordToolUsageRequest {
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
+  string item_id = 11; // The unique output item ID assigned by the provider.
 }
 message RecordToolUsageResponse {}
 

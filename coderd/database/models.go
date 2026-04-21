@@ -4265,6 +4265,8 @@ type AIBridgeToolUsage struct {
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	// The unique output item ID assigned by the provider. Always present for Responses API items. Distinct from provider_tool_call_id, which is the correlation ID used by agentic tools.
+	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
