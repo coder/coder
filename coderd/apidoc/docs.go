@@ -5468,6 +5468,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    },
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
