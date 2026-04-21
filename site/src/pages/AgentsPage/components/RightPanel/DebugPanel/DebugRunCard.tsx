@@ -82,7 +82,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div>
+			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
