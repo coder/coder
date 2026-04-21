@@ -9,6 +9,7 @@ import {
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
+	SquareIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -861,7 +862,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														>
 															{workspace.name}
 															{selectedWorkspaceId === workspace.id && (
-																<Check className="ml-auto size-icon-sm shrink-0" />
+																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 															)}
 														</CommandItem>
 													))}
@@ -896,7 +897,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												<PencilIcon className="size-3.5 shrink-0" />
 												<span>Plan first</span>
 												{planModeEnabled && (
-													<Check className="ml-auto size-icon-sm shrink-0" />
+													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 												)}
 											</button>
 										)}
@@ -963,7 +964,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																		>
 																			{workspace.name}
 																			{selectedWorkspaceId === workspace.id && (
-																				<Check className="ml-auto size-icon-sm shrink-0" />
+																				<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 																			)}
 																		</CommandItem>
 																	))}
@@ -1176,7 +1177,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								onClick={onInterrupt}
 								disabled={isInterruptPending}
 							>
-								<Square className="fill-current" />
+								<SquareIcon className="fill-current" />
 								<span className="sr-only">Stop</span>
 							</Button>
 						)}
