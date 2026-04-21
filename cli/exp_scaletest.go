@@ -640,6 +640,23 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 				}
 			}
 
+			cliui.Infof(inv.Stdout, "Pausing prebuilds reconciler...")
+			setPrebuild := func(val bool) error {
+				if err = client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{ReconciliationPaused: val}); err != nil {
+					return err
+				}
+				return nil
+			}
+			if err = setPrebuild(true); err != nil {
+				return xerrors.Errorf("pause prebuilds reconciler: %w", err)
+			}
+			defer func() {
+				cliui.Infof(inv.Stdout, "Resuming prebuilds reconciler...")
+				if resumeErr := setPrebuild(false); resumeErr != nil {
+					cliui.Errorf(inv.Stderr, "Failed to resume prebuilds reconciler: %+v\n", resumeErr)
+				}
+			}()
+
 			cliui.Infof(inv.Stdout, "Fetching scaletest prebuild workspaces...")
 			prebuildWorkspaces, err := getScaletestPrebuildWorkspaces(ctx, client)
 			if err != nil {
