@@ -1016,6 +1016,10 @@ export const MultiAssistantTurnCopyButton: Story = {
  * Regression: thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
  * gap that would normally come from the invisible action bar.
+ *
+ * The reasoning body itself is collapsed by default for historical
+ * messages, so this story only asserts the adjacent user bubbles
+ * render without layout regressions.
  */
 export const ThinkingOnlyAssistantSpacing: Story = {
 	args: {
@@ -1108,5 +1112,55 @@ export const SourcesOnlyAssistantSpacing: Story = {
 		expect(
 			canvas.getByRole("link", { name: "API Reference" }),
 		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Historical assistant messages with a reasoning block render it
+ * collapsed by default. The reasoning text is hidden until the user
+ * clicks the "Thought" header.
+ */
+export const HistoricalThinkingBlockCollapsedByDefault: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "A distinctive historical reasoning fingerprint for assertions.",
+					},
+					{ type: "text", text: "Here is the explanation." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The reasoning body must be hidden by default.
+		expect(
+			canvas.queryByText(/distinctive historical reasoning fingerprint/i),
+		).toBeNull();
+
+		// The collapsed disclosure shows the lightbulb and "Thought" label.
+		const toggle = canvas.getByRole("button", { name: /thought/i });
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+		// Clicking the header reveals the reasoning text.
+		await userEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
+		expect(
+			canvas.getByText(/distinctive historical reasoning fingerprint/i),
+		).toBeVisible();
 	},
 };

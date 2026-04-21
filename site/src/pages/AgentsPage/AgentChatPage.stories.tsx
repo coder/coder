@@ -831,7 +831,11 @@ export const WithComputerUseAgent: Story = {
 	},
 };
 
-/** Completed reasoning part renders inline. */
+/**
+ * Completed reasoning parts render behind a collapsed "Thought"
+ * disclosure so the chat stream stays scannable. Clicking the
+ * header expands the block and reveals the reasoning text.
+ */
 export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -865,9 +869,16 @@ export const WithReasoningInline: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Reasoning text renders inline.
+		// Historical reasoning is hidden behind a collapsed disclosure.
+		expect(canvas.queryByText("Reasoning body")).toBeNull();
+
+		const toggle = canvas.getByRole("button", { name: /thought/i });
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+		// Expanding the disclosure reveals the reasoning text.
+		await userEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
-		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
