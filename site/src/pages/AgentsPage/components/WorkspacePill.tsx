@@ -104,10 +104,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							<span className="hidden min-w-0 truncate md:inline">
 								{workspace.name}
 							</span>
-							{/* The menu opens upward (side="top"), so the chevron
-								   points away from the menu when closed (default) and
-								   toward it when open (rotate-180). Hidden on mobile
-								   to keep the trigger compact. */}
 							<ChevronDownIcon
 								className={cn(
 									"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
@@ -119,7 +115,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				</TooltipTrigger>
 				<TooltipContent className="hidden md:block">
 					{statusLabel}
-				</TooltipContent>{" "}
+				</TooltipContent>
 			</Tooltip>
 
 			<DropdownMenuContent

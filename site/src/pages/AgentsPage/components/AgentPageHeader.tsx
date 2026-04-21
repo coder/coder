@@ -60,17 +60,10 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;
 	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-		if (typeof window === "undefined") {
-			return false;
-		}
 		return window.matchMedia("(min-width: 768px)").matches;
 	});
 
 	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
 		const mediaQuery = window.matchMedia("(min-width: 768px)");
 		const onMediaChange = (event: MediaQueryListEvent) => {
 			setIsDesktop(event.matches);
@@ -120,7 +113,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 
 	return (
 		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 md:order-none md:px-4 md:py-0.5">
-			{" "}
 			{mobileBack ? (
 				<Button
 					asChild
@@ -156,7 +148,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 			<div className="min-w-0 flex-1" />
 			{children && isDesktop && (
 				<div className="hidden items-center gap-2 md:flex">{children}</div>
-			)}{" "}
+			)}
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && !isDesktop && (
 				<DropdownMenu>
