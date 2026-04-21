@@ -174,6 +174,13 @@ type RunOptions struct {
 	// When nil, no metrics are recorded.
 	Metrics *Metrics
 
+	// Logger emits structured log lines for tool-call errors and
+	// other notable events inside the chatloop. The zero value
+	// discards all output. Callers should attach correlation
+	// fields (chat_id, owner_id, etc.) via Logger.With before
+	// passing the logger in.
+	Logger slog.Logger
+
 	// BuiltinToolNames lists tool names that are built into chatd.
 	// Tool results from tools not in this set are recorded under
 	// the "mcp" label to bound cardinality.
@@ -493,7 +500,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 					publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 					ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
@@ -1054,6 +1061,7 @@ func executeTools(
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
+	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
@@ -1113,7 +1121,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, model, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1135,6 +1143,7 @@ func executeSingleTool(
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
+	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
@@ -1146,13 +1155,20 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		toolLabel := tc.ToolName
-		if !builtinToolNames[tc.ToolName] {
-			toolLabel = "mcp"
-		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, toolLabel).Observe(
+		label := toolLabel(tc.ToolName, builtinToolNames)
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, label).Observe(
 			float64(ToolResultSize(result)),
 		)
+		if errContent, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
+			metrics.RecordToolError(provider, model, label)
+			logger.Warn(ctx, "tool call returned error",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("provider", provider),
+				slog.F("model", model),
+				slog.Error(errContent.Error),
+			)
+		}
 	}()
 
 	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {

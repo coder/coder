@@ -6507,6 +6507,23 @@ func (p *Server) runChat(
 
 	var loopErr error
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(messages)
+
+	// Enrich the logger with correlation fields useful for
+	// diagnosing tool-call errors inside the chatloop.
+	loopLogger := logger.With(
+		slog.F("owner_id", chat.OwnerID),
+		slog.F("organization_id", chat.OrganizationID),
+		slog.F("trigger_message_id", triggerMessageID),
+	)
+	if chat.WorkspaceID.Valid {
+		loopLogger = loopLogger.With(slog.F("workspace_id", chat.WorkspaceID.UUID))
+	}
+	if chat.AgentID.Valid {
+		loopLogger = loopLogger.With(slog.F("agent_id", chat.AgentID.UUID))
+	}
+	if chat.ParentChatID.Valid {
+		loopLogger = loopLogger.With(slog.F("parent_chat_id", chat.ParentChatID.UUID))
+	}
 	result.TriggerMessageID = triggerMessageID
 	result.HistoryTipMessageID = historyTipMessageID
 	finishDebugRun := func(error, any) {}
@@ -6540,6 +6557,7 @@ func (p *Server) runChat(
 		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
+		Logger:           loopLogger,
 		BuiltinToolNames: builtinToolNames,
 
 		ModelConfig:     callConfig,

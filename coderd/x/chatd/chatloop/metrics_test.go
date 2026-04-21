@@ -28,6 +28,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.Chats.WithLabelValues(chatloop.StateStreaming)
 	m.CompactionTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chatloop.CompactionResultSuccess)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5", "test")
+	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "test")
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.PromptSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
@@ -50,6 +51,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 		"coderd_chatd_steps_total":                 dto.MetricType_COUNTER,
 		"coderd_chatd_stream_retries_total":        dto.MetricType_COUNTER,
 		"coderd_chatd_stream_buffer_dropped_total": dto.MetricType_COUNTER,
+		"coderd_chatd_tool_errors_total":           dto.MetricType_COUNTER,
 	}
 
 	found := make(map[string]dto.MetricType)
@@ -79,6 +81,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(10)
 	m.PromptSizeBytes.WithLabelValues("openai", "gpt-5").Observe(4096)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Observe(512)
+	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Inc()
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(0.5)
 	m.CompactionTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "success").Inc()
 	m.CompactionTotal.WithLabelValues("openai", "gpt-5", "error").Inc()
@@ -93,6 +96,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	var nilMetrics *chatloop.Metrics
 	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: chaterror.KindTimeout})
 	nilMetrics.RecordStreamBufferDropped()
+	nilMetrics.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
 }
 
 func TestEstimatePromptSize(t *testing.T) {
@@ -378,6 +382,46 @@ func TestRecordStreamBufferDropped(t *testing.T) {
 	})
 }
 
+func TestRecordToolError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil metrics does not panic", func(t *testing.T) {
+		t.Parallel()
+		var m *chatloop.Metrics
+		m.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
+	})
+
+	t.Run("increments with correct labels", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		m := chatloop.NewMetrics(reg)
+		m.RecordToolError("test-provider", "test-model", "read_file")
+
+		families, err := reg.Gather()
+		require.NoError(t, err)
+
+		var found bool
+		for _, f := range families {
+			if f.GetName() != "coderd_chatd_tool_errors_total" {
+				continue
+			}
+			found = true
+			require.Len(t, f.GetMetric(), 1)
+			metric := f.GetMetric()[0]
+			assert.Equal(t, float64(1), metric.GetCounter().GetValue())
+			labels := map[string]string{}
+			for _, lp := range metric.GetLabel() {
+				labels[lp.GetName()] = lp.GetValue()
+			}
+			assert.Equal(t, "test-provider", labels["provider"])
+			assert.Equal(t, "test-model", labels["model"])
+			assert.Equal(t, "read_file", labels["tool_name"])
+		}
+		assert.True(t, found, "tool_errors_total metric not found")
+	})
+}
+
 func TestRun_RecordsMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -602,4 +646,83 @@ func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
 				"stream_retries_total should have no samples after a canceled stream")
 		}
 	}
+}
+
+func TestRun_ToolError_RecordsMetric(t *testing.T) {
+	t.Parallel()
+
+	reg := prometheus.NewRegistry()
+	metrics := chatloop.NewMetrics(reg)
+
+	failingTool := fantasy.NewAgentTool(
+		"failing_tool",
+		"a tool that always fails",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.ToolResponse{
+				Content: "something went wrong",
+				IsError: true,
+			}, nil
+		},
+	)
+
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				parts := []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc1",
+						ToolCallName:  "failing_tool",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}
+				for _, p := range parts {
+					if !yield(p) {
+						return
+					}
+				}
+			}, nil
+		},
+	}
+
+	err := chatloop.Run(context.Background(), chatloop.RunOptions{
+		Model:            model,
+		MaxSteps:         1,
+		Tools:            []fantasy.AgentTool{failingTool},
+		ActiveTools:      []string{"failing_tool"},
+		BuiltinToolNames: map[string]bool{"failing_tool": true},
+		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
+			return nil
+		},
+		Metrics: metrics,
+	})
+	require.NoError(t, err)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	var found bool
+	for _, f := range families {
+		if f.GetName() != "coderd_chatd_tool_errors_total" {
+			continue
+		}
+		found = true
+		require.Len(t, f.GetMetric(), 1)
+		metric := f.GetMetric()[0]
+		assert.Equal(t, float64(1), metric.GetCounter().GetValue())
+		labels := map[string]string{}
+		for _, lp := range metric.GetLabel() {
+			labels[lp.GetName()] = lp.GetValue()
+		}
+		assert.Equal(t, "test-provider", labels["provider"])
+		assert.Equal(t, "test-model", labels["model"])
+		assert.Equal(t, "failing_tool", labels["tool_name"])
+	}
+	assert.True(t, found, "tool_errors_total metric not found after tool error")
 }
