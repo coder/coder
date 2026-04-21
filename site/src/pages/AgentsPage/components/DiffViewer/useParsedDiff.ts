@@ -1,9 +1,19 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
-import { useState } from "react";
+import { useMemo } from "react";
 
 /**
  * Parse a unified diff string into an array of per-file metadata.
+ *
+ * Both `LocalDiffPanel` and `RemoteDiffPanel` need the same
+ * `parsePatchFiles(…).flatMap(p => p.files)` pipeline. This hook
+ * centralises that logic and keeps the panels focused on layout.
+ *
+ * Note: This uses `useMemo` despite being in a React Compiler-managed
+ * directory. `parsePatchFiles` is an external function from
+ * `@pierre/diffs` — the compiler cannot prove its purity via static
+ * analysis, so the call would run on every render without explicit
+ * memoization. For large unified diffs this is a measurable cost.
  *
  * @param diffString  Raw unified diff (may be null/undefined).
  * @param cacheKeyPrefix  Optional cache-key prefix forwarded to the
@@ -15,28 +25,15 @@ export function useParsedDiff(
 	diffString: string | undefined | null,
 	cacheKeyPrefix?: string,
 ): FileDiffMetadata[] {
-	const [cache, setCache] = useState<{
-		key: string;
-		result: FileDiffMetadata[];
-	}>({ key: "", result: [] });
-
-	const key = `${diffString ?? ""}\0${cacheKeyPrefix ?? ""}`;
-	if (cache.key !== key) {
-		let result: FileDiffMetadata[];
-		if (!diffString) {
-			result = [];
-		} else {
-			try {
-				const patches = parsePatchFiles(diffString, cacheKeyPrefix);
-				result = patches.flatMap((p) => p.files);
-			} catch (e) {
-				console.error("Failed to parse diff:", e);
-				result = [];
-			}
+	return useMemo(() => {
+		if (!diffString) return [];
+		try {
+			return parsePatchFiles(diffString, cacheKeyPrefix).flatMap(
+				(p) => p.files,
+			);
+		} catch (e) {
+			console.error("Failed to parse diff:", e);
+			return [];
 		}
-		setCache({ key, result });
-		return result;
-	}
-
-	return cache.result;
+	}, [diffString, cacheKeyPrefix]);
 }
