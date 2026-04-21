@@ -200,6 +200,41 @@ func TestFetchChatDiffContents(t *testing.T) {
 		require.Empty(t, diff.Diff)
 	})
 
+	t.Run("IgnoresNotFoundWatcherFallbackErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// watchChatGit in coderd/exp_chats.go returns 404 for missing
+		// chats (httpapi.ResourceNotFound). The remote /diff endpoint
+		// already handles the missing-chat case on its own, so
+		// fetchChatDiffContents must swallow the 404 from /stream/git
+		// and fall back to whatever the remote diff returned, the
+		// same way it does for the 400 and 403 variants above.
+		// Without this subtest, removing the `case http.StatusNotFound`
+		// branch in shouldIgnoreLocalDiffFallbackError would silently
+		// regress (mirrors the 403 coverage added for DEREM-16).
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{ChatID: chatID}))
+			case path + "/stream/git":
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(http.StatusNotFound)
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "not found"}))
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+		require.Equal(t, chatID, diff.ChatID)
+		require.Empty(t, diff.Diff)
+	})
+
 	t.Run("BackfillsRemoteMetadataWhenLocalDiffIsSingleRepo", func(t *testing.T) {
 		t.Parallel()
 
@@ -278,6 +313,93 @@ func TestFetchChatDiffContents(t *testing.T) {
 
 		// Provider and PullRequestURL were nil on the local diff,
 		// so they must be backfilled from the remote metadata.
+		require.NotNil(t, diff.Provider)
+		require.Equal(t, remoteProvider, *diff.Provider)
+		require.NotNil(t, diff.PullRequestURL)
+		require.Equal(t, remotePR, *diff.PullRequestURL)
+	})
+
+	t.Run("BackfillsRemoteMetadataWhenSingleRepoHasBlankBranchAndOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		// A single contributing repo can legitimately be in detached
+		// HEAD with no origin remote configured: buildLocalChatDiffContents
+		// then leaves both Branch and RemoteOrigin nil even though
+		// exactly one repository produced the aggregated diff. Before
+		// the singleRepo flag was introduced, the gate on
+		// `localDiff.Branch != nil || localDiff.RemoteOrigin != nil`
+		// skipped the backfill in this case and the drawer silently
+		// lost remote Provider/PullRequestURL. fetchChatDiffContents
+		// must now use the explicit singleRepo signal so remote
+		// metadata still flows through, and must also populate the
+		// nil Branch/RemoteOrigin from the remote response to keep the
+		// drawer display consistent with all other single-repo diffs.
+		ctx := t.Context()
+		chatID := uuid.New()
+		path := fmt.Sprintf("/api/experimental/chats/%s", chatID)
+		remoteBranch := "feature/remote-branch"
+		remoteOrigin := "https://github.com/coder/coder.git"
+		remotePR := "https://github.com/coder/coder/pull/42"
+		remoteProvider := "github"
+		client := newTestExperimentalClient(t, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case path + "/diff":
+				rw.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.ChatDiffContents{
+					ChatID:         chatID,
+					Provider:       &remoteProvider,
+					RemoteOrigin:   &remoteOrigin,
+					Branch:         &remoteBranch,
+					PullRequestURL: &remotePR,
+				}))
+			case path + "/stream/git":
+				conn, err := websocket.Accept(rw, r, nil)
+				require.NoError(t, err)
+				defer conn.Close(websocket.StatusNormalClosure, "")
+
+				_, payload, err := conn.Read(ctx)
+				require.NoError(t, err)
+				var refresh codersdk.WorkspaceAgentGitClientMessage
+				require.NoError(t, json.Unmarshal(payload, &refresh))
+				require.Equal(t, codersdk.WorkspaceAgentGitClientMessageTypeRefresh, refresh.Type)
+
+				writer, err := conn.Writer(ctx, websocket.MessageText)
+				require.NoError(t, err)
+				// Exactly one repository contributes, but both
+				// Branch and RemoteOrigin are empty (detached HEAD,
+				// no origin remote). buildLocalChatDiffContents
+				// still flags this as singleRepo=true, so the
+				// backfill must run and populate every nil field
+				// from the remote response.
+				require.NoError(t, json.NewEncoder(writer).Encode(codersdk.WorkspaceAgentGitServerMessage{
+					Type: codersdk.WorkspaceAgentGitServerMessageTypeChanges,
+					Repositories: []codersdk.WorkspaceAgentRepoChanges{{
+						RepoRoot:     "/workspace/repo",
+						Branch:       "",
+						RemoteOrigin: "",
+						UnifiedDiff:  "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n",
+					}},
+				}))
+				require.NoError(t, writer.Close())
+			default:
+				http.NotFound(rw, r)
+			}
+		}))
+
+		diff, err := fetchChatDiffContents(ctx, client, chatID)
+		require.NoError(t, err)
+
+		// The aggregated diff still comes from the local watcher.
+		require.Contains(t, diff.Diff, "diff --git a/a.txt b/a.txt")
+		require.Contains(t, diff.Diff, "+new")
+
+		// Every remote-only field is backfilled because
+		// buildLocalChatDiffContents flagged the aggregate as
+		// singleRepo=true even with blank branch/origin.
+		require.NotNil(t, diff.Branch)
+		require.Equal(t, remoteBranch, *diff.Branch)
+		require.NotNil(t, diff.RemoteOrigin)
+		require.Equal(t, remoteOrigin, *diff.RemoteOrigin)
 		require.NotNil(t, diff.Provider)
 		require.Equal(t, remoteProvider, *diff.Provider)
 		require.NotNil(t, diff.PullRequestURL)
@@ -393,7 +515,7 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		t.Parallel()
 
 		chatID := uuid.New()
-		diff := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
+		diff, singleRepo := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
 			{
 				RepoRoot:    "/workspace/z-repo",
 				UnifiedDiff: "diff --git a/z.txt b/z.txt\n+z\n",
@@ -407,13 +529,16 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		})
 
 		// Multi-repo aggregation drops the per-repo metadata because
-		// Branch/RemoteOrigin only make sense for a single repo.
+		// Branch/RemoteOrigin only make sense for a single repo. The
+		// singleRepo flag must be false so callers know not to
+		// backfill remote metadata onto a multi-repo aggregate.
 		require.Equal(t, chatID, diff.ChatID)
 		require.Contains(t, diff.Diff, "diff --git a/a.txt b/a.txt")
 		require.Contains(t, diff.Diff, "diff --git a/z.txt b/z.txt")
 		require.Less(t, strings.Index(diff.Diff, "a.txt"), strings.Index(diff.Diff, "z.txt"))
 		require.Nil(t, diff.Branch)
 		require.Nil(t, diff.RemoteOrigin)
+		require.False(t, singleRepo)
 	})
 
 	t.Run("ReturnsEmptyForNoRepositories", func(t *testing.T) {
@@ -421,13 +546,15 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 
 		chatID := uuid.New()
 		// No repos: exercise the early-return in buildLocalChatDiffContents
-		// so the empty case is mechanically covered.
+		// so the empty case is mechanically covered. singleRepo must
+		// be false because no repository contributed any diff.
 		for _, repos := range [][]codersdk.WorkspaceAgentRepoChanges{nil, {}} {
-			diff := buildLocalChatDiffContents(chatID, repos)
+			diff, singleRepo := buildLocalChatDiffContents(chatID, repos)
 			require.Equal(t, chatID, diff.ChatID)
 			require.Empty(t, diff.Diff)
 			require.Nil(t, diff.Branch)
 			require.Nil(t, diff.RemoteOrigin)
+			require.False(t, singleRepo)
 		}
 	})
 
@@ -438,8 +565,10 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		// Removed repos (Removed=true) and repos with whitespace-only
 		// UnifiedDiff must not contribute to the aggregated diff. With
 		// a single contributing repo, the per-repo Branch and
-		// RemoteOrigin should still propagate to the result.
-		diff := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
+		// RemoteOrigin should still propagate to the result and
+		// singleRepo must be true because only one repository
+		// contributed.
+		diff, singleRepo := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
 			{
 				RepoRoot:    "/workspace/removed",
 				Removed:     true,
@@ -465,6 +594,7 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		require.Equal(t, "feature/only", *diff.Branch)
 		require.NotNil(t, diff.RemoteOrigin)
 		require.Equal(t, "https://github.com/coder/coder.git", *diff.RemoteOrigin)
+		require.True(t, singleRepo)
 	})
 
 	t.Run("ReturnsEmptyWhenAllRepositoriesAreSkipped", func(t *testing.T) {
@@ -474,8 +604,9 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		// If every repo is removed or empty, buildLocalChatDiffContents
 		// returns the empty remote-diff shape so the caller falls back
 		// to the placeholder overlay instead of rendering a diff-less
-		// summary.
-		diff := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
+		// summary. singleRepo must be false because no repository
+		// contributed any diff content.
+		diff, singleRepo := buildLocalChatDiffContents(chatID, []codersdk.WorkspaceAgentRepoChanges{
 			{RepoRoot: "/workspace/removed", Removed: true, UnifiedDiff: "diff --git a/removed.txt b/removed.txt\n+removed\n"},
 			{RepoRoot: "/workspace/empty"},
 		})
@@ -484,5 +615,6 @@ func TestBuildLocalChatDiffContents(t *testing.T) {
 		require.Empty(t, diff.Diff)
 		require.Nil(t, diff.Branch)
 		require.Nil(t, diff.RemoteOrigin)
+		require.False(t, singleRepo)
 	})
 }

@@ -32,7 +32,7 @@ func fetchChatDiffContents(
 		return remoteDiff, nil
 	}
 
-	localDiff, err := fetchLocalChatDiffContents(ctx, client, chatID)
+	localDiff, localSingleRepo, err := fetchLocalChatDiffContents(ctx, client, chatID)
 	if err != nil {
 		if shouldIgnoreLocalDiffFallbackError(err) {
 			return remoteDiff, nil
@@ -44,12 +44,15 @@ func fetchChatDiffContents(
 	}
 
 	// Backfill metadata from the remote diff only when the local
-	// watcher produced a single-repo result. buildLocalChatDiffContents
-	// only sets Branch/RemoteOrigin when exactly one repo contributed
-	// to the aggregated diff, so treat the absence of both as the
-	// multi-repo case where a single remote's branch/origin/PR URL
-	// does not describe the combined local diff.
-	if localDiff.Branch != nil || localDiff.RemoteOrigin != nil {
+	// watcher produced a single contributing repository. Gate this on
+	// the explicit single-repo signal from buildLocalChatDiffContents
+	// rather than on Branch/RemoteOrigin being non-nil, because a
+	// single contributing repo can legitimately have an empty branch
+	// (detached HEAD) or no origin remote and we still want remote
+	// fields like Provider/PullRequestURL to flow through. Multi-repo
+	// aggregates cannot be described by a single remote's metadata, so
+	// we leave them alone.
+	if localSingleRepo {
 		if localDiff.Provider == nil {
 			localDiff.Provider = remoteDiff.Provider
 		}
@@ -66,17 +69,22 @@ func fetchChatDiffContents(
 	return localDiff, nil
 }
 
+// fetchLocalChatDiffContents returns the aggregated local-watcher diff
+// and a singleRepo flag that indicates whether that aggregate came from
+// exactly one contributing repository. The caller uses singleRepo to
+// decide whether it is safe to backfill remote-only metadata onto the
+// local diff. All error paths return singleRepo=false.
 func fetchLocalChatDiffContents(
 	parentCtx context.Context,
 	client *codersdk.ExperimentalClient,
 	chatID uuid.UUID,
-) (codersdk.ChatDiffContents, error) {
+) (codersdk.ChatDiffContents, bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, localChatDiffWatchTimeout)
 	defer cancel()
 
 	conn, err := dialChatGit(ctx, client, chatID)
 	if err != nil {
-		return codersdk.ChatDiffContents{}, err
+		return codersdk.ChatDiffContents{}, false, err
 	}
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
@@ -90,20 +98,20 @@ func fetchLocalChatDiffContents(
 	if err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
 		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
 	}); err != nil {
-		return codersdk.ChatDiffContents{}, xerrors.Errorf("request git refresh: %w", err)
+		return codersdk.ChatDiffContents{}, false, xerrors.Errorf("request git refresh: %w", err)
 	}
 
 	messages := stream.Chan()
 	for {
 		select {
 		case <-ctx.Done():
-			return codersdk.ChatDiffContents{}, xerrors.Errorf("watch chat git: %w", ctx.Err())
+			return codersdk.ChatDiffContents{}, false, xerrors.Errorf("watch chat git: %w", ctx.Err())
 		case msg, ok := <-messages:
 			if !ok {
 				if ctx.Err() != nil {
-					return codersdk.ChatDiffContents{}, xerrors.Errorf("watch chat git: %w", ctx.Err())
+					return codersdk.ChatDiffContents{}, false, xerrors.Errorf("watch chat git: %w", ctx.Err())
 				}
-				return codersdk.ChatDiffContents{}, xerrors.New("git watch connection closed")
+				return codersdk.ChatDiffContents{}, false, xerrors.New("git watch connection closed")
 			}
 			switch msg.Type {
 			case codersdk.WorkspaceAgentGitServerMessageTypeError:
@@ -111,9 +119,10 @@ func fetchLocalChatDiffContents(
 				if message == "" {
 					message = "git watch returned an unknown error"
 				}
-				return codersdk.ChatDiffContents{}, xerrors.New(message)
+				return codersdk.ChatDiffContents{}, false, xerrors.New(message)
 			case codersdk.WorkspaceAgentGitServerMessageTypeChanges:
-				return buildLocalChatDiffContents(chatID, msg.Repositories), nil
+				diff, singleRepo := buildLocalChatDiffContents(chatID, msg.Repositories)
+				return diff, singleRepo, nil
 			}
 		}
 	}
@@ -157,13 +166,23 @@ func dialChatGit(
 	return conn, nil
 }
 
+// buildLocalChatDiffContents aggregates the local watcher's
+// per-repository changes into a single ChatDiffContents. The returned
+// singleRepo flag is true iff the aggregated diff came from exactly
+// one contributing repository (one repo with a non-empty UnifiedDiff
+// that has not been removed). Callers use this flag to decide whether
+// it is safe to backfill remote-only metadata onto the local diff:
+// multi-repo aggregates cannot be described by a single remote's
+// branch/origin/PR URL, but a single-repo aggregate can even when the
+// contributing repo has an empty branch (detached HEAD) or no origin
+// remote configured.
 func buildLocalChatDiffContents(
 	chatID uuid.UUID,
 	repositories []codersdk.WorkspaceAgentRepoChanges,
-) codersdk.ChatDiffContents {
+) (codersdk.ChatDiffContents, bool) {
 	result := codersdk.ChatDiffContents{ChatID: chatID}
 	if len(repositories) == 0 {
-		return result
+		return result, false
 	}
 
 	repositories = slices.Clone(repositories)
@@ -181,11 +200,12 @@ func buildLocalChatDiffContents(
 		diffSegments = append(diffSegments, strings.TrimRight(repo.UnifiedDiff, "\n"))
 	}
 	if len(diffSegments) == 0 {
-		return result
+		return result, false
 	}
 
 	result.Diff = strings.Join(diffSegments, "\n")
-	if len(diffRepositories) == 1 {
+	singleRepo := len(diffRepositories) == 1
+	if singleRepo {
 		if branch := strings.TrimSpace(diffRepositories[0].Branch); branch != "" {
 			result.Branch = &branch
 		}
@@ -193,7 +213,7 @@ func buildLocalChatDiffContents(
 			result.RemoteOrigin = &origin
 		}
 	}
-	return result
+	return result, singleRepo
 }
 
 func shouldIgnoreLocalDiffFallbackError(err error) bool {
