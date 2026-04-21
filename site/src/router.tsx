@@ -360,6 +360,21 @@ const AgentSettingsPage = lazy(
 const AgentSettingsBehaviorPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsBehaviorPage"),
 );
+const AgentSettingsGeneralPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
+);
+const AgentSettingsCompactionPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+);
+const AgentSettingsSystemInstructionsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSystemInstructionsPage"),
+);
+const AgentSettingsExperimentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
+);
+const AgentSettingsLifecyclePage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsLifecyclePage"),
+);
 const AgentSettingsAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
 );
@@ -710,8 +725,22 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="settings" element={<AgentSettingsPage />}>
-						<Route index element={<AgentSettingsBehaviorPage />} />
+						<Route index element={<AgentSettingsGeneralPage />} />
+						<Route path="general" element={<AgentSettingsGeneralPage />} />
 						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
+						<Route
+							path="compaction"
+							element={<AgentSettingsCompactionPage />}
+						/>
+						<Route
+							path="system-instructions"
+							element={<AgentSettingsSystemInstructionsPage />}
+						/>
+						<Route
+							path="experiments"
+							element={<AgentSettingsExperimentsPage />}
+						/>
+						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />

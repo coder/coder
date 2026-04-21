@@ -27,7 +27,9 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	FileTextIcon,
 	FilterIcon,
+	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
@@ -43,6 +45,7 @@ import {
 	SettingsIcon,
 	ShieldIcon,
 	SquarePenIcon,
+	TimerIcon,
 	Trash2Icon,
 	UserIcon,
 	WalletIcon,
@@ -1309,11 +1312,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<nav className="flex flex-col gap-0.5 px-2 py-2">
 						<SettingsNavItem
 							icon={UserIcon}
-							label="Behavior"
+							label="General"
 							active={
-								!sidebarView.section || sidebarView.section === "behavior"
+								!sidebarView.section ||
+								sidebarView.section === "general" ||
+								sidebarView.section === "behavior"
 							}
-							to="/agents/settings/behavior"
+							to="/agents/settings/general"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ArchiveIcon}
+							label="Compaction"
+							active={sidebarView.section === "compaction"}
+							to="/agents/settings/compaction"
 							state={location.state}
 						/>
 						{showApiKeysItem && (
@@ -1372,6 +1384,30 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Spend"
 									active={sidebarView.section === "spend"}
 									to="/agents/settings/spend"
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={FileTextIcon}
+									label="System Instructions"
+									active={sidebarView.section === "system-instructions"}
+									to="/agents/settings/system-instructions"
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={FlaskConicalIcon}
+									label="Experiments"
+									active={sidebarView.section === "experiments"}
+									to="/agents/settings/experiments"
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={TimerIcon}
+									label="Lifecycle"
+									active={sidebarView.section === "lifecycle"}
+									to="/agents/settings/lifecycle"
 									state={location.state}
 									adminOnly
 								/>
