@@ -47,20 +47,15 @@ func newTestServer(
 		error,
 	),
 	clock quartz.Clock,
-	drainTimeout ...time.Duration,
 ) *osschatd.Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	var dt time.Duration
-	if len(drainTimeout) > 0 {
-		dt = drainTimeout[0]
-	}
 	server := osschatd.New(osschatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock, DrainTimeout: dt}),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -1476,6 +1471,14 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		require.NoError(t, worker.Close())
 	})
 
+	// Use a mock clock for the subscriber so the relay drain
+	// timer never fires until we explicitly advance it. This
+	// removes the nondeterministic 200ms race between the drain
+	// timer and the multi-hop snapshot forwarding pipeline.
+	subscriberClock := quartz.NewMock(t)
+	trapDrain := subscriberClock.Trap().NewTimer("drain")
+	defer trapDrain.Close()
+
 	// Subscriber dials through to the worker. On cancel the relay
 	// drain fires well inside the worker's 5s grace, exercising the
 	// cleanupStreamIfIdle early-return path.
@@ -1495,10 +1498,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			return nil, nil, nil, xerrors.New("worker subscribe failed")
 		}
 		return snapshot, relayEvents, cancel, nil
-		// Use a generous drain timeout (2s) so the relay pipeline has
-		// ample time to forward snapshot parts through the wrappedParts
-		// → enterprise merge → OSS merge chain on slow CI.
-	}, nil, 2*time.Second)
+	}, subscriberClock)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -1544,6 +1544,13 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			return false
 		}
 	}, testutil.IntervalFast)
+
+	// Wait for the drain timer to be armed by the relay manager,
+	// then release and advance the subscriber clock past the drain
+	// timeout. This deterministically fires the drain without
+	// relying on wall-clock timing.
+	trapDrain.MustWait(ctx).MustRelease(ctx)
+	subscriberClock.Advance(200 * time.Millisecond).MustWait(ctx)
 
 	evCtx2 := testutil.Context(t, testutil.WaitLong)
 	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
