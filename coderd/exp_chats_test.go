@@ -46,7 +46,10 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-const chatProviderAPIKeySizeLimit = 10240
+const (
+	chatProviderAPIKeySizeLimit = 10240
+	missingCentralKeyMessage    = "API key is required when central API key is enabled."
+)
 
 func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	t.Helper()
@@ -2060,6 +2063,100 @@ func TestCreateChatProvider(t *testing.T) {
 		require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, provider.Source)
 	})
 
+	t.Run("AllowsBedrockWithCentralAPIKeyEnabledWithoutStoredKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "bedrock",
+			DisplayName:          "AWS Bedrock",
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, provider.ID)
+		require.Equal(t, "bedrock", provider.Provider)
+		require.Equal(t, "AWS Bedrock", provider.DisplayName)
+		require.True(t, provider.Enabled)
+		require.False(t, provider.HasAPIKey)
+		require.True(t, provider.CentralAPIKeyEnabled)
+		require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, provider.Source)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+		for _, listed := range providers {
+			if listed.Provider == "bedrock" {
+				require.False(t, listed.HasAPIKey)
+				return
+			}
+		}
+		t.Fatal("bedrock provider not found")
+	})
+
+	t.Run("ReportsBedrockAmbientFallbackForUserConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:                   "bedrock",
+			DisplayName:                "AWS Bedrock Fallback",
+			CentralAPIKeyEnabled:       ptr.Ref(true),
+			AllowUserAPIKey:            ptr.Ref(true),
+			AllowCentralAPIKeyFallback: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.False(t, provider.HasAPIKey)
+
+		configs, err := client.ListUserChatProviderConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, provider.ID, configs[0].ProviderID)
+		require.Equal(t, provider.Provider, configs[0].Provider)
+		require.False(t, configs[0].HasUserAPIKey)
+		require.True(t, configs[0].HasCentralAPIKeyFallback)
+	})
+
+	t.Run("AllowsBedrockWithExplicitAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "bedrock",
+			DisplayName:          "AWS Bedrock Token",
+			APIKey:               "bedrock-bearer-token",
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", provider.Provider)
+		require.Equal(t, "AWS Bedrock Token", provider.DisplayName)
+		require.True(t, provider.HasAPIKey)
+		require.True(t, provider.CentralAPIKeyEnabled)
+	})
+
+	t.Run("RejectsMissingCentralAPIKeyForNonBedrock", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
+	})
+
 	t.Run("InvalidProvider", func(t *testing.T) {
 		t.Parallel()
 
@@ -2161,7 +2258,7 @@ func TestCreateChatProvider(t *testing.T) {
 			Provider: "openai",
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
+		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
 	})
 
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
@@ -2272,6 +2369,34 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.Equal(t, baseURL, updated.BaseURL)
 	})
 
+	t.Run("AllowsClearingBedrockAPIKeyWithCentralAPIKeyEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "bedrock",
+			DisplayName:          "AWS Bedrock",
+			APIKey:               "bedrock-bearer-token",
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, provider.HasAPIKey)
+		require.True(t, provider.CentralAPIKeyEnabled)
+
+		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			APIKey:               ptr.Ref(""),
+			CentralAPIKeyEnabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, updated.ID)
+		require.Equal(t, "bedrock", updated.Provider)
+		require.False(t, updated.HasAPIKey)
+		require.True(t, updated.CentralAPIKeyEnabled)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -2370,7 +2495,7 @@ func TestUpdateChatProvider(t *testing.T) {
 			CentralAPIKeyEnabled: ptr.Ref(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
+		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
 	})
 
 	t.Run("RejectsClearingLastCentralKey", func(t *testing.T) {
@@ -2390,7 +2515,7 @@ func TestUpdateChatProvider(t *testing.T) {
 			APIKey: ptr.Ref(""),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
+		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
 	})
 
 	t.Run("RejectsEnablingCentralKeyWithoutKey", func(t *testing.T) {
@@ -2411,7 +2536,7 @@ func TestUpdateChatProvider(t *testing.T) {
 			CentralAPIKeyEnabled: ptr.Ref(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
+		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
 	})
 
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
