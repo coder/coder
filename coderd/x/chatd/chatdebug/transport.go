@@ -191,6 +191,11 @@ type recordingBody struct {
 	truncated bool
 	sawEOF    bool
 	bytesRead int64
+	// recordedProvisional is true when record() has fired for an SSE
+	// body's Read-path EOF but Close() has not yet run. A subsequent
+	// inner.Close() error in Close() upgrades the provisional entry
+	// in the sink so the close error is not lost.
+	recordedProvisional bool
 
 	recordOnce sync.Once
 	closeOnce  sync.Once
@@ -235,11 +240,13 @@ func (r *recordingBody) Read(p []byte) (int, error) {
 	// consumers like fantasy's Anthropic SSE adapter iterate the
 	// response to EOF and abandon it without calling Close(), so the
 	// Close-only recording path would never fire and the attempt would
-	// be lost. Non-SSE bodies stay on the Close-only path so that
-	// JSON integrity, content-length validation, and inner-Close
-	// errors keep their existing semantics.
+	// be lost. The recording is provisional so Close() can still
+	// upgrade it to failed if inner.Close() surfaces a transport error.
+	// Non-SSE bodies stay on the Close-only path so that JSON
+	// integrity, content-length validation, and inner-Close errors
+	// keep their existing semantics.
 	if errors.Is(err, io.EOF) && isSSEContentType(r.contentType) {
-		r.record(io.EOF)
+		r.recordProvisional(io.EOF)
 	}
 	return n, err
 }
@@ -268,7 +275,20 @@ func (r *recordingBody) Close() error {
 		closeErr = r.inner.Close()
 	})
 	if closeErr != nil {
-		r.record(closeErr)
+		r.mu.Lock()
+		wasProvisional := r.recordedProvisional
+		r.recordedProvisional = false
+		r.mu.Unlock()
+
+		if wasProvisional {
+			// The SSE EOF path already appended a completed attempt.
+			// inner.Close() surfaced a transport error, so upgrade
+			// that entry to failed instead of losing the close error.
+			upgraded := r.buildAttempt(closeErr)
+			r.sink.replaceByNumber(upgraded.Number, upgraded)
+		} else {
+			r.record(closeErr)
+		}
 		return closeErr
 	}
 
@@ -401,44 +421,66 @@ func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
 	return errors.Is(decoder.Decode(&extra), io.EOF)
 }
 
+// buildAttempt materializes the final Attempt from the current buffered
+// response data plus err. Callers use this from both the record-once
+// append path and the provisional-upgrade replace path so both sites
+// apply the same redaction and status rules.
+func (r *recordingBody) buildAttempt(err error) Attempt {
+	finishedAt := time.Now()
+
+	r.mu.Lock()
+	truncated := r.truncated
+	responseBody := append([]byte(nil), r.buf.Bytes()...)
+	base := r.base
+	startedAt := r.startedAt
+	r.mu.Unlock()
+
+	contentType := r.contentType
+	switch {
+	case truncated:
+		base.ResponseBody = []byte("[TRUNCATED]")
+	case isNDJSONContentType(contentType):
+		base.ResponseBody = RedactNDJSONSecrets(responseBody)
+	case contentType == "" || isJSONLikeContentType(contentType):
+		// Redact JSON secrets when the content type is JSON-like
+		// or absent (unknown). For unknown types, RedactJSONSecrets
+		// fails closed by replacing non-JSON payloads with a
+		// diagnostic message.
+		base.ResponseBody = RedactJSONSecrets(responseBody)
+	default:
+		// Non-JSON content types (SSE, text/plain, HTML, etc.)
+		// are preserved as-is to avoid losing debug content.
+		base.ResponseBody = responseBody
+	}
+	base.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
+	base.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
+	// Recompute duration to include body read time.
+	base.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
+	if err != nil && !errors.Is(err, io.EOF) {
+		base.Error = sanitizeErrorString(err.Error())
+		base.Status = attemptStatusFailed
+	} else {
+		base.Status = attemptStatusCompleted
+	}
+	return base
+}
+
 func (r *recordingBody) record(err error) {
 	r.recordOnce.Do(func() {
-		finishedAt := time.Now()
+		r.sink.record(r.buildAttempt(err))
+	})
+}
 
+// recordProvisional records err via recordOnce and marks the entry as
+// eligible for a later upgrade from Close(). Safe to call multiple
+// times; only the first call appends, and the provisional flag is set
+// only after the attempt is visible in the sink so that a concurrent
+// Close() cannot observe the flag before the entry exists.
+func (r *recordingBody) recordProvisional(err error) {
+	r.recordOnce.Do(func() {
+		r.sink.record(r.buildAttempt(err))
 		r.mu.Lock()
-		truncated := r.truncated
-		responseBody := append([]byte(nil), r.buf.Bytes()...)
-		base := r.base
-		startedAt := r.startedAt
+		r.recordedProvisional = true
 		r.mu.Unlock()
-
-		contentType := r.contentType
-		switch {
-		case truncated:
-			base.ResponseBody = []byte("[TRUNCATED]")
-		case isNDJSONContentType(contentType):
-			base.ResponseBody = RedactNDJSONSecrets(responseBody)
-		case contentType == "" || isJSONLikeContentType(contentType):
-			// Redact JSON secrets when the content type is JSON-like
-			// or absent (unknown). For unknown types, RedactJSONSecrets
-			// fails closed by replacing non-JSON payloads with a
-			// diagnostic message.
-			base.ResponseBody = RedactJSONSecrets(responseBody)
-		default:
-			// Non-JSON content types (SSE, text/plain, HTML, etc.)
-			// are preserved as-is to avoid losing debug content.
-			base.ResponseBody = responseBody
-		}
-		base.StartedAt = startedAt.UTC().Format(time.RFC3339Nano)
-		base.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
-		// Recompute duration to include body read time.
-		base.DurationMs = finishedAt.Sub(startedAt).Milliseconds()
-		if err != nil && !errors.Is(err, io.EOF) {
-			base.Error = sanitizeErrorString(err.Error())
-			base.Status = attemptStatusFailed
-		} else {
-			base.Status = attemptStatusCompleted
-		}
-		r.sink.record(base)
 	})
 }

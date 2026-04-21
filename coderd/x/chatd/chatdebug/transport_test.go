@@ -52,6 +52,18 @@ func (*scriptedReadCloser) Close() error {
 	return nil
 }
 
+// errCloser wraps a Reader and returns err from Close(). Used to
+// simulate transport close failures that surface after a body has
+// already been fully read to EOF.
+type errCloser struct {
+	io.Reader
+	err error
+}
+
+func (e *errCloser) Close() error {
+	return e.err
+}
+
 func TestRecordingTransport_NoSink(t *testing.T) {
 	t.Parallel()
 
@@ -864,6 +876,56 @@ func TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords(t *testing.T) {
 	require.Len(t, attempts, 1)
 	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
 	require.Empty(t, attempts[0].Error)
+	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades verifies
+// that when an SSE consumer reads to EOF (which eagerly records the
+// attempt as completed) and then Close() fails because inner.Close()
+// returns an error, the recorded attempt is upgraded to failed with
+// the close error rather than silently remaining completed.
+func TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	closeErr := xerrors.New("boom: connection reset")
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body: &errCloser{
+						Reader: strings.NewReader(ssePayload),
+						err:    closeErr,
+					},
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, ssePayload, string(body))
+
+	// Close must surface the inner close error to the caller...
+	gotCloseErr := resp.Body.Close()
+	require.ErrorIs(t, gotCloseErr, closeErr)
+
+	// ...and the recorded attempt must reflect that failure instead of
+	// the provisional completed entry written on EOF.
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusFailed, attempts[0].Status)
+	require.Contains(t, attempts[0].Error, "boom: connection reset")
 	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
 }
 
