@@ -1162,15 +1162,8 @@ func executeSingleTool(
 		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
-		if errContent, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
+		if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
 			metrics.RecordToolError(provider, model, metricLabel)
-			// Log the raw tool name (not the metric label) so
-			// operators can identify the specific MCP tool.
-			logger.Warn(ctx, "tool call returned error",
-				slog.F("tool_name", tc.ToolName),
-				slog.F("tool_call_id", tc.ToolCallID),
-				slog.Error(errContent.Error),
-			)
 		}
 	}()
 
@@ -1199,6 +1192,11 @@ func executeSingleTool(
 			Error: err,
 		}
 		result.ClientMetadata = resp.Metadata
+		logger.Error(ctx, "tool execution failed",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.Error(err),
+		)
 		return result
 	}
 
@@ -1208,6 +1206,11 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New(resp.Content),
 		}
+		logger.Info(ctx, "tool returned error result",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.F("tool_error", resp.Content),
+		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      string(resp.Data),
