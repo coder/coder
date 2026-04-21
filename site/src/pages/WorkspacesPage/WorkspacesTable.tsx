@@ -626,7 +626,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 	return (
 		<TooltipProvider>
 			<Tooltip>
-				<TooltipTrigger asChild>
+				<TooltipTrigger asChild disabled={isLoading}>
 					<Button
 						variant="outline"
 						size="icon-lg"
@@ -887,7 +887,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 	return (
 		<TooltipProvider>
 			<Tooltip>
-				<TooltipTrigger asChild>
+				<TooltipTrigger asChild disabled={isLoading}>
 					{rest.href !== undefined ? (
 						<Button
 							variant="outline"

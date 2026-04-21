@@ -9,7 +9,22 @@ export const TooltipProvider = TooltipPrimitive.Provider;
 
 export const Tooltip = TooltipPrimitive.Root;
 
-export const TooltipTrigger = TooltipPrimitive.Trigger;
+type TooltipTriggerProps = React.ComponentProps<
+	typeof TooltipPrimitive.Trigger
+> & {
+	/** When true, wrap children in a span so the tooltip still receives pointer events. */
+	disabled?: boolean;
+};
+
+export const TooltipTrigger: React.FC<TooltipTriggerProps> = ({
+	disabled,
+	children,
+	...props
+}) => (
+	<TooltipPrimitive.Trigger {...props}>
+		{disabled ? <span>{children}</span> : children}
+	</TooltipPrimitive.Trigger>
+);
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 

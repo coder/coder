@@ -26,3 +26,18 @@ export default meta;
 type Story = StoryObj<typeof Tooltip>;
 
 export const Default: Story = {};
+
+export const DisabledTrigger: Story = {
+	args: {
+		children: (
+			<Tooltip open>
+				<TooltipTrigger asChild disabled>
+					<Button variant="outline" disabled>
+						Disabled
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>Still visible when trigger is disabled</TooltipContent>
+			</Tooltip>
+		),
+	},
+};
