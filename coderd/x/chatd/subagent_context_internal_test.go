@@ -479,7 +479,7 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool)
 

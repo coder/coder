@@ -79,9 +79,6 @@ importers:
       '@mui/system':
         specifier: 5.18.0
         version: 5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-      '@mui/x-tree-view':
-        specifier: 7.29.10
-        version: 7.29.10(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(@mui/system@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       '@novnc/novnc':
         specifier: ^1.5.0
         version: 1.5.0
@@ -408,8 +405,8 @@ importers:
         specifier: 8.5.6
         version: 8.5.6
       protobufjs:
-        specifier: 7.5.4
-        version: 7.5.4
+        specifier: 7.5.5
+        version: 7.5.5
       resize-observer-polyfill:
         specifier: 1.5.1
         version: 1.5.1
@@ -1253,28 +1250,6 @@ packages:
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
       '@types/react':
-        optional: true
-
-  '@mui/x-internals@7.29.0':
-    resolution: {integrity: sha512-+Gk6VTZIFD70XreWvdXBwKd8GZ2FlSCuecQFzm6znwqXg1ZsndavrhG9tkxpxo2fM1Zf7Tk8+HcOO0hCbhTQFA==, tarball: https://registry.npmjs.org/@mui/x-internals/-/x-internals-7.29.0.tgz}
-    engines: {node: '>=14.0.0'}
-    peerDependencies:
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@mui/x-tree-view@7.29.10':
-    resolution: {integrity: sha512-/ZcM582yIaQN2PmadIlQYRJzc3yXV7bh463J4GHtTmFw+PEjzUfzETBWe3VxmU3EPgIFzVQPjqAAJwylmQSJOg==, tarball: https://registry.npmjs.org/@mui/x-tree-view/-/x-tree-view-7.29.10.tgz}
-    engines: {node: '>=14.0.0'}
-    peerDependencies:
-      '@emotion/react': ^11.9.0
-      '@emotion/styled': ^11.8.1
-      '@mui/material': ^5.15.14 || ^6.0.0 || ^7.0.0
-      '@mui/system': ^5.15.14 || ^6.0.0 || ^7.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      '@emotion/react':
-        optional: true
-      '@emotion/styled':
         optional: true
 
   '@napi-rs/wasm-runtime@1.0.7':
@@ -2787,8 +2762,8 @@ packages:
   '@types/node@20.19.25':
     resolution: {integrity: sha512-ZsJzA5thDQMSQO788d7IocwwQbI8B5OPzmqNvpf3NY/+MHDAS759Wo0gd2WQeXYt5AAAQjzcrTVC6SKCuYgoCQ==, tarball: https://registry.npmjs.org/@types/node/-/node-20.19.25.tgz}
 
-  '@types/node@22.19.1':
-    resolution: {integrity: sha512-LCCV0HdSZZZb34qifBsyWlUmok6W7ouER+oQIGBScS8EsZsQbrtFTUrDX4hOl+CS6p7cnNC4td+qrSVGSCTUfQ==, tarball: https://registry.npmjs.org/@types/node/-/node-22.19.1.tgz}
+  '@types/node@22.19.17':
+    resolution: {integrity: sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==, tarball: https://registry.npmjs.org/@types/node/-/node-22.19.17.tgz}
 
   '@types/novnc__novnc@1.5.0':
     resolution: {integrity: sha512-9DrDJK1hUT6Cbp4t03IsU/DsR6ndnIrDgZVrzITvspldHQ7n81F3wUDfq89zmPM3wg4GErH11IQa0QuTgLMf+w==, tarball: https://registry.npmjs.org/@types/novnc__novnc/-/novnc__novnc-1.5.0.tgz}
@@ -5170,8 +5145,8 @@ packages:
   property-information@7.1.0:
     resolution: {integrity: sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==, tarball: https://registry.npmjs.org/property-information/-/property-information-7.1.0.tgz}
 
-  protobufjs@7.5.4:
-    resolution: {integrity: sha512-CvexbZtbov6jW2eXAvLukXjXUW1TzFaivC46BpWc/3BpcCysb5Vffu+B3XHMm8lVEuy2Mm4XGex8hBSg1yapPg==, tarball: https://registry.npmjs.org/protobufjs/-/protobufjs-7.5.4.tgz}
+  protobufjs@7.5.5:
+    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==, tarball: https://registry.npmjs.org/protobufjs/-/protobufjs-7.5.5.tgz}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -6979,7 +6954,7 @@ snapshots:
       '@inquirer/figures': 1.0.13
       '@inquirer/type': 2.0.0
       '@types/mute-stream': 0.0.4
-      '@types/node': 22.19.1
+      '@types/node': 22.19.17
       '@types/wrap-ansi': 3.0.0
       ansi-escapes: 4.3.2
       cli-width: 4.1.0
@@ -7315,33 +7290,6 @@ snapshots:
       react-is: 19.1.1
     optionalDependencies:
       '@types/react': 19.2.7
-
-  '@mui/x-internals@7.29.0(@types/react@19.2.7)(react@19.2.2)':
-    dependencies:
-      '@babel/runtime': 7.26.10
-      '@mui/utils': 5.17.1(@types/react@19.2.7)(react@19.2.2)
-      react: 19.2.2
-    transitivePeerDependencies:
-      - '@types/react'
-
-  '@mui/x-tree-view@7.29.10(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(@mui/system@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)':
-    dependencies:
-      '@babel/runtime': 7.26.10
-      '@mui/material': 5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
-      '@mui/system': 5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-      '@mui/utils': 5.17.1(@types/react@19.2.7)(react@19.2.2)
-      '@mui/x-internals': 7.29.0(@types/react@19.2.7)(react@19.2.2)
-      '@types/react-transition-group': 4.4.12(@types/react@19.2.7)
-      clsx: 2.1.1
-      prop-types: 15.8.1
-      react: 19.2.2
-      react-dom: 19.2.2(react@19.2.2)
-      react-transition-group: 4.4.5(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
-    optionalDependencies:
-      '@emotion/react': 11.14.0(@types/react@19.2.7)(react@19.2.2)
-      '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-    transitivePeerDependencies:
-      - '@types/react'
 
   '@napi-rs/wasm-runtime@1.0.7':
     dependencies:
@@ -8859,7 +8807,7 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@22.19.1':
+  '@types/node@22.19.17':
     dependencies:
       undici-types: 6.21.0
 
@@ -11570,7 +11518,7 @@ snapshots:
 
   property-information@7.1.0: {}
 
-  protobufjs@7.5.4:
+  protobufjs@7.5.5:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
@@ -12514,12 +12462,12 @@ snapshots:
   ts-proto-descriptors@1.16.0:
     dependencies:
       long: 5.3.2
-      protobufjs: 7.5.4
+      protobufjs: 7.5.5
 
   ts-proto@1.181.2:
     dependencies:
       case-anything: 2.1.13
-      protobufjs: 7.5.4
+      protobufjs: 7.5.5
       ts-poet: 6.12.0
       ts-proto-descriptors: 1.16.0
 

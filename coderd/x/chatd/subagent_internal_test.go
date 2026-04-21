@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -26,16 +27,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-func TestComputerUseSubagentSystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	// Verify the system prompt constant is non-empty and contains
-	// key instructions for the computer use agent.
-	assert.NotEmpty(t, computerUseSubagentSystemPrompt)
-	assert.Contains(t, computerUseSubagentSystemPrompt, "computer")
-	assert.Contains(t, computerUseSubagentSystemPrompt, "screenshot")
-}
 
 func TestSubagentFallbackChatTitle(t *testing.T) {
 	t.Parallel()
@@ -310,6 +301,38 @@ func createInternalParentChat(
 	return parentChat
 }
 
+func runSubagentTool(
+	ctx context.Context,
+	t *testing.T,
+	server *Server,
+	parentChat database.Chat,
+	currentModelConfigID uuid.UUID,
+	toolName string,
+	args spawnAgentArgs,
+) fantasy.ToolResponse {
+	t.Helper()
+
+	tools := server.subagentTools(
+		ctx,
+		func() database.Chat { return parentChat },
+		currentModelConfigID,
+	)
+	tool := findToolByName(tools, toolName)
+	require.NotNil(t, tool, "%s tool must be present", toolName)
+
+	input, err := json.Marshal(args)
+	require.NoError(t, err)
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    uuid.NewString(),
+		Name:  toolName,
+		Input: string(input),
+	})
+	require.NoError(t, err)
+
+	return resp
+}
+
 func runSpawnAgentTool(
 	ctx context.Context,
 	t *testing.T,
@@ -318,22 +341,15 @@ func runSpawnAgentTool(
 	args spawnAgentArgs,
 ) fantasy.ToolResponse {
 	t.Helper()
-
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
-	tool := findToolByName(tools, "spawn_agent")
-	require.NotNil(t, tool, "spawn_agent tool must be present")
-
-	input, err := json.Marshal(args)
-	require.NoError(t, err)
-
-	resp, err := tool.Run(ctx, fantasy.ToolCall{
-		ID:    uuid.NewString(),
-		Name:  "spawn_agent",
-		Input: string(input),
-	})
-	require.NoError(t, err)
-
-	return resp
+	return runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		"spawn_agent",
+		args,
+	)
 }
 
 func requireSpawnAgentChildChatID(t *testing.T, resp fantasy.ToolResponse) uuid.UUID {
@@ -442,6 +458,197 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
 }
 
+func TestSpawnExploreAgent_UsesConfiguredModelOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	overrideModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-explore-override",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "investigate the codebase"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
+	require.False(t, childChat.PlanMode.Valid)
+}
+
+func TestSpawnExploreAgent_FallsBackToCurrentTurnModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-current-turn-"+uuid.NewString(), true,
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-fallback",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "trace the request flow"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackOnInvalidUUID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-invalid-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-invalid-override",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect the handler flow"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackWhenOverrideIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-fallback-current-"+uuid.NewString(), true,
+	)
+	disabledModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-disabled-"+uuid.NewString(), false,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, disabledModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-disabled",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect the service boundaries"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnExploreAgent_FallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
+	currentTurnModel := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-missing-user-key-current-"+uuid.NewString(), true,
+	)
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:                   "openai-compat",
+		DisplayName:                "OpenAI Compat",
+		APIKey:                     "",
+		BaseUrl:                    "",
+		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:                    true,
+		CentralApiKeyEnabled:       false,
+		AllowUserApiKey:            true,
+		AllowCentralApiKeyFallback: false,
+	})
+	require.NoError(t, err)
+	overrideModel, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai-compat",
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Explore Override Missing User Key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            false,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-missing-user-key",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		currentTurnModel.ID,
+		"spawn_explore_agent",
+		spawnAgentArgs{Prompt: "inspect provider credential handling"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+}
+
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	t.Parallel()
 
@@ -467,7 +674,7 @@ func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when Anthropic is not configured")
 }
@@ -520,7 +727,7 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 		"child chat must have a parent")
 
 	// Get tools as if the child chat is the current chat.
-	tools := server.subagentTools(ctx, func() database.Chat { return childChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool, "spawn_computer_use_agent tool must be present")
 
@@ -556,7 +763,7 @@ func TestSpawnComputerUseAgent_DesktopDisabled(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when desktop is disabled")
 }
@@ -603,7 +810,7 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool)
 
@@ -768,7 +975,7 @@ func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Call spawn_computer_use_agent via the tool.
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, "spawn_computer_use_agent")
 	require.NotNil(t, tool)
 
@@ -1073,6 +1280,158 @@ func insertAssistantMessage(
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+}
+
+func insertLinkedChatFile(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	ownerID uuid.UUID,
+	organizationID uuid.UUID,
+	name string,
+	mediaType string,
+	data []byte,
+) uuid.UUID {
+	t.Helper()
+
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
+		Name:           name,
+		Mimetype:       mediaType,
+		Data:           data,
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      []uuid.UUID{file.ID},
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	return file.ID
+}
+
+func TestWaitAgentDoesNotRelayComputerUseSubagentAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	parent, child := createComputerUseParentChild(
+		ctx, t, server, user, org, model, workspace, agent,
+		"parent-relay", "child-relay",
+	)
+
+	insertedFile := insertLinkedChatFile(
+		ctx,
+		t,
+		db,
+		child.ID,
+		user.ID,
+		workspace.OrganizationID,
+		"screenshot.png",
+		"image/png",
+		[]byte("fake-png"),
+	)
+	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the screenshot.")
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected successful response, got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Shared the screenshot.", result["report"])
+	require.Equal(t, string(database.ChatStatusWaiting), result["status"])
+	assert.NotContains(t, result, "attachment_count")
+	assert.NotContains(t, result, "attachment_warning")
+
+	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, attachments)
+	parts := buildAssistantPartsForPersist(
+		context.Background(),
+		testutil.Logger(t),
+		nil,
+		[]fantasy.ToolResultContent{{
+			ToolCallID:     "call-1",
+			ToolName:       "wait_agent",
+			ClientMetadata: resp.Metadata,
+		}},
+		chatloop.PersistedStep{},
+		nil,
+	)
+	assert.Empty(t, parts)
+
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Empty(t, parentFiles)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, childFiles, 1)
+	assert.Equal(t, insertedFile, childFiles[0].ID)
+	assert.Equal(t, "screenshot.png", childFiles[0].Name)
+	assert.Equal(t, "image/png", childFiles[0].Mimetype)
+}
+
+func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	server.drainInflight()
+
+	insertedFile := insertLinkedChatFile(
+		ctx,
+		t,
+		db,
+		child.ID,
+		user.ID,
+		workspace.OrganizationID,
+		"notes.txt",
+		"text/plain",
+		[]byte("release notes"),
+	)
+	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the release notes.")
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected successful response, got: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Shared the release notes.", result["report"])
+	assert.NotContains(t, result, "attachment_count")
+	assert.NotContains(t, result, "attachment_warning")
+	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, attachments)
+
+	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+	assert.Empty(t, parentFiles)
+
+	childFiles, err := db.GetChatFileMetadataByChatID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, childFiles, 1)
+	assert.Equal(t, insertedFile, childFiles[0].ID)
+	assert.Equal(t, "notes.txt", childFiles[0].Name)
+	assert.Equal(t, "text/plain", childFiles[0].Mimetype)
 }
 
 func TestAwaitSubagentCompletion(t *testing.T) {

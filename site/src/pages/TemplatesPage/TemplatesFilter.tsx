@@ -12,12 +12,12 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,
 	UserMenu,
-} from "../../components/Filter/UserFilter";
+} from "#/components/Filter/UserFilter";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 interface TemplatesFilterProps {
 	filter: UseFilterResult;

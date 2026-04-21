@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
 
 type MCPToolset string
@@ -34,6 +35,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 		// Extract the original session token from the request
 		authenticatedClient := codersdk.New(api.AccessURL,
 			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)))
+		toolOpt := toolsdk.WithAgentConnFunc(api.agentProvider.AgentConn)
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))
 		// Default to standard toolset if no toolset is specified.
 		if toolset == "" {
@@ -42,11 +44,11 @@ func (api *API) mcpHTTPHandler() http.Handler {
 
 		switch toolset {
 		case MCPToolsetStandard:
-			if err := mcpServer.RegisterTools(authenticatedClient); err != nil {
+			if err := mcpServer.RegisterTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
 		case MCPToolsetChatGPT:
-			if err := mcpServer.RegisterChatGPTTools(authenticatedClient); err != nil {
+			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
 		default:

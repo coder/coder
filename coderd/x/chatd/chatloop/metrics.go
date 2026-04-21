@@ -7,6 +7,8 @@ import (
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 const (
@@ -25,13 +27,15 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	Chats               *prometheus.GaugeVec
-	MessageCount        *prometheus.HistogramVec
-	PromptSizeBytes     *prometheus.HistogramVec
-	ToolResultSizeBytes *prometheus.HistogramVec
-	TTFTSeconds         *prometheus.HistogramVec
-	CompactionTotal     *prometheus.CounterVec
-	StepsTotal          *prometheus.CounterVec
+	Chats                    *prometheus.GaugeVec
+	MessageCount             *prometheus.HistogramVec
+	PromptSizeBytes          *prometheus.HistogramVec
+	ToolResultSizeBytes      *prometheus.HistogramVec
+	TTFTSeconds              *prometheus.HistogramVec
+	CompactionTotal          *prometheus.CounterVec
+	StepsTotal               *prometheus.CounterVec
+	StreamRetriesTotal       *prometheus.CounterVec
+	StreamBufferDroppedTotal prometheus.Counter
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -51,40 +55,52 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "message_count",
 			Help:      "Number of messages in the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 11), // 1, 2, 4, ..., 1024
-		}, []string{"provider"}),
+		}, []string{"provider", "model"}),
 		PromptSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "prompt_size_bytes",
 			Help:      "Estimated byte size of the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
-		}, []string{"provider"}),
+		}, []string{"provider", "model"}),
 		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "tool_result_size_bytes",
 			Help:      "Size in bytes of each tool execution result.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
-		}, []string{"provider", "tool_name"}),
+		}, []string{"provider", "model", "tool_name"}),
 		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
-		}, []string{"provider"}),
+		}, []string{"provider", "model"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "compaction_total",
 			Help:      "Total compaction outcomes (only recorded when compaction was triggered or failed).",
-		}, []string{"provider", "result"}),
+		}, []string{"provider", "model", "result"}),
 		StepsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "steps_total",
 			Help:      "Total agentic loop steps across all chats.",
-		}, []string{"provider"}),
+		}, []string{"provider", "model"}),
+		StreamRetriesTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stream_retries_total",
+			Help:      "Total LLM stream retries.",
+		}, []string{"provider", "model", "kind"}),
+		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stream_buffer_dropped_total",
+			Help:      "Number of chat stream buffer events dropped due to the per-chat buffer cap.",
+		}),
 	}
 }
 
@@ -96,23 +112,42 @@ func NopMetrics() *Metrics {
 
 // RecordCompaction classifies and records a compaction attempt.
 // It is a no-op when m is nil.
-func (m *Metrics) RecordCompaction(provider string, compacted bool, err error) {
+func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err error) {
 	if m == nil {
 		return
 	}
 	switch {
 	case err != nil && errors.Is(err, context.DeadlineExceeded):
-		m.CompactionTotal.WithLabelValues(provider, CompactionResultTimeout).Inc()
+		m.CompactionTotal.WithLabelValues(provider, model, CompactionResultTimeout).Inc()
 	case err != nil && errors.Is(err, context.Canceled):
 		// User interruption, not a compaction failure.
 		return
 	case err != nil:
-		m.CompactionTotal.WithLabelValues(provider, CompactionResultError).Inc()
+		m.CompactionTotal.WithLabelValues(provider, model, CompactionResultError).Inc()
 	case compacted:
-		m.CompactionTotal.WithLabelValues(provider, CompactionResultSuccess).Inc()
+		m.CompactionTotal.WithLabelValues(provider, model, CompactionResultSuccess).Inc()
 		// !compacted && err == nil means threshold not reached -- not
 		// recorded.
 	}
+}
+
+// RecordStreamRetry increments stream_retries_total. The caller
+// must obtain classified via chaterror.Classify (non-empty Kind).
+// No-op when m is nil.
+func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror.ClassifiedError) {
+	if m == nil {
+		return
+	}
+	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
+}
+
+// RecordStreamBufferDropped increments stream_buffer_dropped_total
+// once per dropped event. No-op when m is nil.
+func (m *Metrics) RecordStreamBufferDropped() {
+	if m == nil {
+		return
+	}
+	m.StreamBufferDroppedTotal.Inc()
 }
 
 // EstimatePromptSize returns a cheap byte-size estimate of a
