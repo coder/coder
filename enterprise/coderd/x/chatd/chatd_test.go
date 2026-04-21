@@ -47,15 +47,20 @@ func newTestServer(
 		error,
 	),
 	clock quartz.Clock,
+	drainTimeout ...time.Duration,
 ) *osschatd.Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	var dt time.Duration
+	if len(drainTimeout) > 0 {
+		dt = drainTimeout[0]
+	}
 	server := osschatd.New(osschatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock}),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock, DrainTimeout: dt}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -1490,7 +1495,10 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			return nil, nil, nil, xerrors.New("worker subscribe failed")
 		}
 		return snapshot, relayEvents, cancel, nil
-	}, nil)
+		// Use a generous drain timeout (2s) so the relay pipeline has
+		// ample time to forward snapshot parts through the wrappedParts
+		// → enterprise merge → OSS merge chain on slow CI.
+	}, nil, 2*time.Second)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -1514,9 +1522,13 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// the assistant message and at least one message_part so we know
 	// processChat's defer has flipped buffering=false and populated
 	// bufferRetainedAt before the subscriber detaches.
+	//
+	// Each Eventually gets its own context so one slow assertion
+	// cannot starve subsequent ones of their deadline.
 	var committedAssistantMsgs int
 	var messagePartsSeen int
-	testutil.Eventually(ctx, t, func(context.Context) bool {
+	evCtx1 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx1, t, func(context.Context) bool {
 		select {
 		case event := <-events:
 			switch event.Type {
@@ -1533,7 +1545,8 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	evCtx2 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
@@ -1550,7 +1563,8 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// worker observes the teardown. The retry itself re-enters
 	// cleanupStreamIfIdle via its own cancel defer but still
 	// early-returns because grace is still open.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	evCtx3 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx3, t, func(ctx context.Context) bool {
 		snap, _, snapCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
 		if !ok {
 			return false

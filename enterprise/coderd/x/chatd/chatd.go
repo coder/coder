@@ -95,6 +95,10 @@ type MultiReplicaSubscribeConfig struct {
 	// quartz.NewReal(); in tests use quartz.NewMock(t) to
 	// control reconnect timing deterministically.
 	Clock quartz.Clock
+	// DrainTimeout overrides the default relay drain timeout
+	// (200ms). When zero, the package default is used. Tests
+	// can set a longer value to avoid flakes on slow CI.
+	DrainTimeout time.Duration
 }
 
 // dial returns the configured dialer, preferring DialerFn (tests)
@@ -138,6 +142,15 @@ func (c MultiReplicaSubscribeConfig) clock() quartz.Clock {
 		return c.Clock
 	}
 	return quartz.NewReal()
+}
+
+// drainTimeout returns the relay drain timeout to use. Defaults
+// to relayDrainTimeout when not set.
+func (c MultiReplicaSubscribeConfig) drainTimeout() time.Duration {
+	if c.DrainTimeout > 0 {
+		return c.DrainTimeout
+	}
+	return relayDrainTimeout
 }
 
 // NewMultiReplicaSubscribeFn returns a SubscribeFn that manages
@@ -511,7 +524,7 @@ func NewMultiReplicaSubscribeFn(
 							if drainTimer != nil {
 								drainTimer.Stop()
 							}
-							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
+							drainTimer = cfg.clock().NewTimer(cfg.drainTimeout(), "drain")
 							drainTimerCh = drainTimer.C
 							drainAndClose = false
 						}
@@ -573,7 +586,7 @@ func NewMultiReplicaSubscribeFn(
 							if drainTimer != nil {
 								drainTimer.Stop()
 							}
-							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
+							drainTimer = cfg.clock().NewTimer(cfg.drainTimeout(), "drain")
 							drainTimerCh = drainTimer.C
 						default:
 							closeRelay()
