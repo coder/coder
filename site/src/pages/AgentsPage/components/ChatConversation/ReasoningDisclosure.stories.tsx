@@ -242,6 +242,14 @@ export const AriaControlsLinkage: Story = {
 		await userEvent.click(toggle);
 		const controlsId = toggle.getAttribute("aria-controls");
 		expect(controlsId).toBeTruthy();
-		expect(canvasElement.querySelector(`#${controlsId}`)).not.toBeNull();
+		// Use `getElementById` rather than `querySelector('#' + id)`
+		// because React's `useId()` produces IDs containing `:`, which
+		// is invalid in a CSS selector and throws `SyntaxError` unless
+		// escaped.
+		expect(
+			controlsId
+				? canvasElement.ownerDocument.getElementById(controlsId)
+				: null,
+		).not.toBeNull();
 	},
 };
