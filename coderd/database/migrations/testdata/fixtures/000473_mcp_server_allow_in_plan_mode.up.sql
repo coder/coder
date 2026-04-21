@@ -1,4 +1,4 @@
--- Migration 472 adds allow_in_plan_mode with a default of false.
+-- Migration 473 adds allow_in_plan_mode with a default of false.
 -- Flip the existing fixture row to true here so fixture data exercises
 -- the non-default state only after the column exists.
 UPDATE mcp_server_configs
