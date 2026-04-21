@@ -1,10 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-// The IntersectionObserver watches a narrow strip at the top of the
-// viewport. 5% of viewport height means the observation area collapses
-// to a thin band, so the "active file" is effectively "the file whose
-// top edge just crossed the sidebar's line of sight".
+// Leaves a 5% strip at the top of the viewport as the "active file" band.
 const VIEWPORT_BOTTOM_MARGIN_RATIO = 0.95;
 
 interface UseActiveFileTrackingOptions {
@@ -118,7 +115,7 @@ export function useActiveFileTracking({
 		}
 	};
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: fileListKey is an intentional trigger dep — the effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: fileListKey is an intentional trigger dep. The effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
 	useEffect(() => {
 		if (!scrollToFile) return;
 		const el = fileRefs.current.get(scrollToFile);

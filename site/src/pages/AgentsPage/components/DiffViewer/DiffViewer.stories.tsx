@@ -471,7 +471,7 @@ export const LargeDiff: Story = {
 				"nav button.border-content-link",
 			);
 			expect(activeBtn).not.toBeNull();
-			// The first file is src/module0.ts — after scrolling to
+			// The first file is src/module0.ts, so after scrolling to
 			// the middle the active highlight should be elsewhere.
 			expect(activeBtn!.title).not.toBe("src/module0.ts");
 		});

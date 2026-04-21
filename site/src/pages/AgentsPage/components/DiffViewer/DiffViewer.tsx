@@ -358,11 +358,7 @@ function FileTreeNodeViewInner({
 	);
 }
 
-// `memo()` effectiveness depends on React Compiler stabilizing prop
-// references. The compiler is enabled for `src/pages/AgentsPage/` via
-// `site/vite.config.mts`. Moving this component out of that scope
-// without adding manual memoization would silently regress scroll
-// performance.
+// memo requires stable props; the React Compiler provides them here.
 const FileTreeNodeView = memo(FileTreeNodeViewInner);
 
 // -------------------------------------------------------------------
@@ -395,7 +391,7 @@ const DiffScrollContainer: FC<{
 	// on every render, which calls virtualizer.cleanUp() and
 	// wipes the observer map. The compiler can't preserve this
 	// useCallback, but that only causes it to skip this small
-	// wrapper — not the entire DiffViewer.
+	// wrapper, not the entire DiffViewer.
 	const contentRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			const viewport = node?.closest<HTMLElement>(
@@ -438,7 +434,7 @@ const DiffScrollContainer: FC<{
  * heavy component (Shadow DOM + shiki highlighting) is only mounted
  * once the placeholder scrolls into or near the viewport.
  *
- * Once mounted the component stays mounted — we never unmount a
+ * Once mounted the component stays mounted. We never unmount a
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
@@ -509,11 +505,7 @@ function LazyFileDiffInner({
 	);
 }
 
-// `memo()` effectiveness depends on React Compiler stabilizing prop
-// references. The compiler is enabled for `src/pages/AgentsPage/` via
-// `site/vite.config.mts`. Moving this component out of that scope
-// without adding manual memoization would silently regress scroll
-// performance.
+// memo requires stable props; the React Compiler provides them here.
 const LazyFileDiff = memo(LazyFileDiffInner);
 
 // -------------------------------------------------------------------
