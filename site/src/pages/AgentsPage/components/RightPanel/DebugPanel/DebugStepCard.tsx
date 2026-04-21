@@ -154,7 +154,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className={DEBUG_PANEL_METADATA_CLASS_NAME}>
 						{model ? <MetadataItem label="Model" value={model} /> : null}
