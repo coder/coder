@@ -27,8 +27,8 @@ type ListTemplatesOptions struct {
 }
 
 type listTemplatesArgs struct {
-	Query string `json:"query,omitempty"`
-	Page  int    `json:"page,omitempty"`
+	Query string `json:"query,omitempty" description:"Optional text to filter templates by name or description."`
+	Page  int    `json:"page,omitempty" description:"Page number for pagination (starts at 1). Each page returns up to 10 templates."`
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
