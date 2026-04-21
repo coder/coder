@@ -1,5 +1,5 @@
 import { ChevronRightIcon, LightbulbIcon } from "lucide-react";
-import { memo, type ReactNode, useState } from "react";
+import { memo, type ReactNode, useEffect, useId, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "#/utils/cn";
 import { Response, Shimmer } from "../ChatElements";
@@ -33,10 +33,16 @@ const renderHeaderLabel = (
  *   chat stream stays scannable. The user can click the header to
  *   reveal the reasoning text.
  * - Live-streaming messages (`isStreaming=true`) start expanded so the
- *   user can watch reasoning arrive. When the stream completes, the
- *   live component is unmounted by `BlockList` (different key
- *   prefix) and a fresh historical instance mounts in the collapsed
- *   state — no transition effect is required here.
+ *   user can watch reasoning arrive. When the stream completes,
+ *   `BlockList` unmounts the live instance (keyPrefix="stream") and
+ *   mounts a fresh historical one (keyPrefix=message.id) that
+ *   naturally starts collapsed.
+ *
+ * We also re-sync `isOpen` with the `isStreaming` prop via
+ * `useEffect` so the collapse still happens if a future refactor
+ * lands that keeps the component mounted across the stream → historical
+ * transition. Without that effect the open state would be stuck at
+ * whatever it was during streaming.
  *
  * Streaming reasoning text is smoothed through the same jitter buffer
  * used by response blocks so it arrives at a steady cadence.
@@ -44,6 +50,14 @@ const renderHeaderLabel = (
 export const ReasoningDisclosure = memo<ReasoningDisclosureProps>(
 	({ id, text, isStreaming = false, urlTransform }) => {
 		const [isOpen, setIsOpen] = useState(isStreaming);
+		// Re-sync open state with the streaming flag so the block
+		// collapses on stream completion even when the parent keeps the
+		// component mounted. `BlockList` currently unmounts live
+		// instances by changing keyPrefix, but that is a call-site
+		// convention, not a component-level guarantee.
+		useEffect(() => {
+			setIsOpen(isStreaming);
+		}, [isStreaming]);
 
 		const { visibleText } = useSmoothStreamingText({
 			fullText: text,
@@ -57,7 +71,11 @@ export const ReasoningDisclosure = memo<ReasoningDisclosureProps>(
 		// flicker between "Thinking..." and "Thinking" as the smoothed
 		// reveal drips in characters.
 		const hasRawText = text.trim().length > 0;
-		const bodyId = `${id}-body`;
+
+		// useId() guarantees a stable, collision-free id for the
+		// aria-controls linkage regardless of whether the caller-supplied
+		// `id` is globally unique.
+		const bodyId = useId();
 
 		return (
 			<div className="w-full rounded-lg border border-solid border-border bg-surface-secondary">

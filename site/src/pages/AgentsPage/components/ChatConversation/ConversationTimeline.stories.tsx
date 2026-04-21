@@ -1015,11 +1015,9 @@ export const MultiAssistantTurnCopyButton: Story = {
 /**
  * Regression: thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
- * gap that would normally come from the invisible action bar.
- *
- * The reasoning body itself is collapsed by default for historical
- * messages, so this story only asserts the adjacent user bubbles
- * render without layout regressions.
+ * gap that would normally come from the invisible action bar,
+ * preventing layout shift when the assistant message only contains a
+ * collapsed reasoning disclosure.
  */
 export const ThinkingOnlyAssistantSpacing: Story = {
 	args: {

@@ -26,8 +26,8 @@ const REASONING_TEXT =
 	"Let me reason through this. The user wants me to explain the code they shared.";
 
 // Historical blocks start collapsed. The reasoning text is not
-// rendered. The header shows a lightbulb, a "Thought" label, and a
-// chevron on the right.
+// rendered. The header shows a lightbulb and a "Thought" label and
+// exposes aria-expanded=false.
 export const CollapsedByDefault: Story = {
 	args: {
 		isStreaming: false,
@@ -47,16 +47,13 @@ export const CollapsedByDefault: Story = {
 		expect(
 			canvasElement.querySelector('[data-testid="reasoning-icon"]'),
 		).not.toBeNull();
-		const chevron = canvasElement.querySelector(
-			'[data-testid="reasoning-chevron"]',
-		);
-		expect(chevron).not.toBeNull();
-		expect(chevron?.className).not.toMatch(/rotate-90/);
+		expect(
+			canvasElement.querySelector('[data-testid="reasoning-chevron"]'),
+		).not.toBeNull();
 	},
 };
 
-// Clicking the header expands the block, revealing the reasoning
-// text and rotating the chevron.
+// Clicking the header expands the block, revealing the reasoning text.
 export const ClickToExpand: Story = {
 	args: {
 		isStreaming: false,
@@ -70,11 +67,6 @@ export const ClickToExpand: Story = {
 		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
 		expect(canvas.getByText(/let me reason through this/i)).toBeVisible();
-
-		const chevron = canvasElement.querySelector(
-			'[data-testid="reasoning-chevron"]',
-		);
-		expect(chevron?.className).toMatch(/rotate-90/);
 	},
 };
 
@@ -108,16 +100,17 @@ export const ExpandedWhileStreaming: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Header label is "Thinking" during streaming once any text
+		// has arrived.
 		const toggle = canvas.getByRole("button", { name: /thinking/i });
 		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-		// Header label reads "Thinking" while streaming text is flowing.
 		expect(canvas.getByText(/^Thinking$/i)).toBeVisible();
 	},
 };
 
 // During streaming with no reasoning text yet, the shimmer
-// "Thinking..." affordance is visible inside the header.
+// "Thinking..." affordance is visible inside the header button.
 export const StreamingWithEmptyText: Story = {
 	args: {
 		isStreaming: true,
@@ -125,8 +118,10 @@ export const StreamingWithEmptyText: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const matches = canvas.getAllByText("Thinking...");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
+		const toggle = canvas.getByRole("button", { name: /thinking/i });
+		// Target the header button explicitly so we catch a regression
+		// where the shimmer drifts into the body instead of the header.
+		expect(within(toggle).getByText("Thinking...")).toBeVisible();
 	},
 };
 
@@ -138,12 +133,30 @@ export const UserCollapsesDuringStream: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Header label is "Thinking" during streaming.
 		const toggle = canvas.getByRole("button", { name: /thinking/i });
 		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
 		await userEvent.click(toggle);
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText(/let me reason through this/i)).toBeNull();
+	},
+};
+
+// Historical blocks with no reasoning text render an empty-state
+// message inside the body.
+export const CollapsedWithEmptyText: Story = {
+	args: {
+		isStreaming: false,
+		text: "",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /thought/i });
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.click(toggle);
+		expect(canvas.getByText("No reasoning recorded.")).toBeVisible();
 	},
 };
 

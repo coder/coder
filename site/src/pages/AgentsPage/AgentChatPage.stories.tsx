@@ -872,6 +872,9 @@ export const WithReasoningInline: Story = {
 		// Historical reasoning is hidden behind a collapsed disclosure.
 		expect(canvas.queryByText("Reasoning body")).toBeNull();
 
+		// The collapsed disclosure uses the "Thought" label, never
+		// the streaming-only "Thinking" label.
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 		const toggle = canvas.getByRole("button", { name: /thought/i });
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
