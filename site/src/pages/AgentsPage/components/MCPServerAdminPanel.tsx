@@ -36,6 +36,7 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
+import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Popover,
@@ -963,7 +964,7 @@ const ServerForm: FC<ServerFormProps> = ({
 													<div>
 														<span>{opt.label}</span>
 														<span className="ml-1.5 text-content-secondary">
-															— {opt.description}
+															: {opt.description}
 														</span>
 													</div>
 												</SelectItem>
@@ -992,31 +993,31 @@ const ServerForm: FC<ServerFormProps> = ({
 									/>
 								</div>
 
-										<div className="flex items-start justify-between gap-4">
-											<div className="min-w-0 space-y-1">
-												<Label
-													htmlFor={`${formId}-allow-in-plan-mode`}
-												className="text-sm font-medium text-content-primary"
-											>
-													Allow all tools from this MCP server in root plan mode
-												</Label>
-											<p className="m-0 text-xs text-content-secondary">
-													When enabled, the root plan-mode agent can call these tools
-													during planning. Workspace MCP and plan-mode subagents remain
-													restricted.
-											</p>
-											</div>
-										<Switch
-												id={`${formId}-allow-in-plan-mode`}
-											checked={form.values.allowInPlanMode}
-												onCheckedChange={(v) => {
-													form.setFieldValue("allowInPlanMode", v);
-												}}
-											disabled={isDisabled}
-										/>
-										</div>
+								<div className="flex items-start justify-between gap-4">
+									<div className="min-w-0 space-y-1">
+										<Label
+											htmlFor={`${formId}-allow-in-plan-mode`}
+											className="text-sm font-medium text-content-primary"
+										>
+											Allow all tools from this MCP server in root plan mode
+										</Label>
+										<p className="m-0 text-xs text-content-secondary">
+											When enabled, the root plan-mode agent can call these
+											tools during planning. Workspace MCP and plan-mode
+											subagents remain restricted.
+										</p>
+									</div>
+									<Switch
+										id={`${formId}-allow-in-plan-mode`}
+										checked={form.values.allowInPlanMode}
+										onCheckedChange={(v) => {
+											form.setFieldValue("allowInPlanMode", v);
+										}}
+										disabled={isDisabled}
+									/>
+								</div>
 
-										<div className="grid items-start gap-4 sm:grid-cols-2">
+								<div className="grid items-start gap-4 sm:grid-cols-2">
 									<Field
 										label="Tool Allow List"
 										htmlFor={`${formId}-allow-list`}
@@ -1049,7 +1050,6 @@ const ServerForm: FC<ServerFormProps> = ({
 					</Collapsible>
 				</div>
 
-				{/* Footer — pushed to bottom, matches ProviderForm */}
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
