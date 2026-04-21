@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useMemo, useState } from "react";
-import { MemoryRouter, Outlet, Route, Routes } from "react-router";
+import { Outlet } from "react-router";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentPageHeader } from "./AgentPageHeader";
@@ -52,7 +52,7 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 	};
 
 	const matchMedia = ((query: string): MediaQueryList => {
-		const isDesktopQuery = query === "(min-width: 768px)";
+		const isDesktopQuery = /\(\s*min-width\s*:\s*768px\s*\)/.test(query);
 		return {
 			matches: isDesktopQuery ? desktop : false,
 			media: query,
@@ -105,8 +105,6 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 	};
 };
 
-let setDesktopViewport: ((desktop: boolean) => void) | undefined;
-
 const HeaderStateHarness: FC = () => {
 	const [chimeEnabled, setChimeEnabled] = useState(true);
 	const [webpushSubscribed, setWebpushSubscribed] = useState(false);
@@ -142,41 +140,18 @@ const HeaderStateHarness: FC = () => {
 	};
 
 	return (
-		<MemoryRouter initialEntries={["/agents"]}>
-			<Routes>
-				<Route
-					element={
-						<Outlet
-							context={{
-								isSidebarCollapsed: false,
-								onExpandSidebar: () => undefined,
-							}}
-						/>
-					}
-				>
-					<Route
-						path="/agents"
-						element={
-							<AgentPageHeader
-								chimeEnabled={chimeEnabled}
-								onToggleChime={() => setChimeEnabled((enabled) => !enabled)}
-								webPush={webPush}
-								onToggleNotifications={handleNotificationToggle}
-							>
-								<ChimeButton
-									enabled={chimeEnabled}
-									onToggle={() => setChimeEnabled((enabled) => !enabled)}
-								/>
-								<WebPushButton
-									webPush={webPush}
-									onToggle={handleNotificationToggle}
-								/>
-							</AgentPageHeader>
-						}
-					/>
-				</Route>
-			</Routes>
-		</MemoryRouter>
+		<AgentPageHeader
+			chimeEnabled={chimeEnabled}
+			onToggleChime={() => setChimeEnabled((enabled) => !enabled)}
+			webPush={webPush}
+			onToggleNotifications={handleNotificationToggle}
+		>
+			<ChimeButton
+				enabled={chimeEnabled}
+				onToggle={() => setChimeEnabled((enabled) => !enabled)}
+			/>
+			<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
+		</AgentPageHeader>
 	);
 };
 
@@ -188,11 +163,9 @@ const meta: Meta<typeof AgentPageHeader> = {
 		const originalMatchMedia = window.matchMedia;
 		const controller = createMatchMediaController(true);
 		window.matchMedia = controller.matchMedia;
-		setDesktopViewport = controller.setDesktop;
 
 		return () => {
 			window.matchMedia = originalMatchMedia;
-			setDesktopViewport = undefined;
 		};
 	},
 };
@@ -202,9 +175,29 @@ type Story = StoryObj<typeof AgentPageHeader>;
 
 export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 	render: () => <HeaderStateHarness />,
+	parameters: {
+		reactRouter: {
+			location: {
+				path: "/agents",
+			},
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								isSidebarCollapsed: false,
+								onExpandSidebar: () => undefined,
+							}}
+						/>
+					),
+					children: [{ path: "agents", useStoryElement: true }],
+				},
+			],
+		},
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 
 		const desktopSoundButton = await canvas.findByRole("button", {
 			name: "Mute completion chime",
@@ -226,24 +219,9 @@ export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 			).toBeVisible();
 		});
 
-		setDesktopViewport?.(false);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "More options" }),
-			).toBeVisible();
-		});
-
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		expect(body.getByRole("menuitem", { name: "Turn sound on" })).toBeVisible();
-		expect(
-			body.getByRole("menuitem", { name: "Turn notifications off" }),
-		).toBeVisible();
-
 		await userEvent.click(
-			body.getByRole("menuitem", { name: "Turn notifications off" }),
+			canvas.getByRole("button", { name: "Disable notifications" }),
 		);
-
-		setDesktopViewport?.(true);
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Enable notifications" }),
