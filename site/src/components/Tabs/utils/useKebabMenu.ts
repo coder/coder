@@ -41,9 +41,6 @@ export const useKebabMenu = <T extends TabValue>({
 	overflowTriggerWidth = 44,
 }: UseKebabMenuOptions<T>): UseKebabMenuResult<T> => {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const tabsRef = useRef<readonly T[]>(tabs);
-	tabsRef.current = tabs;
-	const previousTabsRef = useRef<readonly T[]>(tabs);
 	const availableWidthRef = useRef<number | null>(null);
 	// Width cache prevents oscillation when overflow tabs are not mounted.
 	const tabWidthByValueRef = useRef<Record<string, number>>({});
@@ -66,10 +63,8 @@ export const useKebabMenu = <T extends TabValue>({
 			if (!container) {
 				return;
 			}
-			const currentTabs = tabsRef.current;
-
 			const tabWidthByValue = measureTabWidths({
-				tabs: currentTabs,
+				tabs,
 				container,
 				previousTabWidthByValue: tabWidthByValueRef.current,
 			});
@@ -77,7 +72,7 @@ export const useKebabMenu = <T extends TabValue>({
 			const tabGap = getTabGap(container);
 
 			const nextOverflowValues = calculateTabValues({
-				tabs: currentTabs,
+				tabs,
 				availableWidth,
 				tabWidthByValue,
 				overflowTriggerWidth,
@@ -92,21 +87,16 @@ export const useKebabMenu = <T extends TabValue>({
 				return nextOverflowValues;
 			});
 		},
-		[enabled, isActive, overflowTriggerWidth],
+		[enabled, isActive, overflowTriggerWidth, tabs],
 	);
 
 	useEffect(() => {
-		if (previousTabsRef.current === tabs) {
-			// No change in tabs, no need to recalculate.
-			return;
-		}
-		previousTabsRef.current = tabs;
 		if (availableWidthRef.current === null) {
-			// First mount, no width available yet.
+			// First mount, no measured width yet.
 			return;
 		}
 		recalculateOverflow(availableWidthRef.current);
-	}, [recalculateOverflow, tabs]);
+	}, [recalculateOverflow]);
 
 	useLayoutEffect(() => {
 		const container = containerRef.current;
@@ -168,47 +158,32 @@ const calculateTabValues = <T extends TabValue>({
 	overflowTriggerWidth: number;
 	tabGap: number;
 }): string[] => {
-	const tabWidthByValueMap = new Map<string, number>();
-	for (const tab of tabs) {
-		tabWidthByValueMap.set(tab.value, tabWidthByValue[tab.value] ?? 0);
-	}
-
-	const firstOptionalTabIndex = Math.min(
-		ALWAYS_VISIBLE_TABS_COUNT,
-		tabs.length,
-	);
-	if (firstOptionalTabIndex >= tabs.length) {
+	if (tabs.length <= ALWAYS_VISIBLE_TABS_COUNT) {
 		return [];
 	}
 
-	const alwaysVisibleTabs = tabs.slice(0, firstOptionalTabIndex);
-	const optionalTabs = tabs.slice(firstOptionalTabIndex);
-	const alwaysVisibleWidth = alwaysVisibleTabs.reduce((total, tab, index) => {
-		return (
-			total +
-			(tabWidthByValueMap.get(tab.value) ?? 0) +
-			(index > 0 ? tabGap : 0)
-		);
-	}, 0);
-	const firstTabIndex = findFirstTabIndex({
-		optionalTabs,
-		optionalTabWidths: optionalTabs.map((tab) => {
-			return tabWidthByValueMap.get(tab.value) ?? 0;
-		}),
-		startingUsedWidth: alwaysVisibleWidth,
-		startingVisibleCount: alwaysVisibleTabs.length,
-		availableWidth,
-		overflowTriggerWidth,
-		tabGap,
-	});
+	let usedWidth = 0;
+	let visibleCount = 0;
 
-	if (firstTabIndex === -1) {
-		return [];
+	for (const [index, tab] of tabs.entries()) {
+		const tabWidth = tabWidthByValue[tab.value] ?? 0;
+		const gapBeforeTab = visibleCount > 0 ? tabGap : 0;
+		const usedWidthWithTab = usedWidth + gapBeforeTab + tabWidth;
+		const hasMoreTabs = index < tabs.length - 1;
+		// Reserve kebab trigger width whenever additional tabs remain.
+		const widthNeeded =
+			usedWidthWithTab + (hasMoreTabs ? tabGap + overflowTriggerWidth : 0);
+
+		if (index < ALWAYS_VISIBLE_TABS_COUNT || widthNeeded <= availableWidth) {
+			usedWidth = usedWidthWithTab;
+			visibleCount += 1;
+			continue;
+		}
+
+		return tabs.slice(index).map((overflowTab) => overflowTab.value);
 	}
 
-	return optionalTabs
-		.slice(firstTabIndex)
-		.map((overflowTab) => overflowTab.value);
+	return [];
 };
 
 const measureTabWidths = <T extends TabValue>({
@@ -230,61 +205,6 @@ const measureTabWidths = <T extends TabValue>({
 		}
 	}
 	return nextTabWidthByValue;
-};
-
-const findFirstTabIndex = ({
-	optionalTabs,
-	optionalTabWidths,
-	startingUsedWidth,
-	startingVisibleCount,
-	availableWidth,
-	overflowTriggerWidth,
-	tabGap,
-}: {
-	optionalTabs: readonly TabValue[];
-	optionalTabWidths: readonly number[];
-	startingUsedWidth: number;
-	startingVisibleCount: number;
-	availableWidth: number;
-	overflowTriggerWidth: number;
-	tabGap: number;
-}): number => {
-	const result = optionalTabs.reduce(
-		(acc, _tab, index) => {
-			if (acc.firstTabIndex !== -1) {
-				return acc;
-			}
-
-			const tabWidth = optionalTabWidths[index] ?? 0;
-			const gapBeforeTab = acc.visibleCount > 0 ? tabGap : 0;
-			const usedWidthWithTab = acc.usedWidth + gapBeforeTab + tabWidth;
-			const hasMoreTabs = index < optionalTabs.length - 1;
-			// Reserve kebab trigger width whenever additional tabs remain.
-			const widthNeeded =
-				usedWidthWithTab + (hasMoreTabs ? tabGap + overflowTriggerWidth : 0);
-
-			if (widthNeeded <= availableWidth) {
-				return {
-					usedWidth: usedWidthWithTab,
-					visibleCount: acc.visibleCount + 1,
-					firstTabIndex: -1,
-				};
-			}
-
-			return {
-				usedWidth: acc.usedWidth,
-				visibleCount: acc.visibleCount,
-				firstTabIndex: index,
-			};
-		},
-		{
-			usedWidth: startingUsedWidth,
-			visibleCount: startingVisibleCount,
-			firstTabIndex: -1,
-		},
-	);
-
-	return result.firstTabIndex;
 };
 
 const getTabGap = (container: HTMLElement): number => {
