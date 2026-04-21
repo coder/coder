@@ -371,7 +371,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						content: (
 							<DebugPanel
 								chatId={agentId}
-								enabled={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+								isVisible={
+									shouldShowSidebar && effectiveSidebarTabId === "debug"
+								}
 							/>
 						),
 					},

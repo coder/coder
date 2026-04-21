@@ -5,13 +5,13 @@ import { DebugRunCard } from "./DebugRunCard";
 interface DebugRunListProps {
 	runs: ChatDebugRunSummary[];
 	chatId: string;
-	enabled: boolean;
+	isVisible: boolean;
 }
 
 export const DebugRunList: FC<DebugRunListProps> = ({
 	runs,
 	chatId,
-	enabled,
+	isVisible,
 }) => {
 	// Empty state is handled by DebugPanel before rendering this
 	// component. No guard here to avoid duplicated copy that drifts.
@@ -22,7 +22,7 @@ export const DebugRunList: FC<DebugRunListProps> = ({
 					key={run.id}
 					run={run}
 					chatId={chatId}
-					enabled={enabled}
+					isVisible={isVisible}
 				/>
 			))}
 		</div>

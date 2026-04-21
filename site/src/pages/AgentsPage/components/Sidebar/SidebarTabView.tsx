@@ -47,7 +47,7 @@ interface SidebarTabViewProps {
 	 * with `getEffectiveTabId`). Keeping a single source of truth in the
 	 * parent prevents this component's highlight from drifting from
 	 * parent-side gating like `TerminalPanel.isVisible` or
-	 * `DebugPanel.enabled`.
+	 * `DebugPanel.isVisible`.
 	 */
 	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */

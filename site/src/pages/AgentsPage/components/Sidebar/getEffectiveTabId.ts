@@ -10,7 +10,7 @@
  * 4. `null` (no valid tab available).
  *
  * AgentChatPageView owns this resolution so the parent-side gating
- * (e.g. `TerminalPanel.isVisible`, `DebugPanel.enabled`) and the
+ * (e.g. `TerminalPanel.isVisible`, `DebugPanel.isVisible`) and the
  * child SidebarTabView's visual highlight always agree. The child
  * receives the resolved value via the `effectiveTabId` prop.
  */

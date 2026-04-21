@@ -9,16 +9,16 @@ import { DebugRunList } from "./DebugRunList";
 
 interface DebugPanelProps {
 	chatId: string;
-	enabled?: boolean;
+	isVisible?: boolean;
 }
 
 export const DebugPanel: FC<DebugPanelProps> = ({
 	chatId,
-	enabled = false,
+	isVisible = false,
 }) => {
 	const runsQuery = useQuery({
 		...chatDebugRuns(chatId),
-		enabled,
+		enabled: isVisible,
 	});
 
 	const sortedRuns = (runsQuery.data ?? []).toSorted((left, right) => {
@@ -87,7 +87,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 		content = (
 			<>
 				{refreshWarning}
-				<DebugRunList runs={sortedRuns} chatId={chatId} enabled={enabled} />
+				<DebugRunList runs={sortedRuns} chatId={chatId} isVisible={isVisible} />
 			</>
 		);
 	}
