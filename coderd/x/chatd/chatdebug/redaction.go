@@ -163,18 +163,24 @@ func consumeJSONEOF(decoder *json.Decoder) error {
 }
 
 var safeRateLimitHeaderNames = map[string]struct{}{
-	"anthropic-ratelimit-requests-limit":     {},
-	"anthropic-ratelimit-requests-remaining": {},
-	"anthropic-ratelimit-requests-reset":     {},
-	"anthropic-ratelimit-tokens-limit":       {},
-	"anthropic-ratelimit-tokens-remaining":   {},
-	"anthropic-ratelimit-tokens-reset":       {},
-	"x-ratelimit-limit-requests":             {},
-	"x-ratelimit-limit-tokens":               {},
-	"x-ratelimit-remaining-requests":         {},
-	"x-ratelimit-remaining-tokens":           {},
-	"x-ratelimit-reset-requests":             {},
-	"x-ratelimit-reset-tokens":               {},
+	"anthropic-ratelimit-requests-limit":          {},
+	"anthropic-ratelimit-requests-remaining":      {},
+	"anthropic-ratelimit-requests-reset":          {},
+	"anthropic-ratelimit-tokens-limit":            {},
+	"anthropic-ratelimit-tokens-remaining":        {},
+	"anthropic-ratelimit-tokens-reset":            {},
+	"anthropic-ratelimit-input-tokens-limit":      {},
+	"anthropic-ratelimit-input-tokens-remaining":  {},
+	"anthropic-ratelimit-input-tokens-reset":      {},
+	"anthropic-ratelimit-output-tokens-limit":     {},
+	"anthropic-ratelimit-output-tokens-remaining": {},
+	"anthropic-ratelimit-output-tokens-reset":     {},
+	"x-ratelimit-limit-requests":                  {},
+	"x-ratelimit-limit-tokens":                    {},
+	"x-ratelimit-remaining-requests":              {},
+	"x-ratelimit-remaining-tokens":                {},
+	"x-ratelimit-reset-requests":                  {},
+	"x-ratelimit-reset-tokens":                    {},
 }
 
 // isSensitiveName reports whether a name (header or query parameter)
