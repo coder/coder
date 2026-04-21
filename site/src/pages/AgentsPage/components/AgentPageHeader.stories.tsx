@@ -206,7 +206,7 @@ export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		const desktopSoundButton = canvas.getByRole("button", {
+		const desktopSoundButton = await canvas.findByRole("button", {
 			name: "Mute completion chime",
 		});
 		await userEvent.click(desktopSoundButton);
