@@ -150,11 +150,18 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 		>
 			<AlertTitle>{status.title}</AlertTitle>
 			<AlertDescription>
-				{status.message}{" "}
-				{statusURL && (
-					<Link href={statusURL} target="_blank" rel="noreferrer">
-						Status
-					</Link>
+				<span>
+					{status.message}{" "}
+					{statusURL && (
+						<Link href={statusURL} target="_blank" rel="noreferrer">
+							Status
+						</Link>
+					)}
+				</span>
+				{status.phase === "failed" && status.detail && (
+					<span className="mt-1 block text-content-secondary">
+						{status.detail}
+					</span>
 				)}
 			</AlertDescription>
 		</Alert>

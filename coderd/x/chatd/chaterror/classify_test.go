@@ -3,6 +3,7 @@ package chaterror_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -574,7 +575,7 @@ func TestWithProviderPreservesRetryAfter(t *testing.T) {
 	t.Parallel()
 
 	classified := chaterror.Classify(testProviderError(
-		"upstream failed",
+		"",
 		429,
 		map[string]string{"Retry-After": "30"},
 	))
@@ -591,10 +592,75 @@ func TestWithProviderPreservesRetryAfter(t *testing.T) {
 	}, enriched)
 }
 
-func testProviderError(message string, statusCode int, headers map[string]string) error {
+func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Image exceeds 5 MB maximum."}}`),
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "The AI provider returned an unexpected error (HTTP 400).",
+		Detail:     "Image exceeds 5 MB maximum.",
+		Kind:       chaterror.KindGeneric,
+		Provider:   "",
+		Retryable:  false,
+		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"  image exceeds 5 MB maximum  ",
+		400,
+		nil,
+		testProviderResponseDump("not-json"),
+	))
+
+	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_TruncatesProviderDetail(t *testing.T) {
+	t.Parallel()
+
+	detail := strings.Repeat("x", 510)
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+detail+`"}}`),
+	))
+
+	require.Len(t, []rune(classified.Detail), 500)
+	require.True(t, strings.HasSuffix(classified.Detail, "…"))
+}
+
+func testProviderError(
+	message string,
+	statusCode int,
+	headers map[string]string,
+	responseBody ...[]byte,
+) error {
+	var body []byte
+	if len(responseBody) > 0 {
+		body = responseBody[0]
+	}
 	return &fantasy.ProviderError{
 		Message:         message,
 		StatusCode:      statusCode,
 		ResponseHeaders: headers,
+		ResponseBody:    body,
 	}
+}
+
+func testProviderResponseDump(body string) []byte {
+	return []byte(`HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+` + body)
 }

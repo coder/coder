@@ -248,6 +248,34 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 	},
 };
 
+/** Provider detail renders as a muted secondary line under the main error. */
+export const GenericErrorShowsProviderDetail: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "generic",
+				message: "Anthropic returned an unexpected error (HTTP 400).",
+				detail:
+					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+				provider: "anthropic",
+				statusCode: 400,
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error \(http 400\)/i),
+		).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
+	},
+};
+
 /** Reconnecting keeps already-streamed content visible without a terminal footer. */
 export const ReconnectingKeepsPartialOutputVisible: Story = {
 	args: {
