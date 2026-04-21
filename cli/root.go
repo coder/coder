@@ -807,20 +807,28 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
+// cliResponseHeaderTimeout bounds how long a single coderd request may
+// sit waiting for response headers. Past this point the client returns a
+// net.Error with Timeout()==true, which isRetryableError recognises.
+const cliResponseHeaderTimeout = 30 * time.Second
+
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
+	// Clone http.DefaultTransport so we can set ResponseHeaderTimeout
+	// without mutating the package-global. Without this, a request that
+	// gets past TCP/TLS but never receives response headers blocks until
+	// tcp_retries2 kicks in (~15 min) or the process is killed (#24519).
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, xerrors.New("http.DefaultTransport is not *http.Transport")
+	}
+	customTransport := defaultTransport.Clone()
+	customTransport.ResponseHeaderTimeout = cliResponseHeaderTimeout
 
 	// Apply custom TLS config if specified
 	if r.tlsConfig != nil {
-		// Clone the default transport and apply TLS config
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
-		}
-		customTransport := defaultTransport.Clone()
 		customTransport.TLSClientConfig = r.tlsConfig
-		transport = customTransport
 	}
+	var transport http.RoundTripper = customTransport
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)

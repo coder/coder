@@ -67,7 +67,8 @@ var (
 )
 
 // isRetryableError checks for transient connection errors worth
-// retrying: DNS failures, connection refused, and server 5xx.
+// retrying: DNS failures, connection refused, HTTP transport timeouts
+// (e.g. ResponseHeaderTimeout), and server 5xx.
 func isRetryableError(err error) bool {
 	if err == nil || xerrors.Is(err, context.Canceled) {
 		return false
@@ -77,8 +78,20 @@ func isRetryableError(err error) bool {
 	if codersdk.IsConnectionError(err) {
 		return true
 	}
+	// context.DeadlineExceeded also satisfies net.Error with
+	// Timeout()==true, so check it explicitly before the broader
+	// net.Error branch to preserve the existing "caller-bounded
+	// deadline is not retryable" behaviour.
 	if xerrors.Is(err, context.DeadlineExceeded) {
 		return false
+	}
+	// ResponseHeaderTimeout / TLS handshake timeout / etc. surface as
+	// errors satisfying net.Error with Timeout()==true. Treat them as
+	// transient so a coderd redeploy or other transient upstream stall
+	// produces a retry instead of an immediate permanent failure.
+	var netErr net.Error
+	if xerrors.As(err, &netErr) && netErr.Timeout() {
+		return true
 	}
 	var sdkErr *codersdk.Error
 	if xerrors.As(err, &sdkErr) {
