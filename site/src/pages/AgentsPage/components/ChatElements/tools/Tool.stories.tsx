@@ -357,16 +357,16 @@ export const SubagentMessageRequestMetadata: Story = {
 
 export const SpawnSubagentGeneralRunning: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "running",
 		args: {
-			subagent_type: "general",
+			type: "general",
 			title: "Workspace diagnostics",
 			prompt: "Collect logs and summarize why startup failed.",
 		},
 		result: {
 			chat_id: "spawn-general-child",
-			subagent_type: "general",
+			type: "general",
 			status: "pending",
 		},
 	},
@@ -380,16 +380,16 @@ export const SpawnSubagentGeneralRunning: Story = {
 
 export const SpawnSubagentGeneralCompleted: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "completed",
 		args: {
-			subagent_type: "general",
+			type: "general",
 			title: "Workspace diagnostics",
 			prompt: "Collect logs and summarize why startup failed.",
 		},
 		result: {
 			chat_id: "spawn-general-child",
-			subagent_type: "general",
+			type: "general",
 			title: "Workspace diagnostics",
 			status: "completed",
 			duration_ms: 3200,
@@ -406,15 +406,15 @@ export const SpawnSubagentGeneralCompleted: Story = {
 
 export const SpawnSubagentExploreRunning: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "running",
 		args: {
-			subagent_type: "explore",
+			type: "explore",
 			prompt: "Read the repository and summarize the auth flow.",
 		},
 		result: {
 			chat_id: "spawn-explore-child",
-			subagent_type: "explore",
+			type: "explore",
 			status: "pending",
 		},
 	},
@@ -428,15 +428,15 @@ export const SpawnSubagentExploreRunning: Story = {
 
 export const SpawnSubagentExploreCompleted: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "completed",
 		args: {
-			subagent_type: "explore",
+			type: "explore",
 			prompt: "Read the repository and summarize the auth flow.",
 		},
 		result: {
 			chat_id: "spawn-explore-child",
-			subagent_type: "explore",
+			type: "explore",
 			status: "completed",
 			duration_ms: 4100,
 		},
@@ -452,17 +452,17 @@ export const SpawnSubagentExploreCompleted: Story = {
 
 export const SpawnSubagentComputerUseRunning: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "running",
 		args: {
-			subagent_type: "computer_use",
+			type: "computer_use",
 			title: "Visual regression check",
 			prompt:
 				"Open the browser and check for visual regressions on the dashboard page.",
 		},
 		result: {
 			chat_id: "spawn-desktop-child",
-			subagent_type: "computer_use",
+			type: "computer_use",
 			status: "pending",
 		},
 	},
@@ -492,17 +492,17 @@ export const SpawnSubagentComputerUseRunning: Story = {
 
 export const SpawnSubagentComputerUseCompleted: Story = {
 	args: {
-		name: "spawn_subagent",
+		name: "spawn_agent",
 		status: "completed",
 		args: {
-			subagent_type: "computer_use",
+			type: "computer_use",
 			title: "Visual regression check",
 			prompt:
 				"Open the browser and check for visual regressions on the dashboard page.",
 		},
 		result: {
 			chat_id: "spawn-desktop-child",
-			subagent_type: "computer_use",
+			type: "computer_use",
 			title: "Visual regression check",
 			status: "completed",
 			duration_ms: "12400",
@@ -541,7 +541,7 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 		args: { chat_id: "message-child", message: "continue" },
 		result: {
 			chat_id: "message-child",
-			subagent_type: "explore",
+			type: "explore",
 			status: "pending",
 		},
 	},
@@ -578,7 +578,7 @@ export const CloseAgentExploreCompleted: Story = {
 		args: { chat_id: "close-child" },
 		result: {
 			chat_id: "close-child",
-			subagent_type: "explore",
+			type: "explore",
 			status: "completed",
 		},
 	},

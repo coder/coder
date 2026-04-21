@@ -229,7 +229,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 	// Parse the response JSON and check for recording_file_id.
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, subagentTypeComputerUse, result["subagent_type"])
+	require.Equal(t, subagentTypeComputerUse, result["type"])
 	storedFileID, ok := result["recording_file_id"].(string)
 	require.True(t, ok, "recording_file_id must be present in response")
 	require.NotEmpty(t, storedFileID)
@@ -313,7 +313,7 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, subagentTypeComputerUse, result["subagent_type"])
+	require.Equal(t, subagentTypeComputerUse, result["type"])
 
 	// Verify recording_file_id is present and valid.
 	storedFileID, ok := result["recording_file_id"].(string)
@@ -392,7 +392,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 	// Parse the response JSON and verify no recording_file_id.
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, subagentTypeGeneral, result["subagent_type"])
+	require.Equal(t, subagentTypeGeneral, result["type"])
 	_, hasRecording := result["recording_file_id"]
 	assert.False(t, hasRecording, "non-computer_use chat should not produce recording_file_id")
 }
@@ -448,7 +448,7 @@ func TestWaitAgentRecordingStartFails(t *testing.T) {
 	// Parse response JSON and assert no recording_file_id.
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, subagentTypeComputerUse, result["subagent_type"])
+	require.Equal(t, subagentTypeComputerUse, result["type"])
 	_, hasRecording := result["recording_file_id"]
 	assert.False(t, hasRecording, "no recording_file_id when start fails")
 }

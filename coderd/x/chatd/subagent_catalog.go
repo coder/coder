@@ -12,17 +12,17 @@ import (
 )
 
 const (
-	spawnSubagentToolName = "spawn_subagent"
+	spawnAgentToolName = "spawn_agent"
 
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
 )
 
-type spawnSubagentArgs struct {
-	SubagentType string `json:"subagent_type"`
-	Prompt       string `json:"prompt"`
-	Title        string `json:"title,omitempty"`
+type spawnAgentArgs struct {
+	Type   string `json:"type"`
+	Prompt string `json:"prompt"`
+	Title  string `json:"title,omitempty"`
 }
 
 type subagentDefinition struct {
@@ -69,10 +69,10 @@ func allSubagentDefinitions() []subagentDefinition {
 			description: "desktop GUI interaction, screenshots, and browser or app automation",
 			unavailableReason: func(ctx context.Context, p *Server, currentChat database.Chat) string {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
-					return `subagent_type "computer_use" is unavailable in plan mode`
+					return `type "computer_use" is unavailable in plan mode`
 				}
 				if !p.isAnthropicConfigured(ctx) || !p.isDesktopEnabled(ctx) {
-					return `subagent_type "computer_use" is unavailable because computer use is not configured`
+					return `type "computer_use" is unavailable because computer use is not configured`
 				}
 				return ""
 			},
@@ -157,7 +157,7 @@ func resolveSubagentDefinition(
 	def, ok := lookupSubagentDefinition(subagentType)
 	if !ok {
 		return subagentDefinition{}, xerrors.Errorf(
-			"subagent_type must be one of: %s",
+			"type must be one of: %s",
 			strings.Join(availableSubagentTypeIDs(ctx, p, currentChat), ", "),
 		)
 	}
@@ -195,7 +195,7 @@ func withSubagentType(result map[string]any, chat database.Chat) map[string]any 
 	if result == nil {
 		result = map[string]any{}
 	}
-	result["subagent_type"] = subagentTypeFromChat(chat)
+	result["type"] = subagentTypeFromChat(chat)
 	return result
 }
 
@@ -208,15 +208,15 @@ func subagentErrorResponse(err error, chat *database.Chat) fantasy.ToolResponse 
 	}, *chat))
 }
 
-func buildSpawnSubagentDescription(
+func buildSpawnAgentDescription(
 	ctx context.Context,
 	p *Server,
 	currentChat database.Chat,
 ) string {
 	availableDefs := availableSubagentDefinitions(ctx, p, currentChat)
 	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
-		"independent task in parallel. Use the subagent_type field to choose " +
-		"the right specialist. Available subagent_type values: " +
+		"independent task in parallel. Use the type field to choose " +
+		"the right specialist. Available type values: " +
 		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
 		"read_file, or write_file. Reserve writable subagents for tasks that " +
@@ -252,9 +252,9 @@ func formatSubagentDefinitionsWithDescriptionOverrides(
 }
 
 func defaultSystemPromptPlanningGuidance() string {
-	return "1. Use " + spawnSubagentToolName + " with subagent_type=\"" +
+	return "1. Use " + spawnAgentToolName + " with type=\"" +
 		subagentTypeExplore + "\" and wait_agent to research the codebase and " +
-		"gather context as needed. Reserve subagent_type=\"" +
+		"gather context as needed. Reserve type=\"" +
 		subagentTypeGeneral + "\" for writable delegated work."
 }
 
@@ -264,9 +264,9 @@ func planningOverlaySubagentGuidance() string {
 	}
 
 	return "Use read_file, execute, process_output, list_templates, read_template, and " +
-		spawnSubagentToolName + " to gather context. In Plan Mode, " +
-		spawnSubagentToolName + " delegation is for investigation and planning " +
-		"support, not code writing or implementation. Allowed subagent_type " +
+		spawnAgentToolName + " to gather context. In Plan Mode, " +
+		spawnAgentToolName + " delegation is for investigation and planning " +
+		"support, not code writing or implementation. Allowed type " +
 		"values in Plan Mode: " +
 		formatSubagentDefinitionsWithDescriptionOverrides(
 			subagentDefinitionsByID(

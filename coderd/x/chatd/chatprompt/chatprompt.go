@@ -827,7 +827,7 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 // Keep in sync with coderd/x/chatd/subagent.go.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_subagent", "wait_agent", "message_agent", "close_agent":
+	case "spawn_agent", "wait_agent", "message_agent", "close_agent":
 		return true
 	default:
 		return false

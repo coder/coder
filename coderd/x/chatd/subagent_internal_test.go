@@ -333,12 +333,12 @@ func runSubagentTool(
 	return resp
 }
 
-func runSpawnSubagentTool(
+func runSpawnAgentTool(
 	ctx context.Context,
 	t *testing.T,
 	server *Server,
 	parentChat database.Chat,
-	args spawnSubagentArgs,
+	args spawnAgentArgs,
 ) fantasy.ToolResponse {
 	t.Helper()
 	return runSubagentTool(
@@ -347,25 +347,25 @@ func runSpawnSubagentTool(
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
+		spawnAgentToolName,
 		args,
 	)
 }
 
-func requireSpawnSubagentResponse(t *testing.T, resp fantasy.ToolResponse) struct {
+func requireSpawnAgentResponse(t *testing.T, resp fantasy.ToolResponse) struct {
 	ChatID       string `json:"chat_id"`
-	SubagentType string `json:"subagent_type"`
+	SubagentType string `json:"type"`
 } {
 	t.Helper()
 	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
 
 	var result struct {
 		ChatID       string `json:"chat_id"`
-		SubagentType string `json:"subagent_type"`
+		SubagentType string `json:"type"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.NotEmpty(t, result.ChatID, "response must contain chat_id")
-	require.NotEmpty(t, result.SubagentType, "response must contain subagent_type")
+	require.NotEmpty(t, result.SubagentType, "response must contain type")
 	return result
 }
 
@@ -434,7 +434,7 @@ func TestCreateChildSubagentChatCopiesPlanMode(t *testing.T) {
 	require.Equal(t, planMode, childChat.PlanMode)
 }
 
-func TestSpawnSubagent_GeneralInheritsParentModelWhenOmitted(t *testing.T) {
+func TestSpawnAgent_GeneralInheritsParentModelWhenOmitted(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -446,11 +446,11 @@ func TestSpawnSubagent_GeneralInheritsParentModelWhenOmitted(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-inherited-model",
 	)
 
-	resp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
-		SubagentType: subagentTypeGeneral,
-		Prompt:       "delegate work",
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeGeneral,
+		Prompt: "delegate work",
 	})
-	result := requireSpawnSubagentResponse(t, resp)
+	result := requireSpawnAgentResponse(t, resp)
 	require.Equal(t, subagentTypeGeneral, result.SubagentType)
 	childID, err := uuid.Parse(result.ChatID)
 	require.NoError(t, err)
@@ -492,7 +492,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
 }
 
-func TestSpawnSubagent_ExploreUsesConfiguredModelOverride(t *testing.T) {
+func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -514,10 +514,10 @@ func TestSpawnSubagent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeExplore, Prompt: "investigate the codebase"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "investigate the codebase"},
 	)
-	result := requireSpawnSubagentResponse(t, resp)
+	result := requireSpawnAgentResponse(t, resp)
 	require.Equal(t, subagentTypeExplore, result.SubagentType)
 	childID, err := uuid.Parse(result.ChatID)
 	require.NoError(t, err)
@@ -530,7 +530,7 @@ func TestSpawnSubagent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	require.False(t, childChat.PlanMode.Valid)
 }
 
-func TestSpawnSubagent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
+func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -551,8 +551,8 @@ func TestSpawnSubagent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 		server,
 		parentChat,
 		currentTurnModel.ID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeExplore, Prompt: "trace the request flow"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "trace the request flow"},
 	)
 	childID := requireSpawnAgentChildChatID(t, resp)
 
@@ -562,7 +562,7 @@ func TestSpawnSubagent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
 }
 
-func TestSpawnSubagent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
+func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -584,8 +584,8 @@ func TestSpawnSubagent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 		server,
 		parentChat,
 		currentTurnModel.ID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeExplore, Prompt: "inspect the handler flow"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "inspect the handler flow"},
 	)
 	childID := requireSpawnAgentChildChatID(t, resp)
 
@@ -594,7 +594,7 @@ func TestSpawnSubagent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestSpawnSubagent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
+func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -619,8 +619,8 @@ func TestSpawnSubagent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 		server,
 		parentChat,
 		currentTurnModel.ID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeExplore, Prompt: "inspect the service boundaries"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "inspect the service boundaries"},
 	)
 	childID := requireSpawnAgentChildChatID(t, resp)
 
@@ -629,7 +629,7 @@ func TestSpawnSubagent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestSpawnSubagent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
+func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -676,8 +676,8 @@ func TestSpawnSubagent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *
 		server,
 		parentChat,
 		currentTurnModel.ID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeExplore, Prompt: "inspect provider credential handling"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "inspect provider credential handling"},
 	)
 	childID := requireSpawnAgentChildChatID(t, resp)
 
@@ -686,7 +686,7 @@ func TestSpawnSubagent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestSpawnSubagent_DescriptionListsAllAvailableTypes(t *testing.T) {
+func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -702,15 +702,15 @@ func TestSpawnSubagent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
-	require.NotNil(t, tool, "spawn_subagent tool must be present")
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.Contains(t, description, subagentTypeComputerUse)
 }
 
-func TestSpawnSubagent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
+func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -724,15 +724,15 @@ func TestSpawnSubagent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) 
 	)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
-	require.NotNil(t, tool, "spawn_subagent tool must be present")
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.NotContains(t, description, subagentTypeComputerUse)
 }
 
-func TestSpawnSubagent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
+func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -759,8 +759,8 @@ func TestSpawnSubagent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.NoError(t, err)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
-	require.NotNil(t, tool, "spawn_subagent tool must be present")
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
@@ -768,7 +768,7 @@ func TestSpawnSubagent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
-func TestSpawnSubagent_PlanModeRejectsComputerUse(t *testing.T) {
+func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -794,12 +794,12 @@ func TestSpawnSubagent_PlanModeRejectsComputerUse(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	resp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
-		SubagentType: subagentTypeComputerUse,
-		Prompt:       "open the browser and click around",
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser and click around",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `subagent_type "computer_use" is unavailable in plan mode`)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable in plan mode`)
 }
 
 func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing.T) {
@@ -814,7 +814,7 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 	require.NotContains(t, guidance, "may inspect or modify workspace files")
 }
 
-func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
+func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -833,11 +833,11 @@ func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: "invalid", Prompt: "delegate work"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: "invalid", Prompt: "delegate work"},
 	)
 	require.True(t, invalidResp.IsError)
-	require.Contains(t, invalidResp.Content, "subagent_type must be one of: general, explore")
+	require.Contains(t, invalidResp.Content, "type must be one of: general, explore")
 
 	unavailableResp := runSubagentTool(
 		ctx,
@@ -845,14 +845,14 @@ func TestSpawnSubagent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeComputerUse, Prompt: "open browser"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
 	require.True(t, unavailableResp.IsError)
-	require.Contains(t, unavailableResp.Content, `subagent_type "computer_use" is unavailable because computer use is not configured`)
+	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because computer use is not configured`)
 }
 
-func TestSpawnSubagent_BlankTypeReturnsValidOptions(t *testing.T) {
+func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -880,12 +880,12 @@ func TestSpawnSubagent_BlankTypeReturnsValidOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			resp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
-				SubagentType: tt.subagentType,
-				Prompt:       "delegate work",
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:   tt.subagentType,
+				Prompt: "delegate work",
 			})
 			require.True(t, resp.IsError)
-			require.Contains(t, resp.Content, "subagent_type must be one of:")
+			require.Contains(t, resp.Content, "type must be one of:")
 			require.Contains(t, resp.Content, subagentTypeGeneral)
 			require.Contains(t, resp.Content, subagentTypeExplore)
 			require.Contains(t, resp.Content, subagentTypeComputerUse)
@@ -893,7 +893,7 @@ func TestSpawnSubagent_BlankTypeReturnsValidOptions(t *testing.T) {
 	}
 }
 
-func TestSpawnSubagent_NotAvailableForChildChats(t *testing.T) {
+func TestSpawnAgent_NotAvailableForChildChats(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -911,20 +911,20 @@ func TestSpawnSubagent_NotAvailableForChildChats(t *testing.T) {
 	require.True(t, childChat.ParentChatID.Valid, "child chat must have a parent")
 
 	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
-	require.NotNil(t, tool, "spawn_subagent tool must be present")
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
 
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    "call-child",
-		Name:  spawnSubagentToolName,
-		Input: `{"subagent_type":"general","prompt":"open browser"}`,
+		Name:  spawnAgentToolName,
+		Input: `{"type":"general","prompt":"open browser"}`,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
 	require.Contains(t, resp.Content, "delegated chats cannot create child subagents")
 }
 
-func TestSpawnSubagent_NotAvailableForExploreChats(t *testing.T) {
+func TestSpawnAgent_NotAvailableForExploreChats(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -948,13 +948,13 @@ func TestSpawnSubagent_NotAvailableForExploreChats(t *testing.T) {
 	require.NoError(t, err)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
-	require.NotNil(t, tool, "spawn_subagent tool must be present")
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
 
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    "call-explore",
-		Name:  spawnSubagentToolName,
-		Input: `{"subagent_type":"general","prompt":"delegate work"}`,
+		Name:  spawnAgentToolName,
+		Input: `{"type":"general","prompt":"delegate work"}`,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
@@ -1002,11 +1002,11 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				"parent-lifecycle-"+tt.variant,
 			)
 
-			spawnResp := runSpawnSubagentTool(ctx, t, server, parentChat, spawnSubagentArgs{
-				SubagentType: tt.variant,
-				Prompt:       "delegate work",
+			spawnResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:   tt.variant,
+				Prompt: "delegate work",
 			})
-			spawnResult := requireSpawnSubagentResponse(t, spawnResp)
+			spawnResult := requireSpawnAgentResponse(t, spawnResp)
 			require.Equal(t, tt.variant, spawnResult.SubagentType)
 			childID, err := uuid.Parse(spawnResult.ChatID)
 			require.NoError(t, err)
@@ -1022,7 +1022,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				"wait_agent",
 				waitAgentArgs{ChatID: childID.String()},
 			), false)
-			require.Equal(t, tt.variant, waitResult["subagent_type"])
+			require.Equal(t, tt.variant, waitResult["type"])
 
 			messageResult := requireToolResponseMap(t, runSubagentTool(
 				ctx,
@@ -1033,7 +1033,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				"message_agent",
 				messageAgentArgs{ChatID: childID.String(), Message: "follow up"},
 			), false)
-			require.Equal(t, tt.variant, messageResult["subagent_type"])
+			require.Equal(t, tt.variant, messageResult["type"])
 
 			setChatStatus(ctx, t, db, childID, database.ChatStatusRunning, "")
 			closeResult := requireToolResponseMap(t, runSubagentTool(
@@ -1045,7 +1045,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				"close_agent",
 				closeAgentArgs{ChatID: childID.String()},
 			), false)
-			require.Equal(t, tt.variant, closeResult["subagent_type"])
+			require.Equal(t, tt.variant, closeResult["type"])
 		})
 	}
 }
@@ -1110,13 +1110,13 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 				tt.toolName,
 				tt.args,
 			), true)
-			require.Equal(t, subagentTypeGeneral, result["subagent_type"])
+			require.Equal(t, subagentTypeGeneral, result["type"])
 			require.Equal(t, tt.wantError, result["error"])
 		})
 	}
 }
 
-func TestSpawnSubagent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
+func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1152,10 +1152,10 @@ func TestSpawnSubagent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeComputerUse, Prompt: "take a screenshot"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "take a screenshot"},
 	)
-	result := requireSpawnSubagentResponse(t, resp)
+	result := requireSpawnAgentResponse(t, resp)
 	require.Equal(t, subagentTypeComputerUse, result.SubagentType)
 	childID, err := uuid.Parse(result.ChatID)
 	require.NoError(t, err)
@@ -1174,7 +1174,7 @@ func TestSpawnSubagent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	assert.NotEmpty(t, chattool.ComputerUseModelName)
 }
 
-func TestSpawnSubagent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
+func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1222,8 +1222,8 @@ func TestSpawnSubagent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 		server,
 		parentChat,
 		parentChat.LastModelConfigID,
-		spawnSubagentToolName,
-		spawnSubagentArgs{SubagentType: subagentTypeComputerUse, Prompt: "check the UI"},
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "check the UI"},
 	)
 	childID := requireSpawnAgentChildChatID(t, resp)
 

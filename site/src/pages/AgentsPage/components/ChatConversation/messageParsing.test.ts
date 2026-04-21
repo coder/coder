@@ -29,7 +29,7 @@ describe("parseToolResultIsError", () => {
 		).toBe(true);
 	});
 
-	it("returns false for completed subagent even with error field", () => {
+	it("returns false for completed subagent tools, including legacy spawn_subagent, even with error field", () => {
 		expect(
 			parseToolResultIsError(
 				"spawn_agent",
@@ -619,38 +619,58 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("legacy-desktop-child")).toBe("computer_use");
 	});
 
-	it("parses spawn_subagent variants from args and results", () => {
+	it("keeps legacy spawn_subagent payload parsing intact", () => {
 		const { titles, variants } = parseSubagents([
 			msg(1, [
-				toolCall("spawn-general", "spawn_subagent", {
-					subagent_type: "general",
+				toolCall("legacy-unified", "spawn_subagent", {
+					subagent_type: "explore",
+					title: "Legacy unified",
+				}),
+				toolResult("legacy-unified", "spawn_subagent", {
+					chat_id: "legacy-unified-child",
+					subagent_type: "explore",
+					title: "Legacy unified",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(titles.get("legacy-unified-child")).toBe("Legacy unified");
+		expect(variants.get("legacy-unified-child")).toBe("explore");
+	});
+
+	it("parses spawn_agent variants from args and results", () => {
+		const { titles, variants } = parseSubagents([
+			msg(1, [
+				toolCall("spawn-general", "spawn_agent", {
+					type: "general",
 					title: "General helper",
 				}),
-				toolResult("spawn-general", "spawn_subagent", {
+				toolResult("spawn-general", "spawn_agent", {
 					chat_id: "spawn-general-child",
-					subagent_type: "general",
+					type: "general",
 					title: "General helper",
 					status: "completed",
 				}),
 			]),
 			msg(2, [
-				toolCall("spawn-explore", "spawn_subagent", {
-					subagent_type: "explore",
+				toolCall("spawn-explore", "spawn_agent", {
+					type: "explore",
 				}),
-				toolResult("spawn-explore", "spawn_subagent", {
+				toolResult("spawn-explore", "spawn_agent", {
 					chat_id: "spawn-explore-child",
-					subagent_type: "explore",
+					type: "explore",
 					status: "completed",
 				}),
 			]),
 			msg(3, [
-				toolCall("spawn-desktop", "spawn_subagent", {
-					subagent_type: "computer_use",
+				toolCall("spawn-desktop", "spawn_agent", {
+					type: "computer_use",
 					title: "Desktop helper",
 				}),
-				toolResult("spawn-desktop", "spawn_subagent", {
+				toolResult("spawn-desktop", "spawn_agent", {
 					chat_id: "spawn-desktop-child",
-					subagent_type: "computer_use",
+					type: "computer_use",
 					title: "Desktop helper",
 					status: "completed",
 				}),
@@ -663,7 +683,7 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("spawn-desktop-child")).toBe("computer_use");
 	});
 
-	it("buildSubagentMaps merges mixed legacy and spawn_subagent transcripts coherently", () => {
+	it("buildSubagentMaps merges mixed legacy and spawn_agent transcripts coherently", () => {
 		const parsedMessages = parseMessagesWithMergedTools([
 			msg(1, [toolCall("legacy", "spawn_agent", { title: "Legacy helper" })]),
 			msg(2, [
@@ -674,15 +694,15 @@ describe("subagent transcript parsing", () => {
 				}),
 			]),
 			msg(3, [
-				toolCall("unified", "spawn_subagent", {
-					subagent_type: "explore",
+				toolCall("unified", "spawn_agent", {
+					type: "explore",
 					title: "Unified helper",
 				}),
 			]),
 			msg(4, [
-				toolResult("unified", "spawn_subagent", {
+				toolResult("unified", "spawn_agent", {
 					chat_id: "unified-child",
-					subagent_type: "explore",
+					type: "explore",
 					title: "Unified helper",
 					status: "completed",
 				}),
@@ -697,7 +717,7 @@ describe("subagent transcript parsing", () => {
 		expect(parsedMessages[2]?.parsed.tools[0]?.result).toMatchObject({
 			chat_id: "unified-child",
 			title: "Unified helper",
-			subagent_type: "explore",
+			type: "explore",
 		});
 		expect(titles.get("legacy-child")).toBe("Legacy helper");
 		expect(titles.get("unified-child")).toBe("Unified helper");
@@ -713,7 +733,7 @@ describe("subagent transcript parsing", () => {
 				toolCall("close-tool", "close_agent", { chat_id: "closing-child" }),
 				toolResult("close-tool", "close_agent", {
 					chat_id: "closing-child",
-					subagent_type: "explore",
+					type: "explore",
 					status: "completed",
 				}),
 			]),
@@ -722,7 +742,7 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("closing-child")).toBe("explore");
 	});
 
-	it("tracks computer-use variants for legacy and spawn_subagent tools", () => {
+	it("tracks computer-use variants for legacy and spawn_agent tools", () => {
 		const { variants } = parseSubagents([
 			msg(1, [
 				toolCall("legacy-desktop", "spawn_computer_use_agent", {}),
@@ -732,12 +752,12 @@ describe("subagent transcript parsing", () => {
 				}),
 			]),
 			msg(2, [
-				toolCall("unified-desktop", "spawn_subagent", {
-					subagent_type: "computer_use",
+				toolCall("unified-desktop", "spawn_agent", {
+					type: "computer_use",
 				}),
-				toolResult("unified-desktop", "spawn_subagent", {
+				toolResult("unified-desktop", "spawn_agent", {
 					chat_id: "unified-desktop-child",
-					subagent_type: "computer_use",
+					type: "computer_use",
 					status: "completed",
 				}),
 			]),
@@ -747,13 +767,13 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("unified-desktop-child")).toBe("computer_use");
 	});
 
-	it("prefers lifecycle result subagent_type metadata when present", () => {
+	it("prefers lifecycle result type metadata when present", () => {
 		const { variants } = parseSubagents([
 			msg(1, [
 				toolCall("wait-tool", "wait_agent", { chat_id: "wait-child" }),
 				toolResult("wait-tool", "wait_agent", {
 					chat_id: "wait-child",
-					subagent_type: "explore",
+					type: "explore",
 					status: "completed",
 				}),
 			]),
@@ -764,7 +784,7 @@ describe("subagent transcript parsing", () => {
 				}),
 				toolResult("message-tool", "message_agent", {
 					chat_id: "message-child",
-					subagent_type: "computer_use",
+					type: "computer_use",
 					status: "completed",
 				}),
 			]),
@@ -772,7 +792,7 @@ describe("subagent transcript parsing", () => {
 				toolCall("close-tool", "close_agent", { chat_id: "close-child" }),
 				toolResult("close-tool", "close_agent", {
 					chat_id: "close-child",
-					subagent_type: "general",
+					type: "general",
 					status: "completed",
 				}),
 			]),
@@ -786,13 +806,13 @@ describe("subagent transcript parsing", () => {
 	it("preserves lifecycle variants inferred from earlier spawn history", () => {
 		const { titles, variants } = parseSubagents([
 			msg(1, [
-				toolCall("spawn-tool", "spawn_subagent", {
-					subagent_type: "explore",
+				toolCall("spawn-tool", "spawn_agent", {
+					type: "explore",
 					title: "Inspect repository",
 				}),
-				toolResult("spawn-tool", "spawn_subagent", {
+				toolResult("spawn-tool", "spawn_agent", {
 					chat_id: "history-child",
-					subagent_type: "explore",
+					type: "explore",
 					title: "Inspect repository",
 					status: "completed",
 				}),

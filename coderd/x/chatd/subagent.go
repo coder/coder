@@ -159,7 +159,7 @@ func (p *Server) subagentTools(
 		currentChatSnapshot = currentChat()
 	}
 
-	spawnSubagentDescription := buildSpawnSubagentDescription(
+	spawnAgentDescription := buildSpawnAgentDescription(
 		ctx,
 		p,
 		currentChatSnapshot,
@@ -167,9 +167,9 @@ func (p *Server) subagentTools(
 
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
-			spawnSubagentToolName,
-			spawnSubagentDescription,
-			func(ctx context.Context, args spawnSubagentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			spawnAgentToolName,
+			spawnAgentDescription,
+			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
@@ -183,7 +183,7 @@ func (p *Server) subagentTools(
 					ctx,
 					p,
 					parent,
-					args.SubagentType,
+					args.Type,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -222,7 +222,7 @@ func (p *Server) subagentTools(
 			"wait_agent",
 			"Wait until a spawned child agent finishes its task. "+
 				"Returns the agent's final response and status. "+
-				"Call this after "+spawnSubagentToolName+" to collect the "+
+				"Call this after "+spawnAgentToolName+" to collect the "+
 				"result before continuing your own work.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -440,7 +440,7 @@ func (p *Server) loadSubagentSpawnParentChat(
 
 	reloadedParent, err := p.db.GetChatByID(ctx, parent.ID)
 	if err != nil {
-		p.logger.Warn(ctx, "failed to load parent chat for spawn_subagent",
+		p.logger.Warn(ctx, "failed to load parent chat for spawn_agent",
 			slog.F("chat_id", parent.ID),
 			slog.Error(err),
 		)

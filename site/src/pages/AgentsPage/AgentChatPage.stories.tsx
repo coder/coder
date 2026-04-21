@@ -867,16 +867,16 @@ export const WithMixedSubagentTranscript: Story = {
 							{
 								type: "tool-call",
 								tool_call_id: "unified-spawn",
-								tool_name: "spawn_subagent",
-								args: { subagent_type: "explore" },
+								tool_name: "spawn_agent",
+								args: { type: "explore" },
 							},
 							{
 								type: "tool-result",
 								tool_call_id: "unified-spawn",
-								tool_name: "spawn_subagent",
+								tool_name: "spawn_agent",
 								result: {
 									chat_id: "explore-child",
-									subagent_type: "explore",
+									type: "explore",
 									status: "completed",
 								},
 							},
@@ -892,7 +892,7 @@ export const WithMixedSubagentTranscript: Story = {
 								tool_name: "wait_agent",
 								result: {
 									chat_id: "explore-child",
-									subagent_type: "explore",
+									type: "explore",
 									status: "completed",
 								},
 							},
@@ -908,7 +908,7 @@ export const WithMixedSubagentTranscript: Story = {
 								tool_name: "close_agent",
 								result: {
 									chat_id: "legacy-child",
-									subagent_type: "general",
+									type: "general",
 									status: "completed",
 								},
 							},

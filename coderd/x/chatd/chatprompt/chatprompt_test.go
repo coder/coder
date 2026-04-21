@@ -292,13 +292,13 @@ func TestInjectFileID_StripsInlineData(t *testing.T) {
 func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_subagent (local) + web_search
+	// Step 1: assistant calls spawn_agent (local) + web_search
 	// (provider_executed). Only the local tool has a result.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_local",
-			ToolName:   "spawn_subagent",
-			Input:      `{"subagent_type":"general","prompt":"test"}`,
+			ToolName:   "spawn_agent",
+			Input:      `{"type":"general","prompt":"test"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_websearch",
@@ -309,8 +309,8 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 	})
 
 	localResult := mustMarshalToolResult(t,
-		"toolu_local", "spawn_subagent",
-		json.RawMessage(`{"status":"done","subagent_type":"general"}`),
+		"toolu_local", "spawn_agent",
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 
@@ -351,12 +351,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_subagent + legacy spawn_agent + web_search (PE).
+	// Step 1: assistant calls spawn_agent + legacy spawn_agent + web_search (PE).
 	step1Assistant := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_A",
-			ToolName:   "spawn_subagent",
-			Input:      `{"subagent_type":"general","prompt":"a"}`,
+			ToolName:   "spawn_agent",
+			Input:      `{"type":"general","prompt":"a"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_B",
@@ -372,8 +372,8 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	})
 
 	resultA := mustMarshalToolResult(t,
-		"toolu_A", "spawn_subagent",
-		json.RawMessage(`{"status":"done","subagent_type":"general"}`),
+		"toolu_A", "spawn_agent",
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 	resultB := mustMarshalToolResult(t,
@@ -1154,7 +1154,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 	t.Parallel()
 
-	resultJSON := `{"error":"target chat is not a descendant of current chat","subagent_type":"explore"}`
+	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
 	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
 		ToolCallID: "call-1",
 		ToolName:   "wait_agent",

@@ -43,6 +43,7 @@ const actionByToolName: Record<string, SubagentAction> = {
 	spawn_agent: "spawn",
 	spawn_explore_agent: "spawn",
 	spawn_computer_use_agent: "spawn",
+	// Legacy persisted tool name from the pre-rename unified contract.
 	spawn_subagent: "spawn",
 	wait_agent: "wait",
 	message_agent: "message",
@@ -50,7 +51,6 @@ const actionByToolName: Record<string, SubagentAction> = {
 };
 
 const variantBySpawnToolName: Record<string, SubagentVariant> = {
-	spawn_agent: "general",
 	spawn_explore_agent: "explore",
 	spawn_computer_use_agent: "computer_use",
 };
@@ -127,9 +127,12 @@ export const getSubagentDescriptor = ({
 	const resultRecord = parseArgs(result);
 	const argsRecord = parseArgs(args);
 	const variant =
-		getVariantFromName(name) ??
+		normalizeSubagentVariant(resultRecord?.type) ??
+		normalizeSubagentVariant(argsRecord?.type) ??
+		// Legacy persisted payloads used subagent_type.
 		normalizeSubagentVariant(resultRecord?.subagent_type) ??
 		normalizeSubagentVariant(argsRecord?.subagent_type) ??
+		getVariantFromName(name) ??
 		inferredVariant ??
 		"general";
 	const catalogEntry = subagentCatalog[variant];

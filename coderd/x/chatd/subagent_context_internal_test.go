@@ -480,13 +480,13 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-	tool := findToolByName(tools, spawnSubagentToolName)
+	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)
 
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    "call-context",
-		Name:  spawnSubagentToolName,
-		Input: `{"subagent_type":"computer_use","prompt":"inspect bindings"}`,
+		Name:  spawnAgentToolName,
+		Input: `{"type":"computer_use","prompt":"inspect bindings"}`,
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)

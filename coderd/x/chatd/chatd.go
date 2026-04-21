@@ -5260,7 +5260,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"create_workspace":  false,
 		"start_workspace":   false,
 		"propose_plan":      false,
-		"spawn_subagent":    false,
+		"spawn_agent":       false,
 		"wait_agent":        false,
 		"message_agent":     false,
 		"close_agent":       false,
