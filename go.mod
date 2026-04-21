@@ -158,7 +158,7 @@ require (
 	github.com/gohugoio/hugo v0.160.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
-	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
+	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0

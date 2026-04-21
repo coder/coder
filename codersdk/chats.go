@@ -1200,6 +1200,9 @@ type ChatStreamStatus struct {
 type ChatStreamError struct {
 	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
+	// Detail is optional provider-specific context shown alongside the
+	// normalized error message when available.
+	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
 	Kind string `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.

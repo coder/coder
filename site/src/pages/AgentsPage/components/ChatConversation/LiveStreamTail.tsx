@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
 	selectIsAwaitingFirstStreamChunk,
@@ -36,7 +37,7 @@ interface LiveStreamTailContentProps {
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -49,7 +50,7 @@ export const LiveStreamTailContent = ({
 	liveStatus,
 	startingResetKey,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	subagentStatusOverrides,
 	urlTransform,
 	mcpServers,
@@ -83,7 +84,7 @@ export const LiveStreamTailContent = ({
 					liveStatus={liveStatus}
 					startingResetKey={startingResetKey}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					subagentStatusOverrides={subagentStatusOverrides}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
@@ -113,7 +114,7 @@ interface LiveStreamTailProps {
 	isTranscriptEmpty: boolean;
 	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -124,7 +125,7 @@ export const LiveStreamTail = ({
 	isTranscriptEmpty,
 	startingResetKey,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailProps) => {
@@ -161,7 +162,7 @@ export const LiveStreamTail = ({
 			liveStatus={liveStatus}
 			startingResetKey={startingResetKey}
 			subagentTitles={subagentTitles}
-			computerUseSubagentIds={computerUseSubagentIds}
+			subagentVariants={subagentVariants}
 			subagentStatusOverrides={subagentStatusOverrides}
 			urlTransform={urlTransform}
 			mcpServers={mcpServers}
