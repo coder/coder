@@ -221,6 +221,7 @@ export const SubagentTool: React.FC<{
 					{chatId && (
 						<Link
 							to={`/agents/${chatId}`}
+							preventScrollReset
 							onClick={(e) => e.stopPropagation()}
 							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 							aria-label="View agent"

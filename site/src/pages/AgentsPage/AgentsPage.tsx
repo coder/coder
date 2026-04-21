@@ -342,7 +342,7 @@ const AgentsPage: FC = () => {
 					: undefined,
 			)
 		) {
-			navigate("/agents");
+			navigate("/agents", { preventScrollReset: true });
 		}
 	};
 
@@ -475,7 +475,7 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate("/agents", { preventScrollReset: true });
 	};
 
 	useEffect(() => {

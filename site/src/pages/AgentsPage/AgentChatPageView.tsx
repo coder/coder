@@ -1,12 +1,6 @@
 import { ArchiveIcon } from "lucide-react";
 
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type ReactNode, type RefObject, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
@@ -147,9 +141,9 @@ interface AgentChatPageViewProps {
 	isRegeneratingTitle?: boolean;
 	isRegenerateTitleDisabled?: boolean;
 
-	// Scroll container ref.
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
-	scrollToBottomRef?: RefObject<(() => void) | null>;
+	// Scroll container callbacks.
+	onScrollContainerChange?: (element: HTMLDivElement | null) => void;
+	onScrollToBottomChange?: (scrollToBottom: (() => void) | null) => void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -219,8 +213,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleRegenerateTitle,
 	isRegeneratingTitle,
 	isRegenerateTitleDisabled,
-	scrollContainerRef,
-	scrollToBottomRef,
+	onScrollContainerChange,
+	onScrollToBottomChange,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
@@ -257,9 +251,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-	const internalScrollToBottomRef = useRef<(() => void) | null>(null);
-	const effectiveScrollToBottomRef =
-		scrollToBottomRef ?? internalScrollToBottomRef;
 
 	// State for programmatically switching the sidebar tab (e.g. when
 	// the user clicks the inline desktop preview card).
@@ -376,8 +367,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</div>
 						<ChatScrollContainer
 							key={agentId}
-							scrollContainerRef={scrollContainerRef}
-							scrollToBottomRef={effectiveScrollToBottomRef}
+							onScrollContainerChange={onScrollContainerChange}
+							onScrollToBottomChange={onScrollToBottomChange}
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}

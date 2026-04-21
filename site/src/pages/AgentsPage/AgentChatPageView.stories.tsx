@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps, FC } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -148,7 +148,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
 		handleRegenerateTitle: fn(),
-		scrollContainerRef: { current: null },
+		onScrollContainerChange: fn(),
+		onScrollToBottomChange: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		onFetchMoreMessages: fn(),
@@ -557,7 +558,6 @@ const editingMessages = [
 	),
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
-
 /** Editing a message in the middle of the conversation — shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
@@ -571,6 +571,105 @@ export const EditingMessage: Story = {
 			}}
 		/>
 	),
+};
+
+/** Entering history edit mode should preserve the edited message position. */
+export const EditingHistoryPreservesViewportPosition: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	render: () => {
+		const [editingState, setEditingState] = useState({
+			editingMessageId: null as number | null,
+			editorInitialValue: "",
+			remountKey: 0,
+		});
+		return (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<StoryAgentChatPageView
+					store={historyEditShiftStore}
+					editing={{
+						...editingState,
+						handleEditUserMessage: (messageId, text) => {
+							setEditingState((current) => ({
+								editingMessageId: messageId,
+								editorInitialValue: text,
+								remountKey: current.remountKey + 1,
+							}));
+						},
+						handleCancelHistoryEdit: () => {
+							setEditingState((current) => ({
+								editingMessageId: null,
+								editorInitialValue: "",
+								remountKey: current.remountKey + 1,
+							}));
+						},
+					}}
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
+		);
+		const targetAnchor = await waitFor(() => {
+			const anchor = canvasElement.querySelector<HTMLElement>(
+				"[data-chat-anchor-id='message-11']",
+			);
+			if (!anchor) {
+				throw new Error("Expected editable message anchor.");
+			}
+			return anchor;
+		});
+		scrollContainer.scrollTop = Math.max(0, targetAnchor.offsetTop - 180);
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		const targetMessage = targetAnchor.nextElementSibling as HTMLElement | null;
+		if (!targetMessage) {
+			throw new Error("Expected editable message container.");
+		}
+		const editButton = await waitFor(() => {
+			const button = within(targetMessage).getByRole("button", {
+				name: "Edit message",
+			});
+			return button;
+		});
+		const offsetBeforeEdit =
+			targetAnchor.getBoundingClientRect().top -
+			scrollContainer.getBoundingClientRect().top;
+
+		await userEvent.click(editButton);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Editing will delete all subsequent messages and restart the conversation here.",
+				),
+			).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			const offsetAfterEdit =
+				targetAnchor.getBoundingClientRect().top -
+				scrollContainer.getBoundingClientRect().top;
+			expect(Math.abs(offsetAfterEdit - offsetBeforeEdit)).toBeLessThan(8);
+		});
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -618,6 +717,8 @@ const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
 	}
 	return messages;
 };
+
+const historyEditShiftStore = buildStoreWithMessages(buildLongConversation(30));
 
 const scrollStoryDecorators: Decorator[] = [
 	(Story) => (
@@ -671,6 +772,93 @@ const getStoreMessages = (
 
 /** Scroll-to-bottom button appears after scrolling up in a long
  *  conversation, and clicking it returns to the bottom. */
+const smoothScrollFollowStore = buildStoreWithMessages(
+	buildLongConversation(40),
+);
+
+/** Clicking the button should keep follow mode during the trip back down. */
+export const ScrollToBottomButtonKeepsFollowingDuringSmoothScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={smoothScrollFollowStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollAwayFromBottom(scrollContainer);
+		const button = await waitFor(() => {
+			const nextButton = canvas.getByRole("button", {
+				name: "Scroll to bottom",
+			});
+			expect(nextButton).toBeVisible();
+			return nextButton;
+		});
+
+		const originalScrollTo = scrollContainer.scrollTo.bind(scrollContainer);
+		scrollContainer.scrollTo = ((
+			options?: ScrollToOptions | number,
+			_y?: number,
+		) => {
+			if (
+				typeof options === "object" &&
+				options !== null &&
+				options.behavior === "smooth"
+			) {
+				const finalTop = Number(options.top ?? 0);
+				const intermediateTop = Math.max(
+					scrollContainer.scrollTop,
+					finalTop - 300,
+				);
+				scrollContainer.scrollTop = intermediateTop;
+				scrollContainer.dispatchEvent(new Event("scroll"));
+				requestAnimationFrame(() => {
+					scrollContainer.scrollTop = finalTop;
+					scrollContainer.dispatchEvent(new Event("scroll"));
+				});
+				return;
+			}
+			if (typeof options === "number") {
+				originalScrollTo({ top: options });
+				return;
+			}
+			originalScrollTo(options);
+		}) as typeof scrollContainer.scrollTo;
+
+		await userEvent.click(button);
+		const existing = getStoreMessages(smoothScrollFollowStore);
+		smoothScrollFollowStore.replaceMessages(
+			existing.concat([
+				buildMessage(41, "assistant", "Streaming tail. ".repeat(80)),
+			]),
+		);
+
+		await waitFor(() => {
+			const dist =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(dist).toBeLessThan(5);
+		});
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
 export const ScrollToBottomButton: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
@@ -739,6 +927,46 @@ export const ScrollToBottomButton: Story = {
 // it. Stories in a file execute sequentially, so there is no
 // cross-contamination.
 const preservedScrollStore = buildStoreWithMessages(buildLongConversation(30));
+const streamedTailCommitText = "Streaming tail content. ".repeat(900);
+
+const streamedTailCommitStore = (() => {
+	const store = buildStoreWithMessages(buildLongConversation(11), "running");
+	store.setStreamState({
+		blocks: [
+			{
+				type: "response",
+				text: streamedTailCommitText,
+			},
+		],
+		toolCalls: {},
+		toolResults: {},
+		sources: [],
+	});
+	return store;
+})();
+
+const interruptTransitionStore = (() => {
+	const store = buildStoreWithMessages(
+		[
+			buildMessage(1, "user", "Earlier prompt"),
+			buildMessage(2, "assistant", "Earlier response. ".repeat(40)),
+			buildMessage(3, "user", "Latest prompt awaiting interruption"),
+		],
+		"running",
+	);
+	store.setStreamState({
+		blocks: [
+			{
+				type: "response",
+				text: "Streaming tail content. ".repeat(900),
+			},
+		],
+		toolCalls: {},
+		toolResults: {},
+		sources: [],
+	});
+	return store;
+})();
 
 /** When scrolled away from bottom, new content preserves scroll position. */
 export const ScrollPositionPreservedOnNewContent: Story = {
@@ -821,6 +1049,131 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 	},
 };
 
+/** Detached readers stay anchored when streamed output becomes durable. */
+export const TranslatesLiveTailAnchorWhenStreamCommits: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={streamedTailCommitStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		const liveTail = await waitFor(() => {
+			const nextTail = canvasElement.querySelector<HTMLElement>(
+				"[data-chat-anchor-id='live-stream-tail']",
+			);
+			if (!nextTail) {
+				throw new Error("Expected live stream tail anchor.");
+			}
+			return nextTail;
+		});
+
+		scrollAwayFromBottom(scrollContainer);
+		scrollContainer.scrollTop = Math.max(0, liveTail.offsetTop + 180);
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		const liveTailOffsetBefore =
+			liveTail.getBoundingClientRect().top -
+			scrollContainer.getBoundingClientRect().top;
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Scroll to bottom" }),
+			).toBeVisible();
+		});
+
+		const existing = getStoreMessages(streamedTailCommitStore);
+		streamedTailCommitStore.batch(() => {
+			streamedTailCommitStore.replaceMessages(
+				existing.concat([
+					buildMessage(12, "assistant", streamedTailCommitText),
+				]),
+			);
+			streamedTailCommitStore.clearStreamState();
+			streamedTailCommitStore.setChatStatus("completed");
+		});
+
+		const committedAnchor = await waitFor(() => {
+			const nextAnchor = canvasElement.querySelector<HTMLElement>(
+				"[data-chat-anchor-id='message-12']",
+			);
+			if (!nextAnchor) {
+				throw new Error("Expected committed durable anchor.");
+			}
+			return nextAnchor;
+		});
+		await waitFor(() => {
+			expect(
+				canvasElement.querySelector("[data-chat-anchor-id='live-stream-tail']"),
+			).toBeNull();
+		});
+		await waitFor(() => {
+			const committedOffsetAfter =
+				committedAnchor.getBoundingClientRect().top -
+				scrollContainer.getBoundingClientRect().top;
+			expect(
+				Math.abs(committedOffsetAfter - liveTailOffsetBefore),
+			).toBeLessThan(8);
+		});
+	},
+};
+
+/** Interrupt transitions should keep the latest-user preview pinned. */
+export const InterruptTransitionKeepsLatestUserPinned: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={interruptTransitionStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(() => {
+			const dist =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(dist).toBeLessThan(5);
+		});
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText("Latest prompt awaiting interruption"),
+			).toHaveLength(2);
+		});
+		const latestPromptAnchor = await waitFor(() => {
+			const anchor = canvasElement.querySelector<HTMLElement>(
+				"[data-chat-anchor-id='message-3']",
+			);
+			if (!anchor) {
+				throw new Error("Expected latest prompt anchor.");
+			}
+			return anchor;
+		});
+		const anchorOffsetBefore =
+			latestPromptAnchor.getBoundingClientRect().top -
+			scrollContainer.getBoundingClientRect().top;
+		const scrollTopBefore = scrollContainer.scrollTop;
+
+		interruptTransitionStore.batch(() => {
+			interruptTransitionStore.clearStreamState();
+			interruptTransitionStore.setChatStatus("running");
+		});
+
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText("Latest prompt awaiting interruption"),
+			).toHaveLength(2);
+		});
+		await waitFor(() => {
+			const anchorOffsetAfter =
+				latestPromptAnchor.getBoundingClientRect().top -
+				scrollContainer.getBoundingClientRect().top;
+			expect(Math.abs(anchorOffsetAfter - anchorOffsetBefore)).toBeLessThan(8);
+			expect(
+				Math.abs(scrollContainer.scrollTop - scrollTopBefore),
+			).toBeLessThan(8);
+		});
+	},
+};
+
 const pinnedScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /** When at bottom, new content keeps the user pinned to bottom. */
@@ -897,6 +1250,9 @@ const dispatchTouchEvent = (
 };
 
 const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
+const historyFetchGuardStore = buildStoreWithMessages(
+	buildLongConversation(30),
+);
 
 /** During an active touch gesture, the container ResizeObserver must not
  *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
@@ -924,6 +1280,15 @@ export const ScrollNotJumpedDuringTouch: Story = {
 		await new Promise<void>((resolve) =>
 			requestAnimationFrame(() => resolve()),
 		);
+
+		// A simple tap should not detach follow mode.
+		dispatchTouchEvent(scrollContainer, "touchstart", 1);
+		dispatchTouchEvent(scrollContainer, "touchend", 1);
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
 
 		// Simulate a multi-touch gesture starting with two fingers down.
 		dispatchTouchEvent(scrollContainer, "touchstart", 2);
@@ -1070,7 +1435,409 @@ export const ScrollNotJumpedDuringWheel: Story = {
 	},
 };
 
+const historyFetchGuardSpy = fn();
+const shortTranscriptHistoryFetchSpy = fn();
+
+/** Older history should load only after detaching and reaching the top sentinel. */
+export const HistoryFetchRequiresDetachment: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => {
+		historyFetchGuardSpy.mockClear();
+		return (
+			<StoryAgentChatPageView
+				store={historyFetchGuardStore}
+				hasMoreMessages
+				onFetchMoreMessages={historyFetchGuardSpy}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		expect(historyFetchGuardSpy).not.toHaveBeenCalled();
+
+		const maxScrollTop =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		expect(maxScrollTop).toBeGreaterThan(700);
+		const detachedScrollTop = Math.min(maxScrollTop, 700);
+
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
+		);
+		scrollContainer.scrollTop = detachedScrollTop;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Scroll to bottom" }),
+			).toBeVisible();
+		});
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+		expect(historyFetchGuardSpy).not.toHaveBeenCalled();
+
+		scrollContainer.scrollTop = 0;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(historyFetchGuardSpy).toHaveBeenCalledTimes(1);
+		});
+	},
+};
+
+/** Short transcripts should still fetch older history before the viewport can detach. */
+export const ShortTranscriptFetchesHistoryWhilePinned: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => {
+		shortTranscriptHistoryFetchSpy.mockClear();
+		return (
+			<StoryAgentChatPageView
+				store={buildStoreWithMessages([
+					buildMessage(1, "user", "Need the earlier context."),
+					buildMessage(2, "assistant", "Loading the most recent page."),
+				])}
+				hasMoreMessages
+				onFetchMoreMessages={shortTranscriptHistoryFetchSpy}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeLessThanOrEqual(
+				scrollContainer.clientHeight,
+			);
+		});
+		await waitFor(() => {
+			expect(shortTranscriptHistoryFetchSpy).toHaveBeenCalledTimes(1);
+		});
+	},
+};
+
+const chatSwitchMessages = (offset: number): TypesGen.ChatMessage[] => [
+	...buildLongConversation(12).map((message) => ({
+		...message,
+		id: message.id + offset,
+	})),
+];
+const firstChatSwitchStore = buildStoreWithMessages(chatSwitchMessages(0));
+const secondChatSwitchStore = buildStoreWithMessages(chatSwitchMessages(100));
+
+/** Switching chats should reset the viewport to the latest message. */
+export const SwitchingChatsPinsToLatest: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => {
+		const [activeChatId, setActiveChatId] = useState("chat-a");
+		const activeStore =
+			activeChatId === "chat-a" ? firstChatSwitchStore : secondChatSwitchStore;
+		return (
+			<>
+				<button type="button" onClick={() => setActiveChatId("chat-b")}>
+					Open second chat
+				</button>
+				<StoryAgentChatPageView
+					agentId={activeChatId}
+					chatTitle={activeChatId === "chat-a" ? "Chat A" : "Chat B"}
+					store={activeStore}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollAwayFromBottom(scrollContainer);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Scroll to bottom" }),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open second chat" }),
+		);
+
+		const nextScrollContainer = await waitFor(() => {
+			const element = canvas.getByTestId("scroll-container");
+			expect(element).toBeInTheDocument();
+			return element;
+		});
+		await waitForScrollOverflow(nextScrollContainer);
+		await waitFor(() => {
+			const dist =
+				nextScrollContainer.scrollHeight -
+				nextScrollContainer.scrollTop -
+				nextScrollContainer.clientHeight;
+			expect(dist).toBeLessThan(5);
+		});
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};
+
+const createWorkspaceExpandBuildId = "c1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const createWorkspaceExpandLogs: TypesGen.ProvisionerJobLog[] = [
+	{
+		id: 1,
+		created_at: "2026-02-18T00:00:00.000Z",
+		log_source: "provisioner",
+		log_level: "info",
+		stage: "Starting workspace",
+		output: "Initializing Terraform...",
+	},
+	{
+		id: 2,
+		created_at: "2026-02-18T00:00:01.000Z",
+		log_source: "provisioner",
+		log_level: "info",
+		stage: "Starting workspace",
+		output: "Downloading modules...",
+	},
+	{
+		id: 3,
+		created_at: "2026-02-18T00:00:02.000Z",
+		log_source: "provisioner",
+		log_level: "info",
+		stage: "Starting workspace",
+		output: "Apply complete! Resources: 2 added, 0 changed, 0 destroyed.",
+	},
+];
+const createWorkspaceExpandStore = buildStoreWithMessages([
+	buildMessage(1, "user", "Create a workspace for the refactor branch."),
+	buildMessage(2, "assistant", "I'll create the workspace now."),
+	buildMessage(3, "user", "Use the standard template."),
+	buildMessage(
+		4,
+		"assistant",
+		"Using the standard template and waiting for the build.",
+	),
+	{
+		id: 5,
+		chat_id: AGENT_ID,
+		created_at: "2026-02-18T00:05:00.000Z",
+		role: "assistant",
+		content: [
+			{ type: "text", text: "The workspace has been created." },
+			{
+				type: "tool-call",
+				tool_call_id: "tool-create-workspace-1",
+				tool_name: "create_workspace",
+				args: {
+					name: "coder",
+					template_id: "template-1",
+				},
+			},
+		],
+	},
+	{
+		id: 6,
+		chat_id: AGENT_ID,
+		created_at: "2026-02-18T00:05:01.000Z",
+		role: "tool",
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "tool-create-workspace-1",
+				tool_name: "create_workspace",
+				result: {
+					created: "true",
+					owner_name: "owner",
+					workspace_name: "my-project",
+					build_id: createWorkspaceExpandBuildId,
+				},
+			},
+		],
+	},
+	...buildLongConversation(24).map((message) => ({
+		...message,
+		id: message.id + 6,
+	})),
+]);
+
+/** Expanding create-workspace logs must not move the outer chat viewport. */
+export const CreateWorkspaceExpandDoesNotShiftViewport: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		queries: [
+			{
+				key: ["workspaceBuilds", createWorkspaceExpandBuildId, "logs"],
+				data: createWorkspaceExpandLogs,
+			},
+		],
+	},
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={createWorkspaceExpandStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		const expandButton = await waitFor(() => {
+			const button = canvas.getByRole("button", {
+				name: /Created my-project/i,
+			});
+			expect(button).toBeVisible();
+			return button;
+		});
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
+		);
+		const scrollContainerTop = scrollContainer.getBoundingClientRect().top;
+		const headerOffset =
+			expandButton.getBoundingClientRect().top - scrollContainerTop;
+		scrollContainer.scrollTop += headerOffset - 24;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			const nextOffset =
+				expandButton.getBoundingClientRect().top -
+				scrollContainer.getBoundingClientRect().top;
+			expect(nextOffset).toBeGreaterThanOrEqual(0);
+			expect(nextOffset).toBeLessThan(64);
+		});
+
+		const scrollTopBeforeExpand = scrollContainer.scrollTop;
+		await userEvent.click(expandButton);
+
+		await waitFor(() => {
+			expect(canvas.getByText("Starting workspace")).toBeInTheDocument();
+		});
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+		expect(scrollContainer.scrollTop).toBeCloseTo(scrollTopBeforeExpand, 0);
+
+		const logsViewport = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='workspace-build-logs-scroll-area'] [data-radix-scroll-area-viewport]",
+		);
+		expect(logsViewport).not.toBeNull();
+		expect(
+			logsViewport!.scrollTop + logsViewport!.clientHeight,
+		).toBeGreaterThanOrEqual(logsViewport!.scrollHeight - 2);
+	},
+};
+
 const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
+const visibilityResetStore = buildStoreWithMessages(buildLongConversation(30));
+
+/**
+ * Backgrounding the page mid-gesture should clear stale touch state so
+ * later content can still pin to the latest message.
+ */
+export const VisibilityChangeClearsTouchGuard: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => {
+		visibilityResetStore.replaceMessages(buildLongConversation(30));
+		visibilityResetStore.clearStreamState();
+		visibilityResetStore.setChatStatus("completed");
+		return <StoryAgentChatPageView store={visibilityResetStore} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		dispatchTouchEvent(scrollContainer, "touchstart", 1);
+
+		const hiddenDescriptor = Object.getOwnPropertyDescriptor(
+			document,
+			"hidden",
+		);
+		try {
+			Object.defineProperty(document, "hidden", {
+				configurable: true,
+				value: true,
+			});
+			document.dispatchEvent(new Event("visibilitychange"));
+
+			const existing = getStoreMessages(visibilityResetStore);
+			const nextID = existing[existing.length - 1]?.id ?? 30;
+			visibilityResetStore.replaceMessages(
+				existing.concat([
+					buildMessage(
+						nextID + 1,
+						"assistant",
+						"Fresh streamed output after resume.",
+					),
+				]),
+			);
+
+			await waitFor(
+				() => {
+					const dist =
+						scrollContainer.scrollHeight -
+						scrollContainer.scrollTop -
+						scrollContainer.clientHeight;
+					expect(dist).toBeLessThan(5);
+				},
+				{ timeout: 2000 },
+			);
+		} finally {
+			Object.defineProperty(
+				document,
+				"hidden",
+				hiddenDescriptor ?? {
+					configurable: true,
+					value: false,
+				},
+			);
+		}
+	},
+};
 
 /**
  * Regression: when content grows during a wheel burst (so

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -57,11 +57,103 @@ const AgentChatPageLayout: FC = () => {
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
-							scrollContainerRef,
+							setScrollContainerElement: (element) => {
+								scrollContainerRef.current = element;
+							},
 						} satisfies AgentsOutletContext
 					}
 				/>
 			</div>
+		</div>
+	);
+};
+
+const MobileViewportChromeShiftLayout: FC = () => {
+	const [chromeHeight, setChromeHeight] = useState(0);
+
+	useEffect(() => {
+		const frame = requestAnimationFrame(() => {
+			setChromeHeight(48);
+		});
+		return () => cancelAnimationFrame(frame);
+	}, []);
+
+	return (
+		<div
+			data-testid="chat-story-frame"
+			style={{ height: "600px", display: "flex", flexDirection: "column" }}
+		>
+			<div style={{ minHeight: 0, display: "flex", flex: 1 }}>
+				<AgentChatPageLayout />
+			</div>
+			<div
+				data-testid="mobile-browser-chrome"
+				style={{ flexShrink: 0, height: `${chromeHeight}px` }}
+			/>
+		</div>
+	);
+};
+
+const MobileChatReadyChromeShiftLayout: FC = () => {
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const [chromeHeight, setChromeHeight] = useState(0);
+	const readyFrameRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (readyFrameRef.current !== null) {
+				cancelAnimationFrame(readyFrameRef.current);
+			}
+		};
+	}, []);
+
+	const handleChatReady = () => {
+		if (readyFrameRef.current !== null) {
+			return;
+		}
+		readyFrameRef.current = requestAnimationFrame(() => {
+			readyFrameRef.current = null;
+			setChromeHeight(48);
+		});
+	};
+
+	return (
+		<div
+			data-testid="chat-story-frame"
+			style={{ height: "600px", display: "flex", flexDirection: "column" }}
+		>
+			<div style={{ minHeight: 0, display: "flex", flex: 1 }}>
+				<Outlet
+					context={
+						{
+							chatErrorReasons: {},
+							setChatErrorReason: () => {},
+							clearChatErrorReason: () => {},
+							requestArchiveAgent: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
+							requestUnarchiveAgent: () => {},
+							requestPinAgent: () => {},
+							requestUnpinAgent: () => {},
+							onRegenerateTitle: () => {},
+							regeneratingTitleChatIds: [],
+							isSidebarCollapsed: false,
+							onToggleSidebarCollapsed: () => {},
+							onExpandSidebar: () => {},
+							onChatReady: handleChatReady,
+							setScrollContainerElement: (element) => {
+								scrollContainerRef.current = element;
+							},
+						} satisfies AgentsOutletContext
+					}
+				/>
+			</div>
+			<div
+				data-testid="mobile-browser-chrome"
+				style={{ flexShrink: 0, height: `${chromeHeight}px` }}
+			/>
 		</div>
 	);
 };
@@ -201,6 +293,23 @@ const buildQueries = (
 	];
 };
 
+const buildLongConversation = (count: number): TypesGen.ChatMessage[] =>
+	Array.from({ length: count }, (_, index) => {
+		const id = index + 1;
+		return {
+			id,
+			chat_id: CHAT_ID,
+			created_at: new Date(Date.UTC(2026, 1, 18, 0, 0, id)).toISOString(),
+			role: id % 2 === 0 ? "assistant" : "user",
+			content: [
+				{
+					type: "text",
+					text: `${id % 2 === 0 ? "Assistant" : "User"} message ${id}. ${"More content. ".repeat(18)}`,
+				},
+			],
+		};
+	});
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -243,6 +352,309 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+/** Existing chats should open pinned to the latest message. */
+export const OpensExistingChatAtLatestMessage: Story = {
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Existing long chat",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversation(80),
+				queued_messages: [],
+				has_more: false,
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = await waitFor(() =>
+			canvas.getByTestId("scroll-container"),
+		);
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+		await waitFor(() => {
+			const distanceFromBottom =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(distanceFromBottom).toBeLessThan(5);
+		});
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
+/** Mobile chat opens at the latest message without auto-focusing the input. */
+export const MobileOpenDoesNotAutofocusInput: Story = {
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Existing mobile chat",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversation(80),
+				queued_messages: [],
+				has_more: false,
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = await waitFor(() =>
+			canvas.getByTestId("scroll-container"),
+		);
+		const editor = await waitFor(() =>
+			canvas.getByTestId("chat-message-input"),
+		);
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+		await waitFor(() => {
+			const distanceFromBottom =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(distanceFromBottom).toBeLessThan(5);
+		});
+		expect(editor).not.toHaveFocus();
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
+/** Revalidates the bottom pin one frame later for browsers with delayed layout. */
+export const MobileOpenRepinsAfterDeferredLayout: Story = {
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Existing delayed-layout mobile chat",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversation(80),
+				queued_messages: [],
+				has_more: false,
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = await waitFor(() =>
+			canvas.getByTestId("scroll-container"),
+		);
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+
+		const originalScrollHeight = Object.getOwnPropertyDescriptor(
+			Object.getPrototypeOf(scrollContainer),
+			"scrollHeight",
+		);
+		let spoofedScrollHeight = scrollContainer.clientHeight;
+		Object.defineProperty(scrollContainer, "scrollHeight", {
+			configurable: true,
+			get: () => spoofedScrollHeight,
+		});
+		try {
+			scrollContainer.scrollTop = 0;
+			scrollContainer.dispatchEvent(new Event("scroll"));
+			spoofedScrollHeight = scrollContainer.clientHeight;
+			for (let frame = 0; frame < 6; frame += 1) {
+				await new Promise<void>((resolve) =>
+					requestAnimationFrame(() => resolve()),
+				);
+			}
+			spoofedScrollHeight =
+				(originalScrollHeight?.get?.call(scrollContainer) as number) ??
+				scrollContainer.scrollHeight;
+			await waitFor(() => {
+				const distanceFromBottom =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(distanceFromBottom).toBeLessThan(5);
+			});
+		} finally {
+			if (originalScrollHeight) {
+				Object.defineProperty(
+					scrollContainer,
+					"scrollHeight",
+					originalScrollHeight,
+				);
+			}
+		}
+	},
+};
+
+/** Late mobile browser chrome must not pull the transcript off bottom. */
+export const MobileOpenStaysPinnedAfterViewportChromeSettles: Story = {
+	render: () => <MobileViewportChromeShiftLayout />,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Existing viewport-shift mobile chat",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversation(80),
+				queued_messages: [],
+				has_more: false,
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const storyFrame = await waitFor(() =>
+			canvas.getByTestId("chat-story-frame"),
+		);
+		const browserChrome = await waitFor(() =>
+			canvas.getByTestId("mobile-browser-chrome"),
+		);
+		const scrollContainer = await waitFor(() =>
+			canvas.getByTestId("scroll-container"),
+		);
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+		await waitFor(() => {
+			expect(browserChrome).toHaveStyle({ height: "48px" });
+			expect(storyFrame.clientHeight).toBe(600);
+		});
+		await waitFor(() => {
+			const distanceFromBottom =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(distanceFromBottom).toBeLessThan(5);
+		});
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
+/** Layout changes after chat-ready must not pull mobile off bottom. */
+export const MobileOpenStaysPinnedAfterChatReadyViewportShift: Story = {
+	render: () => <MobileChatReadyChromeShiftLayout />,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/${CHAT_ID}`,
+				pathParams: { agentId: CHAT_ID },
+			},
+			routing: reactRouterOutlet(
+				{ path: "/agents/:agentId" },
+				<AgentChatPage />,
+			),
+		}),
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Existing chat-ready viewport-shift mobile chat",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversation(80),
+				queued_messages: [],
+				has_more: false,
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const storyFrame = await waitFor(() =>
+			canvas.getByTestId("chat-story-frame"),
+		);
+		const browserChrome = await waitFor(() =>
+			canvas.getByTestId("mobile-browser-chrome"),
+		);
+		const scrollContainer = await waitFor(() =>
+			canvas.getByTestId("scroll-container"),
+		);
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+		await waitFor(() => {
+			expect(browserChrome).toHaveStyle({ height: "48px" });
+			expect(storyFrame.clientHeight).toBe(600);
+		});
+		await waitFor(() => {
+			const distanceFromBottom =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(distanceFromBottom).toBeLessThan(5);
+		});
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,

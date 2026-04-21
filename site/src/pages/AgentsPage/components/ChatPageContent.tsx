@@ -18,9 +18,13 @@ import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
+	selectRetryState,
+	selectStreamError,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
@@ -71,7 +75,21 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
+	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
+	const streamError = useChatSelector(store, selectStreamError);
 	const isChatCompleted = !hasStream && chatStatus !== "pending";
+	const hasLiveContentBelowLatestUser =
+		hasStream ||
+		isAwaitingFirstStreamChunk ||
+		retryState !== null ||
+		reconnectState !== null ||
+		streamError !== null ||
+		persistedError !== undefined;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -89,6 +107,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const latestDurableMessage =
+		orderedMessageIDs.length > 0
+			? messagesByID.get(orderedMessageIDs[orderedMessageIDs.length - 1])
+			: undefined;
+	const tailContextKey = latestDurableMessage
+		? `${latestDurableMessage.id}:${latestDurableMessage.role}`
+		: "empty";
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -117,12 +142,14 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
+					hasLiveContentBelowLatestUser={hasLiveContentBelowLatestUser}
 				/>
 				<LiveStreamTail
 					store={store}
 					persistedError={persistedError}
 					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
+					tailContextKey={tailContextKey}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}

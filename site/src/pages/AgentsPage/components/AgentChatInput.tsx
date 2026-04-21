@@ -303,6 +303,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	folder,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const shouldAutoFocus = !isMobileViewport();
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -740,7 +741,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					disabled={isDisabled || isLoading}
-					autoFocus
+					autoFocus={shouldAutoFocus}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip

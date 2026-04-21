@@ -1,5 +1,5 @@
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -37,6 +37,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	buildId,
 }) => {
 	const isRunning = status === "running";
+	const logsScrollAreaRef = useRef<HTMLDivElement>(null);
 
 	// Primary source: build ID from the chat binding, pushed via
 	// pubsub when create_workspace or start_workspace persists it.
@@ -104,6 +105,19 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
+	useLayoutEffect(() => {
+		if (!logs || logs.length === 0) {
+			return;
+		}
+		const viewport = logsScrollAreaRef.current?.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!viewport) {
+			return;
+		}
+		viewport.scrollTop = viewport.scrollHeight;
+	}, [logs]);
+
 	if (!effectiveBuildId) {
 		if (isRunning && workspaceId) {
 			return (
@@ -157,16 +171,19 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	}
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-			viewportClassName="max-h-64"
-			scrollBarClassName="w-1.5"
-		>
-			<WorkspaceBuildLogs
-				logs={logs}
-				sticky
-				className="border-0 rounded-none"
-			/>
-		</ScrollArea>
+		<div ref={logsScrollAreaRef} data-testid="workspace-build-logs-scroll-area">
+			<ScrollArea
+				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+				viewportClassName="max-h-64"
+				scrollBarClassName="w-1.5"
+			>
+				<WorkspaceBuildLogs
+					logs={logs}
+					sticky
+					disableAutoscroll
+					className="border-0 rounded-none"
+				/>
+			</ScrollArea>
+		</div>
 	);
 };

@@ -1048,36 +1048,165 @@ export const StickyUserMessageStructure: Story = {
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		// Each user message should produce a data-user-sentinel
-		// marker that the push-up scroll logic relies on.
-		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBe(2);
-
-		// Each sentinel should be immediately followed by a sticky
-		// container (the user message itself).
-		for (const sentinel of sentinels) {
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			const style = window.getComputedStyle(container!);
-			expect(style.position).toBe("sticky");
-		}
-
-		// Sentinels must appear in DOM order matching the message
-		// order so nextElementSibling traversal finds the correct
-		// next user message.
-		const allElements = Array.from(
-			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
+		const anchors = Array.from(
+			canvasElement.querySelectorAll<HTMLElement>("[data-chat-anchor='true']"),
 		);
-		const sentinelIndices = Array.from(sentinels).map((s) =>
-			allElements.indexOf(s),
+		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
+			0,
 		);
-		// Sentinels should be in ascending DOM order.
-		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
+		expect(anchors).toHaveLength(4);
+		expect(
+			new Set(anchors.map((anchor) => anchor.dataset.chatAnchorId)),
+		).toEqual(new Set(["message-1", "message-2", "message-3", "message-4"]));
 
-		// Both user messages should be visible.
+		const firstPromptAnchor = canvasElement.querySelector(
+			"[data-chat-anchor-id='message-1']",
+		);
+		const secondPromptAnchor = canvasElement.querySelector(
+			"[data-chat-anchor-id='message-3']",
+		);
+		expect(
+			firstPromptAnchor?.compareDocumentPosition(secondPromptAnchor!),
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("First prompt")).toBeVisible();
 		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};
+
+export const LatestUserMessagePinnedPreviewDoesNotDuplicateActions: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Earlier prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "Context block. ".repeat(160) }],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Latest prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [{ type: "text", text: "Follow-up response. ".repeat(180) }],
+			},
+		]),
+		onEditUserMessage: fn(),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				data-testid="scroll-container"
+				style={{ maxHeight: "280px", overflowY: "auto" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+		const latestMessageAnchor = canvasElement.querySelector<HTMLElement>(
+			"[data-chat-anchor-id='message-3']",
+		);
+		expect(latestMessageAnchor).not.toBeNull();
+		const copyButtonsBefore = canvas.getAllByRole("button", {
+			name: "Copy message",
+		}).length;
+		const editButtonsBefore = canvas.getAllByRole("button", {
+			name: "Edit message",
+		}).length;
+
+		scrollContainer.scrollTop = latestMessageAnchor!.offsetTop + 16;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(canvas.getAllByText("Latest prompt")).toHaveLength(2);
+		});
+		expect(
+			canvas.getAllByRole("button", { name: "Copy message" }),
+		).toHaveLength(copyButtonsBefore);
+		expect(
+			canvas.getAllByRole("button", { name: "Edit message" }),
+		).toHaveLength(editButtonsBefore);
+	},
+};
+
+export const LatestUserMessagePinnedPreview: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Earlier prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "Context block. ".repeat(160) }],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Latest prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [{ type: "text", text: "Follow-up response. ".repeat(180) }],
+			},
+		]),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				data-testid="scroll-container"
+				style={{ maxHeight: "280px", overflowY: "auto" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+		const latestMessageAnchor = canvasElement.querySelector<HTMLElement>(
+			"[data-chat-anchor-id='message-3']",
+		);
+		expect(latestMessageAnchor).not.toBeNull();
+		expect(canvas.getAllByText("Latest prompt")).toHaveLength(1);
+
+		scrollContainer.scrollTop = latestMessageAnchor!.offsetTop + 16;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(canvas.getAllByText("Latest prompt")).toHaveLength(2);
+		});
+
+		scrollContainer.scrollTop = 0;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(canvas.getAllByText("Latest prompt")).toHaveLength(1);
+		});
 	},
 };
 

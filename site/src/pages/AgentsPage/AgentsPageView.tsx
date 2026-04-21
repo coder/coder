@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -30,8 +30,8 @@ export interface AgentsOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
-	/** Ref attached to the chat scroll container by AgentChatPage. */
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	/** Callback attached to the chat scroll container by AgentChatPage. */
+	setScrollContainerElement: (element: HTMLDivElement | null) => void;
 }
 
 interface AgentsPageViewProps {
@@ -152,7 +152,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
 		onChatReady: () => {},
-		scrollContainerRef,
+		setScrollContainerElement: (element) => {
+			scrollContainerRef.current = element;
+		},
 	};
 
 	return (

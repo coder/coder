@@ -562,11 +562,14 @@ const AgentChatPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
-		scrollContainerRef,
+		setScrollContainerElement,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
+	const handleScrollToBottomChange = (scrollToBottom: (() => void) | null) => {
+		scrollToBottomRef.current = scrollToBottom;
+	};
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -1086,7 +1089,9 @@ const AgentChatPage: FC = () => {
 	};
 
 	// Signal ready only after the store has synced fetched messages,
-	// so the DOM actually contains them when the parent scrolls.
+	// so the DOM contains the full transcript before we pin to the latest
+	// content. The scroll container mounts before the store hydration effect,
+	// so the mount-time bottom pin can otherwise run against an empty timeline.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
 	const fetchedMessageCount = chatMessagesList?.length ?? 0;
@@ -1099,7 +1104,11 @@ const AgentChatPage: FC = () => {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
-		onChatReady();
+		const frame = requestAnimationFrame(() => {
+			scrollToBottomRef.current?.();
+			onChatReady();
+		});
+		return () => cancelAnimationFrame(frame);
 	}, [
 		onChatReady,
 		storeMessageCount,
@@ -1417,8 +1426,8 @@ const AgentChatPage: FC = () => {
 			isRegeneratingTitle={isRegeneratingThisChat}
 			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
+			onScrollContainerChange={setScrollContainerElement}
+			onScrollToBottomChange={handleScrollToBottomChange}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}

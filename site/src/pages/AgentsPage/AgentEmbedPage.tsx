@@ -227,7 +227,9 @@ const AgentEmbedPage: FC = () => {
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
 		onChatReady,
-		scrollContainerRef,
+		setScrollContainerElement: (element) => {
+			scrollContainerRef.current = element;
+		},
 	};
 
 	// When signed out and not already bootstrapping, listen for the

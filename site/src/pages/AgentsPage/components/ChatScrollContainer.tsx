@@ -2,7 +2,6 @@ import { ArrowDownIcon } from "lucide-react";
 import {
 	type FC,
 	type RefCallback,
-	type RefObject,
 	useEffect,
 	useEffectEvent,
 	useLayoutEffect,
@@ -11,440 +10,350 @@ import {
 } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
+import {
+	type AnchorSnapshot,
+	CHAT_ANCHOR_SELECTOR,
+	CHAT_NON_ANCHOR_SELECTOR,
+	canElementScrollInDirection,
+	FOLLOW_THRESHOLD_PX,
+	findNearestScrollableAncestor,
+	getBottomGap,
+	getScrollMode,
+	resolveAnchorTarget,
+	restoreAnchorScrollTop,
+	type ScrollMode,
+} from "./chatViewportUtils";
 
-// ===========================================================================
-// useStickToBottom — scroll-lock hook
-// ===========================================================================
+const ANCHOR_SELECTOR = CHAT_ANCHOR_SELECTOR;
+const NON_ANCHOR_SELECTOR = CHAT_NON_ANCHOR_SELECTOR;
+const HISTORY_ROOT_MARGIN = "600px 0px 0px 0px";
+const DEFERRED_PIN_FRAME_COUNT = 8;
 
-/** Pixel threshold for "near bottom" detection. */
-const STICK_TO_BOTTOM_OFFSET_PX = 70;
-
-// ---------------------------------------------------------------------------
-// Mutable state (not tied to React render cycle)
-// ---------------------------------------------------------------------------
-
-interface InternalState {
-	scrollElement: HTMLElement | null;
-	contentElement: HTMLElement | null;
-	programmaticScrollCount: number;
-	resizeDifference: number;
-	lastScrollTop: number;
-	lastClientHeight: number;
-	escapedFromLock: boolean;
-	internalIsAtBottom: boolean;
-	resizeObserver: ResizeObserver | null;
-	viewportObserver: ResizeObserver | null;
-	previousContentHeight: number | undefined;
-	mouseDown: boolean;
-	suppressNextResize: boolean;
-	activeTouchCount: number;
-	pendingPrepend: { scrollHeight: number } | null;
-}
-
-/** The maximum scrollable offset for the container. */
-function maxScrollTop(s: InternalState): number {
-	if (!s.scrollElement) {
-		return 0;
-	}
-
-	return Math.max(
-		0,
-		s.scrollElement.scrollHeight - s.scrollElement.clientHeight,
-	);
-}
-
-/** Whether the scroll position is within the stick-to-bottom threshold. */
-function isNearBottom(s: InternalState): boolean {
-	if (!s.scrollElement) {
-		return false;
-	}
-
-	const distance = maxScrollTop(s) - s.scrollElement.scrollTop;
-
-	return distance <= STICK_TO_BOTTOM_OFFSET_PX;
-}
-
-/** Assign scrollTop and bump the programmatic-scroll counter so
- *  the next scroll event is not misread as a user-initiated scroll.
- *  Only bumps the counter when scrollTop actually changes, so no-op
- *  writes don't orphan a counter increment without a matching event. */
-function scrollTo(s: InternalState, value: number) {
-	if (!s.scrollElement) {
-		return;
-	}
-
-	const prev = s.scrollElement.scrollTop;
-	s.scrollElement.scrollTop = value;
-	if (s.scrollElement.scrollTop !== prev) {
-		s.programmaticScrollCount++;
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
-
-interface StickToBottomInstance {
+interface ViewportController {
 	scrollRef: RefCallback<HTMLDivElement>;
 	contentRef: RefCallback<HTMLDivElement>;
-	/** Scroll to the bottom. Pass `"instant"` to jump; omit for smooth. */
+	topSentinelRef: RefCallback<HTMLDivElement>;
+	bottomSentinelRef: RefCallback<HTMLDivElement>;
 	scrollToBottom: (behavior?: ScrollBehavior) => void;
-	/** True when the view is locked to the bottom or physically near it. */
-	isAtBottom: boolean;
-	/** Tell the hook to skip the next content resize auto-pin. */
-	suppressNextResize: () => void;
-	/** Capture scrollHeight for prepend restoration. */
-	capturePrependSnapshot: () => void;
+	mode: ScrollMode;
 }
 
-function useStickToBottom(): StickToBottomInstance {
-	const [isAtBottom, setIsAtBottom] = useState(true);
-	const [nearBottom, setNearBottom] = useState(false);
+const isAnchorCandidate = (element: Element): element is HTMLElement => {
+	if (!(element instanceof HTMLElement)) {
+		return false;
+	}
+	if (element.closest(NON_ANCHOR_SELECTOR)) {
+		return false;
+	}
+	return element.dataset.chatAnchor === "true";
+};
 
-	const stateRef = useRef<InternalState>({
-		scrollElement: null,
-		contentElement: null,
-		programmaticScrollCount: 0,
-		resizeDifference: 0,
-		lastScrollTop: 0,
-		lastClientHeight: 0,
-		escapedFromLock: false,
-		internalIsAtBottom: true,
-		resizeObserver: null,
-		viewportObserver: null,
-		previousContentHeight: undefined,
-		mouseDown: false,
-		suppressNextResize: false,
-		activeTouchCount: 0,
-		pendingPrepend: null,
-	});
-
-	// Sync helpers — keep mutable state and React state in lockstep.
-	const syncIsAtBottom = (v: boolean) => {
-		stateRef.current.internalIsAtBottom = v;
-		setIsAtBottom(v);
-	};
-
-	const syncEscapedFromLock = (v: boolean) => {
-		stateRef.current.escapedFromLock = v;
-	};
-
-	// -----------------------------------------------------------------------
-	// scrollToBottom
-	// -----------------------------------------------------------------------
-
-	const scrollToBottom = (behavior?: ScrollBehavior) => {
-		const s = stateRef.current;
-		if (!s.scrollElement) return;
-
-		syncIsAtBottom(true);
-		syncEscapedFromLock(false);
-
-		const top = maxScrollTop(s);
-		if (behavior === "instant") {
-			scrollTo(s, top);
-		} else {
-			s.scrollElement.scrollTo({
-				top,
-				behavior: behavior ?? "smooth",
-			});
-			// Don't bump programmaticScrollCount for smooth scroll.
-			// Each animation frame naturally reads as a downward
-			// scroll (currentScrollTop > lastScrollTop), which
-			// correctly clears escapedFromLock.
+const findAnchorSnapshot = (
+	container: HTMLElement,
+	content: HTMLElement,
+): AnchorSnapshot | null => {
+	const containerTop = container.getBoundingClientRect().top;
+	const anchors = content.querySelectorAll(ANCHOR_SELECTOR);
+	for (const anchor of anchors) {
+		if (!isAnchorCandidate(anchor)) {
+			continue;
 		}
-	};
-
-	const suppressNextResize = () => {
-		stateRef.current.suppressNextResize = true;
-	};
-
-	const capturePrependSnapshot = () => {
-		const s = stateRef.current;
-		if (s.scrollElement) {
-			s.pendingPrepend = {
-				scrollHeight: s.scrollElement.scrollHeight,
+		const rect = anchor.getBoundingClientRect();
+		if (rect.bottom > containerTop + 1) {
+			return {
+				anchorId: anchor.dataset.chatAnchorId ?? "",
+				offsetTop: rect.top - containerTop,
 			};
 		}
-	};
+	}
+	return null;
+};
 
-	// -----------------------------------------------------------------------
-	// Event handlers
-	// -----------------------------------------------------------------------
+function useChatViewportController({
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	onFetchMoreMessages,
+}: {
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+}): ViewportController {
+	const scrollElementRef = useRef<HTMLDivElement | null>(null);
+	const contentElementRef = useRef<HTMLDivElement | null>(null);
+	const topSentinelElementRef = useRef<HTMLDivElement | null>(null);
+	const bottomSentinelElementRef = useRef<HTMLDivElement | null>(null);
+	const [mode, setMode] = useState<ScrollMode>("following-latest");
 
-	const handleScroll = useEffectEvent((e: Event) => {
-		const s = stateRef.current;
-		const { scrollElement } = s;
-		if (e.target !== scrollElement || !scrollElement) return;
+	const modeRef = useRef<ScrollMode>("following-latest");
+	const anchorRef = useRef<AnchorSnapshot | null>(null);
+	const previousContentHeightRef = useRef<number | null>(null);
+	const previousScrollTopRef = useRef(0);
+	const isProgrammaticScrollRef = useRef(false);
+	const deferredPinFrameRef = useRef<number | null>(null);
+	const isRestoringRef = useRef(false);
+	const isPointerDownRef = useRef(false);
+	const isTouchActiveRef = useRef(false);
+	const activeTouchCountRef = useRef(0);
+	const isFetchingHistoryRef = useRef(false);
+	const topObserverRef = useRef<IntersectionObserver | null>(null);
 
-		const currentScrollTop = scrollElement.scrollTop;
-
-		// Detect viewport-size changes (e.g. Safari PWA toolbar
-		// settling, virtual keyboard, safe-area inset shifts).
-		// The browser may clamp scrollTop before the
-		// ResizeObserver fires, so this scroll event would look
-		// like an upward user scroll without this guard.
-		const currentClientHeight = scrollElement.clientHeight;
-		const viewportChanged = currentClientHeight !== s.lastClientHeight;
-		s.lastClientHeight = currentClientHeight;
-
-		// If this event was caused by a programmatic scrollTo,
-		// consume the counter and skip escape processing.
-		if (s.programmaticScrollCount > 0) {
-			s.programmaticScrollCount--;
-			s.lastScrollTop = currentScrollTop;
-			setNearBottom(isNearBottom(s));
+	const scrollRef: RefCallback<HTMLDivElement> = (element) => {
+		if (scrollElementRef.current === element) {
 			return;
 		}
-
-		const lastST = s.lastScrollTop;
-		s.lastScrollTop = currentScrollTop;
-
-		setNearBottom(isNearBottom(s));
-
-		// Synchronous escape logic — must run before any resize
-		// handler so they see up-to-date internalIsAtBottom.
-		// Skip when a content resize or viewport resize is in
-		// progress — the browser may fire scroll events during
-		// layout that aren’t user-initiated.
-		if (
-			s.resizeDifference === 0 &&
-			!viewportChanged &&
-			s.activeTouchCount === 0
-		) {
-			if (currentScrollTop < lastST) {
-				// If we believe we're at the bottom and the user
-				// hasn't escaped via wheel, touch, or scrollbar,
-				// this upward movement is browser-initiated (e.g.
-				// Safari scroll restoration, focus-driven scroll).
-				// Re-pin instead of escaping.
-				if (s.internalIsAtBottom && !s.escapedFromLock) {
-					scrollTo(s, maxScrollTop(s));
-				} else {
-					syncEscapedFromLock(true);
-					syncIsAtBottom(false);
-				}
-			} else if (currentScrollTop > lastST) {
-				syncEscapedFromLock(false);
-			}
-
-			if (!s.escapedFromLock && isNearBottom(s)) {
-				syncIsAtBottom(true);
-			}
+		scrollElementRef.current = element;
+	};
+	const contentRef: RefCallback<HTMLDivElement> = (element) => {
+		if (contentElementRef.current === element) {
+			return;
 		}
-		// Text-selection escape deferred — getSelection() needs
-		// post-layout DOM state to reflect the current drag.
-		setTimeout(() => {
-			if (s.resizeDifference !== 0) return;
-			if (s.mouseDown && s.scrollElement) {
-				const sel = window.getSelection();
-				if (sel && sel.rangeCount > 0) {
-					const ancestor = sel.getRangeAt(0).commonAncestorContainer;
-					const el =
-						ancestor instanceof HTMLElement ? ancestor : ancestor.parentElement;
-					if (
-						el &&
-						(s.scrollElement.contains(el) || el.contains(s.scrollElement))
-					) {
-						syncEscapedFromLock(true);
-						syncIsAtBottom(false);
-					}
-				}
-			}
-		}, 1);
+		contentElementRef.current = element;
+	};
+	const topSentinelRef: RefCallback<HTMLDivElement> = (element) => {
+		if (topSentinelElementRef.current === element) {
+			return;
+		}
+		topSentinelElementRef.current = element;
+	};
+	const bottomSentinelRef: RefCallback<HTMLDivElement> = (element) => {
+		if (bottomSentinelElementRef.current === element) {
+			return;
+		}
+		bottomSentinelElementRef.current = element;
+	};
+
+	const syncMode = useEffectEvent((nextMode: ScrollMode) => {
+		modeRef.current = nextMode;
+		setMode(nextMode);
 	});
 
-	const handleWheel = useEffectEvent((e: WheelEvent) => {
-		const s = stateRef.current;
-
-		// Walk up from target to find the nearest scrollable ancestor.
-		let el = e.target as HTMLElement | null;
-		while (el && el !== s.scrollElement) {
-			if (el.scrollHeight > el.clientHeight) {
-				const style = getComputedStyle(el);
-				if (
-					style.overflow === "scroll" ||
-					style.overflow === "auto" ||
-					style.overflowY === "scroll" ||
-					style.overflowY === "auto"
-				) {
-					break;
-				}
-			}
-			el = el.parentElement;
+	const cancelDeferredPin = useEffectEvent(() => {
+		if (deferredPinFrameRef.current !== null) {
+			cancelAnimationFrame(deferredPinFrameRef.current);
+			deferredPinFrameRef.current = null;
 		}
+	});
 
-		if (
-			el === s.scrollElement &&
-			e.deltaY < 0 &&
-			s.scrollElement &&
-			s.scrollElement.scrollHeight > s.scrollElement.clientHeight
-		) {
-			syncEscapedFromLock(true);
-			syncIsAtBottom(false);
-			// Cancel any in-progress smooth scroll so the animation
-			// doesn't override the user's escape intent.
-			s.scrollElement.scrollTo({
-				top: s.scrollElement.scrollTop,
-				behavior: "instant",
+	const scheduleDeferredPinToLatest = useEffectEvent((frames: number) => {
+		cancelDeferredPin();
+		const step = (remainingFrames: number) => {
+			const container = scrollElementRef.current;
+			if (!container || modeRef.current !== "following-latest") {
+				deferredPinFrameRef.current = null;
+				return;
+			}
+			container.scrollTop = container.scrollHeight;
+			previousScrollTopRef.current = container.scrollTop;
+			if (remainingFrames <= 0) {
+				deferredPinFrameRef.current = null;
+				return;
+			}
+			deferredPinFrameRef.current = requestAnimationFrame(() => {
+				step(remainingFrames - 1);
 			});
-		}
+		};
+		step(frames);
 	});
 
-	const handleContentResize = useEffectEvent(() => {
-		const s = stateRef.current;
-		if (!s.contentElement || !s.scrollElement) return;
-
-		const currentHeight = s.contentElement.getBoundingClientRect().height;
-		const previousHeight = s.previousContentHeight;
-		const difference =
-			previousHeight !== undefined ? currentHeight - previousHeight : 0;
-
-		s.resizeDifference = difference;
-
-		// Clamp browser overscroll.
-		const target = maxScrollTop(s);
-		if (s.scrollElement.scrollTop > target) {
-			scrollTo(s, target);
-		}
-
-		setNearBottom(isNearBottom(s));
-
-		// Skip auto-pin while touch contacts are active to
-		// prevent mobile URL bar resizes from fighting the
-		// user's finger.
-		if (s.activeTouchCount > 0) {
-			// No auto-pin during active touch.
-		} else if (s.pendingPrepend) {
-			// Prepend restoration: older messages were just added
-			// to the DOM. Adjust scrollTop by the height delta so
-			// the user's visual position stays the same.
-			const delta =
-				s.scrollElement.scrollHeight - s.pendingPrepend.scrollHeight;
-			if (delta > 0) {
-				const prev = s.scrollElement.scrollTop;
-				s.scrollElement.scrollTop = prev + delta;
-				if (s.scrollElement.scrollTop !== prev) {
-					s.programmaticScrollCount++;
-				}
+	const scrollToBottom = useEffectEvent(
+		(behavior: ScrollBehavior = "smooth") => {
+			const container = scrollElementRef.current;
+			if (!container) {
+				return;
 			}
-			s.pendingPrepend = null;
-		} else if (s.suppressNextResize) {
-			s.suppressNextResize = false;
-		} else if (difference >= 0) {
-			if (previousHeight === undefined) {
-				// First observation — jump to bottom instantly.
-				if (s.internalIsAtBottom) {
-					scrollTo(s, target);
-				}
-			} else {
-				// Check whether we were near the OLD bottom before
-				// this resize. We can't rely on internalIsAtBottom
-				// alone because scroll events fire during browser
-				// layout (before this ResizeObserver callback), and
-				// the handler may have disengaged the lock when it
-				// saw the scroll position was far from the new,
-				// taller bottom.
-				const prevMaxScroll = Math.max(
-					0,
-					previousHeight - s.scrollElement.clientHeight,
-				);
-				const wasAtBottom =
-					s.internalIsAtBottom ||
-					(!s.escapedFromLock &&
-						s.scrollElement.scrollTop >=
-							prevMaxScroll - STICK_TO_BOTTOM_OFFSET_PX);
-
-				if (wasAtBottom) {
-					scrollTo(s, target);
-					syncIsAtBottom(true);
-					syncEscapedFromLock(false);
-				}
+			anchorRef.current = null;
+			syncMode("following-latest");
+			if (behavior === "instant") {
+				isProgrammaticScrollRef.current = false;
+				scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
+				return;
 			}
-		} else if (isNearBottom(s)) {
-			// Content shrank and we ended up near bottom — re-engage.
-			syncEscapedFromLock(false);
-			syncIsAtBottom(true);
+			cancelDeferredPin();
+			isProgrammaticScrollRef.current = true;
+			container.scrollTo({ top: container.scrollHeight, behavior });
+		},
+	);
+
+	const restoreAnchor = useEffectEvent(() => {
+		const scrollElement = scrollElementRef.current;
+		const contentElement = contentElementRef.current;
+		if (!scrollElement || !contentElement) {
+			return;
 		}
-
-		s.previousContentHeight = currentHeight;
-
-		// Clear after rAF + setTimeout(1) so the scroll handler has
-		// a chance to see the resize flag before it resets.
-		const captured = s.resizeDifference;
+		const snapshot = anchorRef.current;
+		if (!snapshot?.anchorId) {
+			return;
+		}
+		const resolvedTarget = resolveAnchorTarget({
+			content: contentElement,
+			anchorId: snapshot.anchorId,
+		});
+		if (!resolvedTarget) {
+			return;
+		}
+		const { anchorId, element: anchor } = resolvedTarget;
+		if (anchorId !== snapshot.anchorId) {
+			anchorRef.current = { ...snapshot, anchorId };
+		}
+		const containerTop = scrollElement.getBoundingClientRect().top;
+		const nextScrollTop = restoreAnchorScrollTop({
+			currentScrollTop: scrollElement.scrollTop,
+			currentAnchorTop: anchor.getBoundingClientRect().top - containerTop,
+			targetOffsetTop: snapshot.offsetTop,
+		});
+		if (Math.abs(nextScrollTop - scrollElement.scrollTop) <= 1) {
+			return;
+		}
+		isRestoringRef.current = true;
+		scrollElement.scrollTop = nextScrollTop;
+		previousScrollTopRef.current = scrollElement.scrollTop;
 		requestAnimationFrame(() => {
-			setTimeout(() => {
-				if (s.resizeDifference === captured) {
-					s.resizeDifference = 0;
-				}
-			}, 1);
+			isRestoringRef.current = false;
 		});
 	});
 
-	// When the scroll container's viewport dimensions change (e.g.
-	// the top bar gains elements after async data loads), maxScrollTop
-	// shifts and we may no longer be at the bottom. Re-pin if locked
-	// or physically near the bottom. The near-bottom fallback handles
-	// the case where the browser clamped scrollTop before this
-	// observer fired, causing the synchronous escape logic in
-	// handleScroll to disengage the lock.
-	const handleViewportResize = useEffectEvent(() => {
-		const s = stateRef.current;
-		if (!s.scrollElement) return;
-		const maxST = maxScrollTop(s);
-		const near = isNearBottom(s);
-		if (s.activeTouchCount > 0 || (!s.internalIsAtBottom && !near)) {
+	useEffect(() => {
+		return () => {
+			if (deferredPinFrameRef.current !== null) {
+				cancelAnimationFrame(deferredPinFrameRef.current);
+				deferredPinFrameRef.current = null;
+			}
+		};
+	}, []);
+
+	useEffect(() => {
+		isFetchingHistoryRef.current = isFetchingMoreMessages;
+	}, [isFetchingMoreMessages]);
+
+	useEffect(() => {
+		const scrollElement = scrollElementRef.current;
+		const contentElement = contentElementRef.current;
+		if (!scrollElement || !contentElement) {
 			return;
 		}
 
-		scrollTo(s, maxST);
-		syncIsAtBottom(true);
-		syncEscapedFromLock(false);
-	});
+		const updateModeFromGeometry = () => {
+			if (isRestoringRef.current) {
+				return;
+			}
+			const bottomGap = getBottomGap({
+				scrollHeight: scrollElement.scrollHeight,
+				clientHeight: scrollElement.clientHeight,
+				scrollTop: scrollElement.scrollTop,
+			});
+			const previousScrollTop = previousScrollTopRef.current;
+			const currentScrollTop = scrollElement.scrollTop;
+			previousScrollTopRef.current = currentScrollTop;
 
-	const handleTouchStart = useEffectEvent((e: TouchEvent) => {
-		stateRef.current.activeTouchCount += Math.max(e.changedTouches.length, 1);
-		syncEscapedFromLock(true);
-		syncIsAtBottom(false);
-	});
+			if (isProgrammaticScrollRef.current) {
+				if (bottomGap <= 1) {
+					isProgrammaticScrollRef.current = false;
+				} else {
+					if (modeRef.current !== "following-latest") {
+						syncMode("following-latest");
+					}
+					anchorRef.current = null;
+					return;
+				}
+			}
 
-	const handleTouchEnd = useEffectEvent((e: TouchEvent) => {
-		const s = stateRef.current;
-		s.activeTouchCount = Math.max(
-			0,
-			s.activeTouchCount - Math.max(e.changedTouches.length, 1),
-		);
-	});
+			if (
+				isTouchActiveRef.current &&
+				modeRef.current === "following-latest" &&
+				currentScrollTop < previousScrollTop
+			) {
+				detachViewport();
+				return;
+			}
 
-	// -----------------------------------------------------------------------
-	// Ref callbacks
-	// -----------------------------------------------------------------------
+			const movingDown = currentScrollTop > previousScrollTop;
+			const nextMode =
+				modeRef.current === "following-latest"
+					? getScrollMode(bottomGap, FOLLOW_THRESHOLD_PX)
+					: bottomGap <= 1 || (movingDown && bottomGap <= FOLLOW_THRESHOLD_PX)
+						? "following-latest"
+						: "detached";
+			if (nextMode !== modeRef.current) {
+				syncMode(nextMode);
+			}
+			if (nextMode === "detached") {
+				anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+			} else {
+				anchorRef.current = null;
+			}
+		};
 
-	const handlePointerDown = useEffectEvent((e: PointerEvent) => {
-		const s = stateRef.current;
-		// e.target === s.scrollElement is only true when clicking
-		// the scrollbar track/thumb, not content inside the container.
-		if (e.target === s.scrollElement) {
-			syncEscapedFromLock(true);
-			syncIsAtBottom(false);
-		}
-	});
+		const handleScroll = () => {
+			requestAnimationFrame(updateModeFromGeometry);
+		};
 
-	// Ref callbacks must have stable identity — React cycles them
-	// on identity change, which leaks event listeners. Store the
-	// element in state and let a useEffect manage listeners.
-	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
-		null,
-	);
+		const detachViewport = () => {
+			cancelDeferredPin();
+			isProgrammaticScrollRef.current = false;
+			if (modeRef.current !== "detached") {
+				syncMode("detached");
+			}
+			anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+		};
 
-	useEffect(() => {
-		const s = stateRef.current;
-		s.scrollElement = scrollElement;
-		if (!scrollElement) return;
+		const handleWheel = (event: WheelEvent) => {
+			const nestedScroller = findNearestScrollableAncestor(
+				event.target,
+				scrollElement,
+			);
+			if (
+				nestedScroller &&
+				nestedScroller !== scrollElement &&
+				canElementScrollInDirection(nestedScroller, event.deltaY)
+			) {
+				return;
+			}
+			if (
+				event.deltaY < 0 ||
+				isPointerDownRef.current ||
+				isTouchActiveRef.current
+			) {
+				detachViewport();
+			}
+		};
 
-		s.lastClientHeight = scrollElement.clientHeight;
+		const handlePointerDown = (event: PointerEvent) => {
+			isPointerDownRef.current = event.target === scrollElement;
+			if (isPointerDownRef.current) {
+				detachViewport();
+			}
+		};
+
+		const handlePointerUp = () => {
+			isPointerDownRef.current = false;
+		};
+
+		const handleTouchStart = (event: TouchEvent) => {
+			cancelDeferredPin();
+			activeTouchCountRef.current += Math.max(1, event.changedTouches.length);
+			isTouchActiveRef.current = true;
+		};
+
+		const handleTouchEnd = (event: TouchEvent) => {
+			activeTouchCountRef.current = Math.max(
+				0,
+				activeTouchCountRef.current - Math.max(1, event.changedTouches.length),
+			);
+			isTouchActiveRef.current = activeTouchCountRef.current > 0;
+		};
+
+		const handleVisibilityChange = () => {
+			if (!document.hidden) {
+				return;
+			}
+			activeTouchCountRef.current = 0;
+			isTouchActiveRef.current = false;
+		};
+
 		scrollElement.addEventListener("scroll", handleScroll, { passive: true });
 		scrollElement.addEventListener("wheel", handleWheel, { passive: true });
+		scrollElement.addEventListener("pointerdown", handlePointerDown);
+		window.addEventListener("pointerup", handlePointerUp);
 		scrollElement.addEventListener("touchstart", handleTouchStart, {
 			passive: true,
 		});
@@ -454,133 +363,154 @@ function useStickToBottom(): StickToBottomInstance {
 		scrollElement.addEventListener("touchcancel", handleTouchEnd, {
 			passive: true,
 		});
-		scrollElement.addEventListener("pointerdown", handlePointerDown);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 
-		const vo = new ResizeObserver(handleViewportResize);
-		vo.observe(scrollElement);
-		s.viewportObserver = vo;
+		updateModeFromGeometry();
 
 		return () => {
-			scrollElement.removeEventListener("touchstart", handleTouchStart);
-			scrollElement.removeEventListener("touchend", handleTouchEnd);
-			scrollElement.removeEventListener("touchcancel", handleTouchEnd);
 			scrollElement.removeEventListener("scroll", handleScroll);
 			scrollElement.removeEventListener("wheel", handleWheel);
 			scrollElement.removeEventListener("pointerdown", handlePointerDown);
-			if (s.viewportObserver) {
-				s.viewportObserver.disconnect();
-				s.viewportObserver = null;
-			}
-		};
-	}, [scrollElement]);
-
-	const [contentElement, setContentElement] = useState<HTMLDivElement | null>(
-		null,
-	);
-
-	useEffect(() => {
-		const s = stateRef.current;
-		s.contentElement = contentElement;
-		if (!contentElement) return;
-
-		const ro = new ResizeObserver(handleContentResize);
-		ro.observe(contentElement);
-		s.resizeObserver = ro;
-
-		return () => {
-			ro.disconnect();
-			s.resizeObserver = null;
-		};
-	}, [contentElement]);
-
-	// -----------------------------------------------------------------------
-	// Mouse tracking (instance-scoped)
-	// -----------------------------------------------------------------------
-
-	useEffect(() => {
-		const s = stateRef.current;
-		const onDown = () => {
-			s.mouseDown = true;
-		};
-		const onUp = () => {
-			s.mouseDown = false;
-		};
-		document.addEventListener("mousedown", onDown);
-		document.addEventListener("mouseup", onUp);
-		document.addEventListener("click", onUp);
-		return () => {
-			document.removeEventListener("mousedown", onDown);
-			document.removeEventListener("mouseup", onUp);
-			document.removeEventListener("click", onUp);
-		};
-	}, []);
-
-	// Reset touch counter on tab switch. The browser may not
-	// fire touchend/touchcancel when the user switches away
-	// mid-gesture, leaving the counter positive and blocking
-	// resize observer pins permanently.
-	useEffect(() => {
-		const s = stateRef.current;
-		const handleVisibilityChange = () => {
-			if (document.hidden) {
-				s.activeTouchCount = 0;
-			}
-		};
-		document.addEventListener("visibilitychange", handleVisibilityChange);
-		return () => {
+			window.removeEventListener("pointerup", handlePointerUp);
+			scrollElement.removeEventListener("touchstart", handleTouchStart);
+			scrollElement.removeEventListener("touchend", handleTouchEnd);
+			scrollElement.removeEventListener("touchcancel", handleTouchEnd);
 			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
 	}, []);
 
-	// Post-render consistency check. If we believe we're pinned
-	// to the bottom but the physical scroll position disagrees,
-	// correct it before the browser paints. This catches any
-	// race between ResizeObserver callbacks, browser scroll
-	// clamping, and React re-renders (e.g. Safari PWA viewport
-	// settling after navigation).
-	// Intentionally no deps — runs every render as a safety net.
 	useLayoutEffect(() => {
-		const s = stateRef.current;
-		if (!s.scrollElement || !s.internalIsAtBottom) return;
-		const target = maxScrollTop(s);
-		// 1px tolerance for sub-pixel rounding.
-		if (target - s.scrollElement.scrollTop > 1) {
-			scrollTo(s, target);
+		const scrollElement = scrollElementRef.current;
+		const contentElement = contentElementRef.current;
+		if (!scrollElement || !contentElement) {
+			return;
 		}
-	});
+
+		previousContentHeightRef.current =
+			contentElement.getBoundingClientRect().height;
+		if (modeRef.current === "following-latest") {
+			anchorRef.current = null;
+			isProgrammaticScrollRef.current = false;
+			scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			const nextHeight = contentElement.getBoundingClientRect().height;
+			const previousHeight = previousContentHeightRef.current;
+			previousContentHeightRef.current = nextHeight;
+			if (previousHeight === null) {
+				return;
+			}
+			if (modeRef.current === "following-latest") {
+				if (isPointerDownRef.current || isTouchActiveRef.current) {
+					return;
+				}
+				anchorRef.current = null;
+				isProgrammaticScrollRef.current = false;
+				scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
+				return;
+			}
+			restoreAnchor();
+		});
+		resizeObserver.observe(contentElement);
+		resizeObserver.observe(scrollElement);
+		return () => resizeObserver.disconnect();
+	}, []);
+
+	useEffect(() => {
+		const scrollElement = scrollElementRef.current;
+		const topSentinelElement = topSentinelElementRef.current;
+		const contentElement = contentElementRef.current;
+		if (!scrollElement || !topSentinelElement || !hasMoreMessages) {
+			return;
+		}
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				const canFetchWithoutDetaching =
+					scrollElement.scrollHeight <= scrollElement.clientHeight + 1;
+				if (
+					!entry?.isIntersecting ||
+					isFetchingHistoryRef.current ||
+					(modeRef.current !== "detached" && !canFetchWithoutDetaching)
+				) {
+					return;
+				}
+				if (contentElement && modeRef.current === "detached") {
+					anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+				}
+				onFetchMoreMessages();
+			},
+			{
+				root: scrollElement,
+				rootMargin: HISTORY_ROOT_MARGIN,
+				threshold: 0.01,
+			},
+		);
+		observer.observe(topSentinelElement);
+		topObserverRef.current = observer;
+		return () => {
+			observer.disconnect();
+			topObserverRef.current = null;
+		};
+	}, [hasMoreMessages, onFetchMoreMessages]);
+
+	useEffect(() => {
+		const observer = topObserverRef.current;
+		const topSentinelElement = topSentinelElementRef.current;
+		if (isFetchingMoreMessages || !observer || !topSentinelElement) {
+			return;
+		}
+		observer.unobserve(topSentinelElement);
+		observer.observe(topSentinelElement);
+	}, [isFetchingMoreMessages]);
+
+	useEffect(() => {
+		const observer = topObserverRef.current;
+		const topSentinelElement = topSentinelElementRef.current;
+		if (
+			mode !== "detached" ||
+			!observer ||
+			!topSentinelElement ||
+			isFetchingMoreMessages
+		) {
+			return;
+		}
+		observer.unobserve(topSentinelElement);
+		observer.observe(topSentinelElement);
+	}, [isFetchingMoreMessages, mode]);
+
+	useLayoutEffect(() => {
+		const scrollElement = scrollElementRef.current;
+		const bottomSentinelElement = bottomSentinelElementRef.current;
+		if (!scrollElement || !bottomSentinelElement) {
+			return;
+		}
+		if (modeRef.current !== "following-latest") {
+			return;
+		}
+		scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
+	}, []);
 
 	return {
-		scrollRef: setScrollElement,
-		contentRef: setContentElement,
+		scrollRef,
+		contentRef,
+		topSentinelRef,
+		bottomSentinelRef,
 		scrollToBottom,
-		isAtBottom: isAtBottom || nearBottom,
-		suppressNextResize,
-		capturePrependSnapshot,
+		mode,
 	};
 }
 
-// ===========================================================================
-// ChatScrollContainer — the scroll-anchored wrapper for the chat transcript
-// ===========================================================================
-
-/**
- * Scroll container that keeps the transcript pinned to the bottom using
- * ResizeObserver-driven scroll tracking. Handles:
- * - Stick-to-bottom with automatic re-engagement when content grows.
- * - Loading older message pages via an IntersectionObserver sentinel.
- * - Scroll position restoration when older messages are prepended.
- * - A floating "Scroll to bottom" button when the user scrolls away.
- */
 const ChatScrollContainer: FC<{
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
-	scrollToBottomRef: RefObject<(() => void) | null>;
+	onScrollContainerChange?: (element: HTMLDivElement | null) => void;
+	onScrollToBottomChange?: (scrollToBottom: (() => void) | null) => void;
 	isFetchingMoreMessages: boolean;
 	hasMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
 	children: React.ReactNode;
 }> = ({
-	scrollContainerRef,
-	scrollToBottomRef,
+	onScrollContainerChange,
+	onScrollToBottomChange,
 	isFetchingMoreMessages,
 	hasMoreMessages,
 	onFetchMoreMessages,
@@ -589,118 +519,43 @@ const ChatScrollContainer: FC<{
 	const {
 		scrollRef,
 		contentRef,
+		topSentinelRef,
+		bottomSentinelRef,
 		scrollToBottom,
-		isAtBottom,
-		capturePrependSnapshot,
-	} = useStickToBottom();
+		mode,
+	} = useChatViewportController({
+		hasMoreMessages,
+		isFetchingMoreMessages,
+		onFetchMoreMessages,
+	});
 
-	// Merge our callback ref with the external RefObject so both
-	// point at the same DOM node, and expose scrollToBottom to the
-	// parent via its imperative ref.
-	const mergedScrollRef = (el: HTMLDivElement | null) => {
-		scrollRef(el);
-		scrollContainerRef.current = el;
-		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
+	const handleScrollContainerRef: RefCallback<HTMLDivElement> = (element) => {
+		scrollRef(element);
+		onScrollContainerChange?.(element);
+		onScrollToBottomChange?.(element ? () => scrollToBottom("instant") : null);
 	};
 
-	// -------------------------------------------------------------------
-	// Pagination sentinel (IntersectionObserver)
-	// -------------------------------------------------------------------
-
-	const sentinelRef = useRef<HTMLDivElement>(null);
-	const observerRef = useRef<IntersectionObserver | null>(null);
-	const isFetchingRef = useRef(isFetchingMoreMessages);
-	const hasFetchedRef = useRef(false);
-
-	const wasFetchingRef = useRef(false);
-
-	useLayoutEffect(() => {
-		const wasFetching = wasFetchingRef.current;
-		isFetchingRef.current = isFetchingMoreMessages;
-		wasFetchingRef.current = isFetchingMoreMessages;
-
-		if (!wasFetching && isFetchingMoreMessages) {
-			hasFetchedRef.current = true;
-			capturePrependSnapshot();
-		}
-		// Restoration happens in handleContentResize (via
-		// pendingPrepend) when the DOM actually reflects the
-		// prepended content — not here, because the store
-		// update may lag behind isFetchingMoreMessages.
-	}, [isFetchingMoreMessages, capturePrependSnapshot]);
-
-	useEffect(() => {
-		const sentinel = sentinelRef.current;
-		const container = scrollContainerRef.current;
-		if (!sentinel || !container) return;
-
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting && !isFetchingRef.current) {
-					onFetchMoreMessages();
-				}
-			},
-			{
-				root: container,
-				rootMargin: "600px 0px 0px 0px",
-				threshold: 0.01,
-			},
-		);
-		observerRef.current = observer;
-
-		// Defer observation via double-rAF so the initial bottom
-		// pin settles before the sentinel can trigger.
-		let deferInnerId: number | null = null;
-		const deferOuterId = requestAnimationFrame(() => {
-			deferInnerId = requestAnimationFrame(() => {
-				observer.observe(sentinel);
-			});
-		});
-		return () => {
-			cancelAnimationFrame(deferOuterId);
-			if (deferInnerId !== null) {
-				cancelAnimationFrame(deferInnerId);
-			}
-			observer.disconnect();
-			observerRef.current = null;
-		};
-	}, [scrollContainerRef, onFetchMoreMessages]);
-
-	// Re-observe the sentinel after a fetch completes so the
-	// IntersectionObserver fires again if it stayed visible.
-	useEffect(() => {
-		if (isFetchingMoreMessages) return;
-		if (!hasFetchedRef.current) return;
-
-		const sentinel = sentinelRef.current;
-		const observer = observerRef.current;
-		if (sentinel && observer) {
-			observer.unobserve(sentinel);
-			observer.observe(sentinel);
-		}
-	}, [isFetchingMoreMessages]);
-
-	// -------------------------------------------------------------------
-	// Render
-	// -------------------------------------------------------------------
-
-	const showButton = !isAtBottom;
+	const showButton = mode === "detached";
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
 			<div
-				ref={mergedScrollRef}
+				ref={handleScrollContainerRef}
 				data-testid="scroll-container"
 				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [overscroll-behavior:contain] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div ref={contentRef}>
-					{hasMoreMessages && (
-						<div ref={sentinelRef} className="h-px shrink-0" />
-					)}
+					{hasMoreMessages ? (
+						<div ref={topSentinelRef} className="h-px shrink-0" />
+					) : null}
 					{children}
+					<div ref={bottomSentinelRef} className="h-px shrink-0" />
 				</div>
 			</div>
-			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+			<div
+				data-chat-anchor-ignore="true"
+				className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]"
+			>
 				<Button
 					variant="outline"
 					size="icon"

@@ -413,11 +413,21 @@ const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
 
+export const agentsScrollRestorationKey = (location: { pathname: string }) => {
+	if (
+		location.pathname === "/agents" ||
+		location.pathname.startsWith("/agents/")
+	) {
+		return "/agents";
+	}
+	return location.pathname;
+};
+
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
 			<Outlet />
-			<ScrollRestoration />
+			<ScrollRestoration getKey={agentsScrollRestorationKey} />
 		</Suspense>
 	);
 };
