@@ -255,7 +255,7 @@ export const GenericErrorShowsProviderDetail: Story = {
 		liveStatus: buildLiveStatus({
 			streamError: {
 				kind: "generic",
-				message: "Anthropic returned an unexpected error (HTTP 400).",
+				message: "Anthropic returned an unexpected error.",
 				detail:
 					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
 				provider: "anthropic",
@@ -270,7 +270,7 @@ export const GenericErrorShowsProviderDetail: Story = {
 			canvas.getByRole("heading", { name: /request failed/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic returned an unexpected error \(http 400\)/i),
+			canvas.getByText(/anthropic returned an unexpected error/i),
 		).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},

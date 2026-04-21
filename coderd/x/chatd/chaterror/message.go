@@ -65,13 +65,7 @@ func terminalMessage(classified ClassifiedError) string {
 		)
 
 	default:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s returned an unexpected error (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+		if classified.StatusCode == 0 && !classified.Retryable {
 			return "The chat request failed unexpectedly."
 		}
 		return fmt.Sprintf("%s returned an unexpected error.", subject)

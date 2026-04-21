@@ -53,7 +53,7 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	delay := 3 * time.Second
 	startedAt := time.Now()
 	payload := chaterror.StreamRetryPayload(2, delay, chaterror.ClassifiedError{
-		Message:    "OpenAI returned an unexpected error (HTTP 503).",
+		Message:    "OpenAI returned an unexpected error.",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "openai",
 		Retryable:  true,
