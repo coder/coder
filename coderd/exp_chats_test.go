@@ -4412,15 +4412,7 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
-
-			require.Eventually(t, func() bool {
-				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-				if getErr != nil {
-					return false
-				}
-				return c.Status != database.ChatStatusPending &&
-					c.Status != database.ChatStatusRunning
-			}, testutil.WaitShort, testutil.IntervalFast)
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
@@ -4455,15 +4447,7 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "steady title")
-
-			require.Eventually(t, func() bool {
-				c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-				if getErr != nil {
-					return false
-				}
-				return c.Status != database.ChatStatusPending &&
-					c.Status != database.ChatStatusRunning
-			}, testutil.WaitShort, testutil.IntervalFast)
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
