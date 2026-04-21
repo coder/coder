@@ -151,8 +151,6 @@ _gen/bin/metricsdocgen-scanner: $(wildcard scripts/metricsdocgen/scanner/*.go) |
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen/scanner
 
-# modeloptionsgen reflects over codersdk chat model types, so it must
-# rebuild when those struct tags change.
 _gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
