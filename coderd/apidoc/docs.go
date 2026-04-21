@@ -10096,7 +10096,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-aws-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10135,7 +10135,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-azure-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10202,7 +10202,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-google-cloud-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12780,6 +12780,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "document": {
                     "type": "string"
                 },
@@ -12803,6 +12807,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "encoding": {
                     "type": "string"
                 },
@@ -12853,6 +12861,10 @@ const docTemplate = `{
                 "json_web_token"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "json_web_token": {
                     "type": "string"
                 }
@@ -13102,11 +13114,24 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "allow_byok": {
+                    "type": "boolean"
+                },
                 "anthropic": {
-                    "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                        }
+                    ]
                 },
                 "bedrock": {
-                    "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+                        }
+                    ]
                 },
                 "circuit_breaker_enabled": {
                     "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
@@ -13135,7 +13160,19 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openai": {
-                    "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                        }
+                    ]
+                },
+                "providers": {
+                    "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeProviderConfig"
+                    }
                 },
                 "rate_limit": {
                     "type": "integer"
@@ -13251,6 +13288,32 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeProviderConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "description": "BaseURL is the base URL of the upstream provider API.",
+                    "type": "string"
+                },
+                "bedrock_model": {
+                    "type": "string"
+                },
+                "bedrock_region": {
+                    "type": "string"
+                },
+                "bedrock_small_fast_model": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
                 }
             }
@@ -14691,6 +14754,9 @@ const docTemplate = `{
             "properties": {
                 "acquire_batch_size": {
                     "type": "integer"
+                },
+                "debug_logging_enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -16173,7 +16239,6 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push",
                 "oauth2",
                 "agents",
                 "mcp-server-http",
@@ -16186,7 +16251,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-                "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
@@ -16195,7 +16259,6 @@ const docTemplate = `{
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
-                "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality.",
@@ -16206,7 +16269,6 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
                 "ExperimentMCPServerHTTP",
@@ -19149,6 +19211,9 @@ const docTemplate = `{
                 "template_version_name": {
                     "type": "string"
                 },
+                "workspace_build_transition": {
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                },
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
@@ -19692,7 +19757,8 @@ const docTemplate = `{
                 "workspace_agent",
                 "workspace_app",
                 "task",
-                "ai_seat"
+                "ai_seat",
+                "chat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19721,7 +19787,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeAISeat",
+                "ResourceTypeChat"
             ]
         },
         "codersdk.Response": {

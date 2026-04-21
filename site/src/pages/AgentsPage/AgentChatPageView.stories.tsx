@@ -5,7 +5,11 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -40,6 +44,7 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	id: AGENT_ID,
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",
@@ -51,7 +56,9 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -108,12 +115,12 @@ type StoryProps = Omit<
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const props = {
 		agentId: AGENT_ID,
+		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		store: createChatStore(),
-		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -132,12 +139,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 			typeof AgentChatPageView
 		>["diffStatusData"],
 		gitWatcher: buildGitWatcher(),
-		canOpenEditors: false,
-		canOpenWorkspace: false,
 		sshCommand: undefined as string | undefined,
-		handleOpenInEditor: fn(),
-		handleViewWorkspace: fn(),
-		handleOpenTerminal: fn(),
 		handleCommit: fn(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
@@ -362,15 +364,82 @@ export const NoModelOptions: Story = {
 	),
 };
 
-/** Top bar has workspace action buttons visible. */
-export const WithWorkspaceActions: Story = {
+export const WithWorkspace: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canOpenEditors
-			canOpenWorkspace
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
 			sshCommand="ssh coder.workspace"
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Workspace status pill stories
+// ---------------------------------------------------------------------------
+
+export const WorkspaceAgentStarting: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "starting",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentCreated: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "created",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentReady: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "ready",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_error",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartTimeout: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_timeout",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceNoAgent: Story = {
+	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
 };
 
 // ---------------------------------------------------------------------------
@@ -474,16 +543,6 @@ const buildStoreWithMessages = (
 	return store;
 };
 
-const gapTestStore = createChatStore();
-gapTestStore.replaceMessages([
-	buildMessage(1, "user", "Explain the layout."),
-	buildMessage(2, "assistant", "Here is the explanation."),
-	buildMessage(3, "user", "Can you elaborate?"),
-]);
-gapTestStore.applyMessageParts([
-	{ type: "text", text: "Certainly, here are more details..." },
-]);
-
 // ---------------------------------------------------------------------------
 // Editing flow stories
 // ---------------------------------------------------------------------------
@@ -513,42 +572,6 @@ export const EditingMessage: Story = {
 			}}
 		/>
 	),
-};
-
-/** The saving state while an edit is in progress — shows the pending
- *  indicator on the message being saved. */
-export const EditingSaving: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a better joke",
-			}}
-			pendingEditMessageId={3}
-			isSubmissionPending
-		/>
-	),
-};
-
-export const ConsistentGapBetweenTimelineAndStream: Story = {
-	render: () => <StoryAgentChatPageView store={gapTestStore} />,
-	play: async ({ canvasElement }) => {
-		const wrapper = canvasElement.querySelector(
-			'[data-testid="chat-timeline-wrapper"]',
-		);
-		expect(wrapper).not.toBeNull();
-
-		const outerGap = window.getComputedStyle(wrapper!).rowGap;
-		expect(outerGap).toBe("8px");
-
-		const timeline = wrapper!.querySelector(
-			'[data-testid="conversation-timeline"]',
-		);
-		expect(timeline).not.toBeNull();
-		const innerGap = window.getComputedStyle(timeline!).rowGap;
-		expect(innerGap).toBe("8px");
-	},
 };
 
 // ---------------------------------------------------------------------------

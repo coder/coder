@@ -21,3 +21,11 @@ export const retrieveRedirect = (search: string): string => {
 	const redirect = searchParams.get("redirect");
 	return redirect ? redirect : defaultRedirect;
 };
+
+/**
+ * Ensures the redirect is not an open redirect, aka it's relative
+ */
+export const sanitizeRedirect = (redirectTo: string) => {
+	const sanitizedUrl = new URL(redirectTo, location.origin);
+	return sanitizedUrl.pathname + sanitizedUrl.search;
+};

@@ -1,7 +1,7 @@
 import {
 	CopyIcon,
 	DownloadIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	HistoryIcon,
 	SettingsIcon,
 	SquareIcon,
@@ -134,7 +134,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						aria-controls="workspace-options"
 						disabled={disabled}
 					>
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Workspace actions</span>
 					</Button>
 				</DropdownMenuTrigger>

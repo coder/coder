@@ -22,6 +22,8 @@ import {
 	normalizeStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	shortDurationMs,
 	stripSvnIndexHeaders,
 	toProviderLabel,
@@ -495,6 +497,7 @@ describe("parseEditFilesArgs", () => {
 				{ path: "a.ts", edits: [{ search: "x", replace: "y" }] },
 				{ path: 42, edits: [] }, // invalid: path not string
 				null, // invalid: null
+				undefined, // invalid: undefined
 				{ path: "b.ts" }, // invalid: no edits array
 				{ path: "c.ts", edits: [{ search: "a", replace: "b" }] },
 			],
@@ -512,6 +515,131 @@ describe("parseEditFilesArgs", () => {
 		const result = parseEditFilesArgs(args);
 		expect(result).toHaveLength(1);
 		expect(result[0].path).toBe("test.ts");
+	});
+
+	it("filters out edits with non-string search or replace", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{ search: "x", replace: "y" },
+						{ search: "a" }, // missing replace
+						{ replace: "b" }, // missing search
+						{ search: 42, replace: "c" }, // non-string search
+						{ search: "d", replace: null }, // non-string replace
+						null, // null edit
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "x", replace: "y" });
+	});
+
+	// Yup.object() is optional by default, so undefined passes
+	// isValidSync in strict mode. Without .required() on the
+	// schemas, undefined entries survive the filter and crash
+	// the subsequent .map() accessing f.path.
+	it("rejects undefined file entries and edits", () => {
+		const args = {
+			files: [
+				undefined,
+				{
+					path: "a.ts",
+					edits: [undefined, { search: "x", replace: "y" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].path).toBe("a.ts");
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "x", replace: "y" });
+	});
+
+	// Regression: a partial edit with a missing replace field caused
+	// Diff.createPatch to crash inside its tokenize method with
+	// "Cannot read properties of undefined (reading 'split')".
+	// This reproduces the exact call path from Tool.tsx:
+	// parseEditFilesArgs(args) -> buildEditDiff(file.path, file.edits).
+	it("does not crash buildEditDiff when edits have missing replace", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [
+						{ search: "const x = 1;", replace: "const x = 2;" },
+						{ search: "const y = 3;" }, // streamed edit, replace not yet present
+					],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		// The incomplete edit should be filtered out, leaving only
+		// the valid one so buildEditDiff never sees undefined.
+		expect(parsed[0].edits).toHaveLength(1);
+		const diff = buildEditDiff(parsed[0].path, parsed[0].edits);
+		expect(diff).not.toBeNull();
+	});
+
+	// search uses required() (rejects "") while replace uses
+	// defined() (allows ""). This asymmetry is intentional:
+	// empty search is meaningless, empty replace is a deletion.
+	it("rejects edits with empty-string search", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{ search: "", replace: "new" },
+						{ search: "valid", replace: "also valid" },
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0].search).toBe("valid");
+	});
+
+	it("preserves edits with empty-string replace (deletion)", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [{ search: "const old = 1;", replace: "" }],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].edits).toHaveLength(1);
+		expect(parsed[0].edits[0].replace).toBe("");
+	});
+
+	// During streaming the model may emit a file entry before any
+	// edit is complete. Every edit has a missing replace, so all are
+	// filtered out. The file entry survives with an empty edits
+	// array and buildEditDiff returns null.
+	it("returns file entry with empty edits when all edits are invalid", () => {
+		const args = {
+			files: [
+				{
+					path: "src/app.ts",
+					edits: [{ search: "const x = 1;" }, { search: "const y = 2;" }],
+				},
+			],
+		};
+		const parsed = parseEditFilesArgs(args);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].path).toBe("src/app.ts");
+		expect(parsed[0].edits).toHaveLength(0);
+		expect(buildEditDiff(parsed[0].path, parsed[0].edits)).toBeNull();
 	});
 });
 
@@ -726,5 +854,70 @@ describe("constants", () => {
 
 	it("diffViewerCSS includes border-left style", () => {
 		expect(diffViewerCSS).toContain("border-left");
+	});
+});
+
+describe("parseServerEditResults", () => {
+	it("returns null when result is not a record", () => {
+		expect(parseServerEditResults(null)).toBeNull();
+		expect(parseServerEditResults(undefined)).toBeNull();
+		expect(parseServerEditResults("foo")).toBeNull();
+	});
+
+	it("returns null when files field is absent", () => {
+		expect(parseServerEditResults({ ok: true })).toBeNull();
+	});
+
+	it("returns null when files is explicitly null (older agents)", () => {
+		expect(parseServerEditResults({ files: null })).toBeNull();
+	});
+
+	it("returns an empty array when files is an empty array", () => {
+		expect(parseServerEditResults({ files: [] })).toEqual([]);
+	});
+
+	it("parses well-formed entries", () => {
+		const result = parseServerEditResults({
+			files: [
+				{
+					path: "/abs/a.txt",
+					diff: "--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-a\n+A\n",
+				},
+				{ path: "/abs/b.txt", diff: "" },
+			],
+		});
+		expect(result).toEqual([
+			{
+				path: "/abs/a.txt",
+				diff: "--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-a\n+A\n",
+			},
+			{ path: "/abs/b.txt", diff: "" },
+		]);
+	});
+
+	it("skips malformed entries without dropping the rest", () => {
+		const result = parseServerEditResults({
+			files: [
+				null,
+				{ diff: "orphan" },
+				{ path: "", diff: "empty-path" },
+				{ path: "/ok", diff: "--- /ok\n+++ /ok\n" },
+			],
+		});
+		expect(result).toEqual([{ path: "/ok", diff: "--- /ok\n+++ /ok\n" }]);
+	});
+});
+
+describe("parseServerEditDiffText", () => {
+	it("returns null for an empty string (no-op edit)", () => {
+		expect(parseServerEditDiffText("")).toBeNull();
+	});
+
+	it("parses a unified diff into a FileDiffMetadata", () => {
+		const diff = parseServerEditDiffText(
+			"--- /abs/a.txt\n+++ /abs/a.txt\n@@ -1 +1 @@\n-hello\n+HELLO\n",
+		);
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("/abs/a.txt");
 	});
 });

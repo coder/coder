@@ -4,7 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"slices"
+	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -31,6 +36,13 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	user := httpmw.UserParam(r)
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := validateWebpushEndpoint(req.Endpoint); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid webpush endpoint.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -60,6 +72,42 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func validateWebpushEndpoint(rawEndpoint string) error {
+	endpoint, err := url.Parse(rawEndpoint)
+	if err != nil {
+		return xerrors.Errorf("parse endpoint URL: %w", err)
+	}
+	if !endpoint.IsAbs() {
+		return xerrors.New("endpoint must be an absolute URL")
+	}
+	if endpoint.Scheme != "https" {
+		return xerrors.New("endpoint URL scheme must be https")
+	}
+	if endpoint.Host == "" {
+		return xerrors.New("endpoint host is required")
+	}
+	if endpoint.User != nil {
+		return xerrors.New("endpoint URL must not include userinfo")
+	}
+
+	hostname := strings.ToLower(endpoint.Hostname())
+	if hostname == "" {
+		return xerrors.New("endpoint hostname is required")
+	}
+	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
+		return xerrors.New("endpoint hostname must not be localhost")
+	}
+
+	if ip, err := netip.ParseAddr(hostname); err == nil &&
+		(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
+			ip.IsUnspecified()) {
+		return xerrors.New("endpoint IP must not be private, loopback, link-local, multicast, or unspecified")
+	}
+
+	return nil
 }
 
 // @Summary Delete user webpush subscription

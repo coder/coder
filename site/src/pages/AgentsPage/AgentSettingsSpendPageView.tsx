@@ -415,6 +415,7 @@ export const AgentSettingsSpendPageView: FC<
 										<GroupLimitsSection
 											hideHeader
 											groupOverrides={groupOverrides}
+											groupOrganizationNames={groupCtrl.groupOrganizationNames}
 											showGroupForm={groupCtrl.showGroupForm}
 											onShowGroupFormChange={
 												groupCtrl.handleShowGroupFormChange

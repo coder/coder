@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
@@ -131,7 +137,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -172,6 +178,7 @@ export const useChatStore = (
 				};
 			});
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -206,10 +213,9 @@ export const useChatStore = (
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				// Only classify a store-held ID as stale if it was
 				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (by the WS
-				// handler or handleSend) are new, not stale, and
-				// must not trigger the destructive replaceMessages
-				// path.
+				// added to the store after the last sync (for example
+				// by the WS handler) are new, not stale, and must not
+				// trigger the destructive replaceMessages path.
 				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
@@ -627,7 +633,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {

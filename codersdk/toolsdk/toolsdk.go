@@ -65,6 +65,16 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	for _, opt := range opts {
 		opt(&d)
 	}
+	if d.agentConnFn == nil && d.coderClient != nil {
+		workspaceClient := workspacesdk.New(d.coderClient)
+		d.agentConnFn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			conn, err := workspaceClient.DialAgent(ctx, agentID, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			return conn, nil, nil
+		}
+	}
 	// Allow nil client for unauthenticated operation
 	// This enables tools that don't require user authentication to function
 	return d, nil
@@ -74,6 +84,7 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 type Deps struct {
 	coderClient *codersdk.Client
 	report      func(ReportTaskArgs) error
+	agentConnFn workspacesdk.AgentConnFunc
 }
 
 func (d Deps) ServerURL() string {
@@ -87,6 +98,55 @@ func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	return func(d *Deps) {
 		d.report = fn
 	}
+}
+
+// WithAgentConnFunc overrides how workspace tools open logical connections to
+// workspace agents.
+func WithAgentConnFunc(agentConnFn workspacesdk.AgentConnFunc) func(*Deps) {
+	return func(d *Deps) {
+		d.agentConnFn = agentConnFn
+	}
+}
+
+// openAgentConn opens a ready workspace agent session for workspace inputs in
+// [owner/]workspace[.agent] format.
+func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
+	if deps.coderClient == nil {
+		return nil, xerrors.New("workspace tools require an authenticated client")
+	}
+
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         deps.coderClient.WorkspaceAgent,
+		FetchLogs:     deps.coderClient.WorkspaceAgentLogsAfter,
+		// Always wait for startup scripts.
+		Wait: true,
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	conn, release, err := deps.agentConnFn(ctx, workspaceAgent.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	wrappedConn := workspacesdk.WrapAgentConn(conn, func() error {
+		if release != nil {
+			release()
+		}
+		return nil
+	})
+	if wrappedConn == nil {
+		return nil, xerrors.New("agent connection function returned nil connection")
+	}
+
+	return wrappedConn, nil
 }
 
 // HandlerFunc is a typed function that handles a tool call.
@@ -1501,7 +1561,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceLSResponse{}, err
 		}
@@ -1567,7 +1627,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
@@ -1641,7 +1701,7 @@ content you are trying to write, then re-encode it properly.
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1665,7 +1725,19 @@ type WorkspaceEditFileArgs struct {
 	Edits     []workspacesdk.FileEdit `json:"edits"`
 }
 
-var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
+// WorkspaceEditFilesResponse is the response shape for the edit-file
+// and edit-files tools. Message preserves the existing success text.
+// Files carries the per-file results returned by the agent
+// (populated when the agent-side IncludeDiff flag was set). The
+// field is named Files (matching the agent's FileEditResponse.Files)
+// so future per-file error or status fields can be added without a
+// second wire break.
+type WorkspaceEditFilesResponse struct {
+	Message string                        `json:"message"`
+	Files   []workspacesdk.FileEditResult `json:"files,omitempty"`
+}
+
+var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFile,
 		Description: `Edit a file in a workspace.`,
@@ -1703,27 +1775,29 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	},
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{
 				{
 					Path:  args.Path,
 					Edits: args.Edits,
 				},
 			},
+			IncludeDiff: true,
 		})
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 
-		return codersdk.Response{
+		return WorkspaceEditFilesResponse{
 			Message: "File edited successfully.",
+			Files:   resp.Files,
 		}, nil
 	},
 }
@@ -1733,7 +1807,7 @@ type WorkspaceEditFilesArgs struct {
 	Files     []workspacesdk.FileEdits `json:"files"`
 }
 
-var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
+var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFiles,
 		Description: `Edit one or more files in a workspace.`,
@@ -1785,20 +1859,24 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 	},
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files:       args.Files,
+			IncludeDiff: true,
+		})
 		if err != nil {
-			return codersdk.Response{}, err
+			return WorkspaceEditFilesResponse{}, err
 		}
 
-		return codersdk.Response{
+		return WorkspaceEditFilesResponse{
 			Message: "File(s) edited successfully.",
+			Files:   resp.Files,
 		}, nil
 	},
 }
@@ -2225,41 +2303,6 @@ func NormalizeWorkspaceInput(input string) string {
 	normalized := strings.ReplaceAll(input, "--", "/")
 
 	return normalized
-}
-
-// newAgentConn returns a connection to the agent specified by the workspace,
-// which must be in the format [owner/]workspace[.agent].
-func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
-	workspaceName := NormalizeWorkspaceInput(workspace)
-	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to find workspace: %w", err)
-	}
-
-	// Wait for agent to be ready.
-	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
-		FetchInterval: 0,
-		Fetch:         client.WorkspaceAgent,
-		FetchLogs:     client.WorkspaceAgentLogsAfter,
-		Wait:          true, // Always wait for startup scripts
-	}); err != nil {
-		return nil, xerrors.Errorf("agent not ready: %w", err)
-	}
-
-	wsClient := workspacesdk.New(client)
-
-	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-		BlockEndpoints: false,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("failed to dial agent: %w", err)
-	}
-
-	if !conn.AwaitReachable(ctx) {
-		conn.Close()
-		return nil, xerrors.New("agent connection not reachable")
-	}
-	return conn, nil
 }
 
 const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."

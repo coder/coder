@@ -1,12 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	draftInputStorageKeyPrefix,
+	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
+	restoreOptimisticRequestSnapshot,
 	useConversationEditingState,
+	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import type { PendingAttachment } from "./components/ChatPageContent";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -64,6 +70,85 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
+type Deferred<T> = {
+	promise: Promise<T>;
+	resolve: (value: T | PromiseLike<T>) => void;
+	reject: (reason?: unknown) => void;
+};
+
+const createDeferred = <T>(): Deferred<T> => {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve, reject };
+};
+
+describe("waitForPendingChatSettingsSyncs", () => {
+	it("waits for plan-mode and workspace updates before resolving", async () => {
+		const planModeUpdate = createDeferred<void>();
+		const workspaceUpdate = createDeferred<void>();
+		let settled = false;
+
+		const waitPromise = waitForPendingChatSettingsSyncs([
+			planModeUpdate.promise,
+			workspaceUpdate.promise,
+		]).then((result) => {
+			settled = true;
+			return result;
+		});
+
+		await Promise.resolve();
+		expect(settled).toBe(false);
+
+		planModeUpdate.resolve(undefined);
+		await Promise.resolve();
+		expect(settled).toBe(false);
+
+		workspaceUpdate.resolve(undefined);
+		await expect(waitPromise).resolves.toBeUndefined();
+		expect(settled).toBe(true);
+	});
+
+	it("rejects when a chat-setting update fails", async () => {
+		const workspaceUpdate = createDeferred<void>();
+		const waitPromise = waitForPendingChatSettingsSyncs([
+			workspaceUpdate.promise,
+		]);
+
+		workspaceUpdate.reject(new Error("boom"));
+		await expect(waitPromise).rejects.toThrow("boom");
+	});
+});
+
+describe("filterWorkspaceOptionsByOrganization", () => {
+	const makeWorkspace = (id: string, organizationID: string) =>
+		({ id, organization_id: organizationID }) as TypesGen.Workspace;
+
+	it("returns only workspaces from the active chat organization", () => {
+		const workspaces = [
+			makeWorkspace("workspace-1", "org-a"),
+			makeWorkspace("workspace-2", "org-b"),
+			makeWorkspace("workspace-3", "org-a"),
+		];
+
+		expect(filterWorkspaceOptionsByOrganization(workspaces, "org-a")).toEqual([
+			workspaces[0],
+			workspaces[2],
+		]);
+	});
+
+	it("returns an empty list until the chat organization is known", () => {
+		const workspaces = [makeWorkspace("workspace-1", "org-a")];
+
+		expect(filterWorkspaceOptionsByOrganization(workspaces, undefined)).toEqual(
+			[],
+		);
+	});
+});
+
 describe("getPersistedDraftInputValue", () => {
 	const chatID = "chat-abc-123";
 	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
@@ -81,6 +166,41 @@ describe("getPersistedDraftInputValue", () => {
 
 	it("returns empty string when localStorage has no draft", () => {
 		expect(getPersistedDraftInputValue(chatID)).toBe("");
+	});
+});
+
+describe("restoreOptimisticRequestSnapshot", () => {
+	it("restores queued messages, stream output, status, and stream error", () => {
+		const store = createChatStore();
+		store.setQueuedMessages([
+			{
+				id: 9,
+				chat_id: "chat-abc-123",
+				created_at: "2025-01-01T00:00:00.000Z",
+				content: [{ type: "text" as const, text: "queued" }],
+			},
+		]);
+		store.setChatStatus("running");
+		store.applyMessagePart({ type: "text", text: "partial response" });
+		store.setStreamError({ kind: "generic", message: "old error" });
+		const previousSnapshot = store.getSnapshot();
+
+		store.batch(() => {
+			store.setQueuedMessages([]);
+			store.setChatStatus("pending");
+			store.clearStreamState();
+			store.clearStreamError();
+		});
+
+		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+
+		const restoredSnapshot = store.getSnapshot();
+		expect(restoredSnapshot.queuedMessages).toEqual(
+			previousSnapshot.queuedMessages,
+		);
+		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
+		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
+		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
 	});
 });
 
@@ -324,6 +444,87 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
 		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		unmount();
+	});
+
+	it("forwards pending attachments through history-edit send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const attachments: PendingAttachment[] = [
+			{ fileId: "file-1", mediaType: "image/png" },
+		];
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
+
+		await act(async () => {
+			await result.current.handleSendFromInput("hello", attachments);
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		unmount();
+	});
+
+	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("edited message");
+		const fileBlocks = [
+			{ type: "file", file_id: "file-1", media_type: "image/png" },
+		] as const;
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+		const editorState = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [{ text: "edited message" }],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
+			result.current.handleContentChange("edited message", editorState, false);
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput("edited message"),
+			).rejects.toThrow("boom");
+		});
+
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("edited message");
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.initialEditorState).toBe(editorState);
+		unmount();
+	});
+
+	it("preserves the composer and draft when send fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		onSend.mockRejectedValueOnce(new Error("boom"));
+
+		act(() => {
+			result.current.handleContentChange("hello", "hello", false);
+		});
+
+		await act(async () => {
+			await expect(result.current.handleSendFromInput("hello")).rejects.toThrow(
+				"boom",
+			);
+		});
+
+		expect(mockInput.clear).not.toHaveBeenCalled();
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
 		unmount();
 	});
 

@@ -15,6 +15,11 @@ import {
   id = "e75f1212-834c-4183-8bed-d6817cac60a5"
 }
 
+import {
+  to = coderd_template.vscode_coder
+  id = "2d5caceb-c6a3-4c46-a81d-005d92b83ffd"
+}
+
 data "coderd_organization" "default" {
   is_default = true
 }
@@ -93,6 +98,52 @@ resource "coderd_template" "dogfood" {
   time_til_dormant_ms            = 8640000000
 }
 
+resource "coderd_template" "vscode_coder" {
+  name            = "vscode-coder"
+  display_name    = "Write Coder VS Code Extension on Coder"
+  description     = "Develop the coder/vscode-coder VS Code extension on Coder."
+  icon            = "/icon/code.svg"
+  organization_id = data.coderd_organization.default.id
+  versions = [
+    {
+      name      = var.CODER_TEMPLATE_VERSION
+      message   = var.CODER_TEMPLATE_MESSAGE
+      directory = "./vscode-coder"
+      active    = true
+      tf_vars = [
+        {
+          name  = "anthropic_api_key"
+          value = var.CODER_DOGFOOD_ANTHROPIC_API_KEY
+        }
+      ]
+    }
+  ]
+  acl = {
+    groups = [{
+      id   = data.coderd_organization.default.id
+      role = "use"
+    }]
+    users = [{
+      id   = data.coderd_user.machine.id
+      role = "admin"
+    }]
+  }
+  activity_bump_ms                  = 10800000
+  allow_user_auto_start             = true
+  allow_user_auto_stop              = true
+  allow_user_cancel_workspace_jobs  = false
+  auto_start_permitted_days_of_week = ["friday", "monday", "saturday", "sunday", "thursday", "tuesday", "wednesday"]
+  auto_stop_requirement = {
+    days_of_week = ["sunday"]
+    weeks        = 1
+  }
+  default_ttl_ms                 = 28800000
+  deprecation_message            = null
+  failure_ttl_ms                 = 604800000
+  require_active_version         = true
+  time_til_dormant_autodelete_ms = 7776000000
+  time_til_dormant_ms            = 8640000000
+}
 
 resource "coderd_template" "envbuilder_dogfood" {
   name            = "coder-envbuilder"

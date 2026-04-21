@@ -1,6 +1,11 @@
-import type { QueryOptions, UseInfiniteQueryOptions } from "react-query";
+import type {
+	QueryOptions,
+	UseInfiniteQueryOptions,
+	UseQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type {
+	ProvisionerJobLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspaceBuildsRequest,
@@ -60,6 +65,25 @@ export const infiniteWorkspaceBuilds = (
 		},
 	} satisfies UseInfiniteQueryOptions<WorkspaceBuild[]>;
 };
+
+function workspaceBuildLogsKey(workspaceBuildId: string) {
+	return ["workspaceBuilds", workspaceBuildId, "logs"] as const;
+}
+
+// Fetches build logs via REST. Completed build logs are immutable,
+// so the query uses infinite staleTime to cache across re-mounts
+// (e.g. collapsible expand/collapse cycles).
+export function workspaceBuildLogs(workspaceBuildId: string) {
+	return {
+		queryKey: workspaceBuildLogsKey(workspaceBuildId),
+		queryFn: () => API.getWorkspaceBuildLogs(workspaceBuildId),
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 10 * 60 * 1000, // 10 minutes. Avoids holding logs in cache forever.
+		refetchOnMount: false,
+		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
+	} as const satisfies UseQueryOptions<ProvisionerJobLog[]>;
+}
 
 // We use readyAgentsCount to invalidate the query when an agent connects
 export const workspaceBuildTimings = (workspaceBuildId: string) => {

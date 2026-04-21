@@ -35,6 +35,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canCreateChat: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -91,6 +92,18 @@ export const ForMember: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canCreateChat: false,
+	},
+};
+
+export const ForMemberWithAgentsAccess: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		canCreateChat: true,
 	},
 };
 

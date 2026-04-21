@@ -48,12 +48,17 @@ jobs:
         with:
           # Full history required for cherry-pick and branch discovery.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Cherry-pick and open PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          # Configure git to authenticate pushes with the job token
+          # since persist-credentials is disabled on checkout.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           # Find the latest release branch matching the exact release/2.X
           # pattern (no suffixes like release/2.31_hotfix).
@@ -134,10 +139,19 @@ jobs:
             exit 0
           fi
 
-          gh pr create \
-            --base "$RELEASE_BRANCH" \
-            --head "$BACKPORT_BRANCH" \
-            --title "$TITLE" \
-            --body "$BODY" \
-            --assignee "$SENDER" \
-            --reviewer "$SENDER"
+          NEW_PR_URL=$(
+            gh pr create \
+              --base "$RELEASE_BRANCH" \
+              --head "$BACKPORT_BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --assignee "$SENDER" \
+              --reviewer "$SENDER"
+          )
+
+          # Comment on the original PR to notify the author.
+          COMMENT="Cherry-pick PR created: ${NEW_PR_URL}"
+          if [ "$CONFLICT" = true ]; then
+            COMMENT="${COMMENT} (⚠️ conflicts need manual resolution)"
+          fi
+          gh pr comment "$PR_NUMBER" --body "$COMMENT"

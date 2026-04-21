@@ -197,6 +197,10 @@ func TestServerDBCrypt(t *testing.T) {
 		gitAuthLinks, err := db.GetExternalAuthLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get git auth links for user %s", usr.ID)
 		require.Empty(t, gitAuthLinks)
+
+		userSecrets, err := db.ListUserSecretsWithValues(ctx, usr.ID)
+		require.NoError(t, err, "failed to get user secrets for user %s", usr.ID)
+		require.Empty(t, userSecrets)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -242,6 +246,14 @@ func genData(t *testing.T, db database.Store) []database.User {
 						OAuthRefreshToken: "refresh-" + usr.ID.String(),
 					})
 				}
+
+				_ = dbgen.UserSecret(t, db, database.UserSecret{
+					UserID:   usr.ID,
+					Name:     "secret-" + usr.ID.String(),
+					Value:    "value-" + usr.ID.String(),
+					EnvName:  "",
+					FilePath: "",
+				})
 				users = append(users, usr)
 			}
 		}
@@ -282,6 +294,13 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 		requireEncryptedEquals(t, c, "refresh-"+userID.String(), gal.OAuthRefreshToken)
 		require.Equal(t, c.HexDigest(), gal.OAuthAccessTokenKeyID.String)
 		require.Equal(t, c.HexDigest(), gal.OAuthRefreshTokenKeyID.String)
+	}
+
+	userSecrets, err := db.ListUserSecretsWithValues(ctx, userID)
+	require.NoError(t, err, "failed to get user secrets for user %s", userID)
+	for _, s := range userSecrets {
+		requireEncryptedEquals(t, c, "value-"+userID.String(), s.Value)
+		require.Equal(t, c.HexDigest(), s.ValueKeyID.String)
 	}
 }
 

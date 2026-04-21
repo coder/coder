@@ -2908,7 +2908,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
 
 	// When: activity bump is applied to an unclaimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: prebuild Deadline/MaxDeadline remain unchanged
 	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
@@ -2941,7 +2941,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
 
 	// When: activity bump is applied to a claimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)

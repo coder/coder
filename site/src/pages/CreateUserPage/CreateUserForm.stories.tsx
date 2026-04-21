@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
-import { organizationsKey } from "#/api/queries/organizations";
-import type { Organization } from "#/api/typesGenerated";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -26,37 +24,20 @@ type Story = StoryObj<typeof CreateUserForm>;
 
 export const Ready: Story = {};
 
-const permissionCheckQuery = (organizations: Organization[]) => {
-	return {
-		key: [
-			"authorization",
-			{
-				checks: Object.fromEntries(
-					organizations.map((org) => [
-						org.id,
-						{
-							action: "create",
-							object: {
-								resource_type: "organization_member",
-								organization_id: org.id,
-							},
-						},
-					]),
-				),
-			},
-		],
-		data: Object.fromEntries(organizations.map((org) => [org.id, true])),
-	};
-};
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "organization_member" }, action: "create" },
+];
 
 export const WithOrganizations: Story = {
 	parameters: {
 		queries: [
 			{
-				key: organizationsKey,
+				key: permittedOrgsKey,
 				data: [MockOrganization, MockOrganization2],
 			},
-			permissionCheckQuery([MockOrganization, MockOrganization2]),
 		],
 	},
 	args: {

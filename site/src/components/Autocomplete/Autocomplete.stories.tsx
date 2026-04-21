@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -319,7 +319,7 @@ export const WithCustomRenderOption: Story = {
 								subtitle={user.email}
 								src={user.avatar_url}
 							/>
-							{isSelected && <Check className="size-4 shrink-0" />}
+							{isSelected && <CheckIcon className="size-4 shrink-0" />}
 						</div>
 					)}
 				/>
@@ -363,7 +363,7 @@ export const WithStartAdornment: Story = {
 								subtitle={user.email}
 								src={user.avatar_url}
 							/>
-							{isSelected && <Check className="size-4 shrink-0" />}
+							{isSelected && <CheckIcon className="size-4 shrink-0" />}
 						</div>
 					)}
 				/>

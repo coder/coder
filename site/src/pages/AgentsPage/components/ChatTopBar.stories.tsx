@@ -8,14 +8,6 @@ const defaultProps = {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
 	},
-	workspace: {
-		canOpenEditors: true,
-		canOpenWorkspace: true,
-		onOpenInEditor: fn(),
-		onViewWorkspace: fn(),
-		onOpenTerminal: fn(),
-		sshCommand: "ssh main.my-workspace.admin.coder",
-	},
 	onArchiveAgent: fn(),
 	onArchiveAndDeleteWorkspace: fn(),
 	onRegenerateTitle: fn(),
@@ -57,6 +49,7 @@ export const WithParentChat: Story = {
 	args: {
 		parentChat: {
 			id: "parent-chat-1",
+			organization_id: "test-org-id",
 			owner_id: "owner-id",
 			last_model_config_id: "model-config-1",
 			mcp_server_ids: [],
@@ -69,6 +62,8 @@ export const WithParentChat: Story = {
 			archived: false,
 			pin_order: 0,
 			has_unread: false,
+			client_type: "ui",
+			children: [],
 		},
 	},
 };

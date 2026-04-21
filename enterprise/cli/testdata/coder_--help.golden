@@ -29,6 +29,17 @@ GLOBAL OPTIONS:
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
+      --client-tls-ca-file string, $CODER_CLIENT_TLS_CA_FILE
+          Path to a CA certificate file to trust for API and DERP connections.
+
+      --client-tls-cert-file string, $CODER_CLIENT_TLS_CERT_FILE
+          Path to a client certificate file for mTLS authentication with API and
+          DERP. Requires --client-tls-key-file.
+
+      --client-tls-key-file string, $CODER_CLIENT_TLS_KEY_FILE
+          Path to a client private key file for mTLS authentication with API and
+          DERP. Requires --client-tls-cert-file.
+
       --debug-options bool
           Print all options, how they're set, then exit.
 
