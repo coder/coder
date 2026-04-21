@@ -372,15 +372,6 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
-	readonly patch?: string;
-	readonly diff_patch?: string;
-	readonly unified_diff?: string;
-	readonly diffs_url?: string;
-	readonly diff_url?: string;
-	readonly diffs_link?: string;
-}
-
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -3222,15 +3213,6 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.ChatMessage> => {
 		const response = await this.axios.post<TypesGen.ChatMessage>(
 			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
-		);
-		return response.data;
-	};
-
-	getChatGitChanges = async (
-		chatId: string,
-	): Promise<ChatGitChangeResponse[]> => {
-		const response = await this.axios.get<ChatGitChangeResponse[]>(
-			`/api/experimental/chats/${chatId}/git-changes`,
 		);
 		return response.data;
 	};
