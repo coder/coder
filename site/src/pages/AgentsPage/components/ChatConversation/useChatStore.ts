@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
@@ -131,7 +137,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -172,6 +178,7 @@ export const useChatStore = (
 				};
 			});
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -626,7 +633,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {
