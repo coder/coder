@@ -7,7 +7,7 @@ import (
 	ant_option "github.com/anthropics/anthropic-sdk-go/option"
 	oai_option "github.com/openai/openai-go/v3/option"
 
-	"github.com/coder/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/context"
 )
 
 const (

@@ -16,7 +16,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 
-	"github.com/coder/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/quartz"
 )
 

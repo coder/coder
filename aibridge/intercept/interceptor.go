@@ -7,8 +7,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 // Interceptor describes a (potentially) stateful interaction with an AI provider.

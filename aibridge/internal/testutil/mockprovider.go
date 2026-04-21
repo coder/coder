@@ -6,8 +6,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 )
 
 type MockProvider struct {

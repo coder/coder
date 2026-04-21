@@ -19,8 +19,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/mcp"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 )

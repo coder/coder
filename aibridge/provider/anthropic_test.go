@@ -11,9 +11,9 @@ import (
 
 	"cdr.dev/slog/v3"
 
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
 func TestAnthropic_TypeAndName(t *testing.T) {

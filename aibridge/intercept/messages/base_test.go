@@ -12,9 +12,9 @@ import (
 	"github.com/tidwall/gjson"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestScanForCorrelatingToolCallID(t *testing.T) {

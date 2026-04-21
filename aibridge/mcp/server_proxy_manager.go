@@ -10,8 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge/tracing"
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var _ ServerProxier = &ServerProxyManager{}

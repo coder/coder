@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestRecordPrompt(t *testing.T) {

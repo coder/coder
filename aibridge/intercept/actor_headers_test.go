@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestNilActor(t *testing.T) {

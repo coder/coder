@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	mcp "github.com/coder/aibridge/mcp"
+	mcp "github.com/coder/coder/v2/aibridge/mcp"
 	mcp0 "github.com/mark3labs/mcp-go/mcp"
 	gomock "go.uber.org/mock/gomock"
 )

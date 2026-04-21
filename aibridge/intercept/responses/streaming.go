@@ -16,13 +16,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/config"
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/intercept/eventstream"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/recorder"
-	"github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
 )
 

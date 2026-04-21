@@ -3,7 +3,7 @@ package mcp
 import (
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/coder/aibridge/buildinfo"
+	"github.com/coder/coder/v2/buildinfo"
 )
 
 // GetClientInfo returns the MCP client information to use when initializing MCP connections.

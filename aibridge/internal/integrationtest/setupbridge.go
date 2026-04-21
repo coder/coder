@@ -14,15 +14,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/fixtures"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/metrics"
-	"github.com/coder/aibridge/provider"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/fixtures"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 const (

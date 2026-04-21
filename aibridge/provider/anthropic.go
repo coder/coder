@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge/circuitbreaker"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/intercept/messages"
-	"github.com/coder/aibridge/tracing"
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
+	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // anthropicForwardHeaders lists headers from incoming requests that should be

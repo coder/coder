@@ -12,7 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func (i *responsesInterceptionBase) injectTools() {

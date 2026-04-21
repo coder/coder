@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept"
 )
 
 func TestPrepareClientHeaders(t *testing.T) {

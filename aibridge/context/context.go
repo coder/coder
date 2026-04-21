@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 type (

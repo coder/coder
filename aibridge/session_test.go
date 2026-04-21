@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestGuessSessionID(t *testing.T) {

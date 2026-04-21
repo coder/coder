@@ -10,10 +10,10 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/provider"
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")

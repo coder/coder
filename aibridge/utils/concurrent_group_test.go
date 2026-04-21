@@ -7,7 +7,7 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestMain(m *testing.M) {
