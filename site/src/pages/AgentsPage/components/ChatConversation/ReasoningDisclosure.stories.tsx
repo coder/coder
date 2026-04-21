@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { ReasoningDisclosure } from "./ReasoningDisclosure";
 
@@ -105,7 +106,10 @@ export const ExpandedWhileStreaming: Story = {
 		const toggle = canvas.getByRole("button", { name: /thinking/i });
 		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-		expect(canvas.getByText(/^Thinking$/i)).toBeVisible();
+		// Scope the text assertion to the header button so it doesn't
+		// race the body shimmer ("Thinking...") that also renders while
+		// the smooth-streaming buffer hasn't dripped any characters yet.
+		expect(within(toggle).getByText(/thinking/i)).toBeVisible();
 	},
 };
 
@@ -155,8 +159,72 @@ export const CollapsedWithEmptyText: Story = {
 		const toggle = canvas.getByRole("button", { name: /thought/i });
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
+		// While collapsed, the empty-state copy must not be in the DOM.
+		// Guards against a regression that renders the body
+		// unconditionally regardless of `aria-expanded`.
+		expect(canvas.queryByText("No reasoning recorded.")).toBeNull();
+
 		await userEvent.click(toggle);
 		expect(canvas.getByText("No reasoning recorded.")).toBeVisible();
+	},
+};
+
+// Simulates a network reconnect on a stable mount: the same
+// `ReasoningDisclosure` instance sees `isStreaming` flip
+// `true → false → true` without an unmount. The component must
+// preserve a user's manual collapse across the flip, not re-open and
+// flicker mid-response.
+//
+// Contract: `isOpen` is initialized from `isStreaming` at mount time.
+// The parent's keyPrefix convention is load-bearing: `StreamingOutput`
+// uses the stable `keyPrefix="stream"` across reconnects, and switches
+// to `message.id` only when the live instance is replaced by its
+// historical counterpart.
+export const StateIsPreservedAcrossIsStreamingFlip: Story = {
+	args: {
+		isStreaming: true,
+		text: REASONING_TEXT,
+	},
+	render: function Render(args) {
+		const [streaming, setStreaming] = useState<boolean>(
+			args.isStreaming ?? false,
+		);
+		return (
+			<>
+				<ReasoningDisclosure {...args} isStreaming={streaming} />
+				<button
+					type="button"
+					data-testid="toggle-streaming"
+					onClick={() => setStreaming((s) => !s)}
+					className="sr-only"
+				>
+					toggle streaming
+				</button>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /thinking/i });
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+		// User manually collapses mid-stream.
+		await userEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+		const streamToggle = canvas.getByTestId("toggle-streaming");
+
+		// Reconnect drop: isStreaming flips to false. User's manual
+		// collapse must be preserved.
+		await userEvent.click(streamToggle);
+		const thoughtToggle = canvas.getByRole("button", { name: /thought/i });
+		expect(thoughtToggle).toHaveAttribute("aria-expanded", "false");
+
+		// Reconnect resume: isStreaming flips back to true. Still
+		// collapsed. The component must not auto-re-open.
+		await userEvent.click(streamToggle);
+		const thinkingToggle = canvas.getByRole("button", { name: /thinking/i });
+		expect(thinkingToggle).toHaveAttribute("aria-expanded", "false");
 	},
 };
 

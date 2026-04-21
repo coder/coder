@@ -1,5 +1,5 @@
 import { ChevronRightIcon, LightbulbIcon } from "lucide-react";
-import { memo, type ReactNode, useEffect, useId, useState } from "react";
+import { memo, type ReactNode, useId, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "#/utils/cn";
 import { Response, Shimmer } from "../ChatElements";
@@ -38,11 +38,23 @@ const renderHeaderLabel = (
  *   mounts a fresh historical one (keyPrefix=message.id) that
  *   naturally starts collapsed.
  *
- * We also re-sync `isOpen` with the `isStreaming` prop via
- * `useEffect` so the collapse still happens if a future refactor
- * lands that keeps the component mounted across the stream → historical
- * transition. Without that effect the open state would be stuck at
- * whatever it was during streaming.
+ * The initial `isOpen` state is seeded from `isStreaming` at mount
+ * time and is not re-synced when the prop changes. Transient
+ * reconnect phases (`retrying` / `reconnecting`) flip `isStreaming`
+ * to `false` and back to `true` on the same mounted instance, so a
+ * prop-driven re-sync effect would collapse the block mid-response
+ * and clobber the user's manual toggle. The parent's `keyPrefix`
+ * convention in `BlockList` is load-bearing: live streams use the
+ * stable `"stream"` prefix (preserving state across reconnects) and
+ * switch to `message.id` only when the live instance is replaced by
+ * its historical counterpart, which forces an unmount/remount into
+ * the collapsed default.
+ *
+ * A future refactor that keeps the same instance mounted across
+ * stream to historical must drive the transition with an explicit
+ * terminal-phase signal (e.g. an `onStreamComplete` callback), not
+ * the `isStreaming` prop, because `isStreaming=false` alone cannot
+ * be distinguished from a transient reconnect by this component.
  *
  * Streaming reasoning text is smoothed through the same jitter buffer
  * used by response blocks so it arrives at a steady cadence.
@@ -50,14 +62,6 @@ const renderHeaderLabel = (
 export const ReasoningDisclosure = memo<ReasoningDisclosureProps>(
 	({ id, text, isStreaming = false, urlTransform }) => {
 		const [isOpen, setIsOpen] = useState(isStreaming);
-		// Re-sync open state with the streaming flag so the block
-		// collapses on stream completion even when the parent keeps the
-		// component mounted. `BlockList` currently unmounts live
-		// instances by changing keyPrefix, but that is a call-site
-		// convention, not a component-level guarantee.
-		useEffect(() => {
-			setIsOpen(isStreaming);
-		}, [isStreaming]);
 
 		const { visibleText } = useSmoothStreamingText({
 			fullText: text,
