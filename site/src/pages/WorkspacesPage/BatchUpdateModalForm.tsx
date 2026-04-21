@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { Label, Slot } from "radix-ui";
 import {
 	type FC,
@@ -184,7 +184,7 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 			className="rounded-md border-border-warning border border-solid p-4"
 		>
 			<h4 className="m-0 font-semibold flex flex-row items-center gap-2 text-content-primary">
-				<TriangleAlert className="text-content-warning" size={16} />
+				<TriangleAlertIcon className="text-content-warning" size={16} />
 				Running workspaces detected
 			</h4>
 

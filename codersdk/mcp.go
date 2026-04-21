@@ -64,10 +64,11 @@ type MCPServerConfig struct {
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
-	Enabled     bool      `json:"enabled"`
-	ModelIntent bool      `json:"model_intent"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	Enabled         bool      `json:"enabled"`
+	ModelIntent     bool      `json:"model_intent"`
+	AllowInPlanMode bool      `json:"allow_in_plan_mode"`
+	CreatedAt       time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -96,9 +97,10 @@ type CreateMCPServerConfigRequest struct {
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
-	Availability string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
-	Enabled      bool   `json:"enabled"`
-	ModelIntent  bool   `json:"model_intent"`
+	Availability    string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
+	Enabled         bool   `json:"enabled"`
+	ModelIntent     bool   `json:"model_intent"`
+	AllowInPlanMode bool   `json:"allow_in_plan_mode"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -124,9 +126,10 @@ type UpdateMCPServerConfigRequest struct {
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
 
-	Availability *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
-	Enabled      *bool   `json:"enabled,omitempty"`
-	ModelIntent  *bool   `json:"model_intent,omitempty"`
+	Availability    *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
+	Enabled         *bool   `json:"enabled,omitempty"`
+	ModelIntent     *bool   `json:"model_intent,omitempty"`
+	AllowInPlanMode *bool   `json:"allow_in_plan_mode,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

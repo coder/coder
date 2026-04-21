@@ -310,26 +310,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedWorkspaceId
 			: null;
 
-	const handleSend = useEffectEvent(
-		async (message: string, fileIDs?: string[]) => {
-			submitDraft();
-			await onCreateChat({
-				message,
-				fileIDs,
-				workspaceId: effectiveWorkspaceId ?? undefined,
-				model: selectedModel || undefined,
-				organizationId,
-				mcpServerIds:
-					effectiveMCPServerIds.length > 0
-						? [...effectiveMCPServerIds]
-						: undefined,
-				planMode: planModeEnabled ? "plan" : undefined,
-			}).catch((err) => {
-				resetDraft();
-				throw err;
-			});
-		},
-	);
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: selectedModel || undefined,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
 
 	const {
 		attachments,

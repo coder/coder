@@ -23,6 +23,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -55,12 +56,16 @@ func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
-func newChatClient(t testing.TB) *codersdk.ExperimentalClient {
+func newChatClient(t testing.TB, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
 	t.Helper()
 
-	client := coderdtest.New(t, &coderdtest.Options{
+	opts := &coderdtest.Options{
 		DeploymentValues: chatDeploymentValues(t),
-	})
+	}
+	for _, override := range overrides {
+		override(opts)
+	}
+	client := coderdtest.New(t, opts)
 	return codersdk.NewExperimentalClient(client)
 }
 
@@ -76,12 +81,16 @@ func newChatClientWithDeploymentValues(
 	return codersdk.NewExperimentalClient(client)
 }
 
-func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
+func newChatClientWithDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+	opts := &coderdtest.Options{
 		DeploymentValues: chatDeploymentValues(t),
-	})
+	}
+	for _, override := range overrides {
+		override(opts)
+	}
+	client, db := coderdtest.NewWithDatabase(t, opts)
 	return codersdk.NewExperimentalClient(client), db
 }
 
@@ -210,7 +219,10 @@ func TestPostChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -259,6 +271,13 @@ func TestPostChats(t *testing.T) {
 			}
 		}
 		require.True(t, foundUserMessage)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chat.ID,
+			ResourceTarget: chat.ID.String()[:8],
+			UserID:         member.ID,
+		}))
 	})
 
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
@@ -3954,6 +3973,22 @@ func TestPatchChat(t *testing.T) {
 		require.NoError(t, err)
 		return db2sdk.Chat(dbChat, nil, nil)
 	}
+
+	// waitChatSettled polls the chat until its background title-generation
+	// daemon has left the Pending/Running state. Without this, an immediate
+	// UpdateChat can hit a 409 (title regeneration in progress).
+	waitChatSettled := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			c, err := client.GetChat(ctx, chatID)
+			if err != nil {
+				return false
+			}
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
+	}
+
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
@@ -3961,7 +3996,10 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			mAudit := audit.NewMock()
+			client := newChatClient(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
@@ -3973,13 +4011,22 @@ func TestPatchChat(t *testing.T) {
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, codersdk.ChatPlanModePlan, updated.PlanMode)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 
 		t.Run("Clear", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			mAudit := audit.NewMock()
+			client := newChatClient(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
@@ -3996,23 +4043,37 @@ func TestPatchChat(t *testing.T) {
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Empty(t, updated.PlanMode)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 
 		t.Run("RejectsInvalidValue", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			mAudit := audit.NewMock()
+			client := newChatClient(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid plan mode")
-			invalidPlanMode := codersdk.ChatPlanMode("invalid")
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				PlanMode: &invalidPlanMode,
+				PlanMode: ptr.Ref(codersdk.ChatPlanMode("invalid")),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Invalid plan_mode value.", sdkErr.Message)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 	})
 
@@ -4023,7 +4084,10 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := newChatClientWithDatabase(t)
+			mAudit := audit.NewMock()
+			client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -4049,13 +4113,22 @@ func TestPatchChat(t *testing.T) {
 			updated := getChat(ctx, t, client, chat.ID)
 			require.NotNil(t, updated.WorkspaceID)
 			require.Equal(t, workspaceBuild.Workspace.ID, *updated.WorkspaceID)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 
 		t.Run("WorkspaceNotFound", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := newChatClientWithDatabase(t)
+			mAudit := audit.NewMock()
+			client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -4074,13 +4147,22 @@ func TestPatchChat(t *testing.T) {
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 
 		t.Run("RejectsCrossOrgWorkspaceBinding", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := newChatClientWithDatabase(t)
+			mAudit := audit.NewMock()
+			client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -4108,13 +4190,22 @@ func TestPatchChat(t *testing.T) {
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Workspace does not belong to this chat's organization.", sdkErr.Message)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 
 		t.Run("ClearWorkspaceBinding", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := newChatClientWithDatabase(t)
+			mAudit := audit.NewMock()
+			client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+				opts.Auditor = mAudit
+			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -4147,6 +4238,12 @@ func TestPatchChat(t *testing.T) {
 			require.Nil(t, updated.WorkspaceID)
 			require.Nil(t, updated.BuildID)
 			require.Nil(t, updated.AgentID)
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionWrite,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   chat.ID,
+				UserID:       firstUser.UserID,
+			}))
 		})
 	})
 
@@ -4162,6 +4259,8 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "original title")
+
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("renamed title"),
@@ -4181,6 +4280,8 @@ func TestPatchChat(t *testing.T) {
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "before trim")
+
+			waitChatSettled(ctx, t, client, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("   padded title   "),
@@ -4279,6 +4380,8 @@ func TestPatchChat(t *testing.T) {
 					_ = createChatModelConfig(t, client)
 
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
+					waitChatSettled(ctx, t, client, chat.ID)
+
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 						Title: ptr.Ref(tc.title),
 					})
@@ -4390,6 +4493,8 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "announce me")
 
+			waitChatSettled(ctx, t, client, chat.ID)
+
 			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
 			require.NoError(t, err)
 			defer conn.Close(websocket.StatusNormalClosure, "done")
@@ -4423,7 +4528,10 @@ func TestArchiveChat(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
+		mAudit := audit.NewMock()
+		client := newChatClient(t, func(o *coderdtest.Options) {
+			o.Auditor = mAudit
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -4479,6 +4587,14 @@ func TestArchiveChat(t *testing.T) {
 		require.Len(t, archivedChats, 1)
 		require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
 		require.True(t, archivedChats[0].Archived)
+
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chatToArchive.ID,
+			ResourceTarget: chatToArchive.ID.String()[:8],
+			UserID:         firstUser.UserID,
+		}))
 	})
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()

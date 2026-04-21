@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { type FC, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { watchInboxNotifications } from "#/api/api";
@@ -40,7 +40,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		queryFn: () => fetchNotifications(),
 	});
 
-	const updateNotificationsCache = useEffectEvent(
+	const updateNotificationsCache = useCallback(
 		async (
 			callback: (
 				res: ListInboxNotificationsResponse,
@@ -57,6 +57,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 				},
 			);
 		},
+		[queryClient],
 	);
 
 	useEffect(() => {
@@ -85,7 +86,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		});
 
 		return () => socket.close();
-	}, []);
+	}, [updateNotificationsCache]);
 
 	const {
 		mutate: loadMoreNotifications,

@@ -1,4 +1,9 @@
-import { Activity, Coins, Expand, SquareArrowOutUpRight } from "lucide-react";
+import {
+	ActivityIcon,
+	CoinsIcon,
+	ExpandIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -24,7 +29,7 @@ const EnterpriseVersion: FC = () => {
 				</div>
 				<Button asChild>
 					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRight />
+						<SquareArrowOutUpRightIcon />
 						Contact sales
 					</a>
 				</Button>
@@ -93,7 +98,7 @@ const OSSVersion: FC = () => {
 				</div>
 				<Button asChild>
 					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRight />
+						<SquareArrowOutUpRightIcon />
 						Contact sales
 					</a>
 				</Button>
@@ -102,7 +107,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Expand className="size-icon-sm text-content-secondary" />
+						<ExpandIcon className="size-icon-sm text-content-secondary" />
 						&nbsp; Deploy coder at scale
 					</span>
 				</h2>
@@ -147,7 +152,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Coins className="size-icon-sm text-content-secondary" />
+						<CoinsIcon className="size-icon-sm text-content-secondary" />
 						&nbsp; Control infrastructure costs
 					</span>
 				</h2>
@@ -192,7 +197,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-5 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Activity className="size-icon-sm text-content-secondary" />
+						<ActivityIcon className="size-icon-sm text-content-secondary" />
 						&nbsp; Govern workspace activity
 					</span>
 				</h2>

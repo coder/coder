@@ -528,6 +528,7 @@ const makeMCPServer = (
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,

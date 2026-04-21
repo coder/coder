@@ -5,7 +5,7 @@
  * This component was updated to match the styles from the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 import {
@@ -72,7 +72,7 @@ export const DropdownMenuRadioItem: React.FC<
 			{children}
 			<span className="absolute top-3.5 right-2 flex h-3.5 w-3.5 items-center justify-center">
 				<DropdownMenuPrimitive.ItemIndicator>
-					<Check className="h-4 w-4" />
+					<CheckIcon className="h-4 w-4" />
 				</DropdownMenuPrimitive.ItemIndicator>
 			</span>
 		</DropdownMenuPrimitive.RadioItem>

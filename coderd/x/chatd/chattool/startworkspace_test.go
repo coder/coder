@@ -373,6 +373,7 @@ func TestStartWorkspace(t *testing.T) {
 			startCalled = true
 			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
 			require.Equal(t, ws.ID, wsID)
+			require.Empty(t, req.RichParameterValues, "no parameters should be forwarded for bare start")
 			// Simulate start by inserting a new completed "start" build.
 			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStart,
@@ -473,6 +474,71 @@ func TestStartWorkspace(t *testing.T) {
 		require.Contains(t, result["message"], "updated to the active template version")
 	})
 
+	t.Run("PassesParameters", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-passes-parameters",
+			ClientType:        database.ChatClientTypeUi,
+		})
+		require.NoError(t, err)
+
+		expectedParams := []codersdk.WorkspaceBuildParameter{
+			{Name: "region", Value: "us-east-1"},
+			{Name: "size", Value: "large"},
+		}
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
+			require.Equal(t, ws.ID, wsID)
+			require.ElementsMatch(t, expectedParams, req.RichParameterValues)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
+		}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: `{"parameters":{"region":"us-east-1","size":"large"}}`})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["started"])
+	})
+
 	t.Run("ManualUpdateRequired", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -509,17 +575,94 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID: user.ID,
 			ChatID:  chat.ID,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(400, codersdk.Response{Message: "The workspace needs to be updated before it can start because the template requires the active version, and the newer version has parameter changes that must be chosen manually. Please update and start the workspace from the UI."})
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(400, codersdk.Response{
+					Message: "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values.",
+					Detail:  "region must be set before the workspace can start",
+					Validations: []codersdk.ValidationError{{
+						Field:  "region",
+						Detail: "region must be set before the workspace can start",
+					}},
+				})
 			},
 			WorkspaceMu: &sync.Mutex{},
 		})
 
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
 		require.NoError(t, err)
-		require.True(t, resp.IsError)
-		require.Contains(t, resp.Content, "template requires the active version")
-		require.Contains(t, resp.Content, "must be chosen manually")
+		require.False(t, resp.IsError)
 		require.NotContains(t, resp.Content, "start workspace:")
+
+		var result struct {
+			Error       string                     `json:"error"`
+			Detail      string                     `json:"detail"`
+			TemplateID  string                     `json:"template_id"`
+			Validations []codersdk.ValidationError `json:"validations"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Contains(t, result.Error, "read_template")
+		require.Contains(t, result.Error, "retry start_workspace")
+		require.Equal(t, ws.TemplateID.String(), result.TemplateID)
+		require.Equal(t, "region must be set before the workspace can start", result.Detail)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "region",
+			Detail: "region must be set before the workspace can start",
+		}}, result.Validations)
+	})
+
+	t.Run("ResponderErrorWithoutValidationsOmitsTemplateID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-responder-error-without-validations",
+			ClientType:        database.ChatClientTypeUi,
+		})
+		require.NoError(t, err)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(502, codersdk.Response{
+					Message: "workspace start failed",
+					Detail:  "temporary provisioner outage",
+				})
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, "workspace start failed", result["error"])
+		require.Equal(t, "temporary provisioner outage", result["detail"])
+		_, hasTemplateID := result["template_id"]
+		require.False(t, hasTemplateID)
 	})
 
 	t.Run("InProgressBuild", func(t *testing.T) {
