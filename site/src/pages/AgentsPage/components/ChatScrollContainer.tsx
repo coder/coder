@@ -134,10 +134,14 @@ function useChatViewportController({
 			cancelAnimationFrame(deferredPinFrameRef.current);
 			deferredPinFrameRef.current = null;
 		}
+	});
+
+	const cancelInitialFollowLock = useEffectEvent(() => {
 		if (initialFollowLockFrameRef.current !== null) {
 			cancelAnimationFrame(initialFollowLockFrameRef.current);
 			initialFollowLockFrameRef.current = null;
 		}
+		isInitialFollowLockRef.current = false;
 	});
 
 	const pinToLatest = useEffectEvent(() => {
@@ -248,10 +252,7 @@ function useChatViewportController({
 				cancelAnimationFrame(deferredPinFrameRef.current);
 				deferredPinFrameRef.current = null;
 			}
-			if (initialFollowLockFrameRef.current !== null) {
-				cancelAnimationFrame(initialFollowLockFrameRef.current);
-				initialFollowLockFrameRef.current = null;
-			}
+			cancelInitialFollowLock();
 		};
 	}, []);
 
@@ -326,6 +327,7 @@ function useChatViewportController({
 
 		const detachViewport = () => {
 			cancelDeferredPin();
+			cancelInitialFollowLock();
 			isProgrammaticScrollRef.current = false;
 			if (modeRef.current !== "detached") {
 				syncMode("detached");
@@ -442,10 +444,8 @@ function useChatViewportController({
 		if (modeRef.current === "following-latest") {
 			anchorRef.current = null;
 			isProgrammaticScrollRef.current = false;
+			cancelInitialFollowLock();
 			isInitialFollowLockRef.current = true;
-			if (initialFollowLockFrameRef.current !== null) {
-				cancelAnimationFrame(initialFollowLockFrameRef.current);
-			}
 			initialFollowLockFrameRef.current = requestAnimationFrame(() => {
 				initialFollowLockFrameRef.current = requestAnimationFrame(() => {
 					initialFollowLockFrameRef.current = null;

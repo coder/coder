@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { type ComponentProps, type FC, useRef, useState } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -22,6 +22,7 @@ import {
 } from "./AgentChatPageView";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { FOLLOW_THRESHOLD_PX } from "./components/chatViewportUtils";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
@@ -1253,9 +1254,79 @@ const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
 const historyFetchGuardStore = buildStoreWithMessages(
 	buildLongConversation(30),
 );
+const initialDetachLockStore = buildStoreWithMessages(
+	buildLongConversation(30),
+);
+
+const InitialDetachLockStory: FC = () => {
+	const spoofedInitialScrollRef = useRef(false);
+
+	return (
+		<StoryAgentChatPageView
+			store={initialDetachLockStore}
+			onScrollContainerChange={(element) => {
+				if (!element || spoofedInitialScrollRef.current) {
+					return;
+				}
+				spoofedInitialScrollRef.current = true;
+				requestAnimationFrame(() => {
+					const detachedTop = Math.max(
+						0,
+						element.scrollHeight -
+							element.clientHeight -
+							(FOLLOW_THRESHOLD_PX + 24),
+					);
+					element.scrollTop = detachedTop;
+					element.dispatchEvent(new Event("scroll"));
+				});
+			}}
+		/>
+	);
+};
 
 /** During an active touch gesture, the container ResizeObserver must not
  *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
+/** A transient initial geometry mismatch must not detach the viewport. */
+export const InitialLayoutShiftDoesNotDetach: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <InitialDetachLockStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		for (let frame = 0; frame < 4; frame += 1) {
+			await new Promise<void>((resolve) =>
+				requestAnimationFrame(() => resolve()),
+			);
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		}
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollAwayFromBottom(scrollContainer);
+		await waitFor(() => {
+			const button = canvas.getByRole("button", {
+				name: "Scroll to bottom",
+			});
+			expect(button).toBeVisible();
+		});
+	},
+};
+
 export const ScrollNotJumpedDuringTouch: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
