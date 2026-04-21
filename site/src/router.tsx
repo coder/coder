@@ -733,8 +733,12 @@ export const router = createBrowserRouter(
 							element={<AgentSettingsCompactionPage />}
 						/>
 						<Route
-							path="system-instructions"
+							path="instructions"
 							element={<AgentSettingsSystemInstructionsPage />}
+						/>
+						<Route
+							path="system-instructions"
+							element={<Navigate to="/agents/settings/instructions" replace />}
 						/>
 						<Route
 							path="experiments"

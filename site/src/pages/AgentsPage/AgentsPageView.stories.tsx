@@ -182,8 +182,12 @@ const agentsRouting = {
 				},
 				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
 				{
-					path: "system-instructions",
+					path: "instructions",
 					element: <AgentSettingsSystemInstructionsPage />,
+				},
+				{
+					path: "system-instructions",
+					element: <Navigate to="/agents/settings/instructions" replace />,
 				},
 				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
@@ -697,7 +701,8 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Navigate to Spend section
+		// Navigate to the admin panel, then open the Spend section.
+		await userEvent.click(screen.getByText("Agent admin"));
 		await userEvent.click(screen.getByText("Spend"));
 		await waitFor(() => {
 			expect(
@@ -707,9 +712,11 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Go back to conversations
-		const backButton = screen.getByLabelText("Back to Agents");
-		await userEvent.click(backButton);
+		// Step back to the top-level settings panel, then back to conversations.
+		const backToSettingsButton = screen.getByLabelText("Back to Settings");
+		await userEvent.click(backToSettingsButton);
+		const backToAgentsButton = screen.getByLabelText("Back to Agents");
+		await userEvent.click(backToAgentsButton);
 
 		// Re-open settings, should reset to General
 		await openSettingsView(canvasElement);

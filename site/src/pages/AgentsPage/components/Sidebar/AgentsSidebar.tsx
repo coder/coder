@@ -26,29 +26,33 @@ import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	CoinsIcon,
 	EllipsisIcon,
-	FileTextIcon,
 	FilterIcon,
 	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
-	KeyRoundIcon,
+	KeyIcon,
 	LayoutTemplateIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
 	PinIcon,
 	PinOffIcon,
+	PlugIcon,
+	ReceiptTextIcon,
+	RefreshCwIcon,
 	ServerIcon,
+	Settings2Icon,
 	SettingsIcon,
 	ShieldIcon,
+	ShrinkIcon,
+	SparklesIcon,
 	SquarePenIcon,
-	TimerIcon,
 	Trash2Icon,
-	UserIcon,
-	WalletIcon,
+	UsersIcon,
 } from "lucide-react";
 import {
 	createContext,
@@ -110,7 +114,22 @@ import { RenameChatDialog } from "./RenameChatDialog";
 type SidebarView =
 	| { panel: "chats" }
 	| { panel: "settings"; section: string | undefined }
+	| { panel: "settings-admin"; section: string | undefined }
 	| { panel: "analytics" };
+
+const ADMIN_SETTINGS_SECTIONS = new Set([
+	"agents",
+	"templates",
+	"providers",
+	"models",
+	"mcp-servers",
+	"spend",
+	"insights",
+	"instructions",
+	"system-instructions",
+	"experiments",
+	"lifecycle",
+]);
 
 /**
  * Derive the current sidebar view from the URL pathname.
@@ -121,7 +140,13 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	}
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
-		return { panel: "settings", section: settingsMatch[1] };
+		const section = settingsMatch[1];
+		return {
+			panel: ADMIN_SETTINGS_SECTIONS.has(section ?? "")
+				? "settings-admin"
+				: "settings",
+			section,
+		};
 	}
 	return { panel: "chats" };
 }
@@ -819,12 +844,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+	const isSettingsPanel =
+		sidebarView.panel === "settings" || sidebarView.panel === "settings-admin";
+	const settingsPanel =
+		sidebarView.panel === "settings-admin" && isAdmin
+			? "settings-admin"
+			: "settings";
+	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
-		enabled: sidebarView.panel === "settings" && !isAdmin,
+		enabled: isSettingsPanel && !isAdmin,
 	});
-	const isApiKeysSection =
-		sidebarView.panel === "settings" && sidebarView.section === "api-keys";
+	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
@@ -1028,17 +1059,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onOpenRenameDialog: onRenameTitle ? setChatPendingRename : undefined,
 	};
 
-	const subNavTitle = "Settings";
+	const subNavTitle =
+		settingsPanel === "settings-admin" ? "Agent admin" : "Settings";
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
-					sidebarView.panel === "settings" && "-translate-x-full",
+					isSettingsPanel && "-translate-x-full",
 				)}
-				aria-hidden={sidebarView.panel === "settings"}
-				inert={sidebarView.panel === "settings" ? true : undefined}
+				aria-hidden={isSettingsPanel}
+				inert={isSettingsPanel ? true : undefined}
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
@@ -1057,7 +1089,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								aria-label="Settings"
 								className={cn(
 									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-									sidebarView.panel === "settings" && "text-content-primary",
+									isSettingsPanel && "text-content-primary",
 								)}
 							>
 								<Link to="/agents/settings" state={{ from: location.pathname }}>
@@ -1269,10 +1301,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
-					sidebarView.panel !== "settings" && "translate-x-full",
+					!isSettingsPanel && "translate-x-full",
 				)}
-				aria-hidden={sidebarView.panel !== "settings"}
-				inert={sidebarView.panel !== "settings" ? true : undefined}
+				aria-hidden={!isSettingsPanel}
+				inert={!isSettingsPanel ? true : undefined}
 			>
 				{/* Back header */}
 				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
@@ -1284,14 +1316,28 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							asChild
 							variant="subtle"
 							size="icon"
-							aria-label="Back to Agents"
+							aria-label={
+								settingsPanel === "settings-admin"
+									? "Back to Settings"
+									: "Back to Agents"
+							}
 							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
-							<Link
-								to={(location.state as { from?: string })?.from || "/agents"}
-							>
-								<ChevronLeftIcon />
-							</Link>
+							{settingsPanel === "settings-admin" ? (
+								<Link
+									to="/agents/settings/general"
+									state={location.state}
+									aria-label="Back to Settings"
+								>
+									<ChevronLeftIcon />
+								</Link>
+							) : (
+								<Link
+									to={(location.state as { from?: string })?.from || "/agents"}
+								>
+									<ChevronLeftIcon />
+								</Link>
+							)}
 						</Button>
 						<div className="flex-1" />
 						{onCollapse && (
@@ -1308,111 +1354,121 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 				{/* Sub-navigation items */}
-				{sidebarView.panel === "settings" && (
+				{settingsPanel === "settings" ? (
 					<nav className="flex flex-col gap-0.5 px-2 py-2">
 						<SettingsNavItem
-							icon={UserIcon}
+							icon={UsersIcon}
 							label="General"
 							active={
-								!sidebarView.section ||
-								sidebarView.section === "general" ||
-								sidebarView.section === "behavior"
+								!settingsSection ||
+								settingsSection === "general" ||
+								settingsSection === "behavior"
 							}
 							to="/agents/settings/general"
 							state={location.state}
 						/>
 						<SettingsNavItem
-							icon={ArchiveIcon}
+							icon={ShrinkIcon}
 							label="Compaction"
-							active={sidebarView.section === "compaction"}
+							active={settingsSection === "compaction"}
 							to="/agents/settings/compaction"
 							state={location.state}
 						/>
 						{showApiKeysItem && (
 							<SettingsNavItem
-								icon={KeyRoundIcon}
-								label="API Keys"
-								active={sidebarView.section === "api-keys"}
+								icon={KeyIcon}
+								label="Secrets (API keys)"
+								active={settingsSection === "api-keys"}
 								to="/agents/settings/api-keys"
 								state={location.state}
 							/>
 						)}
 						{isAdmin && (
-							<>
-								<SettingsNavItem
-									icon={BotIcon}
-									label="Agents"
-									active={sidebarView.section === "agents"}
-									to="/agents/settings/agents"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={LayoutTemplateIcon}
-									label="Templates"
-									active={sidebarView.section === "templates"}
-									to="/agents/settings/templates"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={KeyRoundIcon}
-									label="Providers"
-									active={sidebarView.section === "providers"}
-									to="/agents/settings/providers"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={BoxesIcon}
-									label="Models"
-									active={sidebarView.section === "models"}
-									to="/agents/settings/models"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={ServerIcon}
-									label="MCP Servers"
-									active={sidebarView.section === "mcp-servers"}
-									to="/agents/settings/mcp-servers"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={WalletIcon}
-									label="Spend"
-									active={sidebarView.section === "spend"}
-									to="/agents/settings/spend"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={FileTextIcon}
-									label="System Instructions"
-									active={sidebarView.section === "system-instructions"}
-									to="/agents/settings/system-instructions"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={FlaskConicalIcon}
-									label="Experiments"
-									active={sidebarView.section === "experiments"}
-									to="/agents/settings/experiments"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={TimerIcon}
-									label="Lifecycle"
-									active={sidebarView.section === "lifecycle"}
-									to="/agents/settings/lifecycle"
-									state={location.state}
-									adminOnly
-								/>
-							</>
+							<SettingsNavItem
+								icon={Settings2Icon}
+								label="Agent admin"
+								active={sidebarView.panel === "settings-admin" && isAdmin}
+								to="/agents/settings/agents"
+								state={location.state}
+								trailingIcon={ChevronRightIcon}
+							/>
 						)}
+					</nav>
+				) : (
+					<nav className="flex flex-col gap-0.5 px-2 py-2">
+						<SettingsNavItem
+							icon={BotIcon}
+							label="Agents"
+							active={settingsSection === "agents"}
+							to="/agents/settings/agents"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={PlugIcon}
+							label="Providers"
+							active={settingsSection === "providers"}
+							to="/agents/settings/providers"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={BoxesIcon}
+							label="Models"
+							active={settingsSection === "models"}
+							to="/agents/settings/models"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ServerIcon}
+							label="MCP servers"
+							active={settingsSection === "mcp-servers"}
+							to="/agents/settings/mcp-servers"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={LayoutTemplateIcon}
+							label="Templates"
+							active={settingsSection === "templates"}
+							to="/agents/settings/templates"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={CoinsIcon}
+							label="Spend"
+							active={settingsSection === "spend"}
+							to="/agents/settings/spend"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ReceiptTextIcon}
+							label="Instructions"
+							active={
+								settingsSection === "instructions" ||
+								settingsSection === "system-instructions"
+							}
+							to="/agents/settings/instructions"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={FlaskConicalIcon}
+							label="Experiments"
+							active={settingsSection === "experiments"}
+							to="/agents/settings/experiments"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={RefreshCwIcon}
+							label="Lifecycle"
+							active={settingsSection === "lifecycle"}
+							to="/agents/settings/lifecycle"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={SparklesIcon}
+							label="Insights"
+							active={settingsSection === "insights"}
+							to="/agents/settings/insights"
+							state={location.state}
+						/>
 					</nav>
 				)}
 			</div>
@@ -1436,6 +1492,7 @@ type SettingsNavItemProps = {
 	active: boolean;
 	adminOnly?: boolean;
 	disabled?: boolean;
+	trailingIcon?: FC<{ className?: string }>;
 } & (
 	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
@@ -1454,22 +1511,26 @@ const NavItemContent: FC<{
 	icon: FC<{ className?: string }>;
 	label: string;
 	adminOnly?: boolean;
-}> = ({ icon: Icon, label, adminOnly }) => (
+	trailingIcon?: FC<{ className?: string }>;
+}> = ({ icon: Icon, label, adminOnly, trailingIcon: TrailingIcon }) => (
 	<>
 		<Icon className="h-4 w-4 shrink-0" />
-		<span className="flex flex-1 items-center gap-2">
-			{label}
-			{adminOnly && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="ml-auto inline-flex">
-							<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="right">Admin only</TooltipContent>
-				</Tooltip>
-			)}
-		</span>
+		<span className="min-w-0 flex-1">{label}</span>
+		{(adminOnly || TrailingIcon) && (
+			<span className="ml-auto flex items-center gap-2">
+				{adminOnly && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="right">Admin only</TooltipContent>
+					</Tooltip>
+				)}
+				{TrailingIcon && <TrailingIcon className="h-4 w-4 shrink-0" />}
+			</span>
+		)}
 	</>
 );
 
@@ -1479,6 +1540,7 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 	active,
 	adminOnly,
 	disabled,
+	trailingIcon,
 	...rest
 }) => {
 	if (rest.to != null) {
@@ -1492,7 +1554,12 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 				aria-current={active ? "page" : undefined}
 				tabIndex={disabled ? -1 : undefined}
 			>
-				<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+				<NavItemContent
+					icon={icon}
+					label={label}
+					adminOnly={adminOnly}
+					trailingIcon={trailingIcon}
+				/>
 			</Link>
 		);
 	}
@@ -1505,7 +1572,12 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 			className={navItemClassName(active, disabled)}
 			aria-current={active ? "page" : undefined}
 		>
-			<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+			<NavItemContent
+				icon={icon}
+				label={label}
+				adminOnly={adminOnly}
+				trailingIcon={trailingIcon}
+			/>
 		</button>
 	);
 };

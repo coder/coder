@@ -32,6 +32,9 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 
+	const isSettingsPanel =
+		sidebarView.panel === "settings" || sidebarView.panel === "settings-admin";
+
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-0.5 md:py-0.5">
 			{mobileBack ? (
@@ -74,7 +77,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						aria-label="Settings"
 						className={cn(
 							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							sidebarView.panel === "settings" && "text-content-primary",
+							isSettingsPanel && "text-content-primary",
 						)}
 					>
 						<Link to="/agents/settings" state={{ from: location.pathname }}>
