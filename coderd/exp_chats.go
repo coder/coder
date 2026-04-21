@@ -5386,27 +5386,29 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetChatProviderByID(ctx, providerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
+	err := api.Database.InTx(func(tx database.Store) error {
+		provider, err := tx.GetChatProviderByIDForUpdate(ctx, providerID)
+		switch {
+		case err == nil:
+			if err := tx.DeleteChatModelConfigsByProvider(ctx, provider.Provider); err != nil {
+				return xerrors.Errorf("soft delete chat model configs for provider %q: %w", provider.Provider, err)
+			}
+			if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+				return err
+			}
+			if err := tx.DeleteChatProviderByID(ctx, provider.ID); err != nil {
+				return xerrors.Errorf("delete chat provider %s: %w", provider.ID, err)
+			}
+			return nil
+		case xerrors.Is(err, sql.ErrNoRows):
+			return err
+		default:
+			return xerrors.Errorf("get chat provider %s for delete: %w", providerID, err)
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
-		if database.IsForeignKeyViolation(err,
-			database.ForeignKeyChatMessagesModelConfigID,
-			database.ForeignKeyChatsLastModelConfigID,
-		) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Provider models are still referenced by existing chats.",
-				Detail:  err.Error(),
-			})
+	}, nil)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5700,6 +5702,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var inserted database.ChatModelConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, insertParams.Provider); err != nil {
+			return err
+		}
+
 		insertAsDefault := isDefault
 		if !insertAsDefault {
 			_, err := tx.GetDefaultChatModelConfig(ctx)
@@ -5745,7 +5751,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
@@ -5878,6 +5884,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, updateParams.Provider); err != nil {
+			return err
+		}
+
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
@@ -5918,7 +5928,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
@@ -6311,6 +6321,24 @@ func normalizeChatProviderBaseURL(raw string) (string, error) {
 
 func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
+}
+
+var errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+
+func requireChatProviderForModelConfig(
+	ctx context.Context,
+	tx database.Store,
+	provider string,
+) error {
+	_, err := tx.GetChatProviderByProviderForUpdate(ctx, provider)
+	switch {
+	case err == nil:
+		return nil
+	case xerrors.Is(err, sql.ErrNoRows):
+		return errChatProviderNotConfigured
+	default:
+		return xerrors.Errorf("get chat provider %q: %w", provider, err)
+	}
 }
 
 const maxChatProviderAPIKeySize = 10240 // 10 KB

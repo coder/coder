@@ -4283,6 +4283,23 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const deleteChatModelConfigsByProvider = `-- name: DeleteChatModelConfigsByProvider :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    provider = $1::text
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByProvider, provider)
+	return err
+}
+
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
     id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
@@ -4699,6 +4716,37 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 	return i, err
 }
 
+const getChatProviderByIDForUpdate = `-- name: GetChatProviderByIDForUpdate :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
+FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByIDForUpdate, id)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
+	)
+	return i, err
+}
+
 const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
 SELECT
     id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
@@ -4710,6 +4758,37 @@ WHERE
 
 func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
 	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
+	)
+	return i, err
+}
+
+const getChatProviderByProviderForUpdate = `-- name: GetChatProviderByProviderForUpdate :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByProviderForUpdate, provider)
 	var i ChatProvider
 	err := row.Scan(
 		&i.ID,

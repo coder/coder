@@ -2531,6 +2531,128 @@ func TestDeleteChatProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("SuccessWithHistoricalChats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		providerToDelete, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:        "openai",
+			APIKey:          "delete-api-key",
+			AllowUserAPIKey: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		deleteContextLimit := int64(4096)
+		deleteIsDefault := true
+		configToDelete, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     providerToDelete.Provider,
+			Model:        "gpt-4o-delete-provider",
+			ContextLimit: &deleteContextLimit,
+			IsDefault:    &deleteIsDefault,
+		})
+		require.NoError(t, err)
+
+		keepProvider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "anthropic",
+			APIKey:   "keep-api-key",
+		})
+		require.NoError(t, err)
+
+		keepContextLimit := int64(8192)
+		keepConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     keepProvider.Provider,
+			Model:        "claude-keep-provider",
+			ContextLimit: &keepContextLimit,
+		})
+		require.NoError(t, err)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			ModelConfigID:  ptr.Ref(configToDelete.ID),
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "provider delete history " + t.Name(),
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, configToDelete.ID, chat.LastModelConfigID)
+
+		insertAssistantCostMessage(ctx, t, db, chat.ID, configToDelete.ID, 500)
+
+		_, err = client.UpsertUserChatProviderKey(ctx, providerToDelete.ID, codersdk.CreateUserChatProviderKeyRequest{
+			APIKey: "user-delete-key",
+		})
+		require.NoError(t, err)
+
+		userKeys, err := db.GetUserChatProviderKeys(dbauthz.AsSystemRestricted(ctx), firstUser.UserID)
+		require.NoError(t, err)
+		require.Len(t, userKeys, 1)
+		require.Equal(t, providerToDelete.ID, userKeys[0].ChatProviderID)
+
+		err = client.DeleteChatProvider(ctx, providerToDelete.ID)
+		require.NoError(t, err)
+
+		_, err = db.GetChatProviderByID(dbauthz.AsSystemRestricted(ctx), providerToDelete.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+		foundKeepProvider := false
+		for _, listed := range providers {
+			require.NotEqual(t, providerToDelete.ID, listed.ID)
+			if listed.ID == keepProvider.ID {
+				foundKeepProvider = true
+			}
+		}
+		require.True(t, foundKeepProvider)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		foundDeletedConfig := false
+		foundKeepConfig := false
+		for _, config := range configs {
+			if config.ID == configToDelete.ID {
+				foundDeletedConfig = true
+			}
+			if config.ID == keepConfig.ID {
+				foundKeepConfig = true
+				require.True(t, config.IsDefault)
+			}
+		}
+		require.False(t, foundDeletedConfig)
+		require.True(t, foundKeepConfig)
+
+		defaultConfig, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, keepConfig.ID, defaultConfig.ID)
+
+		_, err = db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), configToDelete.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		gotChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, gotChat.ID)
+		require.Equal(t, configToDelete.ID, gotChat.LastModelConfigID)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		foundHistoricalMessage := false
+		for _, message := range messages.Messages {
+			if message.ModelConfigID != nil && *message.ModelConfigID == configToDelete.ID {
+				foundHistoricalMessage = true
+				break
+			}
+		}
+		require.True(t, foundHistoricalMessage)
+
+		userKeys, err = db.GetUserChatProviderKeys(dbauthz.AsSystemRestricted(ctx), firstUser.UserID)
+		require.NoError(t, err)
+		require.Empty(t, userKeys)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -3503,6 +3625,21 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			"cost.output_price_per_million_tokens must be greater than or equal to zero",
 			sdkErr.Detail,
 		)
+	})
+
+	t.Run("ProviderNotConfigured", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Provider: "anthropic",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat provider is not configured.", sdkErr.Message)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
