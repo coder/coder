@@ -702,7 +702,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Agent admin" }));
+		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
 		await userEvent.click(screen.getByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(

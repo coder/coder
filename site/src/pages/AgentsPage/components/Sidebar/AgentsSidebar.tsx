@@ -1060,7 +1060,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	};
 
 	const subNavTitle =
-		settingsPanel === "settings-admin" ? "Agent admin" : "Settings";
+		settingsPanel === "settings-admin" ? "Manage agents" : "Settings";
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
@@ -1386,7 +1386,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						{isAdmin && (
 							<SettingsNavItem
 								icon={Settings2Icon}
-								label="Agent admin"
+								label="Manage agents"
 								active={sidebarView.panel === "settings-admin" && isAdmin}
 								to="/agents/settings/agents"
 								state={location.state}

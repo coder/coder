@@ -106,6 +106,11 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
 				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/agents/settings/agents">
+						Manage Coder Agents
+					</SidebarNavItem>
+				)}
 			</div>
 		</BaseSidebar>
 	);
