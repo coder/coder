@@ -695,7 +695,7 @@ export const SettingsViewResets: Story = {
 
 		// Navigate to the admin panel, then open the Spend section.
 		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
-		await userEvent.click(screen.getByRole("link", { name: "Spend" }));
+		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -705,11 +705,11 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Step back to the top-level settings panel, then back to conversations.
-		const backToSettingsButton = screen.getByRole("link", {
+		const backToSettingsButton = await screen.findByRole("link", {
 			name: "Back to Settings",
 		});
 		await userEvent.click(backToSettingsButton);
-		const backToAgentsButton = screen.getByRole("link", {
+		const backToAgentsButton = await screen.findByRole("link", {
 			name: "Back to Agents",
 		});
 		await userEvent.click(backToAgentsButton);
