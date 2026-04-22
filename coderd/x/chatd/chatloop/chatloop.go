@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -1153,7 +1152,7 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		metricLabel := resolveToolMetricLabel(tc.ToolName, builtinToolNames, toolMap[tc.ToolName])
+		metricLabel := resolveToolMetricLabel(tc.ToolName, builtinToolNames)
 		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
@@ -1793,7 +1792,6 @@ func positiveInt64(value int64) (int64, bool) {
 func resolveToolMetricLabel(
 	name string,
 	builtinToolNames map[string]bool,
-	tool fantasy.AgentTool,
 ) string {
 	if name == "" {
 		return "unknown"
@@ -1801,8 +1799,5 @@ func resolveToolMetricLabel(
 	if builtinToolNames[name] {
 		return name
 	}
-	if identifier, ok := tool.(mcpclient.MCPToolIdentifier); ok {
-		return "mcp:" + identifier.MCPServerSlug()
-	}
-	return "mcp"
+	return "mcp:" + name
 }

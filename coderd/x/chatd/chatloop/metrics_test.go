@@ -643,7 +643,7 @@ func TestRun_ToolError_RecordsMetric(t *testing.T) {
 				}, nil
 			},
 			builtinToolNames: map[string]bool{},
-			wantLabel:        "mcp",
+			wantLabel:        "mcp:failing_tool",
 		},
 		{
 			name: "tool_Run_returns_error",
