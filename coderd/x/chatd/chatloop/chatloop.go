@@ -1787,8 +1787,8 @@ func positiveInt64(value int64) (int64, bool) {
 }
 
 // resolveToolMetricLabel returns the Prometheus tool_name label
-// for a tool call. Builtin tools use their real name; MCP tools
-// use "mcp:<server_slug>"; unknown tools use "unknown".
+// for a tool call. Builtin tools use their real name. MCP tools
+// get the "mcp:" prefix. Anything else is "unknown".
 func resolveToolMetricLabel(
 	name string,
 	builtinToolNames map[string]bool,
