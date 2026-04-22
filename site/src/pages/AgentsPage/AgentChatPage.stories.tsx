@@ -831,6 +831,130 @@ export const WithComputerUseAgent: Story = {
 	},
 };
 
+export const WithMixedSubagentTranscript: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Mixed subagent transcript",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								tool_call_id: "legacy-spawn",
+								tool_name: "spawn_agent",
+								args: { title: "Legacy helper" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "legacy-spawn",
+								tool_name: "spawn_agent",
+								result: {
+									chat_id: "legacy-child",
+									title: "Legacy helper",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "unified-spawn",
+								tool_name: "spawn_agent",
+								args: { type: "explore" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "unified-spawn",
+								tool_name: "spawn_agent",
+								result: {
+									chat_id: "explore-child",
+									type: "explore",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "unified-wait",
+								tool_name: "wait_agent",
+								args: { chat_id: "explore-child" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "unified-wait",
+								tool_name: "wait_agent",
+								result: {
+									chat_id: "explore-child",
+									type: "explore",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "legacy-close",
+								tool_name: "close_agent",
+								args: { chat_id: "legacy-child" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "legacy-close",
+								tool_name: "close_agent",
+								result: {
+									chat_id: "legacy-child",
+									type: "general",
+									status: "completed",
+								},
+							},
+						],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Legacy helper") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getAllByText(/Legacy helper/).length,
+			).toBeGreaterThanOrEqual(2);
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Waited for") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 /** Completed reasoning part renders inline. */
 export const WithReasoningInline: Story = {
 	parameters: {

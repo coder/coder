@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AgentAlert } from "./AgentAlert";
+import { AgentAlert, StartScriptFailureDetail } from "./AgentAlert";
 
 const meta: Meta<typeof AgentAlert> = {
 	title: "pages/WorkspacePage/AgentAlert",
@@ -47,6 +47,37 @@ export const WithoutTroubleshootingURL: Story = {
 	args: {
 		severity: "warning",
 		prominent: true,
+		troubleshootingURL: undefined,
+	},
+};
+
+export const WithScriptTimingDetail: Story = {
+	render: (args) => (
+		<AgentAlert
+			{...args}
+			detail={
+				<StartScriptFailureDetail
+					baseDetail="A startup script exited with an error. Check the agent logs for details."
+					timings={[
+						{
+							display_name: "Startup Script",
+							exit_code: 1,
+							stage: "start",
+							status: "exit_failure",
+							started_at: "2021-05-05T00:00:00.000Z",
+							ended_at: "2021-05-05T00:00:01.000Z",
+							workspace_agent_id: "test-agent-id",
+							workspace_agent_name: "test-agent",
+						},
+					]}
+				/>
+			}
+		/>
+	),
+	args: {
+		title: "Startup script failed",
+		severity: "warning",
+		prominent: false,
 		troubleshootingURL: undefined,
 	},
 };

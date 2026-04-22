@@ -1,5 +1,5 @@
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import { type FC, useEffect, useRef } from "react";
+import type { FC, ReactEventHandler } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -7,6 +7,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { useLatestAbortController } from "../hooks/useLatestAbortController";
+import { isAbortError } from "../utils/chatAttachments";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
@@ -23,7 +25,8 @@ export const ImageThumbnail: FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-}> = ({ previewUrl, name, className }) => (
+	onError?: ReactEventHandler<HTMLImageElement>;
+}> = ({ previewUrl, name, className, onError }) => (
 	<img
 		src={previewUrl}
 		alt={name}
@@ -31,6 +34,7 @@ export const ImageThumbnail: FC<{
 			"h-16 w-16 rounded-md border border-border-default object-cover",
 			className,
 		)}
+		onError={onError}
 	/>
 );
 
@@ -54,11 +58,7 @@ export const AttachmentPreview: FC<{
 	onTextPreview,
 	onInlineText,
 }) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
+	const textAttachmentRequest = useLatestAbortController();
 
 	if (attachments.length === 0) return null;
 
@@ -66,30 +66,32 @@ export const AttachmentPreview: FC<{
 		content: string | undefined,
 		fileId: string | undefined,
 	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
+		textAttachmentRequest.abort();
 		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
 			return content;
 		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
+		const controller = textAttachmentRequest.start();
 		try {
-			const fetchedContent = await fetchTextAttachmentContent(
+			const result = await fetchTextAttachmentContent(
 				fileId,
 				controller.signal,
 			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			return fetchedContent;
-		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			if (err instanceof Error && err.name === "AbortError") {
+			if (!textAttachmentRequest.clear(controller)) {
 				return undefined;
 			}
-			console.error("Failed to load text attachment:", err);
+			if (result.kind === "loaded") {
+				return result.content;
+			}
+			console.warn("Failed to load text attachment:", result);
+			return undefined;
+		} catch (err) {
+			if (!textAttachmentRequest.clear(controller)) {
+				return undefined;
+			}
+			if (isAbortError(err)) {
+				return undefined;
+			}
+			console.warn("Failed to load text attachment:", err);
 			return undefined;
 		}
 	};

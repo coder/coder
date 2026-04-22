@@ -134,6 +134,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AiSeatState:
 		return "AI Seat"
+	case database.Chat:
+		return typed.ID.String()[:8]
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -200,6 +202,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AiSeatState:
 		return typed.UserID
+	case database.Chat:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -257,6 +261,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTask
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
+	case database.Chat:
+		return database.ResourceTypeChat
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -317,6 +323,10 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.AiSeatState:
 		return false
+	case database.Chat:
+		// Chats always have a non-null organization_id (since
+		// migration 000467).
+		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

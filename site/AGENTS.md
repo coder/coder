@@ -71,8 +71,11 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   If sibling components initialize state with `useMemo`, don't switch to
   `useState(initialFn)` in the same file without reason.
 - Match errors by error code or HTTP status, never by comparing error
-  message strings. String matching is brittle — messages change, get
+  message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
+- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
 
 ## TypeScript Type Safety
 

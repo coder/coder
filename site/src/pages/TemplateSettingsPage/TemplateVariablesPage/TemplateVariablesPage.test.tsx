@@ -62,7 +62,13 @@ describe("TemplateVariablesPage", () => {
 	});
 
 	it("user submits the form successfully", async () => {
-		vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+		// Use mockResolvedValue (not Once) because the
+		// updateActiveTemplateVersion mutation's onSuccess callback calls
+		// queryClient.invalidateQueries, which refetches this query. With
+		// mockResolvedValueOnce the refetch falls through to the real
+		// implementation (axios → MSW), adding non-deterministic latency
+		// that can push toast.success past the waitFor timeout under CI load.
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 		vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 		vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([
 			MockTemplateVersionVariable1,

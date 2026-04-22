@@ -191,6 +191,171 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 	require.Equal(t, "image/png", filePart.MediaType)
 }
 
+func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mediaType    string
+		expectedText string
+	}{
+		{
+			name:      "missing image file",
+			mediaType: "image/png",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
+				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
+		},
+		{
+			name:         "generic mime omits mime sentence",
+			mediaType:    "application/octet-stream",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. If you need to inspect it, ask the user to re-upload.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fileID := uuid.New()
+			rawContent := mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "file",
+					"data": map[string]any{
+						"media_type": tt.mediaType,
+						"file_id":    fileID.String(),
+					},
+				}),
+			})
+			resolver := func(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+				return map[uuid.UUID]chatprompt.FileData{}, nil
+			}
+			prompt, err := chatprompt.ConvertMessagesWithFiles(
+				context.Background(),
+				[]database.ChatMessage{{
+					Role:       database.ChatMessageRoleUser,
+					Visibility: database.ChatMessageVisibilityBoth,
+					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+				}},
+				resolver,
+				slogtest.Make(t, nil),
+			)
+			require.NoError(t, err)
+			require.Len(t, prompt, 1)
+			require.Len(t, prompt[0].Content, 1)
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+			require.True(t, ok, "expected TextPart")
+			require.Equal(t, tt.expectedText, textPart.Text)
+		})
+	}
+}
+
+func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"file_id": fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      []byte{},
+					MediaType: "text/plain",
+					Name:      "empty.txt",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Empty(t, prompt)
+}
+
+func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
+	t.Parallel()
+
+	resolvedFileID := uuid.New()
+	missingFileID := uuid.New()
+	resolvedData := []byte("resolved-image-data")
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    resolvedFileID.String(),
+			},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "application/pdf",
+				"file_id":    missingFileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == resolvedFileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+					Name:      "resolved.png",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok, "expected missing second part to become a TextPart")
+	require.Equal(t,
+		"[missing-attachment] The user attached a file here, but the content has expired and is no longer available. "+
+			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
+		textPart.Text,
+	)
+}
+
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +463,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_local",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"test"}`,
+			Input:      `{"type":"general","prompt":"test"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_websearch",
@@ -310,7 +475,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 
 	localResult := mustMarshalToolResult(t,
 		"toolu_local", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 
@@ -351,12 +516,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_agent x2 + web_search (PE).
+	// Step 1: assistant calls spawn_agent + legacy spawn_agent + web_search (PE).
 	step1Assistant := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_A",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"a"}`,
+			Input:      `{"type":"general","prompt":"a"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_B",
@@ -373,7 +538,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 
 	resultA := mustMarshalToolResult(t,
 		"toolu_A", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 	resultB := mustMarshalToolResult(t,
@@ -1149,6 +1314,55 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
 	require.NotNil(t, cc, "cache control must survive new write → new read round-trip")
 	require.Equal(t, "ephemeral", cc.Type)
+}
+
+func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"permission denied","detail":"nested payload"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "execute",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"error\":\"permission denied\",\"detail\":\"nested payload\"}"}`,
+		string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"message":"error"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"message\":\"error\"}"}`, string(sdkPart.Result))
 }
 
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles
