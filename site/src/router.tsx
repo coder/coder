@@ -390,6 +390,9 @@ const AgentSettingsMCPServersPage = lazy(
 const AgentSettingsSpendPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
+const AgentSettingsInsightsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
+);
 const AgentSettingsTemplatesPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsTemplatesPage"),
 );
@@ -746,7 +749,7 @@ export const router = createBrowserRouter(
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />
 						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
-						<Route path="insights" element={<Navigate to="admin" replace />} />
+						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />
