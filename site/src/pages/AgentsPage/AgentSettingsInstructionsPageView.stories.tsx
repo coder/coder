@@ -143,3 +143,39 @@ export const NoWarningForCleanPrompt: Story = {
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 	},
 };
+
+export const SavesPlanModeInstructions: Story = {
+	args: {
+		planModeInstructionsData: { plan_mode_instructions: "" },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional instructions for planning mode",
+		);
+
+		await userEvent.clear(textarea);
+		await userEvent.type(textarea, "Always produce a concise plan first.");
+
+		const planModeForm = textarea.closest("form");
+		if (!(planModeForm instanceof HTMLFormElement)) {
+			throw new Error(
+				"Expected plan mode instructions textarea to live inside a form.",
+			);
+		}
+		const saveButton = within(planModeForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSavePlanModeInstructions).toHaveBeenCalledWith(
+				{ plan_mode_instructions: "Always produce a concise plan first." },
+				expect.anything(),
+			);
+		});
+	},
+};

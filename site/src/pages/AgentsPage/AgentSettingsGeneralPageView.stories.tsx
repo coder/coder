@@ -102,3 +102,14 @@ export const SavesUserPrompt: Story = {
 		});
 	},
 };
+
+export const RendersChatLayoutSection: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(await canvas.findByText("Chat Layout")).toBeInTheDocument();
+		expect(
+			await canvas.findByRole("switch", { name: "Full-width chat" }),
+		).toBeInTheDocument();
+	},
+};

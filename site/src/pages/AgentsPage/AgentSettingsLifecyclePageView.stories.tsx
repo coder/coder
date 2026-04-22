@@ -232,3 +232,79 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+export const RetentionToggleOnSavesDefault: Story = {
+	args: {
+		retentionDaysData: { retention_days: 0 },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: /retention/i,
+		});
+		expect(toggle).not.toBeChecked();
+
+		const retentionForm = toggle.closest("form");
+		if (!(retentionForm instanceof HTMLFormElement)) {
+			throw new Error("Expected retention toggle to live inside a form.");
+		}
+
+		await userEvent.click(toggle);
+
+		await waitFor(() => {
+			expect(args.onSaveRetentionDays).toHaveBeenNthCalledWith(
+				1,
+				{ retention_days: 30 },
+				expect.anything(),
+			);
+		});
+
+		const retentionInput = await within(retentionForm).findByLabelText(
+			"Conversation retention period in days",
+		);
+		expect(retentionInput).toHaveValue(30);
+
+		const saveButton = await within(retentionForm).findByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveRetentionDays).toHaveBeenNthCalledWith(
+				2,
+				{ retention_days: 30 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const RetentionExceedsMax: Story = {
+	args: {
+		retentionDaysData: { retention_days: 30 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const retentionInput = await canvas.findByLabelText(
+			"Conversation retention period in days",
+		);
+		const retentionForm = retentionInput.closest("form");
+		if (!(retentionForm instanceof HTMLFormElement)) {
+			throw new Error("Expected retention period input to live inside a form.");
+		}
+
+		await userEvent.clear(retentionInput);
+		await userEvent.type(retentionInput, "9999");
+
+		const saveButton = within(retentionForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(retentionInput).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+		});
+	},
+};
