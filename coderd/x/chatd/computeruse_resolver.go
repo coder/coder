@@ -171,6 +171,15 @@ func computerUseTargetFromConfig(cfg database.ChatModelConfig) (computerUseTarge
 	if err != nil {
 		return computerUseTarget{}, xerrors.Errorf("resolve computer use model metadata: %w", err)
 	}
+	provider = chatprovider.NormalizeProvider(provider)
+	if !chattool.SupportsComputerUse(provider) {
+		err := xerrors.Errorf("computer use provider %q is not supported", provider)
+		return computerUseTarget{}, chaterror.WithClassification(err, chaterror.ClassifiedError{
+			Message:  err.Error(),
+			Kind:     chaterror.KindConfig,
+			Provider: provider,
+		})
+	}
 	return computerUseTarget{provider: provider, model: model, config: cfg}, nil
 }
 

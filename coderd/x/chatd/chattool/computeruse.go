@@ -83,7 +83,7 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 	}
 }
 
-// ComputerUseProviderTool creates the provider-defined computer-use tool
+// ComputerUseProviderTool creates the provider-defined computer use tool
 // definition using the declared model-facing desktop geometry.
 func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int) fantasy.Tool {
 	switch normalizeComputerUseProvider(provider) {
@@ -106,7 +106,7 @@ func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int)
 			nil,
 		).Definition()
 	default:
-		panic("unsupported computer use provider: " + provider)
+		panic(unsupportedComputerUseProviderInvariant(provider))
 	}
 }
 
@@ -474,8 +474,24 @@ func normalizeComputerUseProvider(provider string) string {
 	return strings.ToLower(strings.TrimSpace(provider))
 }
 
+// unsupportedComputerUseProviderInvariant reports a programming error.
+// Callers must reject unsupported providers with chattool.SupportsComputerUse
+// before dispatch reaches the provider-specific computer use helpers.
+func unsupportedComputerUseProviderInvariant(provider string) string {
+	normalizedProvider := normalizeComputerUseProvider(provider)
+	if normalizedProvider == "" {
+		normalizedProvider = strings.TrimSpace(provider)
+	}
+	return fmt.Sprintf(
+		"unsupported computer use provider %q reached provider dispatch; callers must validate with chattool.SupportsComputerUse before dispatch",
+		normalizedProvider,
+	)
+}
+
 func (t *computerUseTool) screenshotResponse(toolCallID string, encodedPNG string) (fantasy.ToolResponse, error) {
 	switch t.provider {
+	case "anthropic":
+		return fantasy.NewImageResponse([]byte(encodedPNG), "image/png"), nil
 	case "openai":
 		pngData, err := base64.StdEncoding.DecodeString(encodedPNG)
 		if err != nil {
@@ -485,17 +501,21 @@ func (t *computerUseTool) screenshotResponse(toolCallID string, encodedPNG strin
 			fantasyopenai.NewComputerUseScreenshotResult(toolCallID, pngData),
 		), nil
 	default:
-		return fantasy.NewImageResponse([]byte(encodedPNG), "image/png"), nil
+		panic(unsupportedComputerUseProviderInvariant(t.provider))
 	}
 }
 
 func (t *computerUseTool) errorResponse(toolCallID string, err error) fantasy.ToolResponse {
-	if t.provider == "openai" {
+	switch t.provider {
+	case "anthropic":
+		return fantasy.NewTextErrorResponse(err.Error())
+	case "openai":
 		return toolResponseFromOpenAIComputerUseResult(
 			fantasyopenai.NewComputerUseErrorResult(toolCallID, err),
 		)
+	default:
+		panic(unsupportedComputerUseProviderInvariant(t.provider))
 	}
-	return fantasy.NewTextErrorResponse(err.Error())
 }
 
 func toolResponseFromOpenAIComputerUseResult(result fantasy.ToolResultPart) fantasy.ToolResponse {
