@@ -85,14 +85,15 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	defer trap.Close()
 
 	uut := heartbeats{
-		ctx:             ctx,
-		logger:          logger,
-		store:           mStore,
-		clock:           mClock,
-		self:            uuid.UUID{1},
-		update:          make(chan hbUpdate, 4),
-		coordinators:    make(map[uuid.UUID]time.Time),
-		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
+		ctx:                 ctx,
+		logger:              logger,
+		store:               mStore,
+		clock:               mClock,
+		self:                uuid.UUID{1},
+		update:              make(chan hbUpdate, 4),
+		coordinators:        make(map[uuid.UUID]time.Time),
+		lastDBHeartbeat:     make(map[uuid.UUID]time.Time),
+		expiredCoordinators: make(map[uuid.UUID]struct{}),
 	}
 	uut.timer = mClock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, uut.checkExpiry, "heartbeats", "newHeartbeats")
 
