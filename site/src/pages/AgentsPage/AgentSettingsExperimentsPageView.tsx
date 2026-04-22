@@ -1,20 +1,18 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdminBadge } from "./components/AdminBadge";
 import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
 
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
-
 export interface AgentSettingsExperimentsPageViewProps {
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
-	onSaveDesktopEnabled: (
-		req: TypesGen.UpdateChatDesktopEnabledRequest,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveDesktopEnabled: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatDesktopEnabledRequest,
+		unknown
+	>;
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
 }

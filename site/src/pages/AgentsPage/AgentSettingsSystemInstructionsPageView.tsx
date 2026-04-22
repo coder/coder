@@ -1,30 +1,30 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdminBadge } from "./components/AdminBadge";
 import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
 
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
-
 export interface AgentSettingsSystemInstructionsPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
 		| undefined;
-	onSaveSystemPrompt: (
-		req: TypesGen.UpdateChatSystemPromptRequest,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveSystemPrompt: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatSystemPromptRequest,
+		unknown
+	>;
 	isSavingSystemPrompt: boolean;
 	isSaveSystemPromptError: boolean;
-	onSavePlanModeInstructions: (
-		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
-		options?: MutationCallbacks,
-	) => void;
+	onSavePlanModeInstructions: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatPlanModeInstructionsRequest,
+		unknown
+	>;
 	isSavingPlanModeInstructions: boolean;
 	isSavePlanModeInstructionsError: boolean;
 }

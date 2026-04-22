@@ -1,32 +1,32 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdminBadge } from "./components/AdminBadge";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
 
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
-
 export interface AgentSettingsLifecyclePageViewProps {
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
-	onSaveWorkspaceTTL: (
-		req: TypesGen.UpdateChatWorkspaceTTLRequest,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveWorkspaceTTL: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatWorkspaceTTLRequest,
+		unknown
+	>;
 	isSavingWorkspaceTTL: boolean;
 	isSaveWorkspaceTTLError: boolean;
 	retentionDaysData: TypesGen.ChatRetentionDaysResponse | undefined;
 	isRetentionDaysLoading: boolean;
 	isRetentionDaysLoadError: boolean;
-	onSaveRetentionDays: (
-		req: TypesGen.UpdateChatRetentionDaysRequest,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveRetentionDays: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatRetentionDaysRequest,
+		unknown
+	>;
 	isSavingRetentionDays: boolean;
 	isSaveRetentionDaysError: boolean;
 }

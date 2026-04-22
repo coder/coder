@@ -1,20 +1,18 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
-
 export interface AgentSettingsGeneralPageViewProps {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
-	onSaveUserPrompt: (
-		req: TypesGen.UserChatCustomPrompt,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveUserPrompt: UseMutateFunction<
+		TypesGen.UserChatCustomPrompt,
+		Error,
+		TypesGen.UserChatCustomPrompt,
+		unknown
+	>;
 	isSavingUserPrompt: boolean;
 	isSaveUserPromptError: boolean;
 }
