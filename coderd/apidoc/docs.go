@@ -13802,6 +13802,9 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_seat:*",
+                "ai_seat:create",
+                "ai_seat:read",
                 "aibridge_interception:*",
                 "aibridge_interception:create",
                 "aibridge_interception:read",
@@ -14011,6 +14014,9 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiSeatAll",
+                "APIKeyScopeAiSeatCreate",
+                "APIKeyScopeAiSeatRead",
                 "APIKeyScopeAibridgeInterceptionAll",
                 "APIKeyScopeAibridgeInterceptionCreate",
                 "APIKeyScopeAibridgeInterceptionRead",
@@ -19483,6 +19489,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_seat",
                 "aibridge_interception",
                 "api_key",
                 "assign_org_role",
@@ -19529,6 +19536,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",

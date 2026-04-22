@@ -220,7 +220,10 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'ai_seat:*',
+    'ai_seat:create',
+    'ai_seat:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
