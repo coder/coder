@@ -27,7 +27,7 @@ export const RadioGroupItem: React.FC<
 				focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 				focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary
 				disabled:cursor-not-allowed disabled:opacity-25 disabled:border-surface-invert-primary
-				hover:border-border-hover data-[state=checked]:border-border-hover`,
+				hover:border-border-secondary data-[state=checked]:border-border-secondary`,
 				className,
 			)}
 			{...props}

@@ -75,7 +75,7 @@ module.exports = {
 					pending: "hsl(var(--border-sky))",
 					destructive: "hsl(var(--border-destructive))",
 					success: "hsl(var(--border-success))",
-					hover: "hsl(var(--border-hover))",
+					secondary: "hsl(var(--border-secondary))",
 					purple: "hsl(var(--border-purple))",
 					magenta: "hsl(var(--border-magenta))",
 				},

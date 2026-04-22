@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -189,6 +190,171 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 	require.True(t, ok, "expected FilePart")
 	require.Equal(t, fileData, filePart.Data)
 	require.Equal(t, "image/png", filePart.MediaType)
+}
+
+func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mediaType    string
+		expectedText string
+	}{
+		{
+			name:      "missing image file",
+			mediaType: "image/png",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
+				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
+		},
+		{
+			name:         "generic mime omits mime sentence",
+			mediaType:    "application/octet-stream",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. If you need to inspect it, ask the user to re-upload.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fileID := uuid.New()
+			rawContent := mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "file",
+					"data": map[string]any{
+						"media_type": tt.mediaType,
+						"file_id":    fileID.String(),
+					},
+				}),
+			})
+			resolver := func(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+				return map[uuid.UUID]chatprompt.FileData{}, nil
+			}
+			prompt, err := chatprompt.ConvertMessagesWithFiles(
+				context.Background(),
+				[]database.ChatMessage{{
+					Role:       database.ChatMessageRoleUser,
+					Visibility: database.ChatMessageVisibilityBoth,
+					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+				}},
+				resolver,
+				slogtest.Make(t, nil),
+			)
+			require.NoError(t, err)
+			require.Len(t, prompt, 1)
+			require.Len(t, prompt[0].Content, 1)
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+			require.True(t, ok, "expected TextPart")
+			require.Equal(t, tt.expectedText, textPart.Text)
+		})
+	}
+}
+
+func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"file_id": fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      []byte{},
+					MediaType: "text/plain",
+					Name:      "empty.txt",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Empty(t, prompt)
+}
+
+func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
+	t.Parallel()
+
+	resolvedFileID := uuid.New()
+	missingFileID := uuid.New()
+	resolvedData := []byte("resolved-image-data")
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    resolvedFileID.String(),
+			},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "application/pdf",
+				"file_id":    missingFileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == resolvedFileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+					Name:      "resolved.png",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok, "expected missing second part to become a TextPart")
+	require.Equal(t,
+		"[missing-attachment] The user attached a file here, but the content has expired and is no longer available. "+
+			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
+		textPart.Text,
+	)
 }
 
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
@@ -2217,6 +2383,103 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
 		require.Equal(t, imageData, mediaOutput.Data)
 		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+
+	t.Run("MediaResultCarriesPromotedAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-promoted"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-00Z.png"
+
+		attachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    attachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			Data             string `json:"data"`
+			MimeType         string `json:"mime_type"`
+			Text             string `json:"text"`
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, imageData, persisted.Data)
+		require.Equal(t, mimeType, persisted.MimeType)
+		require.Equal(t, attachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
+
+		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{sdkPart})
+
+		prompt := loadPrompt(t, chat)
+		require.Len(t, prompt, 2)
+
+		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		require.True(t, ok, "expected ToolResultPart")
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
+		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
+		require.Equal(t, imageData, mediaOutput.Data)
+		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+	t.Run("MediaResultUsesMatchingAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-matching-attachment"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-01Z.png"
+
+		mismatchedAttachmentID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+		matchingAttachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-ffffffffffff")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    mismatchedAttachmentID,
+				MediaType: "application/pdf",
+				Name:      "report.pdf",
+			},
+			chattool.AttachmentMetadata{
+				FileID:    matchingAttachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, matchingAttachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
 	})
 
 	t.Run("MediaResultWithText", func(t *testing.T) {
