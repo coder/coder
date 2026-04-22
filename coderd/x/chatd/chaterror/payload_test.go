@@ -20,7 +20,24 @@ func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	payload := chaterror.StreamErrorPayload(classified)
 
 	require.Equal(t, &codersdk.ChatStreamError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
+		Message:    "Azure OpenAI is rate limiting requests.",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "azure",
+		Retryable:  true,
+		StatusCode: 429,
+	}, payload)
+}
+
+func TestLastErrorPayloadUsesNormalizedClassification(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(
+		xerrors.New("azure openai received status 429 from upstream"),
+	)
+	payload := chaterror.LastErrorPayload(classified)
+
+	require.Equal(t, &codersdk.ChatLastError{
+		Message:    "Azure OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -44,6 +61,7 @@ func TestStreamErrorPayloadIncludesProviderDetail(t *testing.T) {
 func TestStreamErrorPayloadNilForEmptyClassification(t *testing.T) {
 	t.Parallel()
 
+	require.Nil(t, chaterror.LastErrorPayload(chaterror.ClassifiedError{}))
 	require.Nil(t, chaterror.StreamErrorPayload(chaterror.ClassifiedError{}))
 }
 
@@ -53,7 +71,7 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	delay := 3 * time.Second
 	startedAt := time.Now()
 	payload := chaterror.StreamRetryPayload(2, delay, chaterror.ClassifiedError{
-		Message:    "OpenAI returned an unexpected error (HTTP 503).",
+		Message:    "OpenAI returned an unexpected error.",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "openai",
 		Retryable:  true,

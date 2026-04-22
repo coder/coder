@@ -1188,6 +1188,42 @@ export const ArchivedOtherUserChat: Story = {
 	},
 };
 
+/** Persisted structured errors rehydrate the failed callout after refresh. */
+export const PersistedStructuredError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Persisted provider error",
+				status: "error",
+				last_error: {
+					message: "Anthropic returned an unexpected error.",
+					detail:
+						"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+					kind: "generic",
+					provider: "anthropic",
+					retryable: false,
+					status_code: 400,
+				},
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error\./i),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
+	},
+};
+
 export const PlanModeFromChatState: Story = {
 	parameters: {
 		queries: buildQueries(

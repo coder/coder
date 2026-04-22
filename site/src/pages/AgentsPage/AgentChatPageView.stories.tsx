@@ -295,7 +295,7 @@ export const WithError: Story = {
 		<StoryAgentChatPageView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is temporarily overloaded (HTTP 529).",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -308,8 +308,9 @@ export const WithError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 	},

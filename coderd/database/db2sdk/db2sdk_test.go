@@ -916,6 +916,13 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// field to codersdk.Chat, this test will fail until the
 	// converter is updated.
 	now := dbtime.Now()
+	lastErrorPayload := codersdk.ChatLastError{
+		Message: "boom",
+		Kind:    "generic",
+	}
+	lastErrorRaw, err := json.Marshal(lastErrorPayload)
+	require.NoError(t, err)
+
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
@@ -929,7 +936,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		Title:             "all-fields-test",
 		Status:            database.ChatStatusRunning,
 		ClientType:        database.ChatClientTypeUi,
-		LastError:         sql.NullString{String: "boom", Valid: true},
+		LastError:         pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
@@ -969,6 +976,10 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 
 	got := db2sdk.Chat(input, diffStatus, fileRows)
+
+	require.NotNil(t, got.LastError)
+	require.Equal(t, lastErrorPayload.Message, *got.LastError)
+	require.Equal(t, &lastErrorPayload, got.LastErrorPayload)
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
@@ -1051,6 +1062,50 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestChat_LastErrorPayloadFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  json.RawMessage
+	}{
+		{
+			name: "MessageMissing",
+			raw:  json.RawMessage(`{"kind":"generic"}`),
+		},
+		{
+			name: "MalformedJSON",
+			raw:  json.RawMessage(`{`),
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chat := database.Chat{
+				ID:                uuid.New(),
+				OwnerID:           uuid.New(),
+				LastModelConfigID: uuid.New(),
+				Title:             "fallback payload",
+				Status:            database.ChatStatusError,
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
+				LastError: pqtype.NullRawMessage{
+					RawMessage: tc.raw,
+					Valid:      true,
+				},
+			}
+
+			result := db2sdk.Chat(chat, nil, nil)
+			require.NotNil(t, result.LastError)
+			require.Equal(t, "The chat request failed unexpectedly.", *result.LastError)
+			require.Nil(t, result.LastErrorPayload)
+		})
+	}
 }
 
 func TestChat_MultipleFiles(t *testing.T) {

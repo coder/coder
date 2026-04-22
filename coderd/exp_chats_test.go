@@ -4767,6 +4767,7 @@ func TestPatchChat(t *testing.T) {
 					_ = createChatModelConfig(t, client)
 
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
+
 					waitChatSettled(ctx, t, client, chat.ID)
 
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
@@ -5882,7 +5883,7 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -5933,7 +5934,7 @@ func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
 		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -6059,7 +6060,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -6081,7 +6082,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7564,7 +7565,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7604,8 +7605,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Valid: true},
 			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-
-			LastError: sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7646,8 +7646,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-
-			LastError: sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7711,7 +7710,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -8237,7 +8236,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 

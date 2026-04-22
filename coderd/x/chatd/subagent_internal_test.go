@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -2717,7 +2716,12 @@ func setChatStatus(
 		Status: status,
 	}
 	if lastError != "" {
-		params.LastError = sql.NullString{String: lastError, Valid: true}
+		encodedLastError, err := json.Marshal(codersdk.ChatLastError{
+			Message: lastError,
+			Kind:    "generic",
+		})
+		require.NoError(t, err)
+		params.LastError = pqtype.NullRawMessage{RawMessage: encodedLastError, Valid: true}
 	}
 	_, err := db.UpdateChatStatus(ctx, params)
 	require.NoError(t, err)

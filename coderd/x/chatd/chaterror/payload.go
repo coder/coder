@@ -6,6 +6,20 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func LastErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
+	if classified.Message == "" {
+		return nil
+	}
+	return &codersdk.ChatLastError{
+		Message:    classified.Message,
+		Detail:     classified.Detail,
+		Kind:       classified.Kind,
+		Provider:   classified.Provider,
+		Retryable:  classified.Retryable,
+		StatusCode: classified.StatusCode,
+	}
+}
+
 func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
 	if classified.Message == "" {
 		return nil

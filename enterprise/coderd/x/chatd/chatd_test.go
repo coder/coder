@@ -30,6 +30,18 @@ import (
 	"github.com/coder/quartz"
 )
 
+func chatLastErrorMessage(raw database.Chat) string {
+	if !raw.LastError.Valid {
+		return ""
+	}
+
+	var payload codersdk.ChatLastError
+	if err := json.Unmarshal(raw.LastError.RawMessage, &payload); err == nil && payload.Message != "" {
+		return payload.Message
+	}
+	return string(raw.LastError.RawMessage)
+}
+
 func newTestServer(
 	t *testing.T,
 	db database.Store,
@@ -1712,14 +1724,14 @@ waitForStream:
 			currentChat, dbErr := db.GetChatByID(ctx, chat.ID)
 			if dbErr == nil && currentChat.Status == database.ChatStatusError {
 				t.Fatalf("worker failed to process chat: status=%s last_error=%s",
-					currentChat.Status, currentChat.LastError.String)
+					currentChat.Status, chatLastErrorMessage(currentChat))
 			}
 		case <-ctx.Done():
 			// Dump the final chat status for debugging.
 			currentChat, dbErr := db.GetChatByID(context.Background(), chat.ID)
 			if dbErr == nil {
 				t.Fatalf("timed out waiting for worker to start streaming (chat status=%s, last_error=%q)",
-					currentChat.Status, currentChat.LastError.String)
+					currentChat.Status, chatLastErrorMessage(currentChat))
 			}
 			t.Fatal("timed out waiting for worker to start streaming")
 		}

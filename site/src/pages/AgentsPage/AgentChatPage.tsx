@@ -551,6 +551,19 @@ const getPersistedDetailError = ({
 		if (cachedError) {
 			return cachedError;
 		}
+		const lastErrorPayload = chatRecord?.last_error_payload;
+		const lastErrorMessage = lastErrorPayload?.message?.trim();
+		const lastErrorDetail = lastErrorPayload?.detail?.trim();
+		if (lastErrorPayload && lastErrorMessage) {
+			return {
+				message: lastErrorMessage,
+				kind: lastErrorPayload.kind?.trim() || "generic",
+				provider: lastErrorPayload.provider?.trim() || undefined,
+				retryable: lastErrorPayload.retryable,
+				statusCode: lastErrorPayload.status_code,
+				...(lastErrorDetail ? { detail: lastErrorDetail } : {}),
+			};
+		}
 		const lastError = chatRecord?.last_error?.trim();
 		if (lastError) {
 			return { kind: "generic", message: lastError };
