@@ -1332,6 +1332,47 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateChatAutoArchiveDigest",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Second fixture covering retention_days="0" so the
+			// template's indefinite-retention branch is captured by
+			// the golden files. Reuses the same template ID; the
+			// enumeration check only requires each template to have
+			// at least one matching case by name.
+			name: "TemplateChatAutoArchiveDigestRetentionZero",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "0",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
