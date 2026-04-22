@@ -1545,12 +1545,23 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	// Wait for the drain timer to be armed by the relay manager,
-	// then release and advance the subscriber clock past the drain
-	// timeout. This deterministically fires the drain without
-	// relying on wall-clock timing.
-	trapDrain.MustWait(ctx).MustRelease(ctx)
-	subscriberClock.Advance(200 * time.Millisecond).MustWait(ctx)
+	// Drain all NewTimer("drain") calls in a background goroutine.
+	// The merge loop may create one or two drain timers depending
+	// on the relative ordering of the status=WAITING pubsub
+	// notification and the async relay dial completion. Each
+	// trapped call must be released so the production goroutine
+	// is unblocked, and the clock must be advanced past the
+	// 200ms drain timeout to fire the timer.
+	go func() {
+		for {
+			call, err := trapDrain.Wait(ctx)
+			if err != nil {
+				return
+			}
+			_ = call.Release(ctx)
+			subscriberClock.Advance(200 * time.Millisecond)
+		}
+	}()
 
 	evCtx2 := testutil.Context(t, testutil.WaitLong)
 	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
