@@ -3770,7 +3770,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	// ensureWorkspaceAgent fetches the stale agent.
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), oldAgentID).
 		Return(oldAgent, nil).Times(1)
-	// dialWithLazyValidation validation discovers the new agent.
+	// Lazy validation discovers the new agent.
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{newAgent}, nil).Times(1)
 	// Post-switch: persist the new binding.
@@ -3825,6 +3825,97 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.NoError(t, err, "getWorkspaceConn should recover stale agent binding")
 	require.Same(t, newConn, gotConn, "should return the connection to the new agent")
+}
+
+func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
+	// When an agent crashes on the same build (disconnected, but still
+	// in the latest build), dialWithLazyValidation dials, fails fast,
+	// validation finds the same agent, and the retry also fails. The
+	// wrapped dial error propagates (not errChatAgentDisconnected).
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+
+	// Agent: disconnected (crashed on current build).
+	agent := database.WorkspaceAgent{
+		ID:   agentID,
+		Name: "main",
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		DisconnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-9 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// ensureWorkspaceAgent fetches the (crashed) agent.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(agent, nil).Times(1)
+	// Validation finds the same agent in the latest build.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{agent}, nil).Times(1)
+
+	dialErr := xerrors.New("agent is not connected")
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, dialErr
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.Error(t, err)
+	// The error should be a wrapped dial error, not the
+	// agent-disconnected sentinel.
+	require.NotErrorIs(t, err, errChatAgentDisconnected)
+	require.ErrorIs(t, err, dialErr)
+
+	// Cache should not have a connection, but the agent should
+	// still be loaded (ensureWorkspaceAgent cached it).
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.True(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
 }
 
 func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
