@@ -1,13 +1,14 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder support bundle [flags] <workspace> [<agent>]
+  coder support bundle [flags] [<workspace>] [<agent>]
 
   Generate a support bundle to troubleshoot issues connecting to a workspace.
 
   This command generates a file containing detailed troubleshooting information
-  about the Coder deployment and workspace connections. You must specify a
-  single workspace (and optionally an agent name).
+  about the Coder deployment and workspace connections. You may specify a single
+  workspace (and optionally an agent name). When run inside a workspace, the
+  workspace and agent are inferred from the environment if not provided.
 
 OPTIONS:
   -O, --output-file string, $CODER_SUPPORT_BUNDLE_OUTPUT_FILE

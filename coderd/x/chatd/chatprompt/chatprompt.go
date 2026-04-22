@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -702,6 +703,29 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 // PartFromContent converts fantasy content into a SDK chat message
 // part, preserving ProviderMetadata and ProviderExecuted fields.
 func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, nil)
+}
+
+// PartFromContentWithLogger is for call sites that can surface malformed
+// attachment metadata immediately instead of dropping it silently.
+func PartFromContentWithLogger(
+	ctx context.Context,
+	logger slog.Logger,
+	block fantasy.Content,
+) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, func(content fantasy.ToolResultContent, err error) {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", content.ToolName),
+			slog.F("tool_call_id", content.ToolCallID),
+			slog.Error(err),
+		)
+	})
+}
+
+func sdkPartFromContent(
+	block fantasy.Content,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	switch value := block.(type) {
 	case fantasy.TextContent:
 		return codersdk.ChatMessagePart{
@@ -776,9 +800,9 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolResultContent:
-		return toolResultContentToPart(value)
+		return toolResultContentToPart(value, logMalformedAttachmentMetadata)
 	case *fantasy.ToolResultContent:
-		return toolResultContentToPart(*value)
+		return toolResultContentToPart(*value, logMalformedAttachmentMetadata)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
@@ -794,7 +818,10 @@ func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isErr
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
-func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
+func toolResultContentToPart(
+	content fantasy.ToolResultContent,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	var result json.RawMessage
 	var isError bool
 	var isMedia bool
@@ -820,11 +847,24 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		}
 	case fantasy.ToolResultOutputContentMedia:
 		isMedia = true
-		result, _ = json.Marshal(persistedMediaResult{
+		persisted := persistedMediaResult{
 			Data:     output.Data,
 			MimeType: output.MediaType,
 			Text:     output.Text,
-		})
+		}
+		// Tool renderers only receive the persisted result JSON, while
+		// ClientMetadata is consumed later to append sibling file parts.
+		// Mirror attachment identity here so promoted media can be
+		// recognized as the same durable attachment downstream.
+		if attachment, ok := matchingAttachmentForMedia(
+			content,
+			output.MediaType,
+			logMalformedAttachmentMetadata,
+		); ok {
+			persisted.AttachmentFileID = attachment.FileID.String()
+			persisted.AttachmentName = attachment.Name
+		}
+		result, _ = json.Marshal(persisted)
 	default:
 		result = []byte(`{}`)
 	}
@@ -833,6 +873,26 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+func matchingAttachmentForMedia(
+	content fantasy.ToolResultContent,
+	mediaType string,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) (chattool.AttachmentMetadata, bool) {
+	attachments, err := chattool.AttachmentsFromMetadata(content.ClientMetadata)
+	if err != nil {
+		if logMalformedAttachmentMetadata != nil {
+			logMalformedAttachmentMetadata(content, err)
+		}
+		return chattool.AttachmentMetadata{}, false
+	}
+	for _, attachment := range attachments {
+		if attachment.MediaType == mediaType {
+			return attachment, true
+		}
+	}
+	return chattool.AttachmentMetadata{}, false
 }
 
 // Keep in sync with coderd/x/chatd/subagent.go.
@@ -1267,10 +1327,11 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 	// IsError takes precedence and is handled above.
 	// Detect media content flagged by toolResultContentToPart.
 	// Screenshots from the computer use tool are stored as
-	// {"data":"<base64>","mime_type":"image/png","text":"..."}.
-	// Without this detection, the entire base64 payload is sent
-	// as text tokens, which quickly exceeds the context limit
-	// on follow-up messages.
+	// {"data":"<base64>","mime_type":"image/png","text":"..."}
+	// with optional attachment identity fields when the same image
+	// was also promoted into a durable file part. Without this
+	// detection, the entire base64 payload is sent as text tokens,
+	// which quickly exceeds the context limit on follow-up messages.
 	if part.IsMedia {
 		var media persistedMediaResult
 		unmarshalErr := json.Unmarshal(part.Result, &media)
@@ -1319,12 +1380,17 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 // cannot drift.
 //
 // The "mime_type" key intentionally diverges from the fantasy
-// struct tag (json:"media_type"). Do not change it without
-// updating both paths.
+// struct tag (json:"media_type"). Optional attachment identity
+// fields are UI hints only. They let the frontend recognize when the
+// same media was also promoted into a durable file part, but the prompt
+// reconstruction path must continue to ignore them. Keep additions
+// backwards-compatible because existing rows may omit these fields.
 type persistedMediaResult struct {
-	Data     string `json:"data"`
-	MimeType string `json:"mime_type"`
-	Text     string `json:"text"`
+	Data             string `json:"data"`
+	MimeType         string `json:"mime_type"`
+	Text             string `json:"text"`
+	AttachmentFileID string `json:"attachment_file_id,omitempty"`
+	AttachmentName   string `json:"attachment_name,omitempty"`
 }
 
 type missingFilePolicy uint8

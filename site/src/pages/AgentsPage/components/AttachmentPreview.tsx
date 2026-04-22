@@ -1,5 +1,6 @@
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
 import type { FC, ReactEventHandler } from "react";
+import { toast } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -12,6 +13,7 @@ import { isAbortError } from "../utils/chatAttachments";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
+	getTextAttachmentErrorMessage,
 } from "../utils/fetchTextAttachment";
 
 export type UploadState = {
@@ -82,7 +84,10 @@ export const AttachmentPreview: FC<{
 			if (result.kind === "loaded") {
 				return result.content;
 			}
-			console.warn("Failed to load text attachment:", result);
+			const resultMessage = getTextAttachmentErrorMessage(result);
+			if (resultMessage !== null) {
+				toast.error(resultMessage);
+			}
 			return undefined;
 		} catch (err) {
 			if (!textAttachmentRequest.clear(controller)) {
@@ -91,7 +96,12 @@ export const AttachmentPreview: FC<{
 			if (isAbortError(err)) {
 				return undefined;
 			}
-			console.warn("Failed to load text attachment:", err);
+			const errorMessage = getTextAttachmentErrorMessage(err);
+			if (errorMessage === null) {
+				return undefined;
+			}
+			console.error("Failed to load text attachment:", err);
+			toast.error(errorMessage);
 			return undefined;
 		}
 	};
@@ -125,7 +135,7 @@ export const AttachmentPreview: FC<{
 						) : hasTextAttachment ? (
 							<button
 								type="button"
-								aria-label="View text attachment"
+								aria-label={`View ${file.name}`}
 								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 								onClick={async () => {
 									const nextContent = await loadTextAttachmentContent(
@@ -159,7 +169,10 @@ export const AttachmentPreview: FC<{
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 								aria-label="Paste inline"
 							>
-								<ClipboardPasteIcon className="h-3.5 w-3.5" />
+								<ClipboardPasteIcon
+									aria-hidden="true"
+									className="h-3.5 w-3.5"
+								/>
 							</button>
 						)}
 						{uploadState?.status === "uploading" && (
@@ -191,7 +204,7 @@ export const AttachmentPreview: FC<{
 							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 							aria-label={`Remove ${file.name}`}
 						>
-							<XIcon className="h-3.5 w-3.5" />
+							<XIcon aria-hidden="true" className="h-3.5 w-3.5" />
 						</button>
 					</div>
 				);

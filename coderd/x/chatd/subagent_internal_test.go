@@ -147,6 +147,70 @@ func seedInternalChatDeps(
 	return user, org, model
 }
 
+// insertEnabledAnthropicProvider inserts an enabled Anthropic provider for
+// the current test user so computer_use flows keep Anthropic credentials
+// after provider-key pruning.
+func insertEnabledAnthropicProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+) {
+	t.Helper()
+
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "anthropic",
+		DisplayName:          "Anthropic",
+		APIKey:               "test-anthropic-key",
+		BaseUrl:              "",
+		ApiKeyKeyID:          sql.NullString{},
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+}
+
+func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PreservesDBProviderKeyWithoutFallback", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(ctx, t, db)
+		insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, "test-anthropic-key", keys.Anthropic)
+		require.Equal(t, "test-anthropic-key", keys.APIKey("anthropic"))
+		require.Equal(t, "test-anthropic-key", keys.ByProvider["anthropic"])
+	})
+
+	t.Run("PrunesFallbackKeyWithoutEnabledProvider", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+			Anthropic: "test-anthropic-key",
+		})
+
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(ctx, t, db)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys.Anthropic)
+		require.Empty(t, keys.APIKey("anthropic"))
+		_, ok := keys.ByProvider["anthropic"]
+		require.False(t, ok)
+	})
+}
+
 func insertInternalChatModelConfig(
 	ctx context.Context,
 	t *testing.T,
@@ -983,14 +1047,13 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 			}
 
-			providerKeys := chatprovider.ProviderAPIKeys{}
-			if tt.variant == subagentTypeComputerUse {
-				providerKeys = chatprovider.ProviderAPIKeys{Anthropic: "test-anthropic-key"}
-			}
-			server := newInternalTestServer(t, db, ps, providerKeys)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 			ctx := chatdTestContext(t)
 			user, org, model := seedInternalChatDeps(ctx, t, db)
+			if tt.variant == subagentTypeComputerUse {
+				insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+			}
 			parentChat := createInternalParentChat(
 				ctx,
 				t,
@@ -1121,12 +1184,11 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
@@ -1179,12 +1241,11 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
 
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:   "MCP Test",

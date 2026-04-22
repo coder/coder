@@ -1164,6 +1164,47 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
+// Chat git watch error messages. These are the user-visible messages
+// the server returns in 400 responses from
+// /api/experimental/chats/{id}/stream/git when the chat cannot be
+// observed through a workspace agent. They are exported so the CLI
+// (and any future consumer) can match them structurally via
+// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+// Keep these in sync with coderd/exp_chats.go.
+const (
+	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
+	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
+	ChatGitWatchWorkspaceNoAgentsMessage = "Chat workspace has no agents."
+	// ChatGitWatchAgentStatePrefix is the common prefix of the
+	// message produced by ChatGitWatchAgentStateMessage. The CLI
+	// uses it as a mechanical fingerprint for the "agent not yet
+	// connected" case without depending on the formatted values.
+	ChatGitWatchAgentStatePrefix = "Agent state is "
+)
+
+// ChatGitWatchAgentStateMessage is the user-visible error message
+// returned from /api/experimental/chats/{id}/stream/git when the
+// chat workspace's agent is not in the connected state.
+func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
+	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
+}
+
+// IsChatGitWatchFallbackMessage reports whether msg matches one of
+// the 400-response messages /api/experimental/chats/{id}/stream/git
+// emits when the chat cannot be observed through a workspace agent.
+// Clients should treat these cases as "no diff available" and fall
+// back to the empty remote diff instead of surfacing a hard error.
+func IsChatGitWatchFallbackMessage(msg string) bool {
+	trimmed := strings.TrimSpace(msg)
+	switch trimmed {
+	case ChatGitWatchNoWorkspaceMessage,
+		ChatGitWatchWorkspaceNotFoundMessage,
+		ChatGitWatchWorkspaceNoAgentsMessage:
+		return true
+	}
+	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
+}
+
 // ChatStreamEventType represents the kind of chat stream update.
 type ChatStreamEventType string
 
@@ -2578,20 +2619,6 @@ func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.U
 	}
 	var resp ProposeChatTitleResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// GetChatGitChanges returns git changes for a chat.
-func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var changes []ChatGitChange
-	return changes, json.NewDecoder(res.Body).Decode(&changes)
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.

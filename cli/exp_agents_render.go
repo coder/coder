@@ -310,39 +310,407 @@ func diffMetadataLines(diff codersdk.ChatDiffContents) []string {
 	return lines
 }
 
-func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {
-	lines := diffMetadataLines(diff)
-	if len(changes) == 0 {
-		if len(lines) > 0 {
-			lines = append(lines, "")
+func parseChatGitChangesFromUnifiedDiff(diff codersdk.ChatDiffContents) []codersdk.ChatGitChange {
+	rawDiff := sanitizeTerminalRenderableText(diff.Diff)
+	if strings.TrimSpace(rawDiff) == "" {
+		return nil
+	}
+
+	var (
+		changes          []codersdk.ChatGitChange
+		current          *codersdk.ChatGitChange
+		currentAdditions int
+		currentDeletions int
+		inHunk           bool
+	)
+	flush := func() {
+		if current == nil {
+			return
 		}
-		lines = append(lines, "No changes detected.")
-		return strings.Join(lines, "\n")
+		if current.FilePath == "" {
+			current = nil
+			currentAdditions = 0
+			currentDeletions = 0
+			return
+		}
+		if currentAdditions > 0 || currentDeletions > 0 {
+			stats := make([]string, 0, 2)
+			if currentAdditions > 0 {
+				stats = append(stats, fmt.Sprintf("+%d", currentAdditions))
+			}
+			if currentDeletions > 0 {
+				stats = append(stats, fmt.Sprintf("-%d", currentDeletions))
+			}
+			summary := strings.Join(stats, " ")
+			current.DiffSummary = &summary
+		}
+		changes = append(changes, *current)
+		current = nil
+		currentAdditions = 0
+		currentDeletions = 0
 	}
-	if len(lines) > 0 {
-		lines = append(lines, "")
+
+	for line := range strings.SplitSeq(rawDiff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			flush()
+			inHunk = false
+			// parseUnifiedDiffHeaderPaths may return ("", "", false) when
+			// the unquoted header form is ambiguous, such as a rename with
+			// spaces in the paths. We still want to start a new entry so
+			// the follow-up rename from / rename to / --- / +++ lines can
+			// populate the correct paths. flush() drops entries that never
+			// received a FilePath.
+			oldPath, newPath, _ := parseUnifiedDiffHeaderPaths(line)
+			current = &codersdk.ChatGitChange{
+				ChatID:     diff.ChatID,
+				FilePath:   newPath,
+				ChangeType: "modified",
+			}
+			if oldPath != "" && newPath != "" && oldPath != newPath {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+				current.ChangeType = "renamed"
+			}
+		case current == nil:
+			continue
+		case strings.HasPrefix(line, "@@"):
+			// Entering a hunk. Everything from here until the next
+			// "diff --git " header is diff content, including any
+			// added/removed lines that happen to start with "--- "
+			// or "+++ ". Those must no longer be treated as file
+			// headers.
+			inHunk = true
+		case !inHunk && strings.HasPrefix(line, "new file mode "):
+			current.ChangeType = "added"
+		case !inHunk && strings.HasPrefix(line, "deleted file mode "):
+			current.ChangeType = "deleted"
+		case !inHunk && strings.HasPrefix(line, "rename from "):
+			// rename from/rename to paths are repository-relative and
+			// never carry the a/ or b/ prefix, so we must not strip
+			// those segments: a real file at a/foo.txt would otherwise
+			// be truncated to foo.txt.
+			oldPath := decodeQuotedDiffLinePath(strings.TrimPrefix(line, "rename from "))
+			if oldPath != "" {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+			}
+			current.ChangeType = "renamed"
+		case !inHunk && strings.HasPrefix(line, "rename to "):
+			newPath := decodeQuotedDiffLinePath(strings.TrimPrefix(line, "rename to "))
+			if newPath != "" {
+				current.FilePath = newPath
+			}
+			current.ChangeType = "renamed"
+		case !inHunk && strings.HasPrefix(line, "--- /dev/null"):
+			current.ChangeType = "added"
+		case !inHunk && strings.HasPrefix(line, "+++ /dev/null"):
+			current.ChangeType = "deleted"
+		case !inHunk && strings.HasPrefix(line, "--- "):
+			if current.ChangeType == "added" {
+				continue
+			}
+			if oldPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "--- ")); oldPath != "" && oldPath != "/dev/null" {
+				oldPathCopy := oldPath
+				current.OldPath = &oldPathCopy
+			}
+		case !inHunk && strings.HasPrefix(line, "+++ "):
+			if current.ChangeType == "deleted" {
+				continue
+			}
+			if newPath := trimUnifiedDiffPath(strings.TrimPrefix(line, "+++ ")); newPath != "" && newPath != "/dev/null" {
+				current.FilePath = newPath
+			}
+		case inHunk && strings.HasPrefix(line, "+"):
+			currentAdditions++
+		case inHunk && strings.HasPrefix(line, "-"):
+			currentDeletions++
+		}
 	}
-	lines = append(lines, "Files changed:")
+	flush()
+	return changes
+}
+
+// parseUnifiedDiffHeaderPaths extracts the old and new paths from a
+// `diff --git ...` header line. Git emits paths in one of two forms:
+//
+//  1. Quoted: `diff --git "a/<old>" "b/<new>"`. Used when paths contain
+//     control characters, backslashes, double quotes, or (with the default
+//     core.quotepath setting) bytes above 0x7f. The contents are C-quoted.
+//  2. Unquoted: `diff --git a/<old> b/<new>`. Used for simple paths, which
+//     may still contain spaces. Because there is no delimiter between the
+//     two paths, this form is ambiguous when paths contain spaces: we rely
+//     on the git convention that non-rename diffs repeat the same path in
+//     both halves.
+//
+// For the unquoted form we first search for a split point at ` b/` where
+// the left and right halves are equal after stripping the `a/` and `b/`
+// prefixes (the non-rename case). If that fails but the line contains only
+// a single space, we split there for simple renames with no embedded
+// whitespace. Otherwise we return ok=false and let the caller rely on the
+// subsequent `rename from`, `rename to`, `--- `, and `+++ ` lines.
+func parseUnifiedDiffHeaderPaths(line string) (oldPath string, newPath string, ok bool) {
+	raw := strings.TrimSpace(strings.TrimPrefix(line, "diff --git "))
+	if raw == "" {
+		return "", "", false
+	}
+
+	if strings.HasPrefix(raw, `"`) {
+		old, rest, ok := consumeQuotedDiffPath(raw)
+		if !ok {
+			return "", "", false
+		}
+		rest = strings.TrimLeft(rest, " ")
+		newp, _, ok := consumeQuotedDiffPath(rest)
+		if !ok {
+			return "", "", false
+		}
+		// The unquoted values already have their surrounding quotes removed,
+		// so we must not feed them to trimUnifiedDiffPath (which would strip
+		// any legitimate leading or trailing quote characters in the file
+		// name). Only strip the a/ or b/ prefix here.
+		return stripUnifiedDiffPrefix(old), stripUnifiedDiffPrefix(newp), true
+	}
+
+	if !strings.HasPrefix(raw, "a/") {
+		return "", "", false
+	}
+	for offset := 0; offset < len(raw); {
+		idx := strings.Index(raw[offset:], " b/")
+		if idx < 0 {
+			break
+		}
+		pos := offset + idx
+		left := trimUnifiedDiffPath(raw[:pos])
+		right := trimUnifiedDiffPath(raw[pos+1:])
+		if left == right {
+			return left, right, true
+		}
+		offset = pos + 1
+	}
+	// No equal split was found. If the line only contains a single space,
+	// the split is unambiguous and this is a simple rename whose paths
+	// happen to differ. Splitting the quoted-path form was handled above,
+	// so we know the raw form has no quoting to worry about here.
+	if strings.Count(raw, " ") == 1 {
+		idx := strings.Index(raw, " b/")
+		if idx > 0 {
+			return trimUnifiedDiffPath(raw[:idx]), trimUnifiedDiffPath(raw[idx+1:]), true
+		}
+	}
+	return "", "", false
+}
+
+// consumeQuotedDiffPath reads one C-quoted path from the start of s and
+// returns the unquoted value along with the remainder of the string. The
+// leading character of s must be `"`. git's C-quoting matches Go's quoted
+// string syntax closely enough for strconv.Unquote to handle the common
+// cases (octal byte escapes like `\303`, and the usual `\t`, `\n`, `\"`,
+// `\\`).
+func consumeQuotedDiffPath(s string) (path string, rest string, ok bool) {
+	if !strings.HasPrefix(s, `"`) {
+		return "", "", false
+	}
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			// Skip the next byte so an escaped quote does not terminate
+			// the literal early. Bounds-check to avoid running off the
+			// end of a malformed input.
+			if i+1 >= len(s) {
+				return "", "", false
+			}
+			i++
+		case '"':
+			unq, err := strconv.Unquote(s[:i+1])
+			if err != nil {
+				return "", "", false
+			}
+			return unq, s[i+1:], true
+		}
+	}
+	return "", "", false
+}
+
+// trimUnifiedDiffPath decodes a path taken from a `--- ` or `+++ ` line
+// of a unified diff. Those lines always prefix the path with `a/` or `b/`,
+// so the prefix is stripped after any C-quote decoding.
+func trimUnifiedDiffPath(path string) string {
+	return stripUnifiedDiffPrefix(decodeQuotedDiffLinePath(path))
+}
+
+// decodeQuotedDiffLinePath decodes a git-emitted path without stripping
+// any `a/` or `b/` prefix. Git only adds those prefixes to `diff --git`,
+// `--- `, and `+++ ` lines, so `rename from`, `rename to`, and similar
+// lines must use this helper to avoid truncating a real leading `a/` or
+// `b/` directory component.
+func decodeQuotedDiffLinePath(path string) string {
+	path = strings.TrimSpace(path)
+	// Git quotes the whole path with double quotes and C-style escapes when
+	// it contains control characters, backslashes, double quotes, or (with
+	// the default core.quotepath setting) bytes above 0x7f. strconv.Unquote
+	// understands the same escape vocabulary for the common cases.
+	if len(path) >= 2 && strings.HasPrefix(path, `"`) && strings.HasSuffix(path, `"`) {
+		if unq, err := strconv.Unquote(path); err == nil {
+			return unq
+		}
+		return strings.Trim(path, `"`)
+	}
+	return path
+}
+
+func stripUnifiedDiffPrefix(path string) string {
+	switch {
+	case strings.HasPrefix(path, "a/"), strings.HasPrefix(path, "b/"):
+		return path[2:]
+	default:
+		return path
+	}
+}
+
+// agentgitOversizePlaceholderPrefix matches the literal prefix that
+// agent/agentgit substitutes for a repository's UnifiedDiff when the
+// raw diff exceeds maxTotalDiffSize (3 MiB). See
+// agent/agentgit/agentgit.go. Multi-repo aggregates assembled by
+// buildLocalChatDiffContents can mix real `diff --git` chunks with
+// this placeholder, in which case parseChatGitChangesFromUnifiedDiff
+// returns a non-zero count for the real chunks while silently
+// dropping the placeholder repo. Detecting the prefix separately
+// lets renderChatDiffSummary flag the omission so the user is not
+// misled into thinking the summary is exhaustive. Kept as a local
+// prefix match because the coupling is narrow and the string is
+// stable.
+const agentgitOversizePlaceholderPrefix = "Total diff too large to show. Size:"
+
+// hasOversizedRepoPlaceholder reports whether the combined unified
+// diff contains at least one agentgit oversize-repo placeholder.
+// Matching is scoped to lines that start with the placeholder prefix
+// so a false positive from a diff body that legitimately contains the
+// phrase (e.g. as a `+` added line inside a real patch) cannot
+// trigger the omission notice. agentgit always writes the
+// placeholder as the entire UnifiedDiff for a repo, and
+// buildLocalChatDiffContents joins segments with "\n", so a real
+// placeholder repo always appears on its own line after the join.
+func hasOversizedRepoPlaceholder(diff string) bool {
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, agentgitOversizePlaceholderPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func renderChatDiffSummary(diff codersdk.ChatDiffContents) string {
+	changes := parseChatGitChangesFromUnifiedDiff(diff)
+	if len(changes) == 0 {
+		// The diff text might be non-empty but not in `diff --git`
+		// format (for example `agent/agentgit` emits a "Total diff
+		// too large to show..." placeholder when the raw diff exceeds
+		// the read limit). Report that changes exist but could not
+		// be summarized so we do not mislead the user into thinking
+		// the workspace is clean.
+		if strings.TrimSpace(diff.Diff) != "" {
+			return "Changes present but could not be summarized."
+		}
+		return "No changes detected."
+	}
+
+	label := "files"
+	if len(changes) == 1 {
+		label = "file"
+	}
+	lines := []string{fmt.Sprintf("%d %s changed:", len(changes), label)}
 	for _, change := range changes {
 		path := sanitizeTerminalRenderableText(change.FilePath)
 		if change.ChangeType == "renamed" && change.OldPath != nil && *change.OldPath != "" {
 			path = fmt.Sprintf("%s → %s", sanitizeTerminalRenderableText(*change.OldPath), path)
 		}
-		lines = append(lines, fmt.Sprintf("  %-8s %s", change.ChangeType, path))
+		line := fmt.Sprintf("  %-8s %s", change.ChangeType, path)
+		if change.DiffSummary != nil && strings.TrimSpace(*change.DiffSummary) != "" {
+			line = fmt.Sprintf("%s (%s)", line, sanitizeTerminalRenderableText(*change.DiffSummary))
+		}
+		lines = append(lines, line)
+	}
+	// A multi-repo aggregate can mix real diff chunks (counted
+	// above) with agentgit's oversize placeholder for repos whose
+	// raw diff exceeds maxTotalDiffSize. The placeholder does not
+	// contribute to the files-changed count because it is not in
+	// `diff --git` format, so without this notice the summary would
+	// silently underreport the changeset.
+	if hasOversizedRepoPlaceholder(diff.Diff) {
+		lines = append(lines, "  (some repositories omitted: diff too large to summarize)")
 	}
 	return strings.Join(lines, "\n")
 }
 
-func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange, width, height int) string {
+func renderStyledDiffBody(styles tuiStyles, diff string) string {
+	diff = sanitizeTerminalRenderableText(diff)
+	if strings.TrimSpace(diff) == "" {
+		return styles.dimmedText.Render("No diff contents.")
+	}
+	lines := strings.Split(diff, "\n")
+	inHunk := false
+	for i, line := range lines {
+		// Track whether we're inside a hunk body so styling can
+		// distinguish legitimate header `--- `/`+++ ` lines from
+		// additions/deletions whose content happens to start with
+		// those prefixes (for example a `+++ ` content line whose
+		// text begins with `++ `). Matches the parser's inHunk
+		// bookkeeping in parseChatGitChangesFromUnifiedDiff.
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			inHunk = false
+		case strings.HasPrefix(line, "@@"):
+			inHunk = true
+		}
+		lines[i] = styleUnifiedDiffLine(styles, line, inHunk)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func styleUnifiedDiffLine(styles tuiStyles, line string, inHunk bool) string {
+	switch {
+	case strings.HasPrefix(line, "diff --git "):
+		return styles.selectedItem.Render(line)
+	case strings.HasPrefix(line, "index "),
+		strings.HasPrefix(line, "new file mode "),
+		strings.HasPrefix(line, "deleted file mode "),
+		strings.HasPrefix(line, "rename from "),
+		strings.HasPrefix(line, "rename to "),
+		strings.HasPrefix(line, "Binary files "):
+		return styles.subtitle.Render(line)
+	case !inHunk && (strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "+++ ")):
+		return styles.subtitle.Render(line)
+	case strings.HasPrefix(line, "@@"):
+		return styles.warningText.Render(line)
+	case strings.HasPrefix(line, "+"):
+		return styles.toolSuccess.Render(line)
+	case strings.HasPrefix(line, "-"):
+		return styles.errorText.Render(line)
+	default:
+		return line
+	}
+}
+
+// renderDiffDrawer builds the diff overlay contents. The caller is
+// responsible for producing summary with renderChatDiffSummary and
+// styledBody with renderStyledDiffBody so that every View() redraw
+// does not walk the full (potentially 4 MiB) diff through
+// parseChatGitChangesFromUnifiedDiff or re-style every line through
+// lipgloss. chatViewModel caches both in diffSummary and
+// diffStyledBody for this reason. If styledBody is empty the caller
+// had no cache (for example tests that construct diffs directly), so
+// fall back to computing it here instead of silently rendering an
+// empty body.
+func renderDiffDrawer(styles tuiStyles, diff codersdk.ChatDiffContents, summary, styledBody string, width, height int) string {
 	innerWidth := contentWidth(width, 6)
 	headerBits := []string{styles.title.Render("Diff")}
 	if meta := diffMetadataLines(diff); len(meta) > 0 {
 		headerBits = append(headerBits, styles.subtitle.Render(strings.Join(meta, " • ")))
 	}
-	summary := renderChatDiffSummary(diff, changes)
-	diffBody := sanitizeTerminalRenderableText(diff.Diff)
-	if strings.TrimSpace(diffBody) == "" {
-		diffBody = styles.dimmedText.Render("No diff contents.")
+	diffBody := styledBody
+	if diffBody == "" {
+		diffBody = renderStyledDiffBody(styles, diff.Diff)
 	}
 	help := styles.helpText.Render("Esc to close")
 	overhead := countRenderedLines(strings.Join(headerBits, "\n")) + countRenderedLines(summary) + countRenderedLines(help) + 4

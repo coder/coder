@@ -219,6 +219,18 @@ export const ToolLabel: React.FC<{
 					Summarized
 				</span>
 			);
+		case "attach_file": {
+			const attachedName =
+				(parsedResult ? asString(parsedResult.name) : "") ||
+				(parsed ? asString(parsed.name) : "") ||
+				(parsed ? asString(parsed.path).split("/").pop() : "") ||
+				"file";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{`Attached ${attachedName}`}
+				</span>
+			);
+		}
 		case "computer":
 			return (
 				<span className="truncate text-sm text-content-secondary">

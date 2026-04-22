@@ -440,6 +440,14 @@ func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatModelConfigsByProvider(ctx, provider)
+	m.queryLatencies.WithLabelValues("DeleteChatModelConfigsByProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigsByProvider").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProviderByID(ctx, id)
@@ -1344,11 +1352,27 @@ func (m queryMetricsStore) GetChatProviderByID(ctx context.Context, id uuid.UUID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProviderByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProviderByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProviderByProvider(ctx, provider)
 	m.queryLatencies.WithLabelValues("GetChatProviderByProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProvider").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProviderByProviderForUpdate(ctx, provider)
+	m.queryLatencies.WithLabelValues("GetChatProviderByProviderForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProviderForUpdate").Inc()
 	return r0, r1
 }
 

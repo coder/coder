@@ -1,5 +1,5 @@
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -14,7 +14,6 @@ type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 interface ProvidersSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
@@ -32,7 +31,6 @@ interface ProvidersSectionProps {
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerStates,
 	providerConfigsUnavailable,
 	isProviderMutationPending,
@@ -134,7 +132,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					description={
 						sectionDescription ?? "Configure AI providers to use with Agents."
 					}
-					badge={sectionBadge}
 				/>
 			)}
 			<div>

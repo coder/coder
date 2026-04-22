@@ -113,6 +113,7 @@ type sqlcQuerier interface {
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error
@@ -327,7 +328,9 @@ type sqlcQuerier interface {
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error)
+	GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProvider, error)
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
+	GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the chat retention period in days. Chats archived longer
