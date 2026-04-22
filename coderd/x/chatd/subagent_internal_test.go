@@ -147,6 +147,30 @@ func seedInternalChatDeps(
 	return user, org, model
 }
 
+// seedEnabledAnthropicProvider inserts an enabled Anthropic provider for
+// the current test user so computer_use flows keep Anthropic credentials
+// after provider-key pruning.
+func seedEnabledAnthropicProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+) {
+	t.Helper()
+
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "anthropic",
+		DisplayName:          "Anthropic",
+		APIKey:               "test-anthropic-key",
+		BaseUrl:              "",
+		ApiKeyKeyID:          sql.NullString{},
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+}
+
 func insertInternalChatModelConfig(
 	ctx context.Context,
 	t *testing.T,
@@ -991,6 +1015,9 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 
 			ctx := chatdTestContext(t)
 			user, org, model := seedInternalChatDeps(ctx, t, db)
+			if tt.variant == subagentTypeComputerUse {
+				seedEnabledAnthropicProvider(ctx, t, db, user.ID)
+			}
 			parentChat := createInternalParentChat(
 				ctx,
 				t,
@@ -1127,6 +1154,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	seedEnabledAnthropicProvider(ctx, t, db, user.ID)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
@@ -1185,6 +1213,7 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	seedEnabledAnthropicProvider(ctx, t, db, user.ID)
 
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:   "MCP Test",
