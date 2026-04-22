@@ -386,18 +386,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"workspace_id":          ActionTrack,
 		"build_id":              ActionIgnore, // Internal lifecycle.
 		"agent_id":              ActionIgnore, // Internal lifecycle.
-		"title":                 ActionSecret,
+		"title":                 ActionSecret, // May contain sensitive content.
 		"status":                ActionIgnore, // Churns every message.
 		"worker_id":             ActionIgnore, // Internal.
 		"started_at":            ActionIgnore,
-		"heartbeat_at":          ActionIgnore,
+		"heartbeat_at":          ActionIgnore, // Internal.
 		"created_at":            ActionIgnore, // Never changes.
 		"updated_at":            ActionIgnore, // Bumped on every mutation.
 		"parent_chat_id":        ActionIgnore, // Immutable after creation.
 		"root_chat_id":          ActionIgnore, // Immutable after creation.
 		"last_model_config_id":  ActionIgnore, // Churns every message.
 		"archived":              ActionTrack,
-		"last_error":            ActionIgnore,
+		"last_error":            ActionIgnore, // Internal.
 		"mode":                  ActionTrack,
 		"mcp_server_ids":        ActionTrack,
 		"labels":                ActionTrack,

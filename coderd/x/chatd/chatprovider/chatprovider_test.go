@@ -1,11 +1,14 @@
 package chatprovider_test
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
@@ -44,6 +47,7 @@ func TestResolveUserProviderKeys(t *testing.T) {
 
 	openAIProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	anthropicProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	bedrockProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
 
 	tests := []struct {
 		name             string
@@ -52,6 +56,7 @@ func TestResolveUserProviderKeys(t *testing.T) {
 		userKeys         []chatprovider.UserProviderKey
 		wantAvailability map[string]chatprovider.ProviderAvailability
 		wantKeys         map[string]string
+		wantKeyPresence  map[string]bool
 	}{
 		{
 			name:      "CentralOnlyKeyPresent",
@@ -71,6 +76,74 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 			wantKeys: map[string]string{
 				fantasyopenai.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyopenai.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralOnlyAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
+			},
+		},
+		{
+			name:      "BedrockFallbackAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", true, true)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
+			},
+		},
+		{
+			name:      "BedrockUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", true, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralDisabledMissingAPIKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, false, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralStoredKeyPresent",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "bedrock-token", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "bedrock-token",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
 			},
 		},
 		{
@@ -176,6 +249,14 @@ func TestResolveUserProviderKeys(t *testing.T) {
 				require.True(t, ok, "expected availability for provider %q", provider)
 				require.Equal(t, wantAvailability, gotAvailability)
 				require.Equal(t, tt.wantKeys[provider], keys.APIKey(provider))
+			}
+			for provider, wantPresent := range tt.wantKeyPresence {
+				gotKey, ok := keys.ByProvider[provider]
+				require.Equal(t, wantPresent, ok, "unexpected key presence for provider %q", provider)
+				require.Equal(t, wantPresent, keys.HasProvider(provider), "unexpected HasProvider result for provider %q", provider)
+				if wantPresent {
+					require.Equal(t, tt.wantKeys[provider], gotKey)
+				}
 			}
 		})
 	}
@@ -740,6 +821,181 @@ func TestCoderHeaders(t *testing.T) {
 		require.Equal(t, subchatID.String(), h[chatprovider.HeaderCoderSubchatID])
 		require.NotContains(t, h, chatprovider.HeaderCoderWorkspaceID)
 	})
+}
+
+func TestModelFromConfig_Bedrock(t *testing.T) {
+	t.Parallel()
+
+	const modelID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+
+	// This verifies the policy gate that permits an empty Bedrock key.
+	// End-to-end ambient credential auth would need a real AWS
+	// environment or a more complete mock, which is outside this scope.
+	t.Run("AllowsEmptyAPIKeyForAmbientCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasybedrock.Name: "",
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		require.Equal(t, fantasybedrock.Name, model.Provider())
+	})
+
+	t.Run("RequiresResolvedProviderForAmbientCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.Nil(t, model)
+		require.EqualError(t, err, "API key for provider \"bedrock\" is not set")
+	})
+
+	t.Run("ForwardsBaseURLAndExplicitAPIKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		type requestCapture struct {
+			Path          string
+			Authorization string
+			UserAgent     string
+		}
+
+		requests := make(chan requestCapture, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests <- requestCapture{
+				Path:          r.URL.Path,
+				Authorization: r.Header.Get("Authorization"),
+				UserAgent:     r.Header.Get("User-Agent"),
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+		}))
+		defer server.Close()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasybedrock.Name: "test-key",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasybedrock.Name: server.URL,
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		_, err = model.Generate(ctx, fantasy.Call{
+			Prompt: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "hello"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		got := testutil.TryReceive(ctx, t, requests)
+		require.Equal(t, "/model/"+modelID+"/invoke", got.Path)
+		require.Equal(t, "Bearer test-key", got.Authorization)
+		require.Equal(t, chatprovider.UserAgent(), got.UserAgent)
+	})
+
+	t.Run("NonBedrockStillRequiresAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			provider string
+			model    string
+			wantErr  string
+		}{
+			{
+				name:     "OpenAI",
+				provider: fantasyopenai.Name,
+				model:    "gpt-4",
+				wantErr:  "OPENAI_API_KEY is not set",
+			},
+			{
+				name:     "Anthropic",
+				provider: fantasyanthropic.Name,
+				model:    "claude-sonnet-4-20250514",
+				wantErr:  "ANTHROPIC_API_KEY is not set",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				model, err := chatprovider.ModelFromConfig(
+					tt.provider,
+					tt.model,
+					chatprovider.ProviderAPIKeys{},
+					chatprovider.UserAgent(),
+					nil,
+					nil,
+				)
+				require.Nil(t, model)
+				require.EqualError(t, err, tt.wantErr)
+			})
+		}
+	})
+}
+
+func bedrockNonStreamingResponse() map[string]any {
+	return map[string]any{
+		"id":    "msg_01Test",
+		"type":  "message",
+		"role":  "assistant",
+		"model": "claude-sonnet-4-20250514",
+		"content": []any{
+			map[string]any{
+				"type": "text",
+				"text": "Hi there",
+			},
+		},
+		"stop_reason":   "end_turn",
+		"stop_sequence": "",
+		"usage": map[string]any{
+			"cache_creation": map[string]any{
+				"ephemeral_1h_input_tokens": 0,
+				"ephemeral_5m_input_tokens": 0,
+			},
+			"cache_creation_input_tokens": 0,
+			"cache_read_input_tokens":     0,
+			"input_tokens":                5,
+			"output_tokens":               2,
+			"server_tool_use": map[string]any{
+				"web_search_requests": 0,
+			},
+			"service_tier": "standard",
+		},
+	}
 }
 
 // TestModelFromConfig_ExtraHeaders verifies that extra headers passed

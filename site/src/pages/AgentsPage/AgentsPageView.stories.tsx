@@ -308,6 +308,17 @@ const meta: Meta<typeof AgentsPageView> = {
 			enable_desktop: false,
 		});
 		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
+		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
+			allow_users: false,
+			forced_by_deployment: false,
+		});
+		spyOn(API.experimental, "updateChatDebugLogging").mockResolvedValue();
+		spyOn(API.experimental, "getUserChatDebugLogging").mockResolvedValue({
+			debug_logging_enabled: false,
+			forced_by_deployment: false,
+			user_toggle_allowed: false,
+		});
+		spyOn(API.experimental, "updateUserChatDebugLogging").mockResolvedValue();
 		spyOn(API.experimental, "getChatPlanModeInstructions").mockResolvedValue({
 			plan_mode_instructions: "",
 		});

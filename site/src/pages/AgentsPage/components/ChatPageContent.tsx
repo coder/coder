@@ -5,6 +5,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { getChatFileURL } from "../utils/chatAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -331,10 +332,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setAttachments(files);
 		setPreviewUrls(
 			new Map(
-				files.map((f, i) => [
-					f,
-					`/api/experimental/chats/files/${fileBlocks[i].file_id}`,
-				]),
+				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();

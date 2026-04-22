@@ -1,6 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { getChatFileURL } from "../../utils/chatAttachments";
+import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 
@@ -58,30 +69,98 @@ const askUserQuestionSubmittedResponse = [
 	"2. Release Plan: Small beta",
 ].join("\n");
 
-const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
+type AttachmentResponse = {
+	status: number;
+	body: string;
+	contentType?: string;
+};
+
+const FAILED_ATTACHMENT_API_MESSAGE = "Failed to get chat file.";
+
+const UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE =
+	"File exists but could not be displayed.";
+
+const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 	[
 		"storybook-test-text",
-		"Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
+		{
+			status: 200,
+			body: "Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
+		},
+	],
+	[
+		"storybook-json-text",
+		{ status: 200, body: '{"status":"ok","items":[1,2,3]}' },
 	],
 	[
 		"storybook-text-only",
-		"Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
+		{
+			status: 200,
+			body: "Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
+		},
 	],
 	[
 		"storybook-text-1",
-		"First context file: deployment checklist and rollback instructions for the release candidate.",
+		{
+			status: 200,
+			body: "First context file: deployment checklist and rollback instructions for the release candidate.",
+		},
 	],
 	[
 		"storybook-text-2",
-		"Second context file: service logs showing a transient timeout while the cache warmed up.",
+		{
+			status: 200,
+			body: "Second context file: service logs showing a transient timeout while the cache warmed up.",
+		},
 	],
 	[
 		"storybook-text-3",
-		"Third context file: local development configuration overrides for reproducing the issue.",
+		{
+			status: 200,
+			body: "Third context file: local development configuration overrides for reproducing the issue.",
+		},
 	],
+	["storybook-expired-image", { status: 404, body: "" }],
+	["storybook-undisplayable-image", { status: 200, body: "" }],
+	[
+		"storybook-failed-image",
+		{
+			status: 500,
+			body: JSON.stringify({
+				message: FAILED_ATTACHMENT_API_MESSAGE,
+				detail: "db: connection reset",
+			}),
+			contentType: "application/json",
+		},
+	],
+	["storybook-expired-text", { status: 404, body: "" }],
+	[
+		"storybook-failed-text",
+		{
+			status: 500,
+			body: JSON.stringify({
+				message: FAILED_ATTACHMENT_API_MESSAGE,
+				detail: "db: connection reset",
+			}),
+			contentType: "application/json",
+		},
+	],
+	["storybook-text-error", { body: "Temporary failure", status: 503 }],
 ]);
 
-const mockTextAttachmentFetch = () => {
+let attachmentFetchCounts = new Map<string, number>();
+
+const recordAttachmentFetch = (fileId: string) => {
+	attachmentFetchCounts.set(
+		fileId,
+		(attachmentFetchCounts.get(fileId) ?? 0) + 1,
+	);
+};
+
+const getAttachmentFetchCount = (fileId: string) =>
+	attachmentFetchCounts.get(fileId) ?? 0;
+
+const mockAttachmentFetch = () => {
 	const originalFetch = globalThis.fetch;
 	spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
 		const url =
@@ -91,14 +170,100 @@ const mockTextAttachmentFetch = () => {
 					? input.toString()
 					: input.url;
 
-		for (const [fileId, content] of TEXT_ATTACHMENT_RESPONSES) {
+		for (const [fileId, response] of ATTACHMENT_RESPONSES) {
 			if (url.endsWith(fileId)) {
-				return new Response(content, { status: 200 });
+				recordAttachmentFetch(fileId);
+				return new Response(response.body, {
+					status: response.status,
+					headers: response.contentType
+						? { "Content-Type": response.contentType }
+						: undefined,
+				});
 			}
 		}
 
 		return originalFetch(input, init);
 	});
+};
+
+const buildTextPart = (text: string): TypesGen.ChatTextPart => ({
+	type: "text",
+	text,
+});
+
+const buildFilePart = (
+	part: Omit<TypesGen.ChatFilePart, "type">,
+): TypesGen.ChatFilePart => ({
+	type: "file",
+	...part,
+});
+
+const buildTextAttachmentPart = (fileId: string): TypesGen.ChatFilePart =>
+	buildFilePart({ file_id: fileId, media_type: "text/plain" });
+
+const buildImageAttachmentPart = (
+	fileId: string,
+	mediaType = "image/png",
+): TypesGen.ChatFilePart =>
+	buildFilePart({ file_id: fileId, media_type: mediaType });
+
+const buildInlineAttachmentPart = (
+	mediaType: string,
+	data: string,
+): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
+
+const buildUserMessage = ({
+	id = 1,
+	text,
+	files = [],
+	createdAt = baseMessage.created_at,
+}: {
+	id?: number;
+	text?: string;
+	files?: TypesGen.ChatFilePart[];
+	createdAt?: string;
+}): TypesGen.ChatMessage => ({
+	...baseMessage,
+	created_at: createdAt,
+	id,
+	role: "user",
+	content: [...(text ? [buildTextPart(text)] : []), ...files],
+});
+
+const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
+	...defaultArgs,
+	parsedMessages: buildMessages(messages),
+});
+
+const findAttachmentTile = async (
+	canvas: ReturnType<typeof within>,
+	label: string,
+) => {
+	const tile = await canvas.findByRole("img", { name: label });
+	expect(canvas.getByText(label)).toBeInTheDocument();
+	return tile;
+};
+
+const hoverAndExpectTooltip = async (
+	element: HTMLElement,
+	text: RegExp | string,
+) => {
+	await userEvent.hover(element);
+	const tooltip = await screen.findByRole("tooltip");
+	expect(tooltip).toHaveTextContent(text);
+	return tooltip;
+};
+
+const waitForTooltipWrappedAttachmentTile = async (
+	canvas: ReturnType<typeof within>,
+	label: string,
+) => {
+	await waitFor(() =>
+		expect(canvas.getByRole("img", { name: label })).toHaveAttribute(
+			"data-state",
+		),
+	);
+	return canvas.getByRole("img", { name: label });
 };
 
 const defaultArgs: Omit<
@@ -119,7 +284,8 @@ const meta: Meta<typeof ConversationTimeline> = {
 		),
 	],
 	beforeEach: () => {
-		mockTextAttachmentFetch();
+		attachmentFetchCounts = new Map();
+		mockAttachmentFetch();
 	},
 };
 export default meta;
@@ -202,24 +368,12 @@ export const UserMessageWithMultipleImages: Story = {
 
 /** File-id images use a server URL instead of inline base64 data. */
 export const UserMessageWithFileIdImage: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "Uploaded via file ID" },
-					{
-						type: "file",
-						media_type: "image/png",
-						file_id: "storybook-test-image",
-					},
-				],
-			},
-		]),
-	},
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "Uploaded via file ID",
+			files: [buildImageAttachmentPart("storybook-test-image")],
+		}),
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
@@ -227,30 +381,150 @@ export const UserMessageWithFileIdImage: Story = {
 		// Verify file_id path is used, not a base64 data URI.
 		expect(images[0]).toHaveAttribute(
 			"src",
-			"/api/experimental/chats/files/storybook-test-image",
+			getChatFileURL("storybook-test-image"),
 		);
 	},
 };
 
-export const UserMessageWithTextAttachment: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "Here is some context from our docs:" },
-					{
-						type: "file",
-						file_id: "storybook-test-text",
-						media_type: "text/plain",
-					},
-				],
-			},
-		]),
+/** File-id images that probe as 404 render an expired placeholder. */
+export const UserMessageWithExpiredImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "This upload has expired",
+			files: [buildImageAttachmentPart("storybook-expired-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		const expiredTile = await findAttachmentTile(canvas, "Image expired");
+		expect(canvas.getByText("This upload has expired")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+
+		// The tooltip explains the retention policy generically so the
+		// copy survives any operator-chosen retention window.
+		await hoverAndExpectTooltip(
+			expiredTile,
+			/deleted after the retention window/i,
+		);
 	},
+};
+
+/** Duplicate expired file IDs reuse the first probe result page-wide. */
+export const UserMessageWithRepeatedExpiredImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "First reference to the expired upload",
+			files: [buildImageAttachmentPart("storybook-expired-image")],
+		}),
+		buildUserMessage({
+			id: 2,
+			text: "Second reference to the same expired upload",
+			files: [buildImageAttachmentPart("storybook-expired-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(2);
+		fireEvent.error(images[0]);
+		await waitFor(() =>
+			expect(
+				canvas.getAllByRole("img", { name: "Image expired" }),
+			).toHaveLength(2),
+		);
+		expect(getAttachmentFetchCount("storybook-expired-image")).toBe(1);
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** File-id images that fail with a non-404 status render a generic failure tile. */
+export const UserMessageWithFailedRemoteImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "This image failed to load",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		await findAttachmentTile(canvas, "Image failed to load");
+		expect(canvas.getByText("This image failed to load")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+
+		// When the probe returns a structured error body, the tooltip
+		// surfaces the API's message so the viewer has something
+		// actionable instead of a bare "failed to load". The label
+		// doesn't change when the probe settles (still "Image failed
+		// to load"), and the tile's DOM node is replaced when the
+		// Tooltip wrapper mounts, so re-query each time and wait for
+		// the Radix-stamped data-state attribute before hovering.
+		await hoverAndExpectTooltip(
+			await waitForTooltipWrappedAttachmentTile(canvas, "Image failed to load"),
+			FAILED_ATTACHMENT_API_MESSAGE,
+		);
+	},
+};
+
+/** A successful follow-up probe still maps to the generic failure tile. */
+export const UserMessageWithUndisplayableRemoteImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "This image exists but cannot be displayed",
+			files: [buildImageAttachmentPart("storybook-undisplayable-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		await findAttachmentTile(canvas, "Image failed to load");
+		await hoverAndExpectTooltip(
+			await waitForTooltipWrappedAttachmentTile(canvas, "Image failed to load"),
+			UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE,
+		);
+	},
+};
+
+/** Invalid inline image data skips the probe and renders the generic failure tile. */
+export const UserMessageWithInvalidInlineImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "Inline image data is corrupt",
+			files: [buildInlineAttachmentPart("image/png", "not-valid-base64")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+		await findAttachmentTile(canvas, "Image failed to load");
+		expect(
+			canvas.getByText("Inline image data is corrupt"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UserMessageWithTextAttachment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "Here is some context from our docs:",
+			files: [buildTextAttachmentPart("storybook-test-text")],
+		}),
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const textButton = await canvas.findByRole("button", {
@@ -265,36 +539,82 @@ export const UserMessageWithTextAttachment: Story = {
 	},
 };
 
-export const UserMessageWithMultipleTextAttachments: Story = {
+export const UserMessageWithJSONAttachment: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: parseMessagesWithMergedTools([
 			{
 				...baseMessage,
 				id: 1,
-				created_at: "2025-01-15T10:00:00Z",
 				role: "user",
 				content: [
-					{ type: "text", text: "Here are several context files:" },
+					{ type: "text", text: "Here is the structured report." },
 					{
 						type: "file",
-						file_id: "storybook-text-1",
-						media_type: "text/plain",
-					},
-					{
-						type: "file",
-						file_id: "storybook-text-2",
-						media_type: "text/plain",
-					},
-					{
-						type: "file",
-						file_id: "storybook-text-3",
-						media_type: "text/plain",
+						file_id: "storybook-json-text",
+						media_type: "application/json",
+						name: "report.json",
 					},
 				],
 			},
 		]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View report.json",
+		});
+		expect(textButton).toHaveTextContent("report.json");
+		await userEvent.click(textButton);
+		expect(await canvas.findByText(/"status":"ok"/i)).toBeInTheDocument();
+	},
+};
+
+export const UserMessageWithDownloadableFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "I attached the deployment report." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-user-deployment-report",
+						name: "deployment-report.pdf",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const downloadLink = canvas.getByRole("link", {
+			name: "Download deployment-report.pdf",
+		});
+		expect(downloadLink).toHaveAttribute(
+			"href",
+			"/api/experimental/chats/files/storybook-user-deployment-report",
+		);
+		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
+	},
+};
+
+export const UserMessageWithMultipleTextAttachments: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			createdAt: "2025-01-15T10:00:00Z",
+			text: "Here are several context files:",
+			files: [
+				buildTextAttachmentPart("storybook-text-1"),
+				buildTextAttachmentPart("storybook-text-2"),
+				buildTextAttachmentPart("storybook-text-3"),
+			],
+		}),
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const textButtons = await canvas.findAllByRole("button", {
@@ -305,23 +625,11 @@ export const UserMessageWithMultipleTextAttachments: Story = {
 };
 
 export const UserMessageWithTextAttachmentOnly: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{
-						type: "file",
-						file_id: "storybook-text-only",
-						media_type: "text/plain",
-					},
-				],
-			},
-		]),
-	},
+	args: buildStoryArgs(
+		buildUserMessage({
+			files: [buildTextAttachmentPart("storybook-text-only")],
+		}),
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const textButton = await canvas.findByRole("button", {
@@ -335,8 +643,66 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 };
 
-/** Visual regression: text and image attachments render at the same height. */
-export const UserMessageWithMixedAttachments: Story = {
+export const UserMessageWithExpiredTextAttachment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "This pasted context has expired",
+			files: [buildTextAttachmentPart("storybook-expired-text")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		await userEvent.click(textButton);
+		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
+		expect(
+			canvas.getByText("This pasted context has expired"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View text attachment" }),
+		).not.toBeInTheDocument();
+
+		await hoverAndExpectTooltip(
+			expiredTile,
+			/deleted after the retention window/i,
+		);
+	},
+};
+
+export const UserMessageWithFailedTextAttachment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "This pasted context failed to load",
+			files: [buildTextAttachmentPart("storybook-failed-text")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		await userEvent.click(textButton);
+		await findAttachmentTile(canvas, "Attachment failed to load");
+		expect(
+			canvas.getByText("This pasted context failed to load"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "View text attachment" }),
+		).not.toBeInTheDocument();
+
+		await hoverAndExpectTooltip(
+			await waitForTooltipWrappedAttachmentTile(
+				canvas,
+				"Attachment failed to load",
+			),
+			FAILED_ATTACHMENT_API_MESSAGE,
+		);
+	},
+};
+
+export const UserMessageWithInlineTextAttachment: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: parseMessagesWithMergedTools([
@@ -345,21 +711,81 @@ export const UserMessageWithMixedAttachments: Story = {
 				id: 1,
 				role: "user",
 				content: [
-					{ type: "text", text: "Here is a screenshot and some context" },
+					{ type: "text", text: "Here is inline context:" },
 					{
 						type: "file",
-						media_type: "image/png",
-						data: TEST_PNG_B64,
-					},
-					{
-						type: "file",
-						file_id: "storybook-test-text",
 						media_type: "text/plain",
+						data: encodeInlineTextAttachment(
+							"Inline deployment note: verify the feature flag before rollout.",
+						),
 					},
 				],
 			},
 		]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButton).toHaveTextContent(/Pasted text/i);
+		await userEvent.click(textButton);
+		expect(
+			await canvas.findByText(/Inline deployment note/i),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Non-JSON error bodies (a bare `Temporary failure` text body with status 503)
+ * still surface the shared failure tile, and the raw body must not leak into
+ * the message stream where it would look like assistant content.
+ */
+export const UserMessageWithFailedTextAttachmentNonJSONBody: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "The preview fetch will fail." },
+					{
+						type: "file",
+						file_id: "storybook-text-error",
+						media_type: "text/plain",
+						name: "preview.txt",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View preview.txt",
+		});
+		await userEvent.click(textButton);
+		await findAttachmentTile(canvas, "Attachment failed to load");
+		expect(
+			canvas.queryByRole("button", { name: "View preview.txt" }),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/Temporary failure/i)).not.toBeInTheDocument();
+	},
+};
+
+/** Visual regression: text and image attachments render at the same height. */
+export const UserMessageWithMixedAttachments: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "Here is a screenshot and some context",
+			files: [
+				buildInlineAttachmentPart("image/png", TEST_PNG_B64),
+				buildTextAttachmentPart("storybook-test-text"),
+			],
+		}),
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
@@ -400,12 +826,6 @@ export const AssistantMessageWithImage: Story = {
 			{
 				...baseMessage,
 				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "Generate an image" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
 				role: "assistant",
 				content: [
 					{ type: "text", text: "Here is the generated image:" },
@@ -413,6 +833,7 @@ export const AssistantMessageWithImage: Story = {
 						type: "file",
 						media_type: "image/png",
 						data: TEST_PNG_B64,
+						name: "generated-image.png",
 					},
 				],
 			},
@@ -420,8 +841,55 @@ export const AssistantMessageWithImage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "generated-image.png" });
 		expect(images).toHaveLength(1);
+		expect(images[0]).toHaveAttribute(
+			"src",
+			`data:image/png;base64,${TEST_PNG_B64}`,
+		);
+		expect(
+			canvas.queryByRole("link", { name: "Download generated-image.png" }),
+		).not.toBeInTheDocument();
+		const viewButton = canvas.getByRole("button", {
+			name: "View generated-image.png",
+		});
+		viewButton.focus();
+		expect(viewButton).toHaveFocus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("link", { name: "Download generated-image.png" }),
+			).toBeVisible();
+		});
+	},
+};
+
+export const AssistantMessageWithUnnamedDownloadableFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I attached the file without a custom name." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-unnamed-report",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const downloadLink = canvas.getByRole("link", {
+			name: "Download Attached file",
+		});
+		expect(downloadLink).toBeInTheDocument();
+		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
+		expect(canvas.getByText("Attached file")).toBeInTheDocument();
 	},
 };
 
@@ -1107,6 +1575,35 @@ export const SourcesOnlyAssistantSpacing: Story = {
 		).toBeInTheDocument();
 		expect(
 			canvas.getByRole("link", { name: "API Reference" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoRenderableContentFallbackSpacing: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 101,
+				role: "assistant",
+				content: [],
+			},
+			{
+				...baseMessage,
+				id: 102,
+				role: "user",
+				content: [{ type: "text", text: "Thanks for trying!" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Message has no renderable content."),
+		).toBeInTheDocument();
+		expect(
+			document.querySelector('[data-testid="assistant-bottom-spacer"]'),
 		).toBeInTheDocument();
 	},
 };
