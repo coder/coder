@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider/echomodel"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -31,6 +32,7 @@ var supportedProviderNames = []string{
 	fantasyopenaicompat.Name,
 	fantasyopenrouter.Name,
 	fantasyvercel.Name,
+	echomodel.ProviderName,
 }
 
 var envPresetProviderNames = []string{
@@ -47,6 +49,7 @@ var providerDisplayNameByName = map[string]string{
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
 	fantasyvercel.Name:       "Vercel AI Gateway",
+	echomodel.ProviderName:   "Echo (Test)",
 }
 
 // SupportedProviders returns all chat providers supported by Fantasy.
@@ -538,6 +541,8 @@ func NormalizeProvider(provider string) string {
 		return fantasyopenrouter.Name
 	case fantasyvercel.Name:
 		return fantasyvercel.Name
+	case echomodel.ProviderName:
+		return echomodel.ProviderName
 	default:
 		return ""
 	}
@@ -1132,7 +1137,7 @@ func ModelFromConfig(
 	}
 
 	apiKey := providerKeys.APIKey(provider)
-	if apiKey == "" {
+	if apiKey == "" && provider != echomodel.ProviderName {
 		return nil, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -1256,6 +1261,10 @@ func ModelFromConfig(
 			options = append(options, fantasyvercel.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyvercel.New(options...)
+	case echomodel.ProviderName:
+		// The echo provider is a built-in test model that needs
+		// no external API keys or network access.
+		return echomodel.New(), nil
 	default:
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
 	}

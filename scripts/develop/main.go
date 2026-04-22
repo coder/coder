@@ -8,8 +8,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,6 +31,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	_ "github.com/lib/pq" // postgres driver for demo plugin setup
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -486,6 +491,30 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
 		}
 	}
+
+	if err := setupEchoProvider(ctx, logger, cfg, client); err != nil {
+		logger.Warn(ctx, "echo provider setup failed, continuing", slog.Error(err))
+	}
+
+	// Background goroutine that watches for new workspace agents
+	// and upserts the demo plugin for each one.
+	go pollAndInsertDemoPlugins(ctx, logger, cfg, client)
+
+	// Serve demo plugin files for testing.
+	go func() {
+		pluginDir := filepath.Join(cfg.projectRoot, "examples", "plugins", "demo")
+		mux := http.NewServeMux()
+		mux.Handle("/", http.FileServer(http.Dir(pluginDir)))
+		srv := &http.Server{
+			Addr:              "0.0.0.0:9876",
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		logger.Info(ctx, "serving demo plugin", slog.F("addr", srv.Addr), slog.F("dir", pluginDir))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Warn(ctx, "demo plugin server failed", slog.Error(err))
+		}
+	}()
 
 	// Update migration tracking after the server has applied
 	// any new migrations. This keeps the cache current so the
@@ -1177,6 +1206,13 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 	}
 	line(
 		"",
+		"Demo Plugin:",
+	)
+	for _, h := range ifaces {
+		line(indent(fmt.Sprintf("http://%s:9876", h)))
+	}
+	line(
+		"",
 		"Use ./scripts/coder-dev.sh to talk to this instance!",
 		fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot),
 		"",
@@ -1252,4 +1288,145 @@ func shellBool(b bool) string { //nolint:revive // trivial bool-to-string helper
 
 func developInCoder() bool {
 	return os.Getenv("DEVELOP_IN_CODER") == "1" || os.Getenv("CODER_AGENT_URL") != ""
+}
+
+// setupEchoProvider creates a built-in echo chat provider and model
+// so the agents UI can be tested without external AI keys.
+func setupEchoProvider(ctx context.Context, logger slog.Logger, _ *devConfig, client *codersdk.Client) error {
+	// Create the echo provider.
+	providerResp, err := client.Request(ctx, http.MethodPost,
+		"/api/experimental/chats/providers",
+		map[string]any{
+			"provider":                "echo",
+			"enabled":                 true,
+			"api_key":                 "echo-no-key-needed",
+			"central_api_key_enabled": true,
+		},
+	)
+	if err != nil {
+		return xerrors.Errorf("create echo provider: %w", err)
+	}
+	defer providerResp.Body.Close()
+	if providerResp.StatusCode != http.StatusCreated && providerResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(providerResp.Body)
+		return xerrors.Errorf("create echo provider: status %d: %s", providerResp.StatusCode, body)
+	}
+
+	// Parse provider ID from response.
+	var provider struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(providerResp.Body).Decode(&provider); err != nil {
+		return xerrors.Errorf("decode provider response: %w", err)
+	}
+
+	// Create the echo model config.
+	modelResp, err := client.Request(ctx, http.MethodPost,
+		"/api/experimental/chats/model-configs",
+		map[string]any{
+			"provider":              "echo",
+			"model":                 "echo-1",
+			"display_name":          "Echo (Test)",
+			"enabled":               true,
+			"is_default":            true,
+			"context_limit":         200000,
+			"compression_threshold": 80,
+		},
+	)
+	if err != nil {
+		return xerrors.Errorf("create echo model: %w", err)
+	}
+	defer modelResp.Body.Close()
+	if modelResp.StatusCode != http.StatusCreated && modelResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(modelResp.Body)
+		return xerrors.Errorf("create echo model: status %d: %s", modelResp.StatusCode, body)
+	}
+
+	logger.Info(ctx, "echo test provider configured")
+	return nil
+}
+
+// pollAndInsertDemoPlugins watches for workspace agents and
+// inserts the demo plugin for any agent that doesn't have one.
+// It reads the postgres connection from the embedded DB files
+// and polls every 10 seconds.
+func pollAndInsertDemoPlugins(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client) {
+	// Read postgres connection info from the embedded DB.
+	pgDir := filepath.Join(cfg.configDir, "postgres")
+	portBytes, err := os.ReadFile(filepath.Join(pgDir, "port"))
+	if err != nil {
+		logger.Warn(ctx, "cannot read postgres port for plugin setup", slog.Error(err))
+		return
+	}
+	passBytes, err := os.ReadFile(filepath.Join(pgDir, "password"))
+	if err != nil {
+		logger.Warn(ctx, "cannot read postgres password for plugin setup", slog.Error(err))
+		return
+	}
+	port := strings.TrimSpace(string(portBytes))
+	pass := strings.TrimSpace(string(passBytes))
+	dsn := fmt.Sprintf("host=127.0.0.1 port=%s user=coder password=%s dbname=coder sslmode=disable", port, pass)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		logger.Warn(ctx, "cannot connect to postgres for plugin setup", slog.Error(err))
+		return
+	}
+	defer db.Close()
+
+	// Determine the demo plugin URL. Use the Coder proxy URL if
+	// running inside a workspace, otherwise localhost.
+	pluginURL := "http://localhost:9876/"
+	if wsName := os.Getenv("CODER_WORKSPACE_NAME"); wsName != "" {
+		agentName := os.Getenv("CODER_WORKSPACE_AGENT_NAME")
+		ownerName := os.Getenv("CODER_WORKSPACE_OWNER_NAME")
+		coderURL := os.Getenv("CODER_URL")
+		if agentName != "" && ownerName != "" && coderURL != "" {
+			// Parse the Coder URL to extract the host for port
+			// forwarding. The pattern is:
+			// https://{port}--{agent}--{ws}--{owner}--apps.{host}/
+			if parsed, err := url.Parse(coderURL); err == nil {
+				pluginURL = fmt.Sprintf(
+					"https://9876--%s--%s--%s--apps.%s/",
+					agentName, wsName, ownerName, parsed.Host,
+				)
+			}
+		}
+	}
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			inserted, err := upsertDemoPluginForAllAgents(ctx, db, pluginURL)
+			if err != nil {
+				logger.Debug(ctx, "demo plugin upsert error", slog.Error(err))
+			} else if inserted > 0 {
+				logger.Info(ctx, "demo plugin inserted for agents", slog.F("count", inserted))
+			}
+		}
+	}
+}
+
+func upsertDemoPluginForAllAgents(ctx context.Context, db *sql.DB, pluginURL string) (int, error) {
+	// Find agents that don't have the demo plugin yet.
+	query := `
+		INSERT INTO workspace_agent_plugins (id, created_at, agent_id, slug, display_name, icon, url, backend_entry)
+		SELECT gen_random_uuid(), now(), wa.id, 'demo', 'Demo Plugin', '/icon/coder.svg', $1, ''
+		FROM workspace_agents wa
+		WHERE NOT EXISTS (
+			SELECT 1 FROM workspace_agent_plugins wap
+			WHERE wap.agent_id = wa.id AND wap.slug = 'demo'
+		)
+	`
+	result, err := db.ExecContext(ctx, query, pluginURL)
+	if err != nil {
+		return 0, err
+	}
+	rows, _ := result.RowsAffected()
+	return int(rows), nil
 }

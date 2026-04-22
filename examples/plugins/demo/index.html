@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="header-title">
+                <svg class="header-icon" viewBox="0 0 16 16" fill="none">
+                    <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="5" cy="8" r="1" fill="currentColor"/>
+                    <circle cx="8" cy="8" r="1" fill="currentColor"/>
+                    <circle cx="11" cy="8" r="1" fill="currentColor"/>
+                </svg>
+                <h1>Workspace Monitor</h1>
+            </div>
+            <div class="connection-status" id="conn-status">
+                <span class="status-dot pending"></span>
+                <span class="status-label">Connecting</span>
+            </div>
+        </header>
+
+        <div class="cards">
+            <section class="card" id="workspace-card">
+                <h2>Workspace</h2>
+                <div class="card-body placeholder" id="workspace-body">
+                    <span class="muted">Waiting for connection&hellip;</span>
+                </div>
+            </section>
+
+            <section class="card" id="agent-card">
+                <h2>Agent Health</h2>
+                <div class="card-body placeholder" id="agent-body">
+                    <span class="muted">Waiting for connection&hellip;</span>
+                </div>
+            </section>
+
+            <section class="card" id="apps-card">
+                <h2>Apps</h2>
+                <div class="card-body placeholder" id="apps-body">
+                    <span class="muted">Waiting for connection&hellip;</span>
+                </div>
+            </section>
+        </div>
+
+        <footer id="activity-log">
+            <h2>Activity</h2>
+            <div id="log-entries"></div>
+        </footer>
+    </div>
+    <script src="plugin.js"></script>
+</body>
+</html>

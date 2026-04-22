@@ -1,0 +1,273 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#app {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* --- Header --- */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #313244;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-icon {
+    width: 18px;
+    height: 18px;
+    color: #89b4fa;
+    flex-shrink: 0;
+}
+
+h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #a6adc8;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-dot.pending  { background: #585b70; }
+.status-dot.ok       { background: #a6e3a1; box-shadow: 0 0 6px #a6e3a14d; }
+.status-dot.error    { background: #f38ba8; box-shadow: 0 0 6px #f38ba84d; }
+
+/* --- Cards grid --- */
+.cards {
+    display: grid;
+    gap: 10px;
+}
+
+.card {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.card h2 {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6c7086;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+}
+
+.card-body {
+    transition: opacity 0.3s ease;
+}
+
+.card-body.refreshing {
+    opacity: 0.5;
+}
+
+.card-body.placeholder {
+    padding: 16px 0;
+    text-align: center;
+}
+
+/* --- Data rows inside cards --- */
+.info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    align-items: baseline;
+}
+
+.info-label {
+    font-size: 11px;
+    color: #6c7086;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.info-value {
+    font-size: 13px;
+    color: #cdd6f4;
+    word-break: break-word;
+}
+
+.info-value.mono {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 12px;
+}
+
+/* --- Badges --- */
+.badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+}
+
+.badge-green  { background: #1e3a2f; color: #a6e3a1; }
+.badge-yellow { background: #3a351e; color: #f9e2af; }
+.badge-red    { background: #3a1e2a; color: #f38ba8; }
+.badge-gray   { background: #313244; color: #a6adc8; }
+
+/* --- Apps list --- */
+.apps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.app-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    background: #1e1e2e;
+    border-radius: 6px;
+}
+
+.app-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.app-dot.healthy     { background: #a6e3a1; }
+.app-dot.unhealthy   { background: #f38ba8; }
+.app-dot.initializing { background: #f9e2af; }
+.app-dot.disabled    { background: #585b70; }
+
+.app-name {
+    font-size: 12px;
+    color: #cdd6f4;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-health {
+    font-size: 10px;
+    color: #6c7086;
+    flex-shrink: 0;
+}
+
+/* --- Muted / error text --- */
+.muted {
+    color: #585b70;
+    font-size: 12px;
+}
+
+.fetch-error {
+    color: #6c7086;
+    font-size: 12px;
+    font-style: italic;
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* --- Activity log footer --- */
+footer {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 10px;
+}
+
+footer h2 {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6c7086;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+}
+
+#log-entries {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.log-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 11px;
+    border-bottom: 1px solid #31324466;
+    animation: fadeIn 0.25s ease;
+}
+
+.log-row:last-child {
+    border-bottom: none;
+}
+
+.log-time {
+    color: #45475a;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.log-tag {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.log-tag.recv { background: #1e3a2f; color: #a6e3a1; }
+.log-tag.send { background: #2a2a4a; color: #89b4fa; }
+.log-tag.info { background: #3a2a1e; color: #fab387; }
+
+.log-msg {
+    color: #a6adc8;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
