@@ -59,13 +59,13 @@ Essential packages (`curl`, `git`) are installed via cloud-init on first boot, b
 
 ## Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| **Image** | Container image with cloud-init. Options: Debian 13, Debian 12, Ubuntu 24.04, Ubuntu 22.04 | `images:debian/13/cloud` |
-| **CPU** | Number of CPUs (1-8) | `1` |
-| **Memory** | Memory in GB (1-16) | `2` |
-| **Storage pool** | Incus storage pool name | `coder` |
-| **Git repository** | Clone a git repo inside the workspace | *(empty)* |
+| Parameter          | Description                                                                                | Default                  |
+|--------------------|--------------------------------------------------------------------------------------------|--------------------------|
+| **Image**          | Container image with cloud-init. Options: Debian 13, Debian 12, Ubuntu 24.04, Ubuntu 22.04 | `images:debian/13/cloud` |
+| **CPU**            | Number of CPUs (1-8)                                                                       | `1`                      |
+| **Memory**         | Memory in GB (1-16)                                                                        | `2`                      |
+| **Storage pool**   | Incus storage pool name                                                                    | `coder`                  |
+| **Git repository** | Clone a git repo inside the workspace                                                      | *(empty)*                |
 
 ## Extending this template
 
