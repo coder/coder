@@ -53,15 +53,15 @@ Passthrough routes (`/v1/models`, `/v1/messages/count_tokens`) are reverse-proxi
 
 Create metrics with `NewMetrics(prometheus.Registerer)`:
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `interceptions_total` | Counter | Intercepted request count |
-| `interceptions_inflight` | Gauge | Currently processing requests |
-| `interceptions_duration_seconds` | Histogram | Request duration |
-| `tokens_total` | Counter | Token usage (input/output) |
-| `prompts_total` | Counter | User prompt count |
-| `injected_tool_invocations_total` | Counter | MCP tool invocations |
-| `passthrough_total` | Counter | Non-intercepted requests |
+| Metric                            | Type      | Description                   |
+|-----------------------------------|-----------|-------------------------------|
+| `interceptions_total`             | Counter   | Intercepted request count     |
+| `interceptions_inflight`          | Gauge     | Currently processing requests |
+| `interceptions_duration_seconds`  | Histogram | Request duration              |
+| `tokens_total`                    | Counter   | Token usage (input/output)    |
+| `prompts_total`                   | Counter   | User prompt count             |
+| `injected_tool_invocations_total` | Counter   | MCP tool invocations          |
+| `passthrough_total`               | Counter   | Non-intercepted requests      |
 
 ### Recorder Interface
 
@@ -84,10 +84,10 @@ type Recorder interface {
 
 ## Supported Routes
 
-| Provider | Route | Type |
-|----------|-------|------|
-| Anthropic | `/anthropic/v1/messages` | Bridged (intercepted) |
-| Anthropic | `/anthropic/v1/models` | Passthrough |
-| Anthropic | `/anthropic/v1/messages/count_tokens` | Passthrough |
-| OpenAI | `/openai/v1/chat/completions` | Bridged (intercepted) |
-| OpenAI | `/openai/v1/models` | Passthrough |
+| Provider  | Route                                 | Type                  |
+|-----------|---------------------------------------|-----------------------|
+| Anthropic | `/anthropic/v1/messages`              | Bridged (intercepted) |
+| Anthropic | `/anthropic/v1/models`                | Passthrough           |
+| Anthropic | `/anthropic/v1/messages/count_tokens` | Passthrough           |
+| OpenAI    | `/openai/v1/chat/completions`         | Bridged (intercepted) |
+| OpenAI    | `/openai/v1/models`                   | Passthrough           |
