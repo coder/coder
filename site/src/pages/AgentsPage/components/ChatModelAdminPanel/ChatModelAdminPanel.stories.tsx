@@ -850,11 +850,6 @@ export const ProviderFormBedrockAmbientCredentials: Story = {
 		).resolves.toBeInTheDocument();
 		await expect(
 			body.findByText(
-				/Optional\. Enter a bearer token, or leave empty to\s+use ambient AWS credentials/i,
-			),
-		).resolves.toBeInTheDocument();
-		await expect(
-			body.findByText(
 				/Overrides the Bedrock runtime endpoint\.\s+Set AWS_REGION on\s+the Coder server to select the target region\./i,
 			),
 		).resolves.toBeInTheDocument();

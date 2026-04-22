@@ -139,6 +139,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const apiKeyDescription = isBedrockProvider
 		? "Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials."
 		: "Secret key used to authenticate requests to this provider.";
+	const baseURLDescription = isBedrockProvider
+		? "Optional. Overrides the Bedrock runtime endpoint. Set AWS_REGION on the Coder server to select the target region."
+		: "Custom endpoint for this provider. Leave empty to use the default.";
 	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
 	const deleteProviderDescription = normalizedProviderConfig?.allow_user_api_key
 		? "Are you sure you want to delete this provider? Any personal API " +
@@ -330,30 +333,24 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										}}
 										disabled={isDisabled}
 									/>
-									{isBedrockProvider && (
-										<div className="flex items-start justify-between gap-3">
-											<p className="m-0 flex-1 text-xs text-content-secondary">
-												Optional. Enter a bearer token, or leave empty to use
-												ambient AWS credentials (IAM role, environment
-												variables) configured on the Coder server.
-											</p>
-											{providerState.hasManagedAPIKey &&
-												!isDisabled &&
-												(!apiKeyModified || apiKey !== "") && (
-													<button
-														type="button"
-														className="appearance-none border-0 bg-transparent p-0 text-xs text-content-link hover:cursor-pointer hover:underline"
-														onClick={() => {
-															setApiKey("");
-															setApiKeyTouched(true);
-															setApiKeyModified(true);
-														}}
-													>
-														Clear stored token
-													</button>
-												)}
-										</div>
-									)}
+									{isBedrockProvider &&
+										providerState.hasManagedAPIKey &&
+										!isDisabled &&
+										(!apiKeyModified || apiKey !== "") && (
+											<div className="flex justify-end">
+												<button
+													type="button"
+													className="appearance-none border-0 bg-transparent p-0 text-xs text-content-link hover:cursor-pointer hover:underline"
+													onClick={() => {
+														setApiKey("");
+														setApiKeyTouched(true);
+														setApiKeyModified(true);
+													}}
+												>
+													Clear stored token
+												</button>
+											</div>
+										)}
 								</div>
 							</ProviderField>
 						)}
@@ -361,26 +358,18 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<ProviderField
 							label="Base URL"
 							htmlFor={baseURLInputId}
-							description="Custom endpoint for this provider. Leave empty to use the default."
+							description={baseURLDescription}
 						>
-							<div className="space-y-1.5">
-								<Input
-									id={baseURLInputId}
-									name="provider_base_url"
-									className="h-9 text-[13px]"
-									placeholder={baseURLPlaceholder}
-									autoComplete="off"
-									value={baseURLValue}
-									onChange={(event) => setBaseURLValue(event.target.value)}
-									disabled={isDisabled}
-								/>
-								{isBedrockProvider && (
-									<p className="m-0 text-xs text-content-secondary">
-										Overrides the Bedrock runtime endpoint. Set AWS_REGION on
-										the Coder server to select the target region.
-									</p>
-								)}
-							</div>
+							<Input
+								id={baseURLInputId}
+								name="provider_base_url"
+								className="h-9 text-[13px]"
+								placeholder={baseURLPlaceholder}
+								autoComplete="off"
+								value={baseURLValue}
+								onChange={(event) => setBaseURLValue(event.target.value)}
+								disabled={isDisabled}
+							/>
 						</ProviderField>
 
 						<div className="space-y-3 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
