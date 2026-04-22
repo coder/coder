@@ -114,6 +114,7 @@ type SelectFieldProps = FormHelpers & {
 	onValueChange: (value: string) => void;
 	placeholder?: string;
 	children: ReactNode;
+	disabled?: boolean;
 };
 
 const SelectField: FC<SelectFieldProps> = ({
@@ -126,6 +127,7 @@ const SelectField: FC<SelectFieldProps> = ({
 	onValueChange,
 	placeholder,
 	children,
+	disabled,
 }) => (
 	<Field
 		label={label}
@@ -134,7 +136,11 @@ const SelectField: FC<SelectFieldProps> = ({
 		helperText={helperText}
 		className={className}
 	>
-		<Select value={String(value ?? "")} onValueChange={onValueChange}>
+		<Select
+			value={String(value ?? "")}
+			onValueChange={onValueChange}
+			disabled={disabled}
+		>
 			<SelectTrigger id={id}>
 				<SelectValue placeholder={placeholder} />
 			</SelectTrigger>
@@ -227,6 +233,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						onChange={onChangeTrimmed(form, (email) => {
 							form.setFieldValue("username", usernameFromEmail(email));
 						})}
+						disabled={isLoading}
 					/>
 
 					{/* Password */}
@@ -234,6 +241,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						label="Password"
 						field={getFieldHelpers("password")}
 						autoComplete="new-password"
+						disabled={isLoading}
 					/>
 
 					{/* Premium trial toggle */}
@@ -250,6 +258,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							}
 							data-testid="trial"
 							className="mt-0.5"
+							disabled={isLoading}
 						/>
 						<div className="flex flex-col items-start gap-0.5">
 							<span className="text-sm font-semibold">
@@ -277,10 +286,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								<FormField
 									label="First name"
 									field={getFieldHelpers("trial_info.first_name")}
+									disabled={isLoading}
 								/>
 								<FormField
 									label="Last name"
 									field={getFieldHelpers("trial_info.last_name")}
+									disabled={isLoading}
 								/>
 							</div>
 
@@ -288,6 +299,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								<FormField
 									label="Company"
 									field={getFieldHelpers("trial_info.company_name")}
+									disabled={isLoading}
 								/>
 								<SelectField
 									label="Number of developers"
@@ -296,6 +308,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 										form.setFieldValue("trial_info.developers", value)
 									}
 									placeholder="Select..."
+									disabled={isLoading}
 								>
 									{numberOfDevelopersOptions.map((opt) => (
 										<SelectItem key={opt} value={opt}>
@@ -307,12 +320,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<FormField
 								label="Job title"
 								field={getFieldHelpers("trial_info.job_title")}
+								disabled={isLoading}
 							/>
 
 							<div className="grid grid-cols-2 gap-3">
 								<FormField
 									label="Phone number"
 									field={getFieldHelpers("trial_info.phone_number")}
+									disabled={isLoading}
 								/>
 								<SelectField
 									label="Country"
@@ -321,6 +336,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 										form.setFieldValue("trial_info.country", value)
 									}
 									placeholder="Select..."
+									disabled={isLoading}
 								>
 									{countries.map((c) => (
 										<SelectItem key={c.name} value={c.name}>
