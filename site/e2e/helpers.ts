@@ -294,6 +294,13 @@ export const createTemplate = async (
 			mimeType: "application/x-tar",
 			name: "template.tar",
 		});
+		// setInputFiles triggers the upload API call through React's
+		// onChange handler, but the call is fire-and-forget (not awaited
+		// in the component chain). Wait for the upload to finish so
+		// uploadedFile.hash is available when the form submits.
+		await expect(
+			page.getByRole("button", { name: "Remove file" }),
+		).toBeVisible();
 	}
 
 	// If the organization picker is present on the page, select the default

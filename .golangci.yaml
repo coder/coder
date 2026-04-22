@@ -6,6 +6,21 @@ linters-settings:
     # goal: 100
     threshold: 412
 
+  depguard:
+    rules:
+      aibridge_import_isolation:
+        list-mode: lax
+        files:
+          - "aibridge/*.go"
+          - "aibridge/**/*.go"
+        allow:
+          - $gostd
+          - github.com/coder/coder/v2/aibridge
+          - github.com/coder/coder/v2/buildinfo
+        deny:
+          - pkg: github.com/coder/coder/v2
+            desc: aibridge code must not import coder packages outside aibridge; buildinfo is the only exception
+
   exhaustruct:
     include:
       # Gradually extend to cover more of the codebase.
@@ -227,6 +242,7 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - depguard
     - dogsled
     - errcheck
     - errname

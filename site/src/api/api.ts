@@ -3301,6 +3301,57 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatDebugLogging =
+		async (): Promise<TypesGen.ChatDebugLoggingAdminSettings> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDebugLoggingAdminSettings>(
+					"/api/experimental/chats/config/debug-logging",
+				);
+			return response.data;
+		};
+
+	updateChatDebugLogging = async (
+		req: TypesGen.UpdateChatDebugLoggingAllowUsersRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/debug-logging", req);
+	};
+
+	getUserChatDebugLogging =
+		async (): Promise<TypesGen.UserChatDebugLoggingSettings> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatDebugLoggingSettings>(
+					"/api/experimental/chats/config/user-debug-logging",
+				);
+			return response.data;
+		};
+
+	updateUserChatDebugLogging = async (
+		req: TypesGen.UpdateUserChatDebugLoggingRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/user-debug-logging",
+			req,
+		);
+	};
+
+	getChatDebugRuns = async (
+		chatId: string,
+	): Promise<TypesGen.ChatDebugRunSummary[]> => {
+		const response = await this.axios.get<TypesGen.ChatDebugRunSummary[]>(
+			`/api/experimental/chats/${chatId}/debug/runs`,
+		);
+		return response.data;
+	};
+
+	getChatDebugRun = async (
+		chatId: string,
+		runId: string,
+	): Promise<TypesGen.ChatDebugRun> => {
+		const response = await this.axios.get<TypesGen.ChatDebugRun>(
+			`/api/experimental/chats/${chatId}/debug/runs/${runId}`,
+		);
+		return response.data;
+	};
 	getChatDesktopEnabled =
 		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =

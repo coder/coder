@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
+import { DebugLoggingSettings } from "./components/DebugLoggingSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
@@ -25,6 +26,8 @@ interface AgentSettingsBehaviorPageViewProps {
 		| undefined;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
+	debugLoggingData: TypesGen.ChatDebugLoggingAdminSettings | undefined;
+	userDebugLoggingData: TypesGen.UserChatDebugLoggingSettings | undefined;
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
@@ -74,6 +77,20 @@ interface AgentSettingsBehaviorPageViewProps {
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
 
+	onSaveDebugLogging: (
+		req: TypesGen.UpdateChatDebugLoggingAllowUsersRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingDebugLogging: boolean;
+	isSaveDebugLoggingError: boolean;
+
+	onSaveUserDebugLogging: (
+		req: TypesGen.UpdateUserChatDebugLoggingRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingUserDebugLogging: boolean;
+	isSaveUserDebugLoggingError: boolean;
+
 	onSaveWorkspaceTTL: (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 		options?: MutationCallbacks,
@@ -97,6 +114,8 @@ export const AgentSettingsBehaviorPageView: FC<
 	planModeInstructionsData,
 	userPromptData,
 	desktopEnabledData,
+	debugLoggingData,
+	userDebugLoggingData,
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,
@@ -123,6 +142,12 @@ export const AgentSettingsBehaviorPageView: FC<
 	onSaveDesktopEnabled,
 	isSavingDesktopEnabled,
 	isSaveDesktopEnabledError,
+	onSaveDebugLogging,
+	isSavingDebugLogging,
+	isSaveDebugLoggingError,
+	onSaveUserDebugLogging,
+	isSavingUserDebugLogging,
+	isSaveUserDebugLoggingError,
 	onSaveWorkspaceTTL,
 	isSavingWorkspaceTTL,
 	isSaveWorkspaceTTLError,
@@ -137,7 +162,7 @@ export const AgentSettingsBehaviorPageView: FC<
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Behavior"
-				description="Custom instructions that shape how the agent responds in your conversations."
+				description="Custom instructions that shape how the agent responds in your conversations, plus debug controls for inspecting model traffic."
 			/>
 			<PersonalInstructionsSettings
 				userPromptData={userPromptData}
@@ -147,6 +172,17 @@ export const AgentSettingsBehaviorPageView: FC<
 				isAnyPromptSaving={isAnyPromptSaving}
 			/>
 			<ChatFullWidthSettings />
+			<DebugLoggingSettings
+				canManageAdminSetting={canSetSystemPrompt}
+				adminSettings={debugLoggingData}
+				userSettings={userDebugLoggingData}
+				onSaveAdminSetting={onSaveDebugLogging}
+				isSavingAdminSetting={isSavingDebugLogging}
+				isSaveAdminSettingError={isSaveDebugLoggingError}
+				onSaveUserSetting={onSaveUserDebugLogging}
+				isSavingUserSetting={isSavingUserDebugLogging}
+				isSaveUserSettingError={isSaveUserDebugLoggingError}
+			/>
 			<UserCompactionThresholdSettings
 				modelConfigs={modelConfigsData ?? []}
 				modelConfigsError={modelConfigsError}

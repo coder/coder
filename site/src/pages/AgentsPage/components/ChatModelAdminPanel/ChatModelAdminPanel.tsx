@@ -156,6 +156,9 @@ const useProviderStates = (
 		const label =
 			readOptionalString(providerConfigEntry?.display_name) ??
 			formatProviderLabel(provider);
+		const hasBedrockAmbientCredentials =
+			provider === "bedrock" &&
+			providerConfig?.central_api_key_enabled === true;
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
 		const isCatalogEnvPreset =
 			!providerConfig &&
@@ -173,7 +176,7 @@ const useProviderStates = (
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
 			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey
+				? hasProviderEntryAPIKey || hasBedrockAmbientCredentials
 				: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),

@@ -1,7 +1,8 @@
-import type {
-	InfiniteData,
-	QueryClient,
-	UseInfiniteQueryOptions,
+import {
+	type InfiniteData,
+	type QueryClient,
+	queryOptions,
+	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -823,6 +824,7 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
@@ -858,6 +860,83 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const chatDebugRunsKey = (chatId: string) =>
+	[...chatKey(chatId), "debug-runs"] as const;
+
+const chatDebugRunKey = (chatId: string, runId: string) =>
+	[...chatDebugRunsKey(chatId), runId] as const;
+
+// Foreground poll cadence when the Debug tab is open. The error cadence
+// is slower so a transiently unreachable backend is not hammered, but
+// the panel still recovers automatically once the request succeeds.
+const DEBUG_RUN_POLL_MS = 5_000;
+const DEBUG_RUN_ERROR_POLL_MS = 30_000;
+
+// Terminal debug-run statuses that stop the detail query from polling.
+// Kept here (rather than imported from the debug panel page) so the
+// api/queries layer has no dependency on the page tree. Must stay in
+// sync with the success/error classification in the debug panel's
+// status-badge logic: any status that renders a non-active badge
+// (green/destructive) must end polling, otherwise a successful run
+// with status "ok" or "succeeded" would be polled forever. A test in
+// chats.test.ts pins this set to the debug panel's SUCCESS/ERROR
+// display sets so drift is caught at CI time.
+export const TERMINAL_RUN_STATUSES = new Set([
+	// Success-like.
+	"completed",
+	"success",
+	"succeeded",
+	"ok",
+	// Error-like.
+	"failed",
+	"error",
+	"errored",
+	"interrupted",
+	"cancelled",
+	"canceled",
+]);
+
+export const chatDebugRuns = (chatId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunsKey(chatId),
+		queryFn: () => API.experimental.getChatDebugRuns(chatId),
+		refetchInterval: ({ state }) => {
+			// Keep polling on error with backoff so a transient fetch
+			// failure does not freeze the panel until a manual remount.
+			if (state.status === "error") {
+				return DEBUG_RUN_ERROR_POLL_MS;
+			}
+			// Consistent foreground cadence while the Debug tab is open.
+			// A slower terminal-state interval would delay discovery of
+			// newly-started runs until the user switches tabs.
+			return DEBUG_RUN_POLL_MS;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+export const chatDebugRun = (chatId: string, runId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunKey(chatId, runId),
+		queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
+		refetchInterval: ({ state }) => {
+			if (state.status === "error") {
+				return DEBUG_RUN_ERROR_POLL_MS;
+			}
+			const status = state.data?.status;
+			if (status && TERMINAL_RUN_STATUSES.has(status.toLowerCase())) {
+				return false;
+			}
+			return DEBUG_RUN_POLL_MS;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+const invalidateChatDebugRuns = (queryClient: QueryClient, chatId: string) => {
+	return queryClient.invalidateQueries({
+		queryKey: chatDebugRunsKey(chatId),
+	});
+};
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
@@ -870,14 +949,14 @@ export const createChat = (queryClient: QueryClient) => ({
 });
 
 export const createChatMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
-	// No onSuccess invalidation needed: the per-chat WebSocket delivers
-	// the response message via upsertDurableMessage, and the global
-	// watchChats() WebSocket updates the sidebar sort order.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 type EditChatMessageMutationArgs = {
@@ -961,14 +1040,15 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 
-export const interruptChat = (_queryClient: QueryClient, chatId: string) => ({
+export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the status change via setChatStatus, and the global
-	// watchChats() WebSocket updates the sidebar.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 export const deleteChatQueuedMessage = (
@@ -990,14 +1070,14 @@ export const deleteChatQueuedMessage = (
 });
 
 export const promoteChatQueuedMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the caller upserts the
-	// promoted message from the response, and the per-chat
-	// WebSocket delivers queue and status updates in real-time.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -1074,6 +1154,8 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 		});
 	},
 });
+
+export * from "./chatDebugLogging";
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 

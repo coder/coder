@@ -64,6 +64,9 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	// defaultDialTimeout matches the timeout used by ~8 other
+	// server-side AgentConn callers.
+	defaultDialTimeout = 30 * time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -116,7 +119,17 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
-var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+var (
+	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatAgentDisconnected   = xerrors.New(
+		"workspace agent is disconnected and cannot execute tools. " +
+			"The workspace may need to be restarted from the Coder dashboard",
+	)
+	errChatDialTimeout = xerrors.New(
+		"connection to the workspace agent timed out. " +
+			"The workspace may need to be restarted from the Coder dashboard",
+	)
+)
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -133,6 +146,7 @@ type Server struct {
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
+	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
@@ -547,6 +561,16 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 	return nil, agentRelease
 }
 
+// isAgentUnreachable reports whether the given agent row's
+// status is disconnected or timed out. It uses timestamp
+// arithmetic on the row. The "connecting" state is allowed
+// through because it is normal after a fresh workspace build.
+func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
+	status := agent.Status(now, inactiveTimeout)
+	return status.Status == database.WorkspaceAgentStatusDisconnected ||
+		status.Status == database.WorkspaceAgentStatusTimeout
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -555,8 +579,30 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		// Capture agentID in the same lock section as
+		// currentConn to prevent a TOCTOU race with
+		// concurrent clearCachedWorkspaceState calls.
+		agentID := c.agent.ID
 		c.mu.Unlock()
+
+		// Status check on cache hit: re-fetch the agent
+		// row so we see the latest heartbeat rather than
+		// a potentially stale cached copy.
 		if currentConn != nil {
+			if agentID != uuid.Nil {
+				freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
+				if err != nil {
+					c.server.logger.Warn(ctx, "failed to re-fetch agent for status check",
+						slog.F("agent_id", agentID),
+						slog.Error(err),
+					)
+					// On DB error the check re-runs on the
+					// next tool call.
+				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
+					c.clearCachedWorkspaceState()
+					return nil, errChatAgentDisconnected
+				}
+			}
 			return currentConn, nil
 		}
 		if staleRelease != nil {
@@ -568,8 +614,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			return nil, err
 		}
 
+		// Status check on cache miss: the freshly fetched
+		// agent row may already show disconnected.
+		if isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
+			c.clearCachedWorkspaceState()
+			return nil, errChatAgentDisconnected
+		}
+
+		// Wrap the dial in a timeout to bound the time spent
+		// waiting for an unreachable agent. The timeout scopes
+		// only dialWithLazyValidation, not ensureWorkspaceAgent
+		// or the post-dial binding steps.
+		dialCtx, dialCancel := context.WithTimeoutCause(ctx, c.server.dialTimeout, errChatDialTimeout)
 		dialResult, err := dialWithLazyValidation(
-			ctx,
+			dialCtx,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
@@ -578,13 +636,21 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			},
 			workspaceDialValidationDelay,
 		)
+		dialCancel()
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
+				return nil, err
+			}
+			// Surface the dial timeout sentinel only when the
+			// parent context is still alive. If the parent was
+			// canceled (e.g. ErrInterrupted), its error must
+			// propagate unchanged so the chatloop can detect it.
+			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
+				return nil, errChatDialTimeout
 			}
 			return nil, err
 		}
-
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
 		if dialResult.WasSwitched {
@@ -3353,6 +3419,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
@@ -5248,27 +5315,25 @@ func activeToolNamesForTurn(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":                true,
-		"write_file":               false,
-		"edit_files":               false,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             false,
-		"process_signal":           false,
-		"list_templates":           false,
-		"read_template":            false,
-		"create_workspace":         false,
-		"start_workspace":          false,
-		"propose_plan":             false,
-		"spawn_agent":              false,
-		"spawn_explore_agent":      false,
-		"wait_agent":               false,
-		"message_agent":            false,
-		"close_agent":              false,
-		"spawn_computer_use_agent": false,
-		"read_skill":               true,
-		"read_skill_file":          true,
-		"ask_user_question":        false,
+		"read_file":         true,
+		"write_file":        false,
+		"edit_files":        false,
+		"execute":           true,
+		"process_output":    true,
+		"process_list":      false,
+		"process_signal":    false,
+		"list_templates":    false,
+		"read_template":     false,
+		"create_workspace":  false,
+		"start_workspace":   false,
+		"propose_plan":      false,
+		"spawn_agent":       false,
+		"wait_agent":        false,
+		"message_agent":     false,
+		"close_agent":       false,
+		"read_skill":        true,
+		"read_skill_file":   true,
+		"ask_user_question": false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -5358,7 +5423,7 @@ func buildSystemPrompt(
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
 		if behaviorContext.isRootChat {
-			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt())
 			if behaviorContext.planModeInstructions != "" {
 				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
 			}
@@ -6017,7 +6082,7 @@ func (p *Server) runChat(
 		// FOR UPDATE lock is held only for the INSERT statements.
 		// Marshaling is pure CPU work with no database dependency.
 		assistantParts := buildAssistantPartsForPersist(
-			ctx,
+			persistCtx,
 			p.logger,
 			assistantBlocks,
 			toolResults,
@@ -6037,7 +6102,7 @@ func (p *Server) runChat(
 
 		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
 		for i, tr := range toolResults {
-			trPart := chatprompt.PartFromContent(tr)
+			trPart := chatprompt.PartFromContentWithLogger(ctx, logger, tr)
 			if trPart.ToolName != "" {
 				if configID, ok := toolNameToConfigID[trPart.ToolName]; ok {
 					trPart.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
@@ -6498,6 +6563,7 @@ func (p *Server) runChat(
 			}
 			p.publishMessagePart(chat.ID, role, part)
 		},
+		Logger:     logger,
 		Compaction: compactionOptions,
 		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
 			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)

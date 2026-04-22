@@ -472,21 +472,20 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
+	insertEnabledAnthropicProvider(ctx, t, db, parentChat.OwnerID)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
-	tool := findToolByName(tools, "spawn_computer_use_agent")
+	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)
 
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    "call-context",
-		Name:  "spawn_computer_use_agent",
-		Input: `{"prompt":"inspect bindings"}`,
+		Name:  spawnAgentToolName,
+		Input: `{"type":"computer_use","prompt":"inspect bindings"}`,
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)

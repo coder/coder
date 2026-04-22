@@ -152,13 +152,18 @@ export const StartupScriptFailed: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
+		await step("shows startup script failure message", async () => {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
 				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/one or more workspace agents need attention/i,
+					/a startup script has failed/i,
 				),
 			);
+		});
+		await step("does not offer restart", async () => {
+			expect(
+				screen.queryByRole("button", { name: /restart/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

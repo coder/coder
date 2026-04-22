@@ -8,8 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
