@@ -148,6 +148,9 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
+	// Callers should attach correlation fields (chat_id, owner_id, etc.)
+	// using Logger.With before passing the logger in.
+	Logger           slog.Logger
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
@@ -173,14 +176,7 @@ type RunOptions struct {
 	// When nil, no metrics are recorded.
 	Metrics *Metrics
 
-	// Logger for the chatloop. Callers should attach correlation
-	// fields (chat_id, owner_id, etc.) via Logger.With before
-	// passing the logger in.
-	Logger slog.Logger
-
 	// BuiltinToolNames lists tool names that are built into chatd.
-	// Tool results from tools not in this set are recorded with
-	// the "mcp:" prefix.
 	BuiltinToolNames map[string]bool
 }
 
@@ -1152,7 +1148,10 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		metricLabel := resolveToolMetricLabel(tc.ToolName, builtinToolNames)
+		metricLabel := tc.ToolName
+		if metricLabel == "" {
+			metricLabel = "unknown"
+		}
 		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
@@ -1784,20 +1783,4 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
-}
-
-// resolveToolMetricLabel returns the Prometheus tool_name label
-// for a tool call. Builtin tools use their real name. MCP tools
-// get the "mcp:" prefix. Anything else is "unknown".
-func resolveToolMetricLabel(
-	name string,
-	builtinToolNames map[string]bool,
-) string {
-	if name == "" {
-		return "unknown"
-	}
-	if builtinToolNames[name] {
-		return name
-	}
-	return "mcp:" + name
 }
