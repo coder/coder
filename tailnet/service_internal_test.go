@@ -36,17 +36,17 @@ func (f *fakeCoordinateStream) Send(resp *proto.CoordinateResponse) error {
 	return nil
 }
 
-func (f *fakeCoordinateStream) Close() error { return nil }
+func (*fakeCoordinateStream) Close() error { return nil }
 
 func (f *fakeCoordinateStream) Recv() (*proto.CoordinateRequest, error) {
 	<-f.ctx.Done()
 	return nil, f.ctx.Err()
 }
 
-func (f *fakeCoordinateStream) CloseSend() error { return nil }
+func (*fakeCoordinateStream) CloseSend() error { return nil }
 
-func (f *fakeCoordinateStream) MsgSend(drpc.Message, drpc.Encoding) error { return nil }
-func (f *fakeCoordinateStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
+func (*fakeCoordinateStream) MsgSend(drpc.Message, drpc.Encoding) error { return nil }
+func (*fakeCoordinateStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
 
 func peerUpdate(id byte) *proto.CoordinateResponse_PeerUpdate {
 	return &proto.CoordinateResponse_PeerUpdate{

@@ -1284,10 +1284,12 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 		// Schedule a full resync asynchronously so we don't block the
 		// pubsub drain goroutine. Singleflight coalesces concurrent
 		// resync requests.
-		go q.resyncGroup.Do("resync", func() (any, error) {
-			q.resyncPeerMappings()
-			return nil, nil
-		})
+		go func() {
+			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
+				q.resyncPeerMappings()
+				return struct{}{}, nil
+			})
+		}()
 		return
 	}
 	if err != nil {
@@ -1316,10 +1318,12 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		// Schedule a full resync asynchronously so we don't block the
 		// pubsub drain goroutine. Singleflight coalesces concurrent
 		// resync requests.
-		go q.resyncGroup.Do("resync", func() (any, error) {
-			q.resyncPeerMappings()
-			return nil, nil
-		})
+		go func() {
+			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
+				q.resyncPeerMappings()
+				return struct{}{}, nil
+			})
+		}()
 		return
 	}
 	if err != nil {
