@@ -1022,12 +1022,14 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+	_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-all",
 	)
@@ -1188,12 +1190,14 @@ func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+	_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-blank-type",
 	)
