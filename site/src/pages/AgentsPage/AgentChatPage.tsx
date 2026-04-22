@@ -32,6 +32,7 @@ import {
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
+	userChatDebugLogging,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -619,6 +620,7 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = filterWorkspaceOptionsByOrganization(
@@ -626,6 +628,8 @@ const AgentChatPage: FC = () => {
 		chatQuery.data?.organization_id,
 	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const debugLoggingEnabled =
+		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1400,6 +1404,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}

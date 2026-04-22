@@ -120,20 +120,20 @@ function useStickToBottom(): StickToBottomInstance {
 	});
 
 	// Sync helpers — keep mutable state and React state in lockstep.
-	const syncIsAtBottom = useEffectEvent((v: boolean) => {
+	const syncIsAtBottom = (v: boolean) => {
 		stateRef.current.internalIsAtBottom = v;
 		setIsAtBottom(v);
-	});
+	};
 
-	const syncEscapedFromLock = useEffectEvent((v: boolean) => {
+	const syncEscapedFromLock = (v: boolean) => {
 		stateRef.current.escapedFromLock = v;
-	});
+	};
 
 	// -----------------------------------------------------------------------
 	// scrollToBottom
 	// -----------------------------------------------------------------------
 
-	const scrollToBottom = useEffectEvent((behavior?: ScrollBehavior) => {
+	const scrollToBottom = (behavior?: ScrollBehavior) => {
 		const s = stateRef.current;
 		if (!s.scrollElement) return;
 
@@ -153,7 +153,7 @@ function useStickToBottom(): StickToBottomInstance {
 			// scroll (currentScrollTop > lastScrollTop), which
 			// correctly clears escapedFromLock.
 		}
-	});
+	};
 
 	const suppressNextResize = () => {
 		stateRef.current.suppressNextResize = true;

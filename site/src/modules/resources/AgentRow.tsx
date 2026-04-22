@@ -18,6 +18,7 @@ import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import type {
+	AgentScriptTiming,
 	Template,
 	Workspace,
 	WorkspaceAgent,
@@ -47,8 +48,14 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getAgentHealthIssues } from "#/modules/workspaces/health";
-import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
+import {
+	agentScriptMessages,
+	getAgentHealthIssues,
+} from "#/modules/workspaces/health";
+import {
+	AgentAlert,
+	StartScriptFailureDetail,
+} from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -75,6 +82,7 @@ interface AgentRowProps {
 	workspace: Workspace;
 	template: Template;
 	initialMetadata?: WorkspaceAgentMetadata[];
+	agentScriptTimings?: readonly AgentScriptTiming[];
 	onUpdateAgent: () => void;
 }
 
@@ -124,6 +132,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	template,
 	onUpdateAgent,
 	initialMetadata,
+	agentScriptTimings,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
@@ -141,6 +150,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
+	const failedStartTimings = agentScriptTimings?.filter(
+		(t) =>
+			t.workspace_agent_id === agent.id &&
+			t.stage === "start" &&
+			t.exit_code !== 0,
+	);
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
@@ -184,9 +199,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 		if (!parent) {
 			return;
 		}
+		// Use the parent's scrollHeight (not the inner div's) so that
+		// any padding on the scroll container is included in the
+		// calculation and doesn't inflate the "at bottom" zone.
 		const distanceFromBottom =
-			logListDivRef.current.scrollHeight -
-			(props.scrollOffset + parent.clientHeight);
+			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	};
 
@@ -218,7 +235,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const failedStartupScriptSource = hasAgentIssues
+		? agent.log_sources.find(
+				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
+			)
+		: undefined;
+	const [selectedLogTab, setSelectedLogTab] = useState(
+		failedStartupScriptSource?.id ?? "all",
+	);
 	const sourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -480,13 +504,27 @@ export const AgentRow: FC<AgentRowProps> = ({
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 						{healthIssues.length > 0 && (
 							<div className="mb-4 flex flex-col gap-3">
-								{healthIssues.map((issue) => (
-									<AgentAlert
-										key={`${issue.title}-${issue.detail}`}
-										{...issue}
-										troubleshootingURL={agent.troubleshooting_url}
-									/>
-								))}
+								{healthIssues.map((issue) => {
+									const isStartError =
+										issue.title === agentScriptMessages.start_error.title;
+									const detail =
+										isStartError && failedStartTimings?.length ? (
+											<StartScriptFailureDetail
+												baseDetail={issue.detail}
+												timings={failedStartTimings}
+											/>
+										) : (
+											issue.detail
+										);
+									return (
+										<AgentAlert
+											key={`${issue.title}-${issue.detail}`}
+											{...issue}
+											detail={detail}
+											troubleshootingURL={agent.troubleshooting_url}
+										/>
+									);
+								})}
 							</div>
 						)}
 						{hasStartupFeatures && hasAnyLogs && (
@@ -596,6 +634,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 													sources={agent.log_sources}
 													overflowed={agent.logs_overflowed}
 													className="bg-transparent"
+													showSourceIcons={selectedLogTab === "all"}
 												/>
 											)}
 										</AutoSizer>

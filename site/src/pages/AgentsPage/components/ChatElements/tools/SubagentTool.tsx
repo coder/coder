@@ -17,6 +17,7 @@ import { Shimmer } from "../Shimmer";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
+import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
@@ -24,44 +25,32 @@ import {
 } from "./utils";
 
 const SUBAGENT_VERBS: Record<
-	string,
+	SubagentAction,
 	{ completed: string; running: string; error: string; timeout: string }
 > = {
-	spawn_agent: {
+	spawn: {
 		completed: "Spawned ",
 		running: "Spawning ",
 		error: "Failed to spawn ",
 		timeout: "Timed out spawning ",
 	},
-	spawn_explore_agent: {
-		completed: "Spawned ",
-		running: "Spawning ",
-		error: "Failed to spawn ",
-		timeout: "Timed out spawning ",
-	},
-	wait_agent: {
+	wait: {
 		completed: "Waited for ",
 		running: "Waiting for ",
 		error: "Failed waiting for ",
 		timeout: "Timed out waiting for ",
 	},
-	message_agent: {
+	message: {
 		completed: "Messaged ",
 		running: "Messaging ",
 		error: "Failed to message ",
 		timeout: "Timed out messaging ",
 	},
-	close_agent: {
+	close: {
 		completed: "Terminated ",
 		running: "Terminating ",
 		error: "Failed to terminate ",
 		timeout: "Timed out terminating ",
-	},
-	spawn_computer_use_agent: {
-		completed: "Spawned ",
-		running: "Spawning ",
-		error: "Failed to spawn ",
-		timeout: "Timed out spawning ",
 	},
 };
 
@@ -72,8 +61,7 @@ const SUBAGENT_VERBS: Record<
 function getSubagentLabel(
 	showDesktopPreview: boolean | undefined,
 	toolStatus: ToolStatus,
-	variant: "default" | "computer-use",
-	toolName: string,
+	descriptor: SubagentDescriptor,
 	title: string,
 	isTimeout: boolean,
 ): React.ReactNode {
@@ -85,8 +73,8 @@ function getSubagentLabel(
 		);
 	}
 	if (
-		variant === "computer-use" &&
-		toolName === "wait_agent" &&
+		descriptor.variant === "computer_use" &&
+		descriptor.action === "wait" &&
 		toolStatus === "completed"
 	) {
 		return (
@@ -96,17 +84,16 @@ function getSubagentLabel(
 			</>
 		);
 	}
+	const phase = isTimeout
+		? "timeout"
+		: toolStatus === "completed"
+			? "completed"
+			: toolStatus === "error"
+				? "error"
+				: "running";
 	return (
 		<>
-			{SUBAGENT_VERBS[toolName]?.[
-				isTimeout
-					? "timeout"
-					: toolStatus === "completed"
-						? "completed"
-						: toolStatus === "error"
-							? "error"
-							: "running"
-			] ?? ""}
+			{SUBAGENT_VERBS[descriptor.action][phase]}
 			<span className="text-content-secondary opacity-60">{title}</span>
 		</>
 	);
@@ -124,18 +111,18 @@ const SubagentStatusIcon: React.FC<{
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
-	variant?: "default" | "computer-use";
+	iconKind?: SubagentDescriptor["iconKind"];
 	showDesktopPreview?: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
-	variant = "default",
+	iconKind = "bot",
 	showDesktopPreview = false,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	const DefaultIcon = variant === "computer-use" ? MonitorIcon : BotIcon;
+	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
 		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
@@ -162,7 +149,7 @@ const SubagentStatusIcon: React.FC<{
  * "View Agent" link navigates to the sub-agent chat.
  */
 export const SubagentTool: React.FC<{
-	toolName: string;
+	descriptor: SubagentDescriptor;
 	title: string;
 	chatId: string;
 	subagentStatus: string;
@@ -175,13 +162,12 @@ export const SubagentTool: React.FC<{
 	isTimeout?: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview?: boolean;
-	variant?: "default" | "computer-use";
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
 	thumbnailFileId?: string;
 }> = ({
-	toolName,
+	descriptor,
 	title,
 	chatId,
 	subagentStatus,
@@ -193,7 +179,6 @@ export const SubagentTool: React.FC<{
 	isError,
 	isTimeout = false,
 	showDesktopPreview,
-	variant = "default",
 	recordingFileId,
 	thumbnailFileId,
 }) => {
@@ -222,15 +207,14 @@ export const SubagentTool: React.FC<{
 					toolStatus={toolStatus}
 					isError={isError}
 					isTimeout={isTimeout}
-					variant={variant}
+					iconKind={descriptor.iconKind}
 					showDesktopPreview={showDesktopPreview}
 				/>{" "}
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
 					{getSubagentLabel(
 						showDesktopPreview,
 						toolStatus,
-						variant,
-						toolName,
+						descriptor,
 						title,
 						isTimeout,
 					)}

@@ -33,7 +33,7 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Simulate what spawn_computer_use_agent does: set ChatMode
+	// Simulate what spawn_agent does: set ChatMode
 	// to computer_use and provide a system prompt.
 	prompt := "Use the desktop to open Firefox"
 

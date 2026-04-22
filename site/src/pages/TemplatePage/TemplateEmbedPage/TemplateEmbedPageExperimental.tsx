@@ -42,19 +42,20 @@ const TemplateEmbedPageExperimental: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, _ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: me.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
+	const sendMessage = (
+		formValues: Record<string, string>,
+		_ownerId?: string,
+	) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: me.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
+	};
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {

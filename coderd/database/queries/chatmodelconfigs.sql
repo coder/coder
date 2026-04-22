@@ -127,3 +127,14 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
+
+-- name: DeleteChatModelConfigsByProvider :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    provider = @provider::text
+    AND deleted = FALSE;

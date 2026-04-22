@@ -3205,6 +3205,7 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeChat                        ResourceType = "chat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3270,7 +3271,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat:
+		ResourceTypeAiSeat,
+		ResourceTypeChat:
 		return true
 	}
 	return false
@@ -3305,6 +3307,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
+		ResourceTypeChat,
 	}
 }
 
@@ -4726,6 +4729,7 @@ type MCPServerConfig struct {
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 }
 
 type MCPServerUserToken struct {

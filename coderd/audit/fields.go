@@ -25,7 +25,7 @@ func BackgroundTaskFieldsBytes(ctx context.Context, logger slog.Logger, subsyste
 
 	wriBytes, err := json.Marshal(af)
 	if err != nil {
-		logger.Error(ctx, "marshal additional fields for dormancy audit", slog.Error(err))
+		logger.Error(ctx, "marshal additional fields for background audit", slog.Error(err))
 		return []byte("{}")
 	}
 
