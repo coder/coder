@@ -494,7 +494,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(m.tickets[agentID]) == 0 {
 			if m.coordination != nil {
-				err := m.coordination.Client.Send(&proto.CoordinateRequest{
+				err := m.coordination.SendRequest(&proto.CoordinateRequest{
 					RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 				})
 				if err != nil {
