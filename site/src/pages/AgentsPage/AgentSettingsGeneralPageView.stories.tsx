@@ -25,8 +25,6 @@ type Story = StoryObj<typeof AgentSettingsGeneralPageView>;
 
 export const Default: Story = {};
 
-// These warning stories moved here because PersonalInstructionsSettings now
-// lives on the General page.
 export const InvisibleUnicodeWarningUserPrompt: Story = {
 	args: {
 		userPromptData: {

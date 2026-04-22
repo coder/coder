@@ -232,6 +232,3 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		).toBeInTheDocument();
 	},
 };
-
-// DefaultAutostopNotVisibleToNonAdmin is intentionally not ported because the
-// split Lifecycle page is already gated by RequirePermission.

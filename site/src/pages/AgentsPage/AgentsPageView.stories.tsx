@@ -176,18 +176,10 @@ const agentsRouting = {
 			children: [
 				{ index: true, element: <AgentSettingsGeneralPage /> },
 				{ path: "general", element: <AgentSettingsGeneralPage /> },
-				{
-					path: "behavior",
-					element: <Navigate to="/agents/settings/general" replace />,
-				},
 				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
 				{
 					path: "instructions",
 					element: <AgentSettingsSystemInstructionsPage />,
-				},
-				{
-					path: "system-instructions",
-					element: <Navigate to="/agents/settings/instructions" replace />,
 				},
 				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
@@ -702,7 +694,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
+		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
 		await userEvent.click(screen.getByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(

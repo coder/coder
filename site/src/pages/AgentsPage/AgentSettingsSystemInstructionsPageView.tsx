@@ -4,7 +4,11 @@ import { AdminBadge } from "./components/AdminBadge";
 import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
-import type { MutationCallbacks } from "./types";
+
+interface MutationCallbacks {
+	onSuccess?: () => void;
+	onError?: () => void;
+}
 
 export interface AgentSettingsSystemInstructionsPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;

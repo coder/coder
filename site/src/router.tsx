@@ -357,9 +357,6 @@ const AgentCreatePage = lazy(
 const AgentSettingsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage"),
 );
-const AgentSettingsBehaviorPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsBehaviorPage"),
-);
 const AgentSettingsGeneralPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
 );
@@ -727,7 +724,6 @@ export const router = createBrowserRouter(
 					<Route path="settings" element={<AgentSettingsPage />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />
-						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
 						<Route
 							path="compaction"
 							element={<AgentSettingsCompactionPage />}
@@ -735,12 +731,6 @@ export const router = createBrowserRouter(
 						<Route
 							path="instructions"
 							element={<AgentSettingsSystemInstructionsPage />}
-						/>
-						{/* Permanent backward-compat for bookmarks to the old URL. Do not remove. */}
-						{/* If /agents/settings/instructions is renamed, update this redirect target. */}
-						<Route
-							path="system-instructions"
-							element={<Navigate to="/agents/settings/instructions" replace />}
 						/>
 						<Route
 							path="experiments"

@@ -3,7 +3,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
-import type { MutationCallbacks } from "./types";
+
+interface MutationCallbacks {
+	onSuccess?: () => void;
+	onError?: () => void;
+}
 
 export interface AgentSettingsGeneralPageViewProps {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -34,7 +38,6 @@ export const AgentSettingsGeneralPageView: FC<
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}
-				// This shared prop kept its old multi-prompt name, and General has one prompt, so this single saving flag is correct.
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
