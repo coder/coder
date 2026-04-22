@@ -568,6 +568,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatDebugLoggingAllowUsers(gomock.Any(), true).Return(nil).AnyTimes()
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetChatAdvisorConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil).AnyTimes()
+		check.Args().Asserts().Returns("{}")
+	}))
+	s.Run("UpsertChatAdvisorConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatAdvisorConfig(gomock.Any(), "{}").Return(nil).AnyTimes()
+		check.Args("{}").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("GetChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
