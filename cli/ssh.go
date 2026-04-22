@@ -651,11 +651,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stdinIsTerminal := validIn && isatty.IsTerminal(stdinFile.Fd())
 
 			var wantPTY bool
-			if noTTY {
+			switch {
+			case noTTY:
 				wantPTY = false
-			} else if tty {
+			case tty:
 				wantPTY = true
-			} else {
+			default:
 				wantPTY = command == "" && stdinIsTerminal
 			}
 
