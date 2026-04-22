@@ -338,19 +338,18 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
-	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
-	// the point of prebuilding if the expensive resource is replaced once claimed!
+	// Log a compact summary of drift and resource changes so
+	// template admins can see which specific fields changed.
+	// Resolves #16999. The full terraform show output is still
+	// logged for prebuild claims via logDrift below (#17571).
+	logResourceChangeSummary(plan, logr)
+
 	var (
 		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
 		resReps                []*proto.ResourceReplacement
 	)
 	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {
 		if isPrebuildClaimAttempt {
-			// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
-			//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
-			//				 to diagnose this resource replacement issue, at least.
-			//				 Once prebuilds moves out of beta, consider deleting this condition.
-
 			// Lock held before calling (see top of method).
 			e.logDrift(ctx, killCtx, planfilePath, logr)
 		}
@@ -361,6 +360,24 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 				Resource: n,
 				Paths:    p,
 			})
+		}
+	}
+
+	// Check for destructive changes to persistent resources.
+	// If any volume or disk resource would be destroyed or replaced,
+	// fail the plan so the user sees a clear warning instead of
+	// silently losing data. Skip if the user confirmed via the
+	// frontend dialog (which passes the bypass parameter).
+	if !destroy && !hasConfirmDestroyParam(req.GetRichParameterValues()) {
+		if err := checkDestructiveChanges(plan); err != nil {
+			msg := err.Error()
+			// Strip the sentinel prefix before logging; it is
+			// only used by the frontend to detect this error.
+			visible := strings.TrimPrefix(msg, "CODER_BLOCK_DESTROY:\n")
+			logr.ProvisionLog(proto.LogLevel_ERROR, visible)
+			return &proto.PlanComplete{
+				Error: msg,
+			}, nil
 		}
 	}
 

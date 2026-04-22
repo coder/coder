@@ -66,6 +66,23 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		error?: ApiError;
 	}>({ open: false });
 
+	// Destructive change confirmation dialog. Opens automatically
+	// when a build fails because it would destroy persistent
+	// resources (volumes, disks).
+	const isDestructiveBuildError =
+		workspace.latest_build.status === "failed" &&
+		(workspace.latest_build.job.error?.startsWith(
+			"CODER_BLOCK_DESTROY:",
+		) ?? false);
+
+	const [destructiveDismissed, setDestructiveDismissed] = useState(false);
+
+	// Reset dismissed state when the build changes.
+	const latestBuildId = workspace.latest_build.id;
+	useEffect(() => {
+		setDestructiveDismissed(false);
+	}, [latestBuildId]);
+
 	const handleError = (error: unknown) => {
 		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
 			setWorkspaceErrorDialog({
@@ -289,6 +306,17 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		await runLastBuild(buildParameters, false);
 	};
 
+	const confirmDestructiveRetry = async () => {
+		const params: TypesGen.WorkspaceBuildParameter[] = [
+			{
+				name: "__confirm_persistent_resource_destruction__",
+				value: "true",
+			},
+		];
+		setDestructiveDismissed(true);
+		await runLastBuild(params, false);
+	};
+
 	const handleDebug = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
@@ -444,6 +472,29 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
 				isDeleting={false}
+			/>
+
+			<ConfirmDialog
+				open={isDestructiveBuildError && !destructiveDismissed}
+				onClose={() => setDestructiveDismissed(true)}
+				onConfirm={confirmDestructiveRetry}
+				hideCancel={false}
+				title="Persistent resources will be destroyed"
+				confirmText="Continue anyway"
+				type="info"
+				description={
+					<div className="flex flex-col gap-2">
+						<p>
+							This update will destroy persistent resources that may contain
+							user data (volumes, disks). Any files stored on these resources
+							will be permanently lost.
+						</p>
+						<p className="text-content-secondary text-sm">
+							Review the build logs to see which resources are affected
+							before continuing.
+						</p>
+					</div>
+				}
 			/>
 		</>
 	);
