@@ -50,7 +50,8 @@ func publishPeerUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context
 
 func publishTunnelUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, srcID, dstID uuid.UUID) {
 	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
-		logger.Warn(ctx, "failed to publish tunnel update", slog.Error(err))
+		logger.Warn(ctx, "failed to publish tunnel update",
+			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
 	}
 }
 
