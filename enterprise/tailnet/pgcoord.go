@@ -1650,11 +1650,11 @@ type heartbeats struct {
 	firstHeartbeat   chan<- struct{}
 	failedHeartbeats int
 
-	lock                 sync.RWMutex
-	coordinators         map[uuid.UUID]time.Time
-	lastDBHeartbeat      map[uuid.UUID]time.Time
-	expiredCoordinators  map[uuid.UUID]struct{}
-	timer                *quartz.Timer
+	lock                sync.RWMutex
+	coordinators        map[uuid.UUID]time.Time
+	lastDBHeartbeat     map[uuid.UUID]time.Time
+	expiredCoordinators map[uuid.UUID]struct{}
+	timer               *quartz.Timer
 
 	wg sync.WaitGroup
 
@@ -1670,17 +1670,17 @@ func newHeartbeats(
 	clk quartz.Clock,
 ) *heartbeats {
 	h := &heartbeats{
-		ctx:             ctx,
-		logger:          logger,
-		pubsub:          ps,
-		store:           store,
-		self:            self,
-		update:          update,
-		firstHeartbeat:  firstHeartbeat,
+		ctx:                 ctx,
+		logger:              logger,
+		pubsub:              ps,
+		store:               store,
+		self:                self,
+		update:              update,
+		firstHeartbeat:      firstHeartbeat,
 		coordinators:        make(map[uuid.UUID]time.Time),
 		lastDBHeartbeat:     make(map[uuid.UUID]time.Time),
 		expiredCoordinators: make(map[uuid.UUID]struct{}),
-		clock:           clk,
+		clock:               clk,
 	}
 	// Start the expiry timer so checkExpiry runs even if no pubsub
 	// heartbeat is ever received. This enables DB-based discovery of
