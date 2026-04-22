@@ -1740,6 +1740,7 @@ type ChatUsageLimitConfigResponse struct {
 type ListChatsOptions struct {
 	Query  string
 	Labels map[string]string
+	Shared ChatSharedFilter
 	Pagination
 }
 
@@ -1761,6 +1762,13 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
 				}
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.Shared != ChatSharedFilterNo {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("shared", string(opts.Shared))
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2968,4 +2976,86 @@ type PRInsightsPullRequest struct {
 	ModelDisplayName string    `json:"model_display_name"`
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+}
+
+type ChatRole string
+
+const (
+	ChatRoleRead    ChatRole = "read"
+	ChatRoleDeleted ChatRole = ""
+)
+
+type ChatSharedFilter string
+
+const (
+	ChatSharedFilterNo      ChatSharedFilter = ""
+	ChatSharedFilterInclude ChatSharedFilter = "include"
+	ChatSharedFilterOnly    ChatSharedFilter = "only"
+)
+
+type ChatUser struct {
+	MinimalUser
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls"`
+	ShareAttachments bool     `json:"share_attachments"`
+}
+
+type ChatGroup struct {
+	Group
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls"`
+	ShareAttachments bool     `json:"share_attachments"`
+}
+
+type ChatACL struct {
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
+}
+
+type ChatShareEntry struct {
+	Role             ChatRole `json:"role" enums:"read"`
+	ShareToolCalls   bool     `json:"share_tool_calls,omitempty"`
+	ShareAttachments bool     `json:"share_attachments,omitempty"`
+}
+
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatShareEntry `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatShareEntry `json:"group_roles,omitempty"`
+}
+
+func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *ExperimentalClient) DeleteChatACL(ctx context.Context, chatID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

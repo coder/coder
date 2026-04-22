@@ -857,6 +857,13 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return nil
+}
+
 func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	switch role {
 	case codersdk.WorkspaceRoleAdmin:

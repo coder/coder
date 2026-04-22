@@ -372,6 +372,7 @@ export type APIKeyScope =
 	| "chat:create"
 	| "chat:delete"
 	| "chat:read"
+	| "chat:share"
 	| "chat:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
@@ -581,6 +582,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:create",
 	"chat:delete",
 	"chat:read",
+	"chat:share",
 	"chat:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
@@ -1273,6 +1275,12 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+export interface ChatACL {
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
+}
+
+// From codersdk/chats.go
 export type ChatAgentModelOverrideContext = "explore" | "general";
 
 export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
@@ -1718,6 +1726,13 @@ export const ChatGitWatchWorkspaceNoAgentsMessage =
  * Keep these in sync with coderd/exp_chats.go.
  */
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
+
+// From codersdk/chats.go
+export interface ChatGroup extends Group {
+	readonly role: ChatRole;
+	readonly share_tool_calls: boolean;
+	readonly share_attachments: boolean;
+}
 
 // From codersdk/chats.go
 /**
@@ -2188,6 +2203,23 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
+export type ChatRole = "" | "read";
+
+export const ChatRoles: ChatRole[] = ["", "read"];
+
+// From codersdk/chats.go
+export interface ChatShareEntry {
+	readonly role: ChatRole;
+	readonly share_tool_calls?: boolean;
+	readonly share_attachments?: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatSharedFilter = "include" | "" | "only";
+
+export const ChatSharedFilters: ChatSharedFilter[] = ["include", "", "only"];
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -2532,6 +2564,13 @@ export interface ChatUsageLimitStatus {
 	readonly current_spend: number;
 	readonly period_start?: string;
 	readonly period_end?: string;
+}
+
+// From codersdk/chats.go
+export interface ChatUser extends MinimalUser {
+	readonly role: ChatRole;
+	readonly share_tool_calls: boolean;
+	readonly share_attachments: boolean;
 }
 
 // From codersdk/chats.go
@@ -3536,6 +3575,7 @@ export interface DeploymentValues {
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
+	readonly disable_chat_sharing?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -4424,6 +4464,7 @@ export interface LinkConfig {
 export interface ListChatsOptions extends Pagination {
 	readonly Query: string;
 	readonly Labels: Record<string, string>;
+	readonly Shared: ChatSharedFilter;
 }
 
 // From codersdk/inboxnotification.go
@@ -7691,6 +7732,12 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+}
+
+// From codersdk/chats.go
+export interface UpdateChatACL {
+	readonly user_roles?: Record<string, ChatShareEntry>;
+	readonly group_roles?: Record<string, ChatShareEntry>;
 }
 
 // From codersdk/chats.go

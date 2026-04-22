@@ -77,6 +77,7 @@ var (
 	//  - "ActionCreate" :: create a new chat
 	//  - "ActionDelete" :: delete a chat
 	//  - "ActionRead" :: read chat messages and metadata
+	//  - "ActionShare" :: share a chat read-only with other users or groups
 	//  - "ActionUpdate" :: update chat title or settings
 	ResourceChat = Object{
 		Type: "chat",

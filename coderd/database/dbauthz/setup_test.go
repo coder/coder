@@ -163,6 +163,8 @@ func (s *MethodTestSuite) Mocked(testCaseF func(dmb *dbmock.MockStore, faker *go
 		return out, nil
 	}).AnyTimes()
 
+	mDB.EXPECT().GetGroups(gomock.Any(), database.GetGroupsParams{HasMemberID: testActorID}).Return([]database.GetGroupsRow{}, nil).AnyTimes()
+
 	// Use a constant seed to prevent flakes from random data generation.
 	faker := gofakeit.New(0)
 

@@ -338,16 +338,18 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
+	if options.DeploymentValues.DisableOwnerWorkspaceExec ||
+		options.DeploymentValues.DisableWorkspaceSharing ||
+		options.DeploymentValues.DisableChatSharing {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
 			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
 		})
 	}
 
-	if options.DeploymentValues.DisableWorkspaceSharing {
-		rbac.SetWorkspaceACLDisabled(true)
-	}
+	rbac.SetWorkspaceACLDisabled(bool(options.DeploymentValues.DisableWorkspaceSharing))
+	rbac.SetChatACLDisabled(bool(options.DeploymentValues.DisableChatSharing))
 
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
@@ -1246,6 +1248,11 @@ func New(options *Options) *API {
 			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.chatACL)
+					r.Patch("/", api.patchChatACL)
+					r.Delete("/", api.deleteChatACL)
+				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)

@@ -45,6 +45,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat",
 		delete: "delete a chat",
 		read: "read chat messages and metadata",
+		share: "share a chat read-only with other users or groups",
 		update: "update chat title or settings",
 	},
 	connection_log: {

@@ -341,8 +341,23 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sharedFilter := codersdk.ChatSharedFilter(r.URL.Query().Get("shared"))
+	switch sharedFilter {
+	case codersdk.ChatSharedFilterNo, codersdk.ChatSharedFilterInclude, codersdk.ChatSharedFilterOnly:
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Invalid shared filter %q. Valid values are %q, %q, or %q.",
+				sharedFilter,
+				codersdk.ChatSharedFilterNo,
+				codersdk.ChatSharedFilterInclude,
+				codersdk.ChatSharedFilterOnly,
+			),
+		})
+		return
+	}
+
 	params := database.GetChatsParams{
-		OwnerID:     apiKey.UserID,
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
@@ -350,6 +365,14 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
+		ViewerID: apiKey.UserID,
+	}
+	switch sharedFilter {
+	case codersdk.ChatSharedFilterNo:
+		params.OwnedOnly = true
+	case codersdk.ChatSharedFilterOnly:
+		params.SharedOnly = true
+	case codersdk.ChatSharedFilterInclude:
 	}
 
 	chatRows, err := api.Database.GetChats(ctx, params)
@@ -1683,7 +1706,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
@@ -2903,7 +2925,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if len(batch) == 0 {
 			return nil
 		}
-		return encoder.Encode(batch)
+		filtered, err := dbauthz.FilterChatStreamEvents(ctx, api.Database, chat, batch)
+		if err != nil {
+			return err
+		}
+		if len(filtered) == 0 {
+			return nil
+		}
+		return encoder.Encode(filtered)
 	}
 
 	drainChatStreamBatch := func(

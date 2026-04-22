@@ -708,12 +708,9 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 	}
 }
 
-// ConfigChats is the configuration for converting rego to SQL when
-// the target table is "chats", which has no ACL
-// columns.
 func ConfigChats() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.NoACLConverter(),
+		VariableConverter: regosql.ChatConverter(),
 	}
 }
 

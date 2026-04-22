@@ -34,6 +34,8 @@ const wrapname = "dbauthz.querier"
 // ErrNoActor is returned if no actor is present in the context.
 var ErrNoActor = xerrors.Errorf("no authorization actor in context")
 
+var ErrChatACLSubChat = xerrors.New("chat acl can only be set on root chats")
+
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
 // it will be handled as a 404.
@@ -1519,6 +1521,36 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) authorizedChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
+}
+
+func (q *querier) accessibleChatIDsByFileID(ctx context.Context, fileID uuid.UUID) ([]uuid.UUID, error) {
+	chatIDs, err := q.db.GetChatIDsByFileID(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	accessible := make([]uuid.UUID, 0, len(chatIDs))
+	for _, chatID := range chatIDs {
+		chat, err := q.authorizedChatByID(ctx, chatID)
+		if err != nil {
+			if IsNotAuthorizedError(err) || errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		attachmentsVisible, err := chatAttachmentsVisible(ctx, q.db, chat)
+		if err != nil {
+			return nil, err
+		}
+		if attachmentsVisible {
+			accessible = append(accessible, chatID)
+		}
+	}
+	return accessible, nil
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -1871,6 +1903,20 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteChatACLByID(ctx context.Context, id uuid.UUID) error {
+	fetch := func(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+		chat, err := q.db.GetChatByID(ctx, id)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if chat.IsSubChat() {
+			return database.Chat{}, ErrChatACLSubChat
+		}
+		return chat, nil
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteChatACLByID)(ctx, id)
 }
 
 func (q *querier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
@@ -2580,8 +2626,23 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchive
 	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
 }
 
+func (q *querier) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	return q.db.GetChatACLByID(ctx, id)
+}
+
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
+	chat, err := q.authorizedChatByID(ctx, id)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return redactDatabaseChat(ctx, q.db, chat)
 }
 
 func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -2689,7 +2750,7 @@ func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
+	_, err := q.authorizedChatByID(ctx, chatID)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
 	}
@@ -2716,7 +2777,7 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 
 	for _, chatID := range chatIDs {
 		// Authorize read on each parent chat.
-		_, err := q.GetChatByID(ctx, chatID)
+		_, err := q.authorizedChatByID(ctx, chatID)
 		if err != nil {
 			return nil, err
 		}
@@ -2733,18 +2794,42 @@ func (q *querier) GetChatExploreModelOverride(ctx context.Context) (string, erro
 }
 
 func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.ChatFile, error) {
+	if _, ok := ActorFromContext(ctx); !ok {
+		return database.ChatFile{}, ErrNoActor
+	}
 	file, err := q.db.GetChatFileByID(ctx, id)
 	if err != nil {
 		return database.ChatFile{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, file); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, file); err == nil {
+		return file, nil
+	} else if !IsNotAuthorizedError(err) {
 		return database.ChatFile{}, err
+	}
+
+	chatIDs, err := q.accessibleChatIDsByFileID(ctx, id)
+	if err != nil {
+		return database.ChatFile{}, err
+	}
+	if len(chatIDs) == 0 {
+		return database.ChatFile{}, NotAuthorizedError{Err: xerrors.New("chat file not accessible")}
 	}
 	return file, nil
 }
 
 func (q *querier) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatFileMetadataByChatID)(ctx, chatID)
+	chat, err := q.authorizedChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	attachmentsVisible, err := chatAttachmentsVisible(ctx, q.db, chat)
+	if err != nil {
+		return nil, err
+	}
+	if !attachmentsVisible {
+		return []database.GetChatFileMetadataByChatIDRow{}, nil
+	}
+	return q.db.GetChatFileMetadataByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
@@ -2767,6 +2852,30 @@ func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, erro
 	return q.db.GetChatGeneralModelOverride(ctx)
 }
 
+func (q *querier) GetChatIDsByFileID(ctx context.Context, fileID uuid.UUID) ([]uuid.UUID, error) {
+	if _, ok := ActorFromContext(ctx); !ok {
+		return nil, ErrNoActor
+	}
+	file, err := q.db.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, file); err == nil {
+		return q.db.GetChatIDsByFileID(ctx, fileID)
+	} else if !IsNotAuthorizedError(err) {
+		return nil, err
+	}
+
+	chatIDs, err := q.accessibleChatIDsByFileID(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if len(chatIDs) == 0 {
+		return nil, NotAuthorizedError{Err: xerrors.New("chat file not accessible")}
+	}
+	return chatIDs, nil
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -2780,18 +2889,22 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 }
 
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
-	// ChatMessages are authorized through their parent Chat.
-	// We need to fetch the message first to get its chat_id.
 	msg, err := q.db.GetChatMessageByID(ctx, id)
 	if err != nil {
 		return database.ChatMessage{}, err
 	}
-	// Authorize read on the parent chat.
-	_, err = q.GetChatByID(ctx, msg.ChatID)
+	chat, err := q.authorizedChatByID(ctx, msg.ChatID)
 	if err != nil {
 		return database.ChatMessage{}, err
 	}
-	return msg, nil
+	messages, err := redactDatabaseMessages(ctx, q.db, chat, []database.ChatMessage{msg})
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if len(messages) == 0 {
+		return database.ChatMessage{}, sql.ErrNoRows
+	}
+	return messages[0], nil
 }
 
 func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
@@ -2803,37 +2916,51 @@ func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAft
 }
 
 func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
-	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, arg.ChatID)
+	chat, err := q.authorizedChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatID(ctx, arg)
+	messages, err := q.db.GetChatMessagesByChatID(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseMessages(ctx, q.db, chat, messages)
 }
 
 func (q *querier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDAscPaginatedParams) ([]database.ChatMessage, error) {
-	_, err := q.GetChatByID(ctx, arg.ChatID)
+	chat, err := q.authorizedChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatIDAscPaginated(ctx, arg)
+	messages, err := q.db.GetChatMessagesByChatIDAscPaginated(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseMessages(ctx, q.db, chat, messages)
 }
 
 func (q *querier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
-	_, err := q.GetChatByID(ctx, arg.ChatID)
+	chat, err := q.authorizedChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatIDDescPaginated(ctx, arg)
+	messages, err := q.db.GetChatMessagesByChatIDDescPaginated(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseMessages(ctx, q.db, chat, messages)
 }
 
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
+	chat, err := q.authorizedChatByID(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	messages, err := q.db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseMessages(ctx, q.db, chat, messages)
 }
 
 func (q *querier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -2901,11 +3028,15 @@ func (q *querier) GetChatProviders(ctx context.Context) ([]database.ChatProvider
 }
 
 func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	_, err := q.GetChatByID(ctx, chatID)
+	chat, err := q.authorizedChatByID(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatQueuedMessages(ctx, chatID)
+	messages, err := q.db.GetChatQueuedMessages(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseQueuedMessages(ctx, q.db, chat, messages)
 }
 
 func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
@@ -2988,7 +3119,11 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetAuthorizedChats(ctx, arg, prep)
+	rows, err := q.db.GetAuthorizedChats(ctx, arg, prep)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseChats(ctx, q.db, rows)
 }
 
 func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -3004,11 +3139,11 @@ func (q *querier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Ti
 }
 
 func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
-	// Each child is independently authorized via post-filter.
-	// The handler calls this after GetChats already authorized
-	// the parent chats, but we still verify read access on
-	// every child row for defense in depth.
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChildChatsByParentIDs)(ctx, arg)
+	rows, err := fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChildChatsByParentIDs)(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return redactDatabaseChildChats(ctx, q.db, rows)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -6085,6 +6220,20 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateChatACLByIDParams) (database.Chat, error) {
+		chat, err := q.db.GetChatByID(ctx, arg.ID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if chat.IsSubChat() {
+			return database.Chat{}, ErrChatACLSubChat
+		}
+		return chat, nil
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

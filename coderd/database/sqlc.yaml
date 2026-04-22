@@ -97,6 +97,12 @@ sql:
           - column: "workspaces.group_acl"
             go_type:
               type: "WorkspaceACL"
+          - column: "chats.user_acl"
+            go_type:
+              type: "ChatACL"
+          - column: "chats.group_acl"
+            go_type:
+              type: "ChatACL"
           - column: "workspaces_expanded.user_acl"
             go_type:
               type: "WorkspaceACL"
@@ -173,6 +179,7 @@ sql:
           workspaces_expanded: Workspace
           task: TaskTable
           tasks_with_status: Task
+          chat: Chat
           template_version: TemplateVersionTable
           template_version_with_user: TemplateVersion
           api_key: APIKey

@@ -211,10 +211,72 @@ WHERE
     id = @id::bigint;
 
 -- name: GetChatByID :one
+WITH chats AS (
+    SELECT
+        c.id,
+        c.owner_id,
+        c.workspace_id,
+        c.title,
+        c.status,
+        c.worker_id,
+        c.started_at,
+        c.heartbeat_at,
+        c.created_at,
+        c.updated_at,
+        c.parent_chat_id,
+        c.root_chat_id,
+        c.last_model_config_id,
+        c.archived,
+        c.last_error,
+        c.mode,
+        c.mcp_server_ids,
+        c.labels,
+        c.build_id,
+        c.agent_id,
+        c.pin_order,
+        c.last_read_message_id,
+        c.last_injected_context,
+        c.dynamic_tools,
+        c.organization_id,
+        c.plan_mode,
+        c.client_type,
+        COALESCE(root.user_acl, c.user_acl) AS user_acl,
+        COALESCE(root.group_acl, c.group_acl) AS group_acl
+    FROM
+        chats c
+        LEFT JOIN chats root ON root.id = c.root_chat_id
+)
 SELECT
     *
 FROM
     chats
+WHERE
+    id = @id::uuid;
+
+-- name: GetChatACLByID :one
+SELECT
+    user_acl  AS users,
+    group_acl AS groups
+FROM
+    chats
+WHERE
+    id = @id::uuid;
+
+-- name: UpdateChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl  = @user_acl,
+    group_acl = @group_acl
+WHERE
+    id = @id::uuid;
+
+-- name: DeleteChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl  = '{}'::jsonb,
+    group_acl = '{}'::jsonb
 WHERE
     id = @id::uuid;
 
@@ -349,6 +411,14 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN @shared_only::boolean THEN chats.owner_id != @viewer_id::uuid
+        ELSE true
+    END
+    AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
@@ -410,7 +480,41 @@ SELECT
             AND cm.id > COALESCE(chats.last_read_message_id, 0)
     ) AS has_unread
 FROM
-    chats
+    (
+        SELECT
+            c.id,
+            c.owner_id,
+            c.workspace_id,
+            c.title,
+            c.status,
+            c.worker_id,
+            c.started_at,
+            c.heartbeat_at,
+            c.created_at,
+            c.updated_at,
+            c.parent_chat_id,
+            c.root_chat_id,
+            c.last_model_config_id,
+            c.archived,
+            c.last_error,
+            c.mode,
+            c.mcp_server_ids,
+            c.labels,
+            c.build_id,
+            c.agent_id,
+            c.pin_order,
+            c.last_read_message_id,
+            c.last_injected_context,
+            c.dynamic_tools,
+            c.organization_id,
+            c.plan_mode,
+            c.client_type,
+            COALESCE(root.user_acl, c.user_acl) AS user_acl,
+            COALESCE(root.group_acl, c.group_acl) AS group_acl
+        FROM
+            chats c
+            LEFT JOIN chats root ON root.id = c.root_chat_id
+    ) AS chats
 WHERE
     chats.parent_chat_id = ANY(@parent_ids :: uuid[])
     AND CASE

@@ -240,7 +240,10 @@ func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 
 // TODO(geokat): similar to builtInRoles, this should ideally be
 // scoped to a coderd rather than a global.
-var workspaceACLDisabled atomic.Bool
+var (
+	workspaceACLDisabled atomic.Bool
+	chatACLDisabled      atomic.Bool
+)
 
 // SetWorkspaceACLDisabled disables/enables workspace sharing for the
 // deployment.
@@ -252,4 +255,13 @@ func SetWorkspaceACLDisabled(v bool) {
 // for the deployment.
 func WorkspaceACLDisabled() bool {
 	return workspaceACLDisabled.Load()
+}
+
+// SetChatACLDisabled disables or enables chat sharing for the deployment.
+func SetChatACLDisabled(v bool) {
+	chatACLDisabled.Store(v)
+}
+
+func ChatACLDisabled() bool {
+	return chatACLDisabled.Load()
 }

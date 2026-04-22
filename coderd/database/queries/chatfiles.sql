@@ -9,6 +9,9 @@ SELECT * FROM chat_files WHERE id = @id::uuid;
 -- name: GetChatFilesByIDs :many
 SELECT * FROM chat_files WHERE id = ANY(@ids::uuid[]);
 
+-- name: GetChatIDsByFileID :many
+SELECT chat_id FROM chat_file_links WHERE file_id = @file_id::uuid;
+
 -- name: GetChatFileMetadataByChatID :many
 -- GetChatFileMetadataByChatID returns lightweight file metadata for
 -- all files linked to a chat. The data column is excluded to avoid

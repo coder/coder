@@ -182,6 +182,83 @@ func TestWorkspaceACLDisabled(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest
+func TestACLDisabledIsolation(t *testing.T) {
+	uid := uuid.NewString()
+	gid := uuid.NewString()
+
+	newWorkspace := func() WorkspaceTable {
+		return WorkspaceTable{
+			ID:             uuid.New(),
+			OrganizationID: uuid.New(),
+			OwnerID:        uuid.New(),
+			UserACL: WorkspaceACL{
+				uid: WorkspaceACLEntry{Permissions: []policy.Action{policy.ActionSSH}},
+			},
+			GroupACL: WorkspaceACL{
+				gid: WorkspaceACLEntry{Permissions: []policy.Action{policy.ActionSSH}},
+			},
+		}
+	}
+
+	newChat := func() Chat {
+		return Chat{
+			ID:             uuid.New(),
+			OrganizationID: uuid.New(),
+			OwnerID:        uuid.New(),
+			UserACL: ChatACL{
+				uid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+			},
+			GroupACL: ChatACL{
+				gid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+			},
+		}
+	}
+
+	cases := []struct {
+		name          string
+		workspaceFlag bool
+		chatFlag      bool
+		wsACL         bool
+		chatACL       bool
+	}{
+		{name: "BothEnabled", workspaceFlag: false, chatFlag: false, wsACL: true, chatACL: true},
+		{name: "WorkspaceDisabledOnly", workspaceFlag: true, chatFlag: false, wsACL: false, chatACL: true},
+		{name: "ChatDisabledOnly", workspaceFlag: false, chatFlag: true, wsACL: true, chatACL: false},
+		{name: "BothDisabled", workspaceFlag: true, chatFlag: true, wsACL: false, chatACL: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rbac.SetWorkspaceACLDisabled(tc.workspaceFlag)
+			rbac.SetChatACLDisabled(tc.chatFlag)
+			t.Cleanup(func() {
+				rbac.SetWorkspaceACLDisabled(false)
+				rbac.SetChatACLDisabled(false)
+			})
+
+			wsObj := newWorkspace().RBACObject()
+			chatObj := newChat().RBACObject()
+
+			if tc.wsACL {
+				require.NotEmpty(t, wsObj.ACLUserList, "workspace user ACL should be populated")
+				require.NotEmpty(t, wsObj.ACLGroupList, "workspace group ACL should be populated")
+			} else {
+				require.Empty(t, wsObj.ACLUserList, "workspace user ACL should be stripped")
+				require.Empty(t, wsObj.ACLGroupList, "workspace group ACL should be stripped")
+			}
+
+			if tc.chatACL {
+				require.NotEmpty(t, chatObj.ACLUserList, "chat user ACL should be populated")
+				require.NotEmpty(t, chatObj.ACLGroupList, "chat group ACL should be populated")
+			} else {
+				require.Empty(t, chatObj.ACLUserList, "chat user ACL should be stripped")
+				require.Empty(t, chatObj.ACLGroupList, "chat group ACL should be stripped")
+			}
+		})
+	}
+}
+
 // Helpers
 func requirePermission(t *testing.T, s rbac.Scope, resource string, action policy.Action) {
 	t.Helper()
@@ -198,4 +275,28 @@ func requireAllowAll(t *testing.T, s rbac.Scope) {
 	require.Len(t, s.AllowIDList, 1)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].ID)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].Type)
+}
+
+func TestChatIsSubChat(t *testing.T) {
+	t.Parallel()
+
+	rootID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+
+	cases := []struct {
+		name  string
+		chat  Chat
+		isSub bool
+	}{
+		{name: "RootNeither", chat: Chat{}, isSub: false},
+		{name: "RootIDSet", chat: Chat{RootChatID: rootID}, isSub: true},
+		{name: "ParentIDSet", chat: Chat{ParentChatID: rootID}, isSub: true},
+		{name: "Both", chat: Chat{RootChatID: rootID, ParentChatID: rootID}, isSub: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.isSub, tc.chat.IsSubChat(), "Chat.IsSubChat")
+		})
+	}
 }

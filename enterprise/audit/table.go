@@ -407,6 +407,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dynamic_tools":         ActionIgnore, // Internal lifecycle.
 		"plan_mode":             ActionIgnore, // Can flip back and forth during a session.
 		"client_type":           ActionIgnore, // Set at creation.
+		"user_acl":              ActionTrack,
+		"group_acl":             ActionTrack,
 	},
 }
 

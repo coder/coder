@@ -11240,6 +11240,93 @@ func TestChatPinOrderConstraints(t *testing.T) {
 	})
 }
 
+func TestChatACLRootOnlyConstraint(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	viewer := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: viewer.ID, OrganizationID: org.ID})
+
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	root, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "root-chat",
+	})
+	require.NoError(t, err)
+
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID: root.ID,
+		UserACL: database.ChatACL{
+			viewer.ID.String(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+
+	subChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "sub-chat",
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID: subChat.ID,
+		UserACL: database.ChatACL{
+			viewer.ID.String(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.Error(t, err)
+	require.True(t, database.IsCheckViolation(err, database.CheckChatAclOnlyOnRootChats))
+}
+
 func TestChatLabels(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

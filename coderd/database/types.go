@@ -114,6 +114,41 @@ type WorkspaceACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
 }
 
+type ChatACL map[string]ChatACLEntry
+
+// ChatACLEntry mirrors WorkspaceACLEntry but carries per-viewer share toggles.
+type ChatACLEntry struct {
+	Permissions      []policy.Action `json:"permissions"`
+	ShareToolCalls   bool            `json:"share_tool_calls,omitempty"`
+	ShareAttachments bool            `json:"share_attachments,omitempty"`
+}
+
+func (t *ChatACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &t)
+	case []byte:
+		return json.Unmarshal(v, &t)
+	case json.RawMessage:
+		return json.Unmarshal(v, &t)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (t ChatACL) Value() (driver.Value, error) {
+	return json.Marshal(t)
+}
+
+//nolint:revive
+func (c ChatACL) RBACACL() map[string][]policy.Action {
+	rbacACL := make(map[string][]policy.Action, len(c))
+	for id, entry := range c {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
 // WorkspaceACLDisplayInfo supplements workspace ACLs with the actors'
 // display info.  Key is string rather than uuid.UUID as this aligns
 // with how RBAC represents actor IDs.
