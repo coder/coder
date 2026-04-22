@@ -282,6 +282,52 @@ export const RetentionToggleOnSavesDefault: Story = {
 	},
 };
 
+export const RetentionToggleOffSavesDisabled: Story = {
+	args: {
+		retentionDaysData: { retention_days: 30 },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: /retention/i,
+		});
+		expect(toggle).toBeChecked();
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveRetentionDays).toHaveBeenCalledWith(
+				{ retention_days: 0 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const RetentionSaveError: Story = {
+	args: {
+		retentionDaysData: { retention_days: 30 },
+		isSaveRetentionDaysError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const RetentionLoadError: Story = {
+	args: {
+		isRetentionDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
 export const RetentionExceedsMax: Story = {
 	args: {
 		retentionDaysData: { retention_days: 30 },
