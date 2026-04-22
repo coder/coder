@@ -1050,4 +1050,18 @@ describe("coerceStepRequest", () => {
 
 		expect(request.options).toEqual({ max_output_tokens: 1024 });
 	});
+
+	// OpenAI completions historically used `max_tokens` as the token-limit
+	// field name. Pin it as a standalone alias so removing it from the
+	// canonicalization list breaks a test instead of silently dropping the
+	// field when upstream responses still speak the legacy key.
+	it("canonicalizes the OpenAI `max_tokens` alias to max_output_tokens", () => {
+		const request = coerceStepRequest({
+			options: {
+				max_tokens: 512,
+			},
+		});
+
+		expect(request.options).toEqual({ max_output_tokens: 512 });
+	});
 });

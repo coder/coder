@@ -1913,4 +1913,16 @@ describe("TERMINAL_RUN_STATUSES", () => {
 			expect(TERMINAL_RUN_STATUSES.has(status)).toBe(true);
 		}
 	});
+
+	// The reverse direction catches a TERMINAL status that stops polling
+	// but renders a neutral badge. Adding e.g. "timed_out" to TERMINAL
+	// without SUCCESS or ERROR would paint a finished run gray, so the
+	// status classification must stay bidirectional.
+	it("covers every TERMINAL status with SUCCESS or ERROR", () => {
+		for (const status of TERMINAL_RUN_STATUSES) {
+			const classified =
+				SUCCESS_STATUSES.has(status) || ERROR_STATUSES.has(status);
+			expect(classified).toBe(true);
+		}
+	});
 });
