@@ -2561,9 +2561,11 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
-	// Chat auto-archive is a deployment-wide config read by dbpurge
-	// and also surfaced to any authenticated user via the experimental
-	// HTTP endpoint (mirroring GetChatRetentionDays).
+	// Chat auto-archive is a deployment-wide config read by dbpurge.
+	// Any authenticated actor can read at this layer; the experimental
+	// HTTP handler enforces admin access (policy.ActionUpdate on
+	// ResourceDeploymentConfig) on top, so callers via dbauthz get
+	// through only with an actor present.
 	if _, ok := ActorFromContext(ctx); !ok {
 		return 0, ErrNoActor
 	}
