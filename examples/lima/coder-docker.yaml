@@ -1,4 +1,4 @@
-# Deploy Coder in Lima via the install script
+# Deploy Coder in Lima with Docker via the install script
 # See: https://coder.com/docs/install
 # $ limactl start ./coder.yaml
 # $ limactl shell coder
