@@ -62,8 +62,8 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					>
 						portabledesktop module
 					</Link>{" "}
-					to be installed in the workspace and the Anthropic provider to be
-					configured.
+					to be installed in the workspace and an Anthropic or OpenAI provider
+					to be configured.
 				</p>
 			</div>
 			{isSaveDesktopEnabledError && (
