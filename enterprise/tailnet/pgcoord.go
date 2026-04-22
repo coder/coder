@@ -457,7 +457,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		// writeOne should be idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
+			return nil // No row deleted, skip publish.
 		}
 	default:
 		panic("unreachable")
@@ -1820,6 +1820,9 @@ func (h *heartbeats) sendBeat() {
 		return
 	}
 	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
+	// If publish persistently fails, other coordinators will not
+	// receive heartbeats via pubsub. The DB fallback in checkExpiry
+	// provides cross-coordinator liveness discovery as a safety net.
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
