@@ -579,6 +579,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		// Capture agentID in the same lock section as
+		// currentConn to prevent a TOCTOU race with
+		// concurrent clearCachedWorkspaceState calls.
 		agentID := c.agent.ID
 		c.mu.Unlock()
 
@@ -588,12 +591,17 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		if currentConn != nil {
 			if agentID != uuid.Nil {
 				freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
-				if err == nil && isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
+				if err != nil {
+					c.server.logger.Warn(ctx, "failed to re-fetch agent for status check",
+						slog.F("agent_id", agentID),
+						slog.Error(err),
+					)
+					// On DB error the check re-runs on the
+					// next tool call.
+				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
 					c.clearCachedWorkspaceState()
 					return nil, errChatAgentDisconnected
 				}
-				// On DB error the check re-runs on the
-				// next tool call.
 			}
 			return currentConn, nil
 		}
