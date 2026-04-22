@@ -13,7 +13,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"golang.org/x/sync/singleflight"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
@@ -44,20 +43,20 @@ const (
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
-func publishPeerUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, peerID uuid.UUID) {
+func publishPeerUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, peerID uuid.UUID) {
 	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
 		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
 	}
 }
 
-func publishTunnelUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, srcID, dstID uuid.UUID) {
+func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, srcID, dstID uuid.UUID) {
 	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
 		logger.Warn(ctx, "failed to publish tunnel update",
 			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
 	}
 }
 
-func publishCoordinatorHeartbeat(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, id uuid.UUID) {
+func publishCoordinatorHeartbeat(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, id uuid.UUID) {
 	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
 		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
 	}
@@ -431,7 +430,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		if err == nil {
 			for _, row := range deleted {
-				publishTunnelUpdate(t.pubsub, t.logger, t.ctx, row.SrcID, row.DstID)
+				publishTunnelUpdate(t.ctx, t.pubsub, t.logger, row.SrcID, row.DstID)
 			}
 		}
 	case tun.active:
@@ -473,7 +472,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	// Publish for upsert/delete single tunnel cases. The DeleteAll case
 	// publishes its own updates above since it returns multiple rows.
 	if err == nil && tun.dst != uuid.Nil {
-		publishTunnelUpdate(t.pubsub, t.logger, t.ctx, tun.src, tun.dst)
+		publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
 	}
 	return err
 }
@@ -554,7 +553,7 @@ func newBinder(ctx context.Context,
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
 		}
 		for _, peerID := range peerIDs {
-			publishPeerUpdate(b.pubsub, b.logger, ctx, peerID)
+			publishPeerUpdate(ctx, b.pubsub, b.logger, peerID)
 		}
 	}()
 	return b
@@ -635,7 +634,7 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.Error(err))
 	}
 	if err == nil {
-		publishPeerUpdate(b.pubsub, b.logger, b.ctx, uuid.UUID(bnd.bKey))
+		publishPeerUpdate(b.ctx, b.pubsub, b.logger, uuid.UUID(bnd.bKey))
 	}
 	return err
 }
@@ -867,7 +866,6 @@ type querier struct {
 
 	clock quartz.Clock
 
-	resyncGroup singleflight.Group
 }
 
 func newQuerier(ctx context.Context,
@@ -1821,7 +1819,7 @@ func (h *heartbeats) sendBeat() {
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
-	publishCoordinatorHeartbeat(h.pubsub, h.logger, h.ctx, h.self)
+	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
@@ -1854,14 +1852,14 @@ func (h *heartbeats) cleanup() {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
 	for _, peerID := range deletedPeers {
-		publishPeerUpdate(h.pubsub, h.logger, h.ctx, peerID)
+		publishPeerUpdate(h.ctx, h.pubsub, h.logger, peerID)
 	}
 	deletedTunnels, err := h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
 	}
 	for _, tun := range deletedTunnels {
-		publishTunnelUpdate(h.pubsub, h.logger, h.ctx, tun.SrcID, tun.DstID)
+		publishTunnelUpdate(h.ctx, h.pubsub, h.logger, tun.SrcID, tun.DstID)
 	}
 	h.logger.Debug(h.ctx, "completed cleanup")
 }
