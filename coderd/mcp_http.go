@@ -48,6 +48,9 @@ func (api *API) mcpHTTPHandler() http.Handler {
 		// a workspace but lacks SSH permission could still execute
 		// commands through MCP tools.
 		toolOpt := toolsdk.WithAgentConnFunc(func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			if api.Entitlements.Enabled(codersdk.FeatureBrowserOnly) {
+				return nil, nil, xerrors.New("non-browser connections are disabled")
+			}
 			// Use system context for the lookup because the tool
 			// handler context does not carry a dbauthz actor. The
 			// real authorization happens in the Authorize call below.
