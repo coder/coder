@@ -11,7 +11,6 @@ import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -23,8 +22,10 @@ import {
 	Message,
 	MessageContent,
 	Response,
+	Shimmer,
 	Tool,
 } from "../ChatElements";
+
 import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
@@ -90,15 +91,19 @@ const ReasoningDisclosure = memo<{
 					"text-content-secondary transition-colors hover:text-content-primary",
 				)}
 			>
-				<Spinner size="sm" loading={isStreaming}>
-					<ChevronDownIcon
-						className={cn(
-							"size-icon-sm shrink-0 transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
-						)}
-					/>
-				</Spinner>
-				<span className="text-xs">Thinking</span>
+				<ChevronDownIcon
+					className={cn(
+						"size-icon-sm shrink-0 transition-transform",
+						expanded ? "rotate-0" : "-rotate-90",
+					)}
+				/>
+				{isStreaming ? (
+					<Shimmer as="span" className="text-xs">
+						Thinking
+					</Shimmer>
+				) : (
+					<span className="text-xs">Thinking</span>
+				)}
 			</button>
 			{expanded && hasText && (
 				<div className="mt-1 pl-5">
