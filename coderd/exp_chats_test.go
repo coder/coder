@@ -5835,7 +5835,8 @@ func TestPostChatMessages(t *testing.T) {
 				Text: "should fail",
 			}},
 		})
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
 	})
 }
 
@@ -7042,7 +7043,8 @@ func TestPatchChatMessage(t *testing.T) {
 				Text: "should fail",
 			}},
 		})
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
 	})
 }
 
@@ -8160,6 +8162,10 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
 		require.Equal(t, http.StatusBadRequest, promoteRes.StatusCode)
+		promoteErr := codersdk.ReadBodyAsError(promoteRes)
+		var promoteSDKErr *codersdk.Error
+		require.ErrorAs(t, promoteErr, &promoteSDKErr)
+		require.Contains(t, promoteSDKErr.Message, "archived")
 	})
 }
 
@@ -11478,6 +11484,32 @@ func TestSubmitToolResults(t *testing.T) {
 			},
 		})
 		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("ArchivedChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const toolName = "my_dynamic_tool"
+		toolCallIDs := []string{"call_archived"}
+
+		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
+
+		// Archive the chat.
+		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{
+				{ToolCallID: "call_archived", Output: json.RawMessage(`"should fail"`)},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
 	})
 }
 

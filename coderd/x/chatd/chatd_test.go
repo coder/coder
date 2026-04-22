@@ -7295,7 +7295,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		"plan-file-path block should be part of the main system prompt, not a standalone message")
 }
 
-func TestSendMessageOnArchivedChat(t *testing.T) {
+func TestSendMessageRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -7324,7 +7324,7 @@ func TestSendMessageOnArchivedChat(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 }
 
-func TestEditMessageOnArchivedChat(t *testing.T) {
+func TestEditMessageRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -7360,7 +7360,7 @@ func TestEditMessageOnArchivedChat(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 }
 
-func TestPromoteQueuedOnArchivedChat(t *testing.T) {
+func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -7413,6 +7413,47 @@ func TestPromoteQueuedOnArchivedChat(t *testing.T) {
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
 		CreatedBy:       user.ID,
+	})
+	require.ErrorIs(t, err, chatd.ErrChatArchived)
+}
+
+func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "submit-tool-archived",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	err = replica.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	// Force the chat into requires_action so SubmitToolResults
+	// reaches the archived check rather than the status check.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusRequiresAction,
+	})
+	require.NoError(t, err)
+
+	err = replica.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		ChatID:        chat.ID,
+		UserID:        user.ID,
+		ModelConfigID: model.ID,
+		Results: []codersdk.ToolResult{{
+			ToolCallID: "fake-tool-call-id",
+			Output:     json.RawMessage(`{"result":"ignored"}`),
+		}},
 	})
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 }

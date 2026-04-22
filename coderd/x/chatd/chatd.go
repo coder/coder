@@ -1904,6 +1904,9 @@ func (p *Server) SubmitToolResults(
 		if lockErr != nil {
 			return xerrors.Errorf("lock chat for update: %w", lockErr)
 		}
+		if locked.Archived {
+			return ErrChatArchived
+		}
 		if locked.Status != database.ChatStatusRequiresAction {
 			statusConflict = &ToolResultStatusConflictError{
 				ActualStatus: locked.Status,
