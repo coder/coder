@@ -614,13 +614,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			return nil, err
 		}
 
-		// Status check on cache miss: the freshly fetched
-		// agent row may already show disconnected.
-		if isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
-			c.clearCachedWorkspaceState()
-			return nil, errChatAgentDisconnected
-		}
-
 		// Wrap the dial in a timeout to bound the time spent
 		// waiting for an unreachable agent. The timeout scopes
 		// only dialWithLazyValidation, not ensureWorkspaceAgent
