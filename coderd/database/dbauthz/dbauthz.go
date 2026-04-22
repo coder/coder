@@ -622,6 +622,7 @@ var (
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceSystem.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
