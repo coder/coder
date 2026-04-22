@@ -411,7 +411,8 @@ const RemoteImageBlock: FC<{
 	displayName: string;
 	onImageClick?: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
+	const { hasExpired, markExpired, markProbing, clearProbing } =
+		useExpiredFileIds();
 	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
@@ -462,13 +463,16 @@ const RemoteImageBlock: FC<{
 						return;
 					}
 
-					const controller = probeRequest.start();
 					// Optimistically swap to the generic failure tile. The
-					// probe will either upgrade it to "expired" or fill in
-					// a detail; showing a tile without a label flash is
-					// preferable to leaving the broken-image icon up.
+					// shared probe will either upgrade it to "expired" or
+					// fill in a detail; showing a tile without a label flash
+					// is preferable to leaving the broken-image icon up.
 					setFailureState({ kind: "failed" });
+					if (!markProbing(fileId)) {
+						return;
+					}
 
+					const controller = probeRequest.start();
 					void probeAttachmentFailure(href, controller.signal)
 						.then((reason) => {
 							if (!probeRequest.clear(controller)) {
@@ -487,6 +491,9 @@ const RemoteImageBlock: FC<{
 								return;
 							}
 							setFailureState(attachmentFailureFromError(error));
+						})
+						.finally(() => {
+							clearProbing(fileId);
 						});
 				}}
 			/>
