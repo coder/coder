@@ -24,8 +24,8 @@ This will:
 - Start an Ubuntu 22.04 VM
 - Install Docker and Terraform from the official repos
 - Install Coder using the [installation script](../../docs/install/install.sh.md)
-- Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
-- Initializes a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker) for creating workspaces
+- Generate an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
+- Initialize a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker) for creating workspaces
 
 Once this completes, you can visit `http://localhost:3000` and start creating workspaces!
 
@@ -35,7 +35,7 @@ Alternatively, enter the VM with `limactl shell coder` and run `coder templates 
 
 This configuration (`coder-incus.yaml`) creates a VM to run Coder workspaces in Incus.
 
-- Run `limactl start --name=coder https://raw.githubusercontent.com/coder/coder/main/examples/lima/coder-incus.yaml`
+- Run `limactl start --name=coder-incus https://raw.githubusercontent.com/coder/coder/main/examples/lima/coder-incus.yaml`
 - You can use the configuration as-is, or edit it to your liking.
 
 This will:
@@ -43,8 +43,8 @@ This will:
 - Start a Debian 13 VM
 - Install Incus and Terraform from the official repos
 - Install Coder using the [installation script](../../docs/install/install.sh.md)
-- Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
-- Initializes a [sample Incus template](https://github.com/coder/coder/tree/main/examples/templates/incus) for creating workspaces
+- Generate an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
+- Initialize a [sample Incus template](https://github.com/coder/coder/tree/main/examples/templates/incus) for creating workspaces
 
 ## Further Information
 

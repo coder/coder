@@ -2,7 +2,7 @@
 # See: https://coder.com/docs/install
 # $ limactl start ./coder-docker.yaml
 # $ limactl shell coder
-# The web UI is accessible on http://localhost:3000 -- ports are forwarded automatically by lima:
+# The web UI is accessible on http://localhost:3000. Ports are forwarded automatically by Lima.
 # $ coder login http://localhost:3000
 
 # This example requires Lima v0.8.3 or later.
