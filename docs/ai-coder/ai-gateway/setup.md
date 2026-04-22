@@ -86,6 +86,8 @@ This aligns with [AWS best practices](https://docs.aws.amazon.com/IAM/latest/Use
 
 ##### Static credentials
 
+(only do this if you dare)
+
 For deployments when explicit credentials are preferred, provide an access key and secret for an IAM User:
 
 1. **Choose a region** where you want to use Bedrock.
