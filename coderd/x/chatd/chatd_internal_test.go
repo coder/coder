@@ -3825,6 +3825,14 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.NoError(t, err, "getWorkspaceConn should recover stale agent binding")
 	require.Same(t, newConn, gotConn, "should return the connection to the new agent")
+
+	// Verify the cache was updated to the new agent so subsequent
+	// cache-hit calls use the correct agent ID.
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.Equal(t, newAgentID, workspaceCtx.agent.ID, "cached agent should be the new agent")
+	require.True(t, workspaceCtx.agentLoaded)
+	require.Same(t, newConn, workspaceCtx.conn, "connection should be cached for subsequent calls")
 }
 
 func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
