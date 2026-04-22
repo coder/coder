@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"reflect"
 	"testing"
 
 	"charm.land/fantasy"
@@ -32,47 +31,15 @@ func newComputerUseToolForTest(
 	geometry := workspacesdk.DefaultDesktopGeometry()
 	clock := quartz.NewReal()
 	logger := slogtest.Make(t, nil)
-	constructor := reflect.ValueOf(chattool.NewComputerUseTool)
-	typ := constructor.Type()
-
-	var args []reflect.Value
-	switch typ.NumIn() {
-	case 6:
-		if provider != "anthropic" {
-			t.Fatalf("NewComputerUseTool must accept a provider parameter to test %q", provider)
-		}
-		args = []reflect.Value{
-			reflect.ValueOf(geometry.DeclaredWidth),
-			reflect.ValueOf(geometry.DeclaredHeight),
-			reflect.ValueOf(getConn),
-			reflect.Zero(typ.In(3)),
-			reflect.ValueOf(clock),
-			reflect.ValueOf(logger),
-		}
-		if storeFile != nil {
-			args[3] = reflect.ValueOf(storeFile)
-		}
-	case 7:
-		args = []reflect.Value{
-			reflect.ValueOf(provider),
-			reflect.ValueOf(geometry.DeclaredWidth),
-			reflect.ValueOf(geometry.DeclaredHeight),
-			reflect.ValueOf(getConn),
-			reflect.Zero(typ.In(4)),
-			reflect.ValueOf(clock),
-			reflect.ValueOf(logger),
-		}
-		if storeFile != nil {
-			args[4] = reflect.ValueOf(storeFile)
-		}
-	default:
-		t.Fatalf("unexpected NewComputerUseTool signature with %d parameters", typ.NumIn())
-	}
-
-	results := constructor.Call(args)
-	tool, ok := results[0].Interface().(fantasy.AgentTool)
-	require.True(t, ok, "NewComputerUseTool should return a fantasy.AgentTool")
-	return tool
+	return chattool.NewComputerUseTool(
+		provider,
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		getConn,
+		storeFile,
+		clock,
+		logger,
+	)
 }
 
 func computerUseProviderToolForTest(
@@ -82,26 +49,7 @@ func computerUseProviderToolForTest(
 	declaredHeight int,
 ) fantasy.Tool {
 	t.Helper()
-	constructor := reflect.ValueOf(chattool.ComputerUseProviderTool)
-	typ := constructor.Type()
-
-	var args []reflect.Value
-	switch typ.NumIn() {
-	case 2:
-		if provider != "anthropic" {
-			t.Fatalf("ComputerUseProviderTool must accept a provider parameter to test %q", provider)
-		}
-		args = []reflect.Value{reflect.ValueOf(declaredWidth), reflect.ValueOf(declaredHeight)}
-	case 3:
-		args = []reflect.Value{reflect.ValueOf(provider), reflect.ValueOf(declaredWidth), reflect.ValueOf(declaredHeight)}
-	default:
-		t.Fatalf("unexpected ComputerUseProviderTool signature with %d parameters", typ.NumIn())
-	}
-
-	results := constructor.Call(args)
-	tool, ok := results[0].Interface().(fantasy.Tool)
-	require.True(t, ok, "ComputerUseProviderTool should return a fantasy.Tool")
-	return tool
+	return chattool.ComputerUseProviderTool(provider, declaredWidth, declaredHeight)
 }
 
 func requireDesktopActionEqual(
@@ -232,8 +180,6 @@ func TestComputerUseTool_Run_Screenshot_Anthropic(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	geometry := workspacesdk.DefaultDesktopGeometry()
-
 	expectDesktopActionSequence(t, mockConn, []workspacesdk.DesktopAction{{
 		Action: "screenshot",
 	}}, "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==")
@@ -252,7 +198,6 @@ func TestComputerUseTool_Run_Screenshot_Anthropic(t *testing.T) {
 	assert.Equal(t, "image/png", resp.MediaType)
 	assert.Equal(t, []byte("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg=="), resp.Data)
 	assert.False(t, resp.IsError)
-	require.Equal(t, geometry.DeclaredWidth, geometry.DeclaredWidth)
 }
 
 func TestComputerUseTool_Run_Screenshot_PersistsAttachment_OpenAI(t *testing.T) {
