@@ -946,13 +946,13 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		Return(database.TailnetCoordinator{}, nil)
 	// extra calls we don't particularly care about for this test
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetTailnetTunnelPeerIDsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
-	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
@@ -1012,8 +1012,8 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 		AnyTimes().
 		Return(database.TailnetCoordinator{}, nil)
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
 
