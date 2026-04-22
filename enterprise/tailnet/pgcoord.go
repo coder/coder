@@ -407,7 +407,6 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.Error(err),
 		)
 	case tun.active:
-		upsertStart := time.Now()
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
 			SrcID:         tun.src,
@@ -416,7 +415,6 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		t.logger.Debug(t.ctx, "upserted tunnel",
 			slog.F("src_id", tun.src),
 			slog.F("dst_id", tun.dst),
-			slog.F("upsert_ms", time.Since(upsertStart).Milliseconds()),
 			slog.Error(err),
 		)
 	case !tun.active:
@@ -697,9 +695,13 @@ func (m *mapper) run() {
 			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			// Check if a reset was requested. The resetSent channel is
-			// buffered so the signal arrives before or concurrently with
-			// the update signal.
+			// Check if a reset was requested. A separate resetSent
+			// channel is necessary because the update channel carries
+			// no payload (struct{}{}), so there is no way to
+			// distinguish a regular update from a "reset + update"
+			// using update alone. The resetSent channel is buffered(1)
+			// so the signal arrives before or concurrently with the
+			// update signal.
 			select {
 			case <-m.resetSent:
 				m.sent = make(map[uuid.UUID]mapping)
@@ -819,7 +821,13 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
 }
 
 // commitSent applies the deferred sent-cache mutations from a
-// successful Enqueue call.
+// successful Enqueue call. This two-phase approach is essential:
+// bestToUpdate computes which updates to send and records the
+// intended cache mutations in a sentUpdate struct, but does NOT
+// modify m.sent directly. Only after Enqueue succeeds do we call
+// commitSent. If Enqueue fails (e.g., the peer disconnected or
+// the send buffer is full), the sent cache remains unchanged so
+// the update is retried on the next mapper cycle.
 func (m *mapper) commitSent(su *sentUpdate) {
 	for k, mpng := range su.upserts {
 		m.sent[k] = mpng
@@ -1281,9 +1289,13 @@ func (q *querier) subscribe() {
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
-		// Schedule a full resync asynchronously so we don't block the
-		// pubsub drain goroutine. Singleflight coalesces concurrent
-		// resync requests.
+		// Both the goroutine and singleflight are needed here.
+		// The goroutine is required because this is a pubsub
+		// callback that must return quickly to avoid blocking the
+		// pubsub drain loop, and resyncPeerMappings performs a
+		// database query that could be slow. Singleflight
+		// coalesces concurrent resyncs so that if multiple pubsub
+		// drops arrive simultaneously, only one DB query runs.
 		go func() {
 			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
 				q.resyncPeerMappings()
@@ -1315,9 +1327,8 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
-		// Schedule a full resync asynchronously so we don't block the
-		// pubsub drain goroutine. Singleflight coalesces concurrent
-		// resync requests.
+		// Both the goroutine and singleflight are needed here.
+		// See listenPeer for the detailed rationale.
 		go func() {
 			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
 				q.resyncPeerMappings()
@@ -1347,9 +1358,6 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 			continue
 		}
 		q.mappingQ.enqueue(mk)
-		q.logger.Debug(q.ctx, "tunnel update received, enqueueing mapping",
-			slog.F("peer_id", peer),
-		)
 	}
 }
 
@@ -1445,6 +1453,10 @@ func (q *querier) resetAllSentAndUpdate() {
 	defer q.mu.Unlock()
 
 	for _, mpr := range q.mappers {
+		// Send in a goroutine because q.mu is held and both
+		// resetSent and update are buffered(1) channels. If a
+		// channel is already full, a blocking send would deadlock
+		// while holding the lock.
 		go func(m *mapper) {
 			// Signal reset first (buffered channel, non-blocking).
 			select {
@@ -1875,87 +1887,8 @@ func (h *heartbeats) checkExpiry() {
 			dbMap[c.ID] = c.HeartbeatAt
 		}
 
-		// Check candidates (known coordinators that appear expired) against
-		// the database to prevent false expiry.
-		for id := range candidates {
-			dbTime, inDB := dbMap[id]
-			if !inDB {
-				continue
-			}
-			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
-			// Record the DB heartbeat time for future comparisons.
-			h.lastDBHeartbeat[id] = dbTime
-			if !hasPrev {
-				// First DB check for this coordinator. Record the
-				// baseline but don't recover, since we have no previous
-				// value to compare against.
-				continue
-			}
-			if dbTime.After(prevDBTime) {
-				// The database shows a heartbeat newer than our
-				// last known DB value. The coordinator is still
-				// alive; pubsub delivery was delayed.
-				h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				h.coordinators[id] = now
-				delete(candidates, id)
-			}
-		}
-
-		// Update lastDBHeartbeat for non-candidate coordinators too,
-		// so we have a baseline for future comparisons.
-		for id := range h.coordinators {
-			if dbTime, ok := dbMap[id]; ok {
-				h.lastDBHeartbeat[id] = dbTime
-			}
-		}
-
-		// Discover coordinators from the database that were never seen
-		// via pubsub. This handles the case where pubsub notifications
-		// are permanently lost for a coordinator.
-		discovered := false
-		for id, dbTime := range dbMap {
-			if id == h.self {
-				continue
-			}
-			if _, known := h.coordinators[id]; known {
-				continue
-			}
-			if _, isCandidate := candidates[id]; isCandidate {
-				// Already being handled as an expiry candidate.
-				continue
-			}
-			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
-			h.lastDBHeartbeat[id] = dbTime
-			if !hasPrev {
-				// First sighting. Store baseline, don't add yet.
-				// We need a second observation to confirm liveness.
-				h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				continue
-			}
-			if dbTime.After(prevDBTime) {
-				// The coordinator's heartbeat_at has advanced since
-				// our last check, so it is alive. Add it to the map.
-				h.logger.Info(h.ctx, "discovered unknown coordinator from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				h.coordinators[id] = now
-				discovered = true
-			}
-		}
-		if discovered {
-			// Use filterUpdateReset so mappers clear their sent cache
-			// and re-evaluate peers that were previously marked LOST.
-			go func() {
-				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
-			}()
-		}
+		h.checkExpiringCoordinators(dbMap, candidates, now)
+		h.discoverNewCoordinators(dbMap, candidates, now)
 	}
 
 	expired := false
@@ -1972,6 +1905,106 @@ func (h *heartbeats) checkExpiry() {
 	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
 	h.resetExpiryTimerWithLock()
+}
+
+// checkExpiringCoordinators compares coordinators that appear expired
+// (based on pubsub heartbeats) against the database to prevent false
+// expiry. If the DB shows a newer heartbeat than our last recorded
+// value, the coordinator is recovered and removed from candidates.
+// Must be called with h.lock held.
+func (h *heartbeats) checkExpiringCoordinators(
+	dbMap map[uuid.UUID]time.Time,
+	candidates map[uuid.UUID]time.Duration,
+	now time.Time,
+) {
+	for id := range candidates {
+		dbTime, inDB := dbMap[id]
+		if !inDB {
+			continue
+		}
+		prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+		// Record the DB heartbeat time for future comparisons.
+		h.lastDBHeartbeat[id] = dbTime
+		if !hasPrev {
+			// First DB check for this coordinator. Record the
+			// baseline but don't recover, since we have no previous
+			// value to compare against.
+			continue
+		}
+		if dbTime.After(prevDBTime) {
+			// The database shows a heartbeat newer than our
+			// last known DB value. The coordinator is still
+			// alive; pubsub delivery was delayed.
+			h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			h.coordinators[id] = now
+			delete(candidates, id)
+		}
+	}
+
+	// Update lastDBHeartbeat for non-candidate coordinators too,
+	// so we have a baseline for future comparisons.
+	for id := range h.coordinators {
+		if dbTime, ok := dbMap[id]; ok {
+			h.lastDBHeartbeat[id] = dbTime
+		}
+	}
+}
+
+// discoverNewCoordinators finds coordinators in the database that were
+// never seen via pubsub. This handles the case where pubsub
+// notifications are permanently lost for a coordinator. A coordinator
+// is only added after two consecutive observations with an advancing
+// heartbeat_at, to confirm liveness.
+// Must be called with h.lock held.
+func (h *heartbeats) discoverNewCoordinators(
+	dbMap map[uuid.UUID]time.Time,
+	candidates map[uuid.UUID]time.Duration,
+	now time.Time,
+) {
+	discovered := false
+	for id, dbTime := range dbMap {
+		if id == h.self {
+			continue
+		}
+		if _, known := h.coordinators[id]; known {
+			continue
+		}
+		if _, isCandidate := candidates[id]; isCandidate {
+			// Already being handled as an expiry candidate.
+			continue
+		}
+		prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+		h.lastDBHeartbeat[id] = dbTime
+		if !hasPrev {
+			// First sighting. Store baseline, don't add yet.
+			// We need a second observation to confirm liveness.
+			h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			continue
+		}
+		if dbTime.After(prevDBTime) {
+			// The coordinator's heartbeat_at has advanced since
+			// our last check, so it is alive. Add it to the map.
+			h.logger.Info(h.ctx, "discovered unknown coordinator from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			h.coordinators[id] = now
+			discovered = true
+		}
+	}
+	if discovered {
+		// Use filterUpdateReset so mappers clear their sent cache
+		// and re-evaluate peers that were previously marked LOST.
+		go func() {
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
+		}()
+	}
 }
 
 func (h *heartbeats) sendBeats() {
