@@ -602,9 +602,9 @@ func (b *binder) writeOne(bnd binding) error {
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
 		})
-		// writeOne is idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
+			// No row deleted; peer was already gone. Skip publish.
+			return nil
 		}
 	} else {
 		var nodeRaw []byte
@@ -1822,6 +1822,9 @@ func (h *heartbeats) sendBeat() {
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
+	if h.ctx.Err() != nil {
+		return
+	}
 	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
