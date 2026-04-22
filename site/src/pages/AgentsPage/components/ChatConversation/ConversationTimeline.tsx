@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { ChevronDownIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -11,6 +11,7 @@ import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,7 +23,6 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
@@ -68,6 +68,7 @@ const ReasoningDisclosure = memo<{
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
 }>(({ id, text, isStreaming = false, urlTransform }) => {
+	const [expanded, setExpanded] = useState(false);
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -77,27 +78,39 @@ const ReasoningDisclosure = memo<{
 	const displayText = isStreaming ? visibleText : text;
 	const hasText = displayText.trim().length > 0;
 
-	if (hasText) {
-		return (
-			<div className="w-full">
-				<Response
-					className="text-[11px] text-content-secondary"
-					urlTransform={urlTransform}
-					streaming={isStreaming}
-				>
-					{displayText}
-				</Response>
-			</div>
-		);
-	}
-
 	return (
 		<div className="w-full">
-			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-				<span className="text-sm">
-					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
-				</span>
-			</div>
+			<button
+				type="button"
+				aria-expanded={expanded}
+				onClick={() => setExpanded(!expanded)}
+				className={cn(
+					"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
+					"flex w-full items-center gap-1.5 cursor-pointer",
+					"text-content-secondary transition-colors hover:text-content-primary",
+				)}
+			>
+				<Spinner size="sm" loading={isStreaming}>
+					<ChevronDownIcon
+						className={cn(
+							"size-icon-sm shrink-0 transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+				</Spinner>
+				<span className="text-xs">Thinking</span>
+			</button>
+			{expanded && hasText && (
+				<div className="mt-1 pl-5">
+					<Response
+						className="text-[11px] text-content-secondary"
+						urlTransform={urlTransform}
+						streaming={isStreaming}
+					>
+						{displayText}
+					</Response>
+				</div>
+			)}
 		</div>
 	);
 });
