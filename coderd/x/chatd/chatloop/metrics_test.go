@@ -28,6 +28,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.Chats.WithLabelValues(chatloop.StateStreaming)
 	m.CompactionTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chatloop.CompactionResultSuccess)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5", "test")
+	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "test")
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.PromptSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
@@ -50,6 +51,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 		"coderd_chatd_steps_total":                 dto.MetricType_COUNTER,
 		"coderd_chatd_stream_retries_total":        dto.MetricType_COUNTER,
 		"coderd_chatd_stream_buffer_dropped_total": dto.MetricType_COUNTER,
+		"coderd_chatd_tool_errors_total":           dto.MetricType_COUNTER,
 	}
 
 	found := make(map[string]dto.MetricType)
@@ -79,6 +81,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(10)
 	m.PromptSizeBytes.WithLabelValues("openai", "gpt-5").Observe(4096)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Observe(512)
+	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Inc()
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(0.5)
 	m.CompactionTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "success").Inc()
 	m.CompactionTotal.WithLabelValues("openai", "gpt-5", "error").Inc()
@@ -93,6 +96,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	var nilMetrics *chatloop.Metrics
 	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: chaterror.KindTimeout})
 	nilMetrics.RecordStreamBufferDropped()
+	nilMetrics.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
 }
 
 func TestEstimatePromptSize(t *testing.T) {
@@ -263,25 +267,11 @@ func TestRecordCompaction(t *testing.T) {
 				return
 			}
 
-			var found bool
-			for _, f := range families {
-				if f.GetName() != "coderd_chatd_compaction_total" {
-					continue
-				}
-				found = true
-				require.Len(t, f.GetMetric(), 1)
-				metric := f.GetMetric()[0]
-				assert.Equal(t, float64(tt.wantCount), metric.GetCounter().GetValue())
-				// Check labels: provider, model, result.
-				labels := map[string]string{}
-				for _, lp := range metric.GetLabel() {
-					labels[lp.GetName()] = lp.GetValue()
-				}
-				assert.Equal(t, "test-provider", labels["provider"])
-				assert.Equal(t, "test-model", labels["model"])
-				assert.Equal(t, tt.wantLabel, labels["result"])
-			}
-			assert.True(t, found, "compaction_total metric not found")
+			requireCounter(t, reg, "coderd_chatd_compaction_total", float64(tt.wantCount), map[string]string{
+				"provider": "test-provider",
+				"model":    "test-model",
+				"result":   tt.wantLabel,
+			})
 		})
 	}
 }
@@ -316,27 +306,11 @@ func TestRecordStreamRetry(t *testing.T) {
 				Kind: tt.kind,
 			})
 
-			families, err := reg.Gather()
-			require.NoError(t, err)
-
-			var found bool
-			for _, f := range families {
-				if f.GetName() != "coderd_chatd_stream_retries_total" {
-					continue
-				}
-				found = true
-				require.Len(t, f.GetMetric(), 1)
-				metric := f.GetMetric()[0]
-				assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-				labels := map[string]string{}
-				for _, lp := range metric.GetLabel() {
-					labels[lp.GetName()] = lp.GetValue()
-				}
-				assert.Equal(t, "test-provider", labels["provider"])
-				assert.Equal(t, "test-model", labels["model"])
-				assert.Equal(t, tt.kind, labels["kind"])
-			}
-			assert.True(t, found, "stream_retries_total metric not found")
+			requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+				"provider": "test-provider",
+				"model":    "test-model",
+				"kind":     tt.kind,
+			})
 		})
 	}
 }
@@ -375,6 +349,58 @@ func TestRecordStreamBufferDropped(t *testing.T) {
 				"stream_buffer_dropped_total must be an unlabeled counter")
 		}
 		assert.True(t, found, "stream_buffer_dropped_total metric not found")
+	})
+}
+
+// requireCounter gathers metrics from reg, finds the named counter
+// family, and asserts it has exactly one series with the given value
+// and labels.
+func requireCounter(t *testing.T, reg *prometheus.Registry, name string, wantValue float64, wantLabels map[string]string) {
+	t.Helper()
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		require.Len(t, f.GetMetric(), 1, "expected exactly one series for %s", name)
+		metric := f.GetMetric()[0]
+		assert.Equal(t, wantValue, metric.GetCounter().GetValue(), "counter value for %s", name)
+		labels := map[string]string{}
+		for _, lp := range metric.GetLabel() {
+			labels[lp.GetName()] = lp.GetValue()
+		}
+		for k, v := range wantLabels {
+			assert.Equal(t, v, labels[k], "label %s for %s", k, name)
+		}
+		return
+	}
+	t.Fatalf("metric %s not found in gathered families", name)
+}
+
+func TestRecordToolError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil metrics does not panic", func(t *testing.T) {
+		t.Parallel()
+		var m *chatloop.Metrics
+		m.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
+	})
+
+	t.Run("increments with correct labels", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		m := chatloop.NewMetrics(reg)
+		m.RecordToolError("test-provider", "test-model", "read_file")
+
+		requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+			"provider":  "test-provider",
+			"model":     "test-model",
+			"tool_name": "read_file",
+		})
 	})
 }
 
@@ -536,27 +562,11 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	assert.Equal(t, "test-provider", retries[0].classified.Provider)
 
 	// Metric assertion.
-	families, err := reg.Gather()
-	require.NoError(t, err)
-
-	var found bool
-	for _, f := range families {
-		if f.GetName() != "coderd_chatd_stream_retries_total" {
-			continue
-		}
-		found = true
-		require.Len(t, f.GetMetric(), 1)
-		metric := f.GetMetric()[0]
-		assert.Equal(t, float64(1), metric.GetCounter().GetValue())
-		labels := map[string]string{}
-		for _, lp := range metric.GetLabel() {
-			labels[lp.GetName()] = lp.GetValue()
-		}
-		assert.Equal(t, "test-provider", labels["provider"])
-		assert.Equal(t, "test-model", labels["model"])
-		assert.Equal(t, chaterror.KindRateLimit, labels["kind"])
-	}
-	assert.True(t, found, "stream_retries_total metric not found")
+	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+		"provider": "test-provider",
+		"model":    "test-model",
+		"kind":     chaterror.KindRateLimit,
+	})
 }
 
 // TestRun_StreamRetry_CanceledDoesNotIncrement pins the invariant
@@ -601,5 +611,107 @@ func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
 			assert.Empty(t, f.GetMetric(),
 				"stream_retries_total should have no samples after a canceled stream")
 		}
+	}
+}
+
+func TestRun_ToolError_RecordsMetric(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		toolFn           func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error)
+		builtinToolNames map[string]bool
+		wantLabel        string
+	}{
+		{
+			name: "builtin_tool_IsError",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "something went wrong",
+					IsError: true,
+				}, nil
+			},
+			builtinToolNames: map[string]bool{"failing_tool": true},
+			wantLabel:        "failing_tool",
+		},
+		{
+			name: "mcp_tool_IsError",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "something went wrong",
+					IsError: true,
+				}, nil
+			},
+			builtinToolNames: map[string]bool{},
+			wantLabel:        "failing_tool",
+		},
+		{
+			name: "tool_Run_returns_error",
+			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{}, xerrors.New("connection refused")
+			},
+			builtinToolNames: map[string]bool{"failing_tool": true},
+			wantLabel:        "failing_tool",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reg := prometheus.NewRegistry()
+			metrics := chatloop.NewMetrics(reg)
+
+			failingTool := fantasy.NewAgentTool(
+				"failing_tool",
+				"a tool that always fails",
+				tt.toolFn,
+			)
+
+			model := &chattest.FakeModel{
+				ProviderName: "test-provider",
+				ModelName:    "test-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return func(yield func(fantasy.StreamPart) bool) {
+						parts := []fantasy.StreamPart{
+							{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
+							{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
+							{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
+							{
+								Type:          fantasy.StreamPartTypeToolCall,
+								ID:            "tc1",
+								ToolCallName:  "failing_tool",
+								ToolCallInput: `{}`,
+							},
+							{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+						}
+						for _, p := range parts {
+							if !yield(p) {
+								return
+							}
+						}
+					}, nil
+				},
+			}
+
+			err := chatloop.Run(context.Background(), chatloop.RunOptions{
+				Model:            model,
+				MaxSteps:         1,
+				Tools:            []fantasy.AgentTool{failingTool},
+				ActiveTools:      []string{"failing_tool"},
+				BuiltinToolNames: tt.builtinToolNames,
+				PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
+					return nil
+				},
+				Metrics: metrics,
+			})
+			require.NoError(t, err)
+
+			requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
+				"provider":  "test-provider",
+				"model":     "test-model",
+				"tool_name": tt.wantLabel,
+			})
+		})
 	}
 }

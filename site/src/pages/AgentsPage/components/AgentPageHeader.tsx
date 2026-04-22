@@ -12,7 +12,7 @@ import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import type { AgentsOutletContext } from "../AgentsPageView";
-import { sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
+import { isSettingsView, sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
@@ -31,6 +31,8 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const logoUrl = appearance.logo_url;
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+
+	const isSettingsPanel = isSettingsView(sidebarView);
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-0.5 md:py-0.5">
@@ -74,7 +76,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						aria-label="Settings"
 						className={cn(
 							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							sidebarView.panel === "settings" && "text-content-primary",
+							isSettingsPanel && "text-content-primary",
 						)}
 					>
 						<Link to="/agents/settings" state={{ from: location.pathname }}>

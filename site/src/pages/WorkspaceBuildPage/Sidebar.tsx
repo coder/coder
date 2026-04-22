@@ -29,25 +29,13 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 }) => {
 	return (
 		<button
-			css={(theme) => ({
-				background: active ? theme.experimental.l2.background : "none",
-				border: "none",
-				fontSize: 14,
-				width: "100%",
-				textAlign: "left",
-				padding: "0 24px",
-				cursor: "pointer",
-				pointerEvents: active ? "none" : "auto",
-				color: active
-					? theme.palette.text.primary
-					: theme.palette.text.secondary,
-				"&:hover": {
-					background: theme.palette.action.hover,
-					color: theme.palette.text.primary,
-				},
-				paddingTop: 10,
-				paddingBottom: 10,
-			})}
+			className={cn(
+				"py-2.5 px-6 border-0 text-sm w-full text-left cursor-pointer",
+				"hover:bg-surface-tertiary hover:text-content-primary",
+				active
+					? "text-content-primary pointer-events-none bg-surface-secondary"
+					: "text-content-secondary pointer-events-auto bg-transparent",
+			)}
 			{...attrs}
 		>
 			{children}
@@ -57,18 +45,15 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 
 export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
 		<div
-			css={(theme) => ({
-				fontSize: 10,
-				textTransform: "uppercase",
-				fontWeight: 500,
-				color: theme.palette.text.secondary,
-				padding: "12px 24px",
-				letterSpacing: "0.5px",
-			})}
+			className={cn(
+				"text-[10px] uppercase font-medium text-content-secondary",
+				"px-6 py-3 tracking-[0.5px]",
+			)}
 			{...attrs}
 		>
 			{children}

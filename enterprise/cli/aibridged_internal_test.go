@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"

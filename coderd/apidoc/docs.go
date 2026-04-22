@@ -5468,6 +5468,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    },
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -13375,6 +13378,10 @@ const docTemplate = `{
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
                 },
+                "last_active_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "last_prompt": {
                     "type": "string"
                 },
@@ -19757,7 +19764,8 @@ const docTemplate = `{
                 "workspace_agent",
                 "workspace_app",
                 "task",
-                "ai_seat"
+                "ai_seat",
+                "chat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19786,7 +19794,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeAISeat",
+                "ResourceTypeChat"
             ]
         },
         "codersdk.Response": {

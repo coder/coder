@@ -36,6 +36,7 @@ export type LiveStatusModel =
 			title: string;
 			kind: string;
 			message: string;
+			detail?: string;
 			provider?: string;
 			statusCode?: number;
 	  } & LiveStatusBase);
@@ -87,6 +88,7 @@ const toFailedLiveStatus = (
 	title: getErrorTitle(error.kind, "error"),
 	kind: error.kind,
 	message: error.message,
+	...(error.detail ? { detail: error.detail } : {}),
 	provider: error.provider,
 	statusCode: error.statusCode,
 });

@@ -6,6 +6,8 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // toolResponse builds a fantasy.ToolResponse from a JSON-serializable
@@ -28,6 +30,28 @@ func buildToolResponse(r buildErrorResult) fantasy.ToolResponse {
 		return fantasy.NewTextResponse("{}")
 	}
 	return fantasy.NewTextResponse(string(data))
+}
+
+// responseErrorResult converts a codersdk.Response into a structured
+// tool result. We return these via toolResponse rather than
+// NewTextErrorResponse because the fantasy/chatprompt pipeline flattens
+// IsError content into a single string and drops validation details.
+func responseErrorResult(resp codersdk.Response) map[string]any {
+	message := resp.Message
+	if message == "" {
+		message = "request failed"
+	}
+
+	result := map[string]any{
+		"error": message,
+	}
+	if resp.Detail != "" {
+		result["detail"] = resp.Detail
+	}
+	if len(resp.Validations) > 0 {
+		result["validations"] = resp.Validations
+	}
+	return result
 }
 
 func truncateRunes(value string, maxLen int) string {

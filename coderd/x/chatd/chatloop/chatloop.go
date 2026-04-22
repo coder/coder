@@ -19,11 +19,13 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -146,6 +148,9 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
+	// Callers should attach correlation fields (chat_id, owner_id, etc.)
+	// using Logger.With before passing the logger in.
+	Logger           slog.Logger
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
@@ -172,8 +177,6 @@ type RunOptions struct {
 	Metrics *Metrics
 
 	// BuiltinToolNames lists tool names that are built into chatd.
-	// Tool results from tools not in this set are recorded under
-	// the "mcp" label to bound cardinality.
 	BuiltinToolNames map[string]bool
 }
 
@@ -490,9 +493,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-					ssePart := chatprompt.PartFromContent(tr)
+					publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+					ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 					ssePart.CreatedAt = &completedAt
 					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 				})
@@ -1050,6 +1054,7 @@ func executeTools(
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
+	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
@@ -1109,7 +1114,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, model, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1131,6 +1136,7 @@ func executeSingleTool(
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
+	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
@@ -1142,16 +1148,20 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		toolLabel := tc.ToolName
-		if !builtinToolNames[tc.ToolName] {
-			toolLabel = "mcp"
+		metricLabel := tc.ToolName
+		if metricLabel == "" {
+			metricLabel = "unknown"
 		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, toolLabel).Observe(
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
+		if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
+			metrics.RecordToolError(provider, model, metricLabel)
+		}
 	}()
 
-	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+	_, isProviderRunner := providerRunnerNames[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
@@ -1166,6 +1176,12 @@ func executeSingleTool(
 		return result
 	}
 
+	logger.Debug(ctx, "tool execution",
+		slog.F("tool_name", tc.ToolName),
+		slog.F("tool_call_id", tc.ToolCallID),
+		slog.F("builtin", builtinToolNames[tc.ToolName]),
+		slog.F("is_provider_runner", isProviderRunner),
+	)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  tc.ToolName,
@@ -1176,6 +1192,11 @@ func executeSingleTool(
 			Error: err,
 		}
 		result.ClientMetadata = resp.Metadata
+		logger.Error(ctx, "tool execution failed",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.Error(err),
+		)
 		return result
 	}
 
@@ -1185,6 +1206,11 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New(resp.Content),
 		}
+		logger.Info(ctx, "tool returned error result",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.F("tool_error", resp.Content),
+		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      string(resp.Data),
@@ -1543,6 +1569,33 @@ func recordToolResultTimestamp(result *stepResult, toolCallID string, ts time.Ti
 		result.toolResultCreatedAt = make(map[string]time.Time)
 	}
 	result.toolResultCreatedAt[toolCallID] = ts
+}
+
+func publishToolAttachments(
+	ctx context.Context,
+	logger slog.Logger,
+	tr fantasy.ToolResultContent,
+	createdAt time.Time,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	attachments, err := chattool.AttachmentsFromMetadata(tr.ClientMetadata)
+	if err != nil {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", tr.ToolName),
+			slog.F("tool_call_id", tr.ToolCallID),
+			slog.Error(err),
+		)
+		return
+	}
+	for _, attachment := range attachments {
+		filePart := codersdk.ChatMessageFile(
+			attachment.FileID,
+			attachment.MediaType,
+			attachment.Name,
+		)
+		filePart.CreatedAt = &createdAt
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, filePart)
+	}
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

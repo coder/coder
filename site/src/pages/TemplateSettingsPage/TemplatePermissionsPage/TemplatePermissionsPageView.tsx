@@ -1,4 +1,4 @@
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type {
 	Group,
@@ -315,7 +315,7 @@ export const TemplatePermissionsPageView: FC<
 															variant="subtle"
 															aria-label="Open menu"
 														>
-															<EllipsisVertical aria-hidden="true" />
+															<EllipsisVerticalIcon aria-hidden="true" />
 															<span className="sr-only">Open menu</span>
 														</Button>
 													</DropdownMenuTrigger>
@@ -368,7 +368,7 @@ export const TemplatePermissionsPageView: FC<
 															variant="subtle"
 															aria-label="Open menu"
 														>
-															<EllipsisVertical aria-hidden="true" />
+															<EllipsisVerticalIcon aria-hidden="true" />
 															<span className="sr-only">Open menu</span>
 														</Button>
 													</DropdownMenuTrigger>

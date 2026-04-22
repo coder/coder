@@ -40,9 +40,7 @@ interface ListSessionsPageViewProps {
 const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
 		<Tooltip>
-			<TooltipTrigger asChild>
-				<div className="flex-shrink-0 flex items-center">{children}</div>
-			</TooltipTrigger>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
 			<TooltipContent
 				side="top"
 				align="end"
@@ -83,18 +81,20 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 				<Table className="text-sm font-normal">
 					<TableHeader>
 						<TableRow>
-							<TableHead>Last Prompt</TableHead>
-							<TableHead>User</TableHead>
-							<TableHead>Provider</TableHead>
-							<TableHead>Client</TableHead>
-							<TableHead>In/Out Tokens</TableHead>
-							<TableHead className="flex items-center gap-1">
+							<TableHead className="text-nowrap">Last Prompt</TableHead>
+							<TableHead className="text-nowrap">User</TableHead>
+							<TableHead className="text-nowrap">Provider</TableHead>
+							<TableHead className="text-nowrap">Client</TableHead>
+							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+							<TableHead className="flex items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>
 									<InfoIcon className="size-icon-xs" />
 								</ThreadTooltip>
 							</TableHead>
-							<TableHead>Timestamp [UTC{utcOffset}]</TableHead>
+							<TableHead className="text-nowrap">
+								Last Prompt At [UTC{utcOffset}]
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>

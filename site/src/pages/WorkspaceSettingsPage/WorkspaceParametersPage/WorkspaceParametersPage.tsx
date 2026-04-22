@@ -185,10 +185,7 @@ export const WorkspaceParametersPageView: FC<
 								</a>
 							</Button>
 						}
-						css={(theme) => ({
-							border: `1px solid ${theme.palette.divider}`,
-							borderRadius: 8,
-						})}
+						className="border border-solid rounded-lg"
 					/>
 				)
 			) : (

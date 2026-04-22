@@ -9,7 +9,6 @@ import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	Organization,
-	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
@@ -28,6 +27,7 @@ import {
 	type WorkspacePermissions,
 	workspacePermissionChecks,
 } from "#/modules/permissions/workspaces";
+import { prepareQuery } from "#/utils/filters";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 
@@ -96,16 +96,14 @@ export const organizationMembers = (id: string, req: UsersRequest) => {
 export const paginatedOrganizationMembers = (
 	id: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	PaginatedMembersResponse,
-	PaginatedMembersRequest
-> => {
+): UsePaginatedQueryOptions<PaginatedMembersResponse, UsersRequest> => {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
 			return {
-				limit: limit,
-				offset: offset,
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
 			};
 		},
 		queryKey: ({ payload }) => organizationMembersKey(id, payload),

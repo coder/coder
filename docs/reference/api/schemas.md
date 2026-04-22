@@ -690,6 +690,7 @@
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
       "last_prompt": "string",
       "metadata": {
         "property1": null,
@@ -824,6 +825,7 @@
     "name": "string",
     "username": "string"
   },
+  "last_active_at": "2019-08-24T14:15:22Z",
   "last_prompt": "string",
   "metadata": {
     "property1": null,
@@ -854,6 +856,7 @@
 | `ended_at`            | string                                                                                 | false    |              |             |
 | `id`                  | string                                                                                 | false    |              |             |
 | `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_active_at`      | string                                                                                 | false    |              |             |
 | `last_prompt`         | string                                                                                 | false    |              |             |
 | `metadata`            | object                                                                                 | false    |              |             |
 | » `[any property]`    | any                                                                                    | false    |              |             |
@@ -8487,9 +8490,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat`, `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 

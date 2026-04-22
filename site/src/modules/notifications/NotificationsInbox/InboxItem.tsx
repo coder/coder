@@ -1,4 +1,4 @@
-import { SquareCheckBig } from "lucide-react";
+import { SquareCheckBigIcon } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
@@ -69,7 +69,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 							variant="outline"
 							size="sm"
 						>
-							<SquareCheckBig />
+							<SquareCheckBigIcon />
 							mark as read
 						</Button>
 					</>

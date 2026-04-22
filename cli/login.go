@@ -599,10 +599,22 @@ func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) 
 	return value, nil
 }
 
+// developerBuckets are the options offered for the "Number of developers"
+// prompt during first-user setup. Keep in sync with
+// site/src/pages/SetupPage/SetupPageView.tsx (numberOfDevelopersOptions).
+var developerBuckets = []string{
+	"1 - 50",
+	"51 - 100",
+	"101 - 200",
+	"201 - 500",
+	"501 - 1000",
+	"1001 - 2500",
+	"2500+",
+}
+
 func promptDevelopers(inv *serpent.Invocation) (string, error) {
-	options := []string{"1-100", "101-500", "501-1000", "1001-2500", "2500+"}
 	selection, err := cliui.Select(inv, cliui.SelectOptions{
-		Options:    options,
+		Options:    developerBuckets,
 		HideSearch: false,
 		Message:    "Select the number of developers:",
 	})

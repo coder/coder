@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import {
@@ -87,7 +87,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
 						<Stack direction="row" alignItems="center" spacing={0.5}>
-							Groups {showOrganizations && <ArrowUpRight size={16} />}
+							Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
 						</Stack>
 					</SidebarNavItem>
 				)}
@@ -105,6 +105,13 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/agents/settings/agents">
+						<Stack direction="row" alignItems="center" spacing={0.5}>
+							Manage Coder Agents <ArrowUpRightIcon size={16} />
+						</Stack>
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

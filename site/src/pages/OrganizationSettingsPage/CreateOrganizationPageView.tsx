@@ -1,6 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
 import * as Yup from "yup";
@@ -68,7 +68,7 @@ export const CreateOrganizationPageView: FC<
 					to="/organizations"
 					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
 				>
-					<ArrowLeft size={20} />
+					<ArrowLeftIcon size={20} />
 					Go Back
 				</Link>
 			</div>
