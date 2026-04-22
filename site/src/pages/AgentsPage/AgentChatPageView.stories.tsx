@@ -16,6 +16,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -1009,5 +1010,89 @@ export const TerminalFocusOnTabSwitch: Story = {
 			},
 			{ timeout: 3000 },
 		);
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Per-session sidebar tab persistence stories
+// ---------------------------------------------------------------------------
+
+const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * When localStorage contains a persisted tab ID for this chat, the sidebar
+ * should restore it on mount. Seed localStorage with "terminal" and verify
+ * that the Terminal tab is selected instead of the default Git tab.
+ */
+export const RestoresPersistedSidebarTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The Terminal tab should be selected because of the
+		// persisted localStorage value.
+		await waitFor(() => {
+			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// The Git tab should not be selected.
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		expect(gitTab).toHaveAttribute("aria-selected", "false");
+	},
+};
+
+/**
+ * Clicking a sidebar tab persists the selection to localStorage so that
+ * it is restored across session switches.
+ */
+export const PersistsSidebarTabClick: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(sidebarTabStorageKey);
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the sidebar to render with the default Git tab selected.
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// Click the Terminal tab.
+		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+		await userEvent.click(terminalTab);
+
+		// The Terminal tab should now be selected.
+		await waitFor(() => {
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// localStorage should now contain the persisted tab ID.
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
 	},
 };
