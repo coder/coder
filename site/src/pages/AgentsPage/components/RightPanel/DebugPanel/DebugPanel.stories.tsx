@@ -579,6 +579,120 @@ export const Loading: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Run-detail branch stories.
+//
+// After a run card expands, `DebugRunCard` renders one of three branches
+// based on its detail query: a loading spinner, an error Alert, or the
+// empty-steps fallback. Each story below pins the detail query into one
+// of those states to lock in coverage of the branching logic.
+// ---------------------------------------------------------------------------
+
+const detailProbeRunId = "run-detail-probe";
+const detailProbeSummary = makeRunSummary({
+	id: detailProbeRunId,
+	summary: { first_message: "Detail state probe" },
+});
+
+export const RunDetailLoading: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [detailProbeSummary],
+			},
+		],
+	},
+	beforeEach: () => {
+		const pendingRequest = () => new Promise<never>(() => {});
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockImplementation(pendingRequest);
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /Detail state probe/i,
+		});
+		await user.click(runTrigger);
+
+		await waitFor(() => {
+			expect(canvas.getByText(/Loading run details/i)).toBeVisible();
+		});
+	},
+};
+
+export const RunDetailError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [detailProbeSummary],
+			},
+		],
+	},
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockRejectedValue(new Error("Unable to fetch run detail"));
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /Detail state probe/i,
+		});
+		await user.click(runTrigger);
+
+		await waitFor(() => {
+			expect(canvas.getByText(/Unable to fetch run detail/i)).toBeVisible();
+		});
+	},
+};
+
+export const RunWithNoSteps: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [detailProbeSummary],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", detailProbeRunId],
+				data: makeRun({
+					id: detailProbeRunId,
+					summary: { first_message: "Detail state probe" },
+					steps: [],
+				}),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /Detail state probe/i,
+		});
+		await user.click(runTrigger);
+
+		await waitFor(() => {
+			expect(canvas.getByText(/No steps recorded/i)).toBeVisible();
+		});
+	},
+};
+
+// ---------------------------------------------------------------------------
 // Core state stories.
 // ---------------------------------------------------------------------------
 
@@ -705,8 +819,12 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		await expandStep(canvas, user);
 
 		// Open the step before checking the error section and redaction markers.
+		// `DebugStepCard` renders `step.error` through `getErrorMessage`, which
+		// surfaces `error.message` when present. The fixture's `code`
+		// ("upstream_unauthorized") only appears if the message is missing, so
+		// assert on the message that the user actually sees.
 		await waitFor(() => {
-			expect(canvas.getByText(/upstream_unauthorized/i)).toBeVisible();
+			expect(canvas.getByText(/Provider request failed/i)).toBeVisible();
 		});
 
 		// Expand request body to reveal the redacted headers.
