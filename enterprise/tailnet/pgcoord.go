@@ -1869,14 +1869,17 @@ func (h *heartbeats) checkExpiry() {
 				continue
 			}
 			if dbTime.After(prevDBTime) {
-				// The database shows a heartbeat newer than our
-				// last known DB value. The coordinator is still
-				// alive; pubsub delivery was delayed.
+				// The DB heartbeat_at advanced since our last
+				// check, proving the coordinator wrote a fresh
+				// heartbeat. Rescue it from expiry.
 				h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
 					slog.F("other_coordinator_id", id),
 					slog.F("db_heartbeat_at", dbTime),
 				)
 				h.coordinators[id] = now
+				// dbTime.After(prevDBTime) proves a new heartbeat
+				// was written (not just a stale read), so it is
+				// safe to rescue from expiry.
 				delete(candidates, id)
 			}
 		}
@@ -1905,6 +1908,8 @@ func (h *heartbeats) checkExpiry() {
 				continue
 			}
 			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+			// Record DB baseline. This is compared only against
+			// future DB values, not pubsub timestamps.
 			h.lastDBHeartbeat[id] = dbTime
 			if !hasPrev {
 				// First sighting — store baseline, don't add yet.
