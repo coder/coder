@@ -5316,4 +5316,5 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_write_input_tokens: 120,
 	},
 	last_prompt: "But *can* I really fix it?",
+	last_active_at: "2026-03-09T10:28:15.03152Z",
 };

@@ -1,0 +1,21 @@
+-- request --
+{
+  "input": "tell me a joke",
+  "model": "gpt-4o-mini",
+  "stream": false
+}
+
+-- non-streaming --
+HTTP/2.0 401 Unauthorized
+Content-Length: 234
+Content-Type: application/json
+
+{
+  "error": {
+    "message": "Incorrect API key provided: sk-***. You can find your API key at https://platform.openai.com/account/api-keys.",
+    "type": "authentication_error",
+    "param": null,
+    "code": "invalid_api_key"
+  }
+}
+

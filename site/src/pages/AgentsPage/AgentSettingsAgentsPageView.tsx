@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { AdminBadge } from "./components/AdminBadge";
 import { ExploreModelOverrideSettings } from "./components/ExploreModelOverrideSettings";
 import { SectionHeader } from "./components/SectionHeader";
 
@@ -40,7 +39,6 @@ export const AgentSettingsAgentsPageView: FC<
 			<SectionHeader
 				label="Agents"
 				description="Configure defaults for delegated agents and other agent-specific capabilities."
-				badge={<AdminBadge />}
 			/>
 			<div className="flex flex-col gap-3">
 				<SectionHeader

@@ -71,9 +71,9 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var templateName string
 	var pprof bool
 	cmd := &serpent.Command{
-		Use:   "bundle <workspace> [<agent>]",
+		Use:   "bundle [<workspace>] [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
-		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
+		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You may specify a single workspace (and optionally an agent name). When run inside a workspace, the workspace and agent are inferred from the environment if not provided.`,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 2),
 		),
@@ -148,6 +148,38 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				agtID      uuid.UUID
 				templateID uuid.UUID
 			)
+
+			if len(inv.Args) == 0 {
+				// When running inside a workspace, infer the workspace
+				// and agent from environment variables set by the agent.
+				// Prefer CODER_WORKSPACE_ID for a direct UUID lookup;
+				// fall back to owner/name for older agents that do not
+				// set the ID variable.
+				if inv.Environ.Get("CODER") == "true" {
+					var wsArg string
+					if v := inv.Environ.Get("CODER_WORKSPACE_ID"); v != "" {
+						wsArg = v
+					} else {
+						wsOwner := inv.Environ.Get("CODER_WORKSPACE_OWNER_NAME")
+						wsName := inv.Environ.Get("CODER_WORKSPACE_NAME")
+						if wsOwner != "" && wsName != "" {
+							wsArg = wsOwner + "/" + wsName
+						}
+					}
+					agtName := inv.Environ.Get("CODER_WORKSPACE_AGENT_NAME")
+					if wsArg != "" {
+						cliLog.Info(inv.Context(), "detected workspace from environment",
+							slog.F("workspace_arg", wsArg),
+							slog.F("agent_name", agtName),
+						)
+						cliui.Info(inv.Stderr, "Detected workspace from environment: "+wsArg)
+						inv.Args = append(inv.Args, wsArg)
+						if agtName != "" {
+							inv.Args = append(inv.Args, agtName)
+						}
+					}
+				}
+			}
 
 			if len(inv.Args) == 0 {
 				cliLog.Warn(inv.Context(), "no workspace specified")

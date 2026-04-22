@@ -614,13 +614,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			return nil, err
 		}
 
-		// Status check on cache miss: the freshly fetched
-		// agent row may already show disconnected.
-		if isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
-			c.clearCachedWorkspaceState()
-			return nil, errChatAgentDisconnected
-		}
-
 		// Wrap the dial in a timeout to bound the time spent
 		// waiting for an unreachable agent. The timeout scopes
 		// only dialWithLazyValidation, not ensureWorkspaceAgent
@@ -6384,7 +6377,7 @@ func (p *Server) runChat(
 	}
 
 	// Record builtin tool names before appending MCP tools
-	// so the metrics layer can bound label cardinality.
+	// so the metrics layer can differentiate between built-in and MCP tools.
 	builtinToolNames := make(map[string]bool, len(tools))
 	for _, t := range tools {
 		builtinToolNames[t.Info().Name] = true
@@ -6483,6 +6476,23 @@ func (p *Server) runChat(
 
 	var loopErr error
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(messages)
+
+	// Enrich the logger with correlation fields useful for
+	// diagnosing tool-call errors inside the chatloop.
+	loopLogger := logger.With(
+		slog.F("owner_id", chat.OwnerID),
+		slog.F("organization_id", chat.OrganizationID),
+		slog.F("trigger_message_id", triggerMessageID),
+	)
+	if chat.WorkspaceID.Valid {
+		loopLogger = loopLogger.With(slog.F("workspace_id", chat.WorkspaceID.UUID))
+	}
+	if chat.AgentID.Valid {
+		loopLogger = loopLogger.With(slog.F("agent_id", chat.AgentID.UUID))
+	}
+	if chat.ParentChatID.Valid {
+		loopLogger = loopLogger.With(slog.F("parent_chat_id", chat.ParentChatID.UUID))
+	}
 	result.TriggerMessageID = triggerMessageID
 	result.HistoryTipMessageID = historyTipMessageID
 	finishDebugRun := func(error, any) {}
@@ -6516,6 +6526,7 @@ func (p *Server) runChat(
 		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
+		Logger:           loopLogger,
 		BuiltinToolNames: builtinToolNames,
 
 		ModelConfig:     callConfig,
@@ -6539,7 +6550,6 @@ func (p *Server) runChat(
 			}
 			p.publishMessagePart(chat.ID, role, part)
 		},
-		Logger:     logger,
 		Compaction: compactionOptions,
 		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
 			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)

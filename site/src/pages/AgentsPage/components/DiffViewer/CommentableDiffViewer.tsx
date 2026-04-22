@@ -211,6 +211,13 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	const [activeCommentBox, setActiveCommentBox] =
 		useState<CommentBoxState | null>(null);
 
+	const activeCommentBoxRef = useRef<CommentBoxState | null>(null);
+
+	const updateCommentBox = (box: CommentBoxState | null) => {
+		activeCommentBoxRef.current = box;
+		setActiveCommentBox(box);
+	};
+
 	// ---------------------------------------------------------------
 	// Line interaction callbacks
 	// ---------------------------------------------------------------
@@ -221,7 +228,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 			annotationSide: "additions" | "deletions";
 		},
 	) => {
-		setActiveCommentBox({
+		updateCommentBox({
 			fileName,
 			start: props.lineNumber,
 			startSide: props.annotationSide,
@@ -241,7 +248,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	) => {
 		const result = commentBoxFromRange(fileName, range);
 		if (result === "ignore") return;
-		setActiveCommentBox(result);
+		updateCommentBox(result);
 	};
 
 	// ---------------------------------------------------------------
@@ -270,23 +277,24 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	};
 
 	const handleCancelComment = () => {
-		setActiveCommentBox(null);
+		updateCommentBox(null);
 	};
 
 	const handleSubmitComment = (text: string) => {
-		if (!activeCommentBox) return;
-		const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
+		const box = activeCommentBoxRef.current;
+		if (!box) return;
+		const { startLine, endLine, side } = contentRangeForBox(box);
 		const content = extractDiffContent(
 			parsedFiles,
-			activeCommentBox.fileName,
+			box.fileName,
 			startLine,
 			endLine,
 			side,
 		);
-		// Single imperative call -- chip inserted atomically
+		// Single imperative call: chip inserted atomically
 		// in one Lexical update. No rAF hack needed.
 		chatInputRef?.current?.addFileReference({
-			fileName: activeCommentBox.fileName,
+			fileName: box.fileName,
 			startLine,
 			endLine,
 			content,
@@ -295,12 +303,11 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 			chatInputRef?.current?.insertText(text);
 		}
 		chatInputRef?.current?.focus();
-		setActiveCommentBox(null);
+		updateCommentBox(null);
 	};
 
 	const renderAnnotation = (annotation: DiffLineAnnotation<string>) => {
 		if (annotation.metadata === "active-input") {
-			if (!activeCommentBox) return null;
 			return (
 				<InlinePromptInput
 					onSubmit={handleSubmitComment}

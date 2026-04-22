@@ -1134,63 +1134,43 @@ func TestListChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
-		// Create the chat that will later be pinned. It gets the
-		// earliest updated_at because it is inserted first.
-		pinnedChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "pinned-chat",
-			}},
+		// Insert the chat that will later be pinned directly
+		// into the database with a completed status so we
+		// avoid the background chatd processor entirely.
+		pinnedDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "pinned-chat",
+			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
 		})
 		require.NoError(t, err)
 
-		// Fill page 1 with newer chats so the pinned chat would
-		// normally be pushed off the first page (default limit 50).
+		// Fill page 1 with newer chats so the pinned chat
+		// would normally be pushed off the first page
+		// (default limit 50). Insert directly into the
+		// database to avoid spawning 51 background chat
+		// processors, which causes timeouts under -race.
 		const fillerCount = 51
-		fillerChats := make([]codersdk.Chat, 0, fillerCount)
 		for i := range fillerCount {
-			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: firstUser.OrganizationID,
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: fmt.Sprintf("filler-%d", i),
-				}},
+			_, insertErr := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("filler-%d", i),
+				Status:            database.ChatStatusCompleted,
+				ClientType:        database.ChatClientTypeUi,
 			})
-			require.NoError(t, createErr)
-			fillerChats = append(fillerChats, c)
+			require.NoError(t, insertErr)
 		}
-
-		// Wait for all chats to reach a terminal status so
-		// updated_at is stable before paginating. A single
-		// polling loop checks every chat per tick to avoid
-		// O(N) separate Eventually loops.
-		allCreated := append([]codersdk.Chat{pinnedChat}, fillerChats...)
-		pending := make(map[uuid.UUID]struct{}, len(allCreated))
-		for _, c := range allCreated {
-			pending[c.ID] = struct{}{}
-		}
-		testutil.Eventually(ctx, t, func(_ context.Context) bool {
-			all, listErr := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Pagination: codersdk.Pagination{Limit: fillerCount + 10},
-			})
-			if listErr != nil {
-				return false
-			}
-			for _, ch := range all {
-				if _, ok := pending[ch.ID]; ok && ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning {
-					delete(pending, ch.ID)
-				}
-			}
-			return len(pending) == 0
-		}, testutil.IntervalFast)
 
 		// Pin the earliest chat.
-		err = client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{
+		err = client.UpdateChat(ctx, pinnedDBChat.ID, codersdk.UpdateChatRequest{
 			PinOrder: ptr.Ref(int32(1)),
 		})
 		require.NoError(t, err)
@@ -1206,11 +1186,11 @@ func TestListChats(t *testing.T) {
 		for _, c := range page1 {
 			page1IDs[c.ID] = struct{}{}
 		}
-		_, found := page1IDs[pinnedChat.ID]
+		_, found := page1IDs[pinnedDBChat.ID]
 		require.True(t, found, "pinned chat should appear on page 1")
 
 		// The pinned chat should be the first item in the list.
-		require.Equal(t, pinnedChat.ID, page1[0].ID, "pinned chat should be first")
+		require.Equal(t, pinnedDBChat.ID, page1[0].ID, "pinned chat should be first")
 	})
 
 	// Test cursor pagination with a mix of pinned and unpinned chats.

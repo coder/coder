@@ -304,9 +304,20 @@ type chatViewModel struct {
 	interrupting    bool
 
 	diffStatus   *codersdk.ChatDiffStatus
-	gitChanges   []codersdk.ChatGitChange
 	diffContents *codersdk.ChatDiffContents
-	diffErr      error
+	// diffSummary caches the rendered "N files changed" summary
+	// for diffContents so renderDiffDrawer can reuse it across
+	// View() redraws. parseChatGitChangesFromUnifiedDiff walks the
+	// full (potentially 4 MiB) diff text, so recomputing it on every
+	// keypress or resize stalls the TUI for large diffs.
+	diffSummary string
+	// diffStyledBody caches the lipgloss-styled unified-diff body for
+	// diffContents. renderStyledDiffBody sanitizes, splits, and styles
+	// every line of the (potentially 4 MiB) diff, and styles are stable
+	// across redraws (setRenderer runs once at startup), so we
+	// invalidate on the same trigger as diffSummary.
+	diffStyledBody string
+	diffErr        error
 
 	modelPickerFlat   []codersdk.ChatModel
 	modelPickerCursor int
@@ -471,8 +482,9 @@ func (m *chatViewModel) setChat(chat codersdk.Chat) {
 	m.activeChatID = chat.ID
 	m.chatStatus = chat.Status
 	m.diffStatus = chat.DiffStatus
-	m.gitChanges = nil
 	m.diffContents = nil
+	m.diffSummary = ""
+	m.diffStyledBody = ""
 	m.diffErr = nil
 }
 
@@ -1168,17 +1180,6 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		return m, nil
 
-	case gitChangesMsg:
-		if !m.matchesGeneration(msg.generation) {
-			return m, nil
-		}
-		if msg.err != nil {
-			m.diffErr = msg.err
-			return m, nil
-		}
-		m.gitChanges = msg.changes
-		return m, nil
-
 	case diffContentsMsg:
 		if !m.matchesGeneration(msg.generation) {
 			return m, nil
@@ -1189,6 +1190,13 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		diff := msg.diff
 		m.diffContents = &diff
+		// Pre-render the summary and styled body once so View()
+		// redraws reuse them instead of re-parsing and re-styling
+		// the full diff on every keypress. Styles are stable after
+		// setRenderer, so these caches only need to be refreshed
+		// when diffContents changes.
+		m.diffSummary = renderChatDiffSummary(diff)
+		m.diffStyledBody = renderStyledDiffBody(m.styles, diff.Diff)
 		return m, nil
 
 	default:

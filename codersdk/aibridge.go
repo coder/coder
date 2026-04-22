@@ -78,6 +78,7 @@ type AIBridgeSession struct {
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
 	LastPrompt        *string                          `json:"last_prompt,omitempty"`
+	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {

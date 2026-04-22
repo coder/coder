@@ -4,7 +4,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Link } from "#/components/Link/Link";
 import { Switch } from "#/components/Switch/Switch";
-import { AdminBadge } from "./AdminBadge";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -36,7 +35,6 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						Virtual Desktop
 					</h3>
-					<AdminBadge />
 					<Badge size="sm" variant="warning" className="cursor-default">
 						<TriangleAlertIcon className="h-3 w-3" />
 						Experimental feature

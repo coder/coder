@@ -1711,7 +1711,7 @@ func (api *API) authorizeChatWorkspaceExec(
 	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
+			Message: codersdk.ChatGitWatchWorkspaceNotFoundMessage,
 		})
 		return database.Workspace{}, false
 	}
@@ -1742,7 +1742,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
 	)
 
-	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace to watch."); !ok {
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, codersdk.ChatGitWatchNoWorkspaceMessage); !ok {
 		return
 	}
 
@@ -1756,7 +1756,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	}
 	if len(agents) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace has no agents.",
+			Message: codersdk.ChatGitWatchWorkspaceNoAgentsMessage,
 		})
 		return
 	}
@@ -1780,7 +1780,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+			Message: codersdk.ChatGitWatchAgentStateMessage(apiAgent.Status),
 		})
 		return
 	}
