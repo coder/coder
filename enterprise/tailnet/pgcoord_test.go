@@ -431,13 +431,16 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		t.Parallel()
 
 		store, realPS := dbtestutil.NewDB(t)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 		logger := testutil.Logger(t)
+		mClock := quartz.NewMock(t)
+		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+		defer rstTrap.Close()
 
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 
-		coordinator, err := tailnet.NewPGCoord(ctx, logger, wrappedPS, store)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -457,28 +460,9 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 			id:    uuid.New(),
 		}
 
-		// Keep sending DB heartbeats in a background goroutine. These update
-		// heartbeat_at via UpsertTailnetCoordinator; the pubsub notification
-		// may or may not be delivered depending on the wrapper state.
-		done := make(chan struct{})
-		defer close(done)
-		go func() {
-			ticker := time.NewTicker(tailnet.HeartbeatPeriod)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-done:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
-				}
-			}
-		}()
-
 		// Send initial heartbeat and agent node normally.
 		fCoord.heartbeat()
+		rstTrap.MustWait(ctx).MustRelease(ctx)
 		fCoord.agentNode(agentID, &agpl.Node{PreferredDERP: 12})
 		client.AssertEventuallyHasDERP(agentID, 12)
 
@@ -487,14 +471,25 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		// will re-add it.
 		wrappedPS.setDropHeartbeat(true)
 
-		// Wait for the first expiry cycle to fire and expire the coordinator.
-		// This also records the DB heartbeat baseline for future comparisons.
-		time.Sleep(tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 2*time.Second)
+		// Advance through MissedHeartbeats periods to trigger checkExpiry.
+		// We keep sending DB heartbeats before each advance so the DB
+		// heartbeat_at stays fresh. The final advance triggers checkExpiry
+		// which blocks on the trap, so we must release the trap before
+		// waiting on the advance.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+		w := mClock.Advance(tailnet.HeartbeatPeriod)
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
 
 		// Phase 2: Briefly allow one pubsub heartbeat through so the
 		// coordinator re-appears in the coordinators map.
 		wrappedPS.setDropHeartbeat(false)
-		time.Sleep(tailnet.HeartbeatPeriod + time.Second)
+		fCoord.heartbeat()
+		rstTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Verify the coordinator came back.
 		client.AssertEventuallyHasDERP(agentID, 12)
@@ -504,8 +499,16 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		// should detect the newer heartbeat_at and prevent false expiry.
 		wrappedPS.setDropHeartbeat(true)
 
-		// Wait well past the expiry threshold.
-		time.Sleep(tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 2*time.Second)
+		// Advance through MissedHeartbeats periods again, keeping DB
+		// heartbeats fresh before each advance.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+		w = mClock.Advance(tailnet.HeartbeatPeriod)
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
 
 		// The coordinator should still be considered alive because the DB
 		// fallback detected a newer heartbeat_at than the baseline.
@@ -525,15 +528,18 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		t.Parallel()
 
 		store, realPS := dbtestutil.NewDB(t)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 		logger := testutil.Logger(t)
+		mClock := quartz.NewMock(t)
+		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+		defer rstTrap.Close()
 
 		// Drop ALL heartbeat pubsub notifications from the start.
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 		wrappedPS.setDropHeartbeat(true)
 
-		coordinator, err := tailnet.NewPGCoord(ctx, logger, wrappedPS, store)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -554,32 +560,36 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 			id:    uuid.New(),
 		}
 
-		// Start DB heartbeats.
-		done := make(chan struct{})
-		defer close(done)
-		go func() {
-			ticker := time.NewTicker(tailnet.HeartbeatPeriod)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-done:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
-				}
-			}
-		}()
-
 		// Initial heartbeat + agent node via DB only.
 		fCoord.heartbeat()
 		fCoord.agentNode(agentID, &agpl.Node{PreferredDERP: 12})
 
-		// Wait for at least 2 checkExpiry cycles to fire:
-		// - First cycle: stores DB heartbeat baseline for the unknown coordinator.
-		// - Second cycle: sees heartbeat_at has advanced → discovers and adds it.
-		time.Sleep(2*tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 3*time.Second)
+		// Advance through MissedHeartbeats periods to trigger the first
+		// checkExpiry cycle. Keep DB heartbeats fresh before each advance.
+		// The final advance triggers checkExpiry which blocks on the trap,
+		// so we must release the trap before waiting on the advance.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+		w := mClock.Advance(tailnet.HeartbeatPeriod)
+		// First checkExpiry: stores DB heartbeat baseline.
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
+
+		// Advance through another MissedHeartbeats periods for the second
+		// checkExpiry cycle. DB heartbeats continue advancing.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord.id)
+		w = mClock.Advance(tailnet.HeartbeatPeriod)
+		// Second checkExpiry: sees heartbeat_at has advanced, discovers
+		// the coordinator.
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
 
 		// The coordinator should have been discovered from the DB, and
 		// its agent node mapping should be delivered (not rewritten to LOST).
@@ -597,13 +607,16 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		t.Parallel()
 
 		store, realPS := dbtestutil.NewDB(t)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 		logger := testutil.Logger(t)
+		mClock := quartz.NewMock(t)
+		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+		defer rstTrap.Close()
 
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 
-		coordinator, err := tailnet.NewPGCoord(ctx, logger, wrappedPS, store)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -623,11 +636,20 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 			id:    uuid.New(),
 		}
 		fCoord1.heartbeat()
+		rstTrap.MustWait(ctx).MustRelease(ctx)
 		fCoord1.agentNode(agentID, &agpl.Node{PreferredDERP: 12})
 		client.AssertEventuallyHasDERP(agentID, 12)
 
-		// Let fCoord1 expire (no more heartbeats). Now coordinators map is empty.
-		time.Sleep(tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 2*time.Second)
+		// Let fCoord1 expire (no more heartbeats). Advance through
+		// MissedHeartbeats periods to trigger checkExpiry. The final advance
+		// triggers checkExpiry which blocks on the trap.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		w := mClock.Advance(tailnet.HeartbeatPeriod)
+		// checkExpiry fires and expires fCoord1; coordinators map is now empty.
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
 		client.AssertEventuallyLost(agentID)
 
 		// Now drop pubsub heartbeats and create a NEW coordinator that only
@@ -642,30 +664,32 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 			id:    uuid.New(),
 		}
 
-		done := make(chan struct{})
-		defer close(done)
-		go func() {
-			ticker := time.NewTicker(tailnet.HeartbeatPeriod)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-done:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
-				}
-			}
-		}()
-
 		fCoord2.heartbeat()
 		fCoord2.agentNode(agentID, &agpl.Node{PreferredDERP: 13})
 
-		// The fallback timer should fire checkExpiry even though the
-		// coordinators map is empty, allowing DB discovery of fCoord2.
-		// Wait for 2 cycles.
-		time.Sleep(2*tailnet.MissedHeartbeats*tailnet.HeartbeatPeriod + 3*time.Second)
+		// Advance through MissedHeartbeats periods for the first checkExpiry
+		// cycle with empty map. The fallback timer fires checkExpiry. Keep
+		// DB heartbeats fresh before each advance.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
+		w = mClock.Advance(tailnet.HeartbeatPeriod)
+		// First checkExpiry with empty map: stores DB baseline for fCoord2.
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
+
+		// Advance through another cycle for the second checkExpiry.
+		for i := int64(0); i < tailnet.MissedHeartbeats-1; i++ {
+			_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
+			mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+		}
+		_, _ = store.UpsertTailnetCoordinator(ctx, fCoord2.id)
+		w = mClock.Advance(tailnet.HeartbeatPeriod)
+		// Second checkExpiry: discovers fCoord2 from DB.
+		rstTrap.MustWait(ctx).MustRelease(ctx)
+		w.MustWait(ctx)
 
 		client.AssertEventuallyHasDERP(agentID, 13)
 
