@@ -195,8 +195,11 @@ export const BlockList: FC<{
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
 
-	// Only the final thinking block can be actively streaming.
-	const lastThinkingIndex = blocks.findLastIndex((b) => b.type === "thinking");
+	// A thinking block is actively streaming only when it is the
+	// very last block in the list. Once newer content arrives
+	// (response, tool call, etc.) the thinking phase is over.
+	const lastBlockIsThinking =
+		blocks.length > 0 && blocks[blocks.length - 1].type === "thinking";
 
 	return (
 		<>
@@ -230,7 +233,11 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-thinking-${index}`}
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
-								isStreaming={isStreaming && index === lastThinkingIndex}
+								isStreaming={
+									isStreaming &&
+									lastBlockIsThinking &&
+									index === blocks.length - 1
+								}
 								urlTransform={urlTransform}
 							/>
 						);
