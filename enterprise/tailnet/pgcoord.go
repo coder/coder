@@ -1981,6 +1981,34 @@ func (h *heartbeats) checkExpiry() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
+	// Clean up stale entries from lastDBHeartbeat and expiredCoordinators.
+	// Coordinator IDs that are no longer in h.coordinators and no longer
+	// in the DB snapshot are unreachable and should be removed to prevent
+	// unbounded map growth from pod churn.
+	if err == nil {
+		dbSet := make(map[uuid.UUID]struct{}, len(dbCoords))
+		for _, c := range dbCoords {
+			dbSet[c.ID] = struct{}{}
+		}
+		for id := range h.lastDBHeartbeat {
+			if _, inCoords := h.coordinators[id]; inCoords {
+				continue
+			}
+			if _, inDB := dbSet[id]; inDB {
+				continue
+			}
+			delete(h.lastDBHeartbeat, id)
+		}
+		for id := range h.expiredCoordinators {
+			if _, inCoords := h.coordinators[id]; inCoords {
+				continue
+			}
+			if _, inDB := dbSet[id]; inDB {
+				continue
+			}
+			delete(h.expiredCoordinators, id)
+		}
+	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
 	h.resetExpiryTimerWithLock()
 }
