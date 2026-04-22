@@ -66,6 +66,9 @@ func openAIToolName(tool chattest.OpenAITool) string {
 	if tool.Function.Name != "" {
 		return tool.Function.Name
 	}
+	if tool.Name != "" {
+		return tool.Name
+	}
 	return tool.Type
 }
 
@@ -812,13 +815,15 @@ func TestExploreChatUsesPersistedToolSnapshot(t *testing.T) {
 			user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIProxy.URL)
 			webSearchEnabled := true
 			storeEnabled := true
+			// OpenAI only serializes web_search through the Responses API.
+			// Store=true routes there only for supported Responses models.
 			webSearchModel := insertChatModelConfigWithCallConfig(
 				ctx,
 				t,
 				db,
 				user.ID,
 				"openai",
-				"explore-web-search-"+uuid.NewString(),
+				"gpt-4o",
 				codersdk.ChatModelCallConfig{
 					ProviderOptions: &codersdk.ChatModelProviderOptions{
 						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
