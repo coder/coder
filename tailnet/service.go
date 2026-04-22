@@ -303,15 +303,16 @@ func (c communicator) loopResp() {
 			}
 			continue
 		}
-		// Non-blocking drain: merge additional PeerUpdates from the
+		// Non-blocking drain of additional PeerUpdates from the
 		// channel into a single response to reduce Send calls under
 		// burst load.
-	drain:
-		for {
+		draining := true
+		for draining {
 			select {
 			case next, ok := <-c.resps:
 				if !ok {
-					break drain
+					draining = false
+					continue
 				}
 				if next.Error != "" {
 					// Flush the accumulated batch before
@@ -334,7 +335,7 @@ func (c communicator) loopResp() {
 				}
 				resp.PeerUpdates = append(resp.PeerUpdates, next.PeerUpdates...)
 			default:
-				break drain
+				draining = false
 			}
 		}
 		if len(resp.PeerUpdates) > 0 {

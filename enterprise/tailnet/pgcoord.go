@@ -333,15 +333,11 @@ func (t *tunneler) worker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, t.ctx)
 	for {
-		waitStart := time.Now()
 		tk, err := t.workQ.acquire()
 		if err != nil {
 			// context expired
 			return
 		}
-		t.logger.Debug(t.ctx, "tunneler worker acquired item",
-			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
-		)
 		err = backoff.Retry(func() error {
 			tun := t.retrieve(tk)
 			return t.writeOne(tun)
@@ -696,9 +692,7 @@ func (m *mapper) run() {
 		case <-m.ctx.Done():
 			return
 		case mappings := <-m.mappings:
-			m.logger.Debug(m.ctx, "got new mappings",
-				slog.F("num_mappings", len(mappings)),
-			)
+			m.logger.Debug(m.ctx, "got new mappings")
 			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
 		case <-m.update:
@@ -708,7 +702,6 @@ func (m *mapper) run() {
 			// the update signal.
 			select {
 			case <-m.resetSent:
-				m.logger.Debug(m.ctx, "clearing sent cache due to coordinator recovery")
 				m.sent = make(map[uuid.UUID]mapping)
 			default:
 			}
@@ -773,28 +766,17 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
 		upserts: make(map[uuid.UUID]mapping),
 	}
 
-	skipped := 0
 	for k, mpng := range best {
 		var reason string
 		sm, ok := m.sent[k]
 		switch {
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// we don't need to send a "lost" update if we've never sent an update about this peer
-			m.logger.Debug(m.ctx, "skipping peer update",
-				slog.F("peer_id", k),
-				slog.F("reason", "new_lost_skip"),
-			)
-			skipped++
 			continue
 		case !ok && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "new"
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_LOST:
 			// was lost and remains lost, no update needed
-			m.logger.Debug(m.ctx, "skipping peer update",
-				slog.F("peer_id", k),
-				slog.F("reason", "still_lost_skip"),
-			)
-			skipped++
 			continue
 		case ok && sm.kind == proto.CoordinateResponse_PeerUpdate_LOST && mpng.kind == proto.CoordinateResponse_PeerUpdate_NODE:
 			reason = "found"
@@ -804,15 +786,9 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
 			eq, err := sm.node.Equal(mpng.node)
 			if err != nil {
 				m.logger.Critical(m.ctx, "failed to compare nodes", slog.F("old", sm.node), slog.F("new", mpng.node))
-				skipped++
 				continue
 			}
 			if eq {
-				m.logger.Debug(m.ctx, "skipping peer update",
-					slog.F("peer_id", k),
-					slog.F("reason", "node_unchanged_skip"),
-				)
-				skipped++
 				continue
 			}
 			reason = "update"
@@ -825,17 +801,8 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
 		})
 		su.upserts[k] = mpng
 	}
-	m.logger.Debug(m.ctx, "bestToUpdate summary",
-		slog.F("total_best", len(best)),
-		slog.F("updates_sent", len(su.resp.PeerUpdates)),
-		slog.F("skipped", skipped),
-	)
-
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
-			m.logger.Debug(m.ctx, "peer no longer in best mappings, sending DISCONNECTED",
-				slog.F("peer_id", k),
-			)
 			su.resp.PeerUpdates = append(su.resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
 				Id:     agpl.UUIDToByteSlice(k),
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
@@ -1075,36 +1042,15 @@ func (q *querier) peerUpdateWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
-		waitStart := time.Now()
 		allKeys, err := q.peerUpdateQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
-		q.logger.Debug(q.ctx, "peer update worker acquired batch",
-			slog.F("batch_size", len(allKeys)),
-			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
-		)
 		peers := make([]uuid.UUID, 0, len(allKeys))
 		peers = append(peers, allKeys...)
-		retryStart := time.Now()
-		attempt := 0
 		err = backoff.Retry(func() error {
-			attempt++
-			retErr := q.peerUpdate(peers)
-			if retErr != nil {
-				q.logger.Warn(q.ctx, "peer update query failed, will retry",
-					slog.Error(retErr),
-					slog.F("batch_size", len(peers)),
-					slog.F("attempt", attempt),
-				)
-			}
-			return retErr
+			return q.peerUpdate(peers)
 		}, bkoff)
-		q.logger.Debug(q.ctx, "peer update worker completed query",
-			slog.F("batch_size", len(peers)),
-			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
-			slog.F("errored", err != nil),
-		)
 		if err != nil {
 			bkoff.Reset()
 		}
@@ -1120,36 +1066,15 @@ func (q *querier) mappingWorker() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
-		waitStart := time.Now()
 		allKeys, err := q.mappingQ.acquireBatch(maxBatchSize)
 		if err != nil {
 			return
 		}
-		q.logger.Debug(q.ctx, "mapping worker acquired batch",
-			slog.F("batch_size", len(allKeys)),
-			slog.F("wait_ms", time.Since(waitStart).Milliseconds()),
-		)
 		mkeys := make([]mKey, 0, len(allKeys))
 		mkeys = append(mkeys, allKeys...)
-		retryStart := time.Now()
-		attempt := 0
 		err = backoff.Retry(func() error {
-			attempt++
-			retErr := q.mappingQuery(mkeys)
-			if retErr != nil {
-				q.logger.Warn(q.ctx, "mapping query failed, will retry",
-					slog.Error(retErr),
-					slog.F("batch_size", len(mkeys)),
-					slog.F("attempt", attempt),
-				)
-			}
-			return retErr
+			return q.mappingQuery(mkeys)
 		}, bkoff)
-		q.logger.Debug(q.ctx, "mapping worker completed query",
-			slog.F("batch_size", len(mkeys)),
-			slog.F("duration_ms", time.Since(retryStart).Milliseconds()),
-			slog.F("errored", err != nil),
-		)
 		if err != nil {
 			bkoff.Reset()
 		}
@@ -1203,15 +1128,12 @@ func (q *querier) mappingQuery(peers []mKey) error {
 
 	q.logger.Debug(q.ctx, "batch querying mappings",
 		slog.F("num_peers", len(active)))
-	queryStart := time.Now()
 	bindings, err := q.store.GetTailnetTunnelPeerBindingsBatch(q.ctx, active)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("get tunnel peer bindings batch: %w", err)
 	}
 	q.logger.Debug(q.ctx, "batch queried mappings",
-		slog.F("num_bindings", len(bindings)),
-		slog.F("query_ms", time.Since(queryStart).Milliseconds()),
-	)
+		slog.F("num_bindings", len(bindings)))
 
 	// Group bindings by lookup_id (the peer that needs the mapping).
 	grouped := make(map[uuid.UUID][]database.GetTailnetTunnelPeerBindingsBatchRow)
@@ -1389,7 +1311,6 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
-	receivedAt := time.Now()
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
 		// Schedule a full resync asynchronously so we don't block the
@@ -1410,7 +1331,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		q.logger.Error(q.ctx, "failed to parse tunnel update", slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers), slog.F("received_at", receivedAt))
+	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers))
 	for _, peer := range peers {
 		mk := mKey(peer)
 		q.mu.Lock()
@@ -1766,13 +1687,13 @@ func newHeartbeats(
 	clk quartz.Clock,
 ) *heartbeats {
 	h := &heartbeats{
-		ctx:            ctx,
-		logger:         logger,
-		pubsub:         ps,
-		store:          store,
-		self:           self,
-		update:         update,
-		firstHeartbeat: firstHeartbeat,
+		ctx:             ctx,
+		logger:          logger,
+		pubsub:          ps,
+		store:           store,
+		self:            self,
+		update:          update,
+		firstHeartbeat:  firstHeartbeat,
 		coordinators:    make(map[uuid.UUID]time.Time),
 		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
 		clock:           clk,
@@ -1916,6 +1837,17 @@ func (h *heartbeats) checkExpiry() {
 		return
 	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
+
+	// Query the database for fresh heartbeats BEFORE acquiring the lock
+	// to avoid holding the lock during a DB round-trip. This serves two
+	// purposes:
+	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
+	//    were delayed (the original DB fallback logic).
+	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
+	//    pubsub notifications can be permanently lost, leaving coordinators
+	//    invisible to other pods.
+	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
+
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	now := h.clock.Now()
@@ -1930,14 +1862,6 @@ func (h *heartbeats) checkExpiry() {
 			candidates[id] = lastHB
 		}
 	}
-
-	// Query the database for fresh heartbeats. This serves two purposes:
-	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
-	//    were delayed (the original DB fallback logic).
-	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
-	//    pubsub notifications can be permanently lost, leaving coordinators
-	//    invisible to other pods.
-	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
 		// Fall through — expire based on pubsub data only, no discovery.

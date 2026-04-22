@@ -186,7 +186,6 @@ func TestMapper_EnqueueFailure_RetryNextCycle(t *testing.T) {
 	assert.Nil(t, su3, "no update expected after successful enqueue")
 }
 
-
 // TestHeartbeats_Cleanup tests the cleanup loop
 func TestHeartbeats_Cleanup(t *testing.T) {
 	t.Parallel()
