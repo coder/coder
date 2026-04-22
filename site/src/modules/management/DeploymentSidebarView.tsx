@@ -108,7 +108,9 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/agents/settings/agents">
-						Manage Coder Agents
+						<Stack direction="row" alignItems="center" spacing={0.5}>
+							Manage Coder Agents <ArrowUpRightIcon size={16} />
+						</Stack>
 					</SidebarNavItem>
 				)}
 			</div>
