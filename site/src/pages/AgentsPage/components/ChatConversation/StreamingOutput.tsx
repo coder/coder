@@ -1,4 +1,3 @@
-import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -30,16 +29,13 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 
 /**
  * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Matches the collapsible thinking disclosure
- * style so the user sees one consistent "Thinking" indicator.
+ * blocks arrive. Uses the same shimmer animation as the
+ * collapsible thinking disclosure label.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="flex w-full items-center gap-1.5 text-content-secondary">
-		<ChevronDownIcon className="size-icon-sm shrink-0 -rotate-90" />
-		<Shimmer as="span" className="text-xs">
-			Thinking
-		</Shimmer>
-	</div>
+	<Shimmer as="span" className="text-xs text-content-secondary">
+		Thinking
+	</Shimmer>
 );
 
 export const StreamingOutput: FC<{
