@@ -50,6 +50,12 @@ OPTIONS:
       --network-info-interval duration (default: 5s)
           Specifies the interval to update network information.
 
+      --no-tty bool, $CODER_SSH_NO_TTY
+          Disable pseudo-terminal allocation. Similar to the -T flag in
+          OpenSSH. A PTY is never allocated when this flag is set. By default,
+          a PTY is allocated when a shell is opened and not when a command is
+          specified.
+
       --no-wait bool, $CODER_SSH_NO_WAIT
           Enter workspace immediately after the agent has connected. This is the
           default if the template has configured the agent startup script
@@ -66,6 +72,11 @@ OPTIONS:
 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
+
+  -t, --tty bool, $CODER_SSH_TTY
+          Force pseudo-terminal allocation. Similar to the -t flag in OpenSSH.
+          A PTY is always allocated when this flag is set, even when running a
+          command.
 
       --wait yes|no|auto, $CODER_SSH_WAIT (default: auto)
           Specifies whether or not to wait for the startup script to finish

@@ -135,6 +135,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		tty   bool
+		noTTY bool
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -206,6 +209,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			if tty && noTTY {
+				return xerrors.Errorf("cannot specify both --tty (-t) and --no-tty (-T)")
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -633,9 +640,26 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Determine whether to allocate a remote PTY,
+			// following OpenSSH semantics:
+			//   -T (--no-tty): never allocate a PTY
+			//   -t (--tty):    always allocate a PTY
+			//   default:       allocate a PTY for login sessions when
+			//                  stdin is a TTY
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
-			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+			stdinIsTerminal := validIn && isatty.IsTerminal(stdinFile.Fd())
+
+			var wantPTY bool
+			if noTTY {
+				wantPTY = false
+			} else if tty {
+				wantPTY = true
+			} else {
+				wantPTY = command == "" && stdinIsTerminal
+			}
+
+			if wantPTY && validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
 				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
@@ -685,9 +709,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-			if err != nil {
-				return xerrors.Errorf("request pty: %w", err)
+			if wantPTY {
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request pty: %w", err)
+				}
 			}
 
 			sshSession.Stdin = inv.Stdin
@@ -709,7 +735,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// shutdown of services.
 				defer cancel()
 
-				if validOut {
+				if wantPTY && validOut {
 					// Set initial window size.
 					width, height, err := term.GetSize(int(stdoutFile.Fd()))
 					if err == nil {
@@ -836,6 +862,20 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
 			Value:       serpent.DurationOf(&networkInfoInterval),
+		},
+		{
+			Flag:          "tty",
+			FlagShorthand: "t",
+			Env:           "CODER_SSH_TTY",
+			Description:   "Force pseudo-terminal allocation. Similar to the -t flag in OpenSSH. A PTY is always allocated when this flag is set, even when running a command.",
+			Value:         serpent.BoolOf(&tty),
+		},
+		{
+			Flag:          "no-tty",
+			FlagShorthand: "T",
+			Env:           "CODER_SSH_NO_TTY",
+			Description:   "Disable pseudo-terminal allocation. Similar to the -T flag in OpenSSH. A PTY is never allocated when this flag is set. By default, a PTY is allocated when a shell is opened and not when a command is specified.",
+			Value:         serpent.BoolOf(&noTTY),
 		},
 		{
 			Flag:          "container",

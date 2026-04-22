@@ -1809,6 +1809,119 @@ func TestSSH(t *testing.T) {
 			})
 		}
 	})
+
+	// Verify that running a command via SSH does not allocate a PTY by
+	// default, keeping stdout and stderr as separate streams (matching
+	// OpenSSH behavior).
+	t.Run("NoPTYByDefault", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Use -- to separate the command from the coder ssh flags.
+		inv, root := clitest.New(t, "ssh", workspace.Name, "--", "sh", "-c", "echo stdout-msg; echo stderr-msg >&2")
+		clitest.SetupConfig(t, client, root)
+
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		inv.Stdout = stdout
+		inv.Stderr = stderr
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		assert.Contains(t, stdout.String(), "stdout-msg")
+		assert.NotContains(t, stdout.String(), "stderr-msg")
+		assert.Contains(t, stderr.String(), "stderr-msg")
+		assert.NotContains(t, stderr.String(), "stdout-msg")
+	})
+
+	// Verify that --tty (-t) forces PTY allocation even when running a
+	// command, causing stdout and stderr to be merged.
+	t.Run("TTYFlag", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		inv, root := clitest.New(t, "ssh", "--tty", workspace.Name, "--", "sh", "-c", "echo stdout-msg; echo stderr-msg >&2")
+		clitest.SetupConfig(t, client, root)
+
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		inv.Stdout = stdout
+		inv.Stderr = stderr
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// With a PTY, both stdout and stderr are merged into the
+		// stdout stream by the remote PTY device.
+		combined := stdout.String()
+		assert.Contains(t, combined, "stdout-msg")
+		assert.Contains(t, combined, "stderr-msg")
+	})
+
+	// Verify that --no-tty (-T) prevents PTY allocation even for
+	// interactive sessions.
+	t.Run("NoTTYFlag", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Run with --no-tty and a command to verify the flag works.
+		inv, root := clitest.New(t, "ssh", "--no-tty", workspace.Name, "--", "echo", "hello")
+		clitest.SetupConfig(t, client, root)
+
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		inv.Stdout = stdout
+		inv.Stderr = stderr
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		assert.Contains(t, stdout.String(), "hello")
+	})
+
+	// Verify that --tty and --no-tty are mutually exclusive.
+	t.Run("ConflictingTTYFlags", func(t *testing.T) {
+		t.Parallel()
+
+		// No workspace setup needed — validation fails before any
+		// network call.
+		inv, _ := clitest.New(t, "ssh", "--tty", "--no-tty", "anyworkspace", "echo", "hello")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot specify both")
+	})
 }
 
 //nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.
