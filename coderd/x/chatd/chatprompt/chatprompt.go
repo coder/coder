@@ -1384,8 +1384,10 @@ func partsToMessageParts(
 			data := part.Data
 			mediaType := part.MediaType
 			var name string
+			resolvedFile := false
 			if part.FileID.Valid {
 				if fd, ok := resolved[part.FileID.UUID]; ok {
+					resolvedFile = true
 					data = fd.Data
 					name = fd.Name
 					if mediaType == "" {
@@ -1406,8 +1408,8 @@ func partsToMessageParts(
 				})
 				continue
 			}
-			if len(data) == 0 {
-				if part.FileID.Valid && policy == placeholderMissingFiles {
+			if part.FileID.Valid && !resolvedFile {
+				if policy == placeholderMissingFiles {
 					logger.Info(ctx,
 						"chat file unavailable, replacing file part with text placeholder",
 						slog.F("file_id", part.FileID.UUID),
@@ -1418,10 +1420,13 @@ func partsToMessageParts(
 						ProviderOptions: opts,
 					})
 				}
-				// File parts without bytes are persistence metadata, not
-				// prompt content. Assistant/tool metadata stays out of
-				// later model turns; replayed user uploads fall back to
-				// the placeholder above when policy requests it.
+				continue
+			}
+			if len(data) == 0 {
+				// File parts without bytes are persistence metadata, empty
+				// uploads, or provider-invalid prompt content. Unresolved
+				// file-backed parts are handled above so empty uploads do
+				// not look expired.
 				continue
 			}
 			result = append(result, fantasy.FilePart{

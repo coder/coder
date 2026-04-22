@@ -195,24 +195,15 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		mediaType         string
-		resolvedMediaType string
-		resolvedData      *chatprompt.FileData
-		expectedText      string
+		name         string
+		mediaType    string
+		expectedText string
 	}{
 		{
 			name:      "missing image file",
 			mediaType: "image/png",
 			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
 				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
-		},
-		{
-			name:              "resolved mime fills missing media type",
-			resolvedMediaType: "application/pdf",
-			resolvedData:      &chatprompt.FileData{},
-			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
-				"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
 		},
 		{
 			name:         "generic mime omits mime sentence",
@@ -234,18 +225,8 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 					},
 				}),
 			})
-			resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
-				result := make(map[uuid.UUID]chatprompt.FileData)
-				for _, id := range ids {
-					if id == fileID && tt.resolvedData != nil {
-						fd := *tt.resolvedData
-						if fd.MediaType == "" {
-							fd.MediaType = tt.resolvedMediaType
-						}
-						result[id] = fd
-					}
-				}
-				return result, nil
+			resolver := func(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+				return map[uuid.UUID]chatprompt.FileData{}, nil
 			}
 			prompt, err := chatprompt.ConvertMessagesWithFiles(
 				context.Background(),
@@ -265,6 +246,47 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 			require.Equal(t, tt.expectedText, textPart.Text)
 		})
 	}
+}
+
+func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"file_id": fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      []byte{},
+					MediaType: "text/plain",
+					Name:      "empty.txt",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Empty(t, prompt)
 }
 
 func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
