@@ -37,6 +37,13 @@ interface UseGitWatcherResult {
 	 * edits a file and then reverts it).
 	 */
 	everDirty: ReadonlySet<string>;
+	/**
+	 * Timestamp of the most recent scan observed from the server, or
+	 * undefined if no scan has been received yet. Consumers can render
+	 * this as a "checked Ns ago" affordance so users know how stale the
+	 * local view is.
+	 */
+	lastCheckedAt: Date | undefined;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
@@ -52,6 +59,9 @@ export function useGitWatcher({
 	>(new Map());
 	const [everDirty, setEverDirty] = useState<ReadonlySet<string>>(
 		() => new Set(),
+	);
+	const [lastCheckedAt, setLastCheckedAt] = useState<Date | undefined>(
+		undefined,
 	);
 	const [isConnected, setIsConnected] = useState(false);
 
@@ -97,6 +107,14 @@ export function useGitWatcher({
 						return;
 					}
 
+					if (data.type === "changes") {
+						if (data.scanned_at) {
+							const parsed = new Date(data.scanned_at);
+							if (!Number.isNaN(parsed.getTime())) {
+								setLastCheckedAt(parsed);
+							}
+						}
+					}
 					if (data.type === "changes" && data.repositories) {
 						setRepositories((prev) => {
 							let changed = false;
@@ -166,9 +184,10 @@ export function useGitWatcher({
 			setIsConnected(false);
 			setRepositories(new Map());
 			setEverDirty(new Set());
+			setLastCheckedAt(undefined);
 			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, everDirty, isConnected, refresh };
+	return { repositories, everDirty, lastCheckedAt, isConnected, refresh };
 }

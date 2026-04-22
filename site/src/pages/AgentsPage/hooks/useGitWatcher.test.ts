@@ -850,4 +850,65 @@ describe("useGitWatcher", () => {
 		expect(result.current.repositories.size).toBe(0);
 		expect(result.current.everDirty.size).toBe(0);
 	});
+
+	it("tracks lastCheckedAt from scanned_at", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+		expect(result.current.lastCheckedAt).toBeUndefined();
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.lastCheckedAt).toBeInstanceOf(Date);
+		});
+		expect(result.current.lastCheckedAt?.toISOString()).toBe(
+			"2024-01-02T03:04:05.000Z",
+		);
+	});
+
+	it("ignores malformed scanned_at without clearing existing value", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		// Prime a valid timestamp.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.lastCheckedAt).toBeDefined();
+		});
+		const firstDate = result.current.lastCheckedAt;
+
+		// A malformed scanned_at must not wipe the previous value.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "not-a-date",
+				repositories: [],
+			});
+		});
+
+		expect(result.current.lastCheckedAt).toBe(firstDate);
+	});
 });

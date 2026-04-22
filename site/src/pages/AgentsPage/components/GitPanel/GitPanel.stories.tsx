@@ -384,3 +384,37 @@ export const CleanRepoFromStart: Story = {
 		expect(tabStripText).not.toContain("Working");
 	},
 };
+
+/**
+ * Renders the "checked Ns ago" label once a scan has been observed.
+ */
+export const ShowsLastCheckedLabel: Story = {
+	args: {
+		repositories: new Map([["/home/coder/coder", makeRepo()]]),
+		lastCheckedAt: new Date(Date.now() - 12_000),
+	},
+	play: async ({ canvasElement }) => {
+		const label = canvasElement.querySelector(
+			'[data-testid="git-last-checked"]',
+		);
+		expect(label).not.toBeNull();
+		expect(label?.textContent ?? "").toMatch(/checked \d+s ago/);
+	},
+};
+
+/**
+ * With no scan observed yet, the label renders nothing so the
+ * toolbar collapses cleanly.
+ */
+export const NoLastCheckedYet: Story = {
+	args: {
+		repositories: new Map([["/home/coder/coder", makeRepo()]]),
+		lastCheckedAt: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const label = canvasElement.querySelector(
+			'[data-testid="git-last-checked"]',
+		);
+		expect(label).toBeNull();
+	},
+};
