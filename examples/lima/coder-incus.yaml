@@ -30,16 +30,7 @@ mounts:
 containerd:
   system: false
   user: false
-hostResolver:
-  hosts:
-    host.docker.internal: host.lima.internal
 provision:
-  # Fallback for Lima versions where hostResolver is not available.
-  - mode: system
-    script: |
-      #!/bin/sh
-      set -eux -o pipefail
-      sed -i 's/host.lima.internal.*/host.lima.internal host.docker.internal/' /etc/hosts
   - mode: system
     script: |
       #!/bin/bash
@@ -110,7 +101,10 @@ provision:
       # If we are already logged in, nothing to do
       coder templates list >/dev/null 2>&1 && exit 0
       # Set up initial user
-      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password) --first-user-trial=false
+      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 \
+        --first-user-username admin \
+        --first-user-email admin@coder.com \
+        --first-user-password "$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password)"
       # Create an initial Incus template
       coder templates init --id incus
       pushd ./incus
@@ -127,7 +121,7 @@ probes:
         exit 1
       fi
     hint: |
-      See "/var/log/cloud-init-output.log" in the guest.
+      See `/var/log/lima-guestagent.log` or run `limactl shell coder-incus` to debug.
   - description: "coder to be installed"
     script: |
       #!/bin/bash
@@ -137,7 +131,7 @@ probes:
         exit 1
       fi
     hint: |
-      See "/var/log/cloud-init-output.log" in the guest.
+      See `/var/log/lima-guestagent.log` or run `limactl shell coder-incus` to debug.
 message: |
   All Done! Your Coder instance is accessible at http://localhost:3000
 
