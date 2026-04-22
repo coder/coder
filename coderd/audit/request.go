@@ -139,8 +139,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// project names), so we use a short UUID prefix as a display
 		// hint instead. The full UUID is still recorded in resource_id,
 		// which is what the audit UI links on. An 8-char prefix is fine
-		// for display; collisions only affect the resource_target label
-		// and not identification.
+		// for display; collisions affect the display label and search
+		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
