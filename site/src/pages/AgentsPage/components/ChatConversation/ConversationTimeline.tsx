@@ -195,6 +195,9 @@ export const BlockList: FC<{
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
 
+	// Only the final thinking block can be actively streaming.
+	const lastThinkingIndex = blocks.findLastIndex((b) => b.type === "thinking");
+
 	return (
 		<>
 			{blocks.map((block, index) => {
@@ -227,7 +230,7 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-thinking-${index}`}
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
-								isStreaming={isStreaming}
+								isStreaming={isStreaming && index === lastThinkingIndex}
 								urlTransform={urlTransform}
 							/>
 						);
