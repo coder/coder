@@ -19,7 +19,7 @@ type ReadTemplateOptions struct {
 }
 
 type readTemplateArgs struct {
-	TemplateID string `json:"template_id"`
+	TemplateID string `json:"template_id" description:"The UUIDv4 of the template to read details for. Obtain this from list_templates."`
 }
 
 // ReadTemplate returns a tool that retrieves details about a specific

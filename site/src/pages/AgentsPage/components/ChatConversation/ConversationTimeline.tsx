@@ -29,6 +29,7 @@ import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -903,48 +904,55 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
-				{parsedMessages.map(({ message, parsed }, msgIdx) => {
-					if (message.role === "user") {
+			<ExpiredFileIdsProvider>
+				<div
+					data-testid="conversation-timeline"
+					className="flex flex-col gap-2"
+				>
+					{parsedMessages.map(({ message, parsed }, msgIdx) => {
+						if (message.role === "user") {
+							return (
+								<StickyUserMessage
+									key={message.id}
+									message={message}
+									parsed={parsed}
+									onEditUserMessage={onEditUserMessage}
+									editingMessageId={editingMessageId}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								/>
+							);
+						}
+						// Hide actions on assistant messages that are not
+						// the last in a consecutive assistant chain.
+						const next = parsedMessages[msgIdx + 1];
+						const isLastInChain = !next || next.message.role === "user";
 						return (
-							<StickyUserMessage
+							<ChatMessageItem
 								key={message.id}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+								askUserQuestionResponseTextByToolId={
+									historicalAskUserQuestionResponseTextByToolId
+								}
+								hasUserResponseAfterAskQuestion={
+									hasUserResponseAfterAskQuestion
+								}
+								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								hideActions={!isLastInChain}
+								mcpServers={mcpServers}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								showDesktopPreviews={showDesktopPreviews}
 							/>
 						);
-					}
-					// Hide actions on assistant messages that are not
-					// the last in a consecutive assistant chain.
-					const next = parsedMessages[msgIdx + 1];
-					const isLastInChain = !next || next.message.role === "user";
-					return (
-						<ChatMessageItem
-							key={message.id}
-							message={message}
-							parsed={parsed}
-							onImplementPlan={onImplementPlan}
-							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-							isChatCompleted={isChatCompleted}
-							latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-							askUserQuestionResponseTextByToolId={
-								historicalAskUserQuestionResponseTextByToolId
-							}
-							hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
-							urlTransform={urlTransform}
-							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							hideActions={!isLastInChain}
-							mcpServers={mcpServers}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							showDesktopPreviews={showDesktopPreviews}
-						/>
-					);
-				})}
-			</div>
+					})}
+				</div>
+			</ExpiredFileIdsProvider>
 		);
 	},
 );
