@@ -418,7 +418,6 @@ func redactErrorURL(err error) string {
 // an MCP server config and can report the config's database ID.
 type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
-	MCPServerSlug() string
 }
 
 // mcpToolWrapper adapts a single MCP tool into a
@@ -426,7 +425,6 @@ type MCPToolIdentifier interface {
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
 	configID        uuid.UUID
-	serverSlug      string
 	prefixedName    string
 	originalName    string
 	description     string
@@ -443,12 +441,6 @@ func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
-// MCPServerSlug returns the slug of the MCP server config
-// from which this tool originates.
-func (t *mcpToolWrapper) MCPServerSlug() string {
-	return t.serverSlug
-}
-
 // newMCPTool creates an mcpToolWrapper from an mcp.Tool
 // discovered on a remote server.
 func newMCPTool(
@@ -460,7 +452,6 @@ func newMCPTool(
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
 		configID:     configID,
-		serverSlug:   serverSlug,
 		prefixedName: serverSlug + toolNameSep + tool.Name,
 		originalName: tool.Name,
 		description:  tool.Description,
