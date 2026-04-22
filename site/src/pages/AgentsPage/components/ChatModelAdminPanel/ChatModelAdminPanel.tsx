@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, useState } from "react";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -191,7 +191,6 @@ interface ChatModelAdminPanelProps {
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	// Data from queries.
 	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
@@ -232,7 +231,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerConfigsData,
 	modelConfigsData,
 	modelCatalogData,
@@ -302,7 +300,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<ProvidersSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
@@ -315,7 +312,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<ModelsSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						selectedProvider={selectedProvider}
 						selectedProviderState={selectedProviderState}

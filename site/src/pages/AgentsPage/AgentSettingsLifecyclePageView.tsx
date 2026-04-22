@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
-import { AdminBadge } from "./components/AdminBadge";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
@@ -52,7 +51,6 @@ export const AgentSettingsLifecyclePageView: FC<
 			<SectionHeader
 				label="Lifecycle"
 				description="Control workspace lifecycle and conversation retention."
-				badge={<AdminBadge />}
 			/>
 			<WorkspaceAutostopSettings
 				workspaceTTLData={workspaceTTLData}

@@ -9,14 +9,7 @@ import {
 	ServerIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	lazy,
-	type ReactNode,
-	Suspense,
-	useId,
-	useState,
-} from "react";
+import { type FC, lazy, Suspense, useId, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type * as TypesGen from "#/api/typesGenerated";
@@ -243,7 +236,6 @@ interface ServerListProps {
 	onAdd: () => void;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 }
 
 const ServerList: FC<ServerListProps> = ({
@@ -252,7 +244,6 @@ const ServerList: FC<ServerListProps> = ({
 	onAdd,
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 }) => {
 	return (
 		<>
@@ -262,7 +253,6 @@ const ServerList: FC<ServerListProps> = ({
 					sectionDescription ??
 					"Configure external MCP servers that provide additional tools for Coder Agents."
 				}
-				badge={sectionBadge}
 				action={
 					<Button size="sm" onClick={onAdd}>
 						<PlusIcon className="h-4 w-4" />
@@ -1100,7 +1090,6 @@ interface MCPServerAdminPanelProps {
 	className?: string;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	// Data from query.
 	serversData: TypesGen.MCPServerConfig[] | undefined;
 	isLoadingServers: boolean;
@@ -1126,7 +1115,6 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	className,
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	serversData,
 	isLoadingServers,
 	serversError,
@@ -1235,7 +1223,6 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 						}
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 					/>
 				) : isCreating || (!isLoadingServers && editingServer) ? (
 					<ServerForm

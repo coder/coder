@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
-import { AdminBadge } from "./components/AdminBadge";
 import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
@@ -49,7 +48,6 @@ export const AgentSettingsInstructionsPageView: FC<
 			<SectionHeader
 				label="Instructions"
 				description="Control the system prompts and plan mode instructions used across the deployment."
-				badge={<AdminBadge />}
 			/>
 			<SystemInstructionsSettings
 				systemPromptData={systemPromptData}

@@ -2,7 +2,6 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
-import { AdminBadge } from "./AdminBadge";
 
 interface AdminChatDebugLoggingSettingsProps {
 	adminSettings: TypesGen.ChatDebugLoggingAdminSettings | undefined;
@@ -33,7 +32,6 @@ export const AdminChatDebugLoggingSettings: FC<
 				<h3 className="m-0 text-sm font-semibold text-content-primary">
 					Let users record chat debug logs
 				</h3>
-				<AdminBadge />
 			</div>
 			<div className="flex items-center justify-between gap-4">
 				<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">

@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
-import { AdminBadge } from "./components/AdminBadge";
 import { AdminChatDebugLoggingSettings } from "./components/AdminChatDebugLoggingSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
@@ -44,7 +43,6 @@ export const AgentSettingsExperimentsPageView: FC<
 			<SectionHeader
 				label="Experiments"
 				description="Opt in to experimental features."
-				badge={<AdminBadge />}
 			/>
 			<VirtualDesktopSettings
 				desktopEnabledData={desktopEnabledData}
