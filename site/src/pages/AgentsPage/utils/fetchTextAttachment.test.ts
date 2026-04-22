@@ -63,14 +63,33 @@ describe("fetchTextAttachmentContent", () => {
 			new Response("hello from the server", { status: 200 }),
 		);
 
-		await expect(fetchTextAttachmentContent("file-1")).resolves.toEqual({
+		const fileId = "folder/file-1?preview=yes";
+		await expect(fetchTextAttachmentContent(fileId)).resolves.toEqual({
 			kind: "loaded",
 			content: "hello from the server",
 		});
 		expect(globalThis.fetch).toHaveBeenCalledWith(
-			expect.stringContaining("file-1"),
+			"/api/experimental/chats/files/folder%2Ffile-1%3Fpreview%3Dyes",
 			expect.anything(),
 		);
+	});
+
+	it("returns the API message for unauthorized attachment fetches", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({ message: "Sign in again to view files." }),
+				{
+					status: 401,
+					statusText: "Unauthorized",
+					headers: { "Content-Type": "application/json" },
+				},
+			),
+		);
+
+		await expect(fetchTextAttachmentContent("file-2")).resolves.toEqual({
+			kind: "failed",
+			detail: "Sign in again to view files.",
+		});
 	});
 
 	it("returns a classified failure when the fetch responds non-OK", async () => {
@@ -78,7 +97,7 @@ describe("fetchTextAttachmentContent", () => {
 			new Response("nope", { status: 503 }),
 		);
 
-		const result = await fetchTextAttachmentContent("file-2");
+		const result = await fetchTextAttachmentContent("file-3");
 		expect(result.kind).not.toBe("loaded");
 	});
 });

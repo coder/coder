@@ -703,6 +703,30 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 // PartFromContent converts fantasy content into a SDK chat message
 // part, preserving ProviderMetadata and ProviderExecuted fields.
 func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, nil)
+}
+
+// PartFromContentWithLogger mirrors PartFromContent, but logs malformed
+// tool attachment metadata when a ToolResultContent carries invalid
+// ClientMetadata.
+func PartFromContentWithLogger(
+	ctx context.Context,
+	logger slog.Logger,
+	block fantasy.Content,
+) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, func(content fantasy.ToolResultContent, err error) {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", content.ToolName),
+			slog.F("tool_call_id", content.ToolCallID),
+			slog.Error(err),
+		)
+	})
+}
+
+func sdkPartFromContent(
+	block fantasy.Content,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	switch value := block.(type) {
 	case fantasy.TextContent:
 		return codersdk.ChatMessagePart{
@@ -777,9 +801,9 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolResultContent:
-		return toolResultContentToPart(value)
+		return toolResultContentToPart(value, logMalformedAttachmentMetadata)
 	case *fantasy.ToolResultContent:
-		return toolResultContentToPart(*value)
+		return toolResultContentToPart(*value, logMalformedAttachmentMetadata)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
@@ -795,7 +819,10 @@ func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isErr
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
-func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
+func toolResultContentToPart(
+	content fantasy.ToolResultContent,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	var result json.RawMessage
 	var isError bool
 	var isMedia bool
@@ -830,14 +857,13 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		// ClientMetadata is consumed later to append sibling file parts.
 		// Mirror attachment identity here so promoted media can be
 		// recognized as the same durable attachment downstream.
-		// Current media-result producers promote at most one durable
-		// attachment per result, and invalid metadata is already
-		// handled by the sibling file-part promotion path.
-		if attachments, err := chattool.AttachmentsFromMetadata(content.ClientMetadata); err == nil {
-			if len(attachments) > 0 {
-				persisted.AttachmentFileID = attachments[0].FileID.String()
-				persisted.AttachmentName = attachments[0].Name
-			}
+		if attachment, ok := matchingAttachmentForMedia(
+			content,
+			output.MediaType,
+			logMalformedAttachmentMetadata,
+		); ok {
+			persisted.AttachmentFileID = attachment.FileID.String()
+			persisted.AttachmentName = attachment.Name
 		}
 		result, _ = json.Marshal(persisted)
 	default:
@@ -848,6 +874,26 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+func matchingAttachmentForMedia(
+	content fantasy.ToolResultContent,
+	mediaType string,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) (chattool.AttachmentMetadata, bool) {
+	attachments, err := chattool.AttachmentsFromMetadata(content.ClientMetadata)
+	if err != nil {
+		if logMalformedAttachmentMetadata != nil {
+			logMalformedAttachmentMetadata(content, err)
+		}
+		return chattool.AttachmentMetadata{}, false
+	}
+	for _, attachment := range attachments {
+		if attachment.MediaType == mediaType {
+			return attachment, true
+		}
+	}
+	return chattool.AttachmentMetadata{}, false
 }
 
 // Keep in sync with coderd/x/chatd/subagent.go.

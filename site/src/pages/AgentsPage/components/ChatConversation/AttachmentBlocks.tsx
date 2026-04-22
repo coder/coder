@@ -16,6 +16,7 @@ import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
+	getChatFileURL,
 	isAbortError,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
@@ -68,16 +69,18 @@ const sanitizeAttachmentExtension = (value: string): string => {
 const getAttachmentExtension = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
-	const trimmedName = block.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
-	}
 	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[block.media_type];
 	if (mapped) {
 		return mapped;
+	}
+	const trimmedName = block.name?.trim();
+	if (trimmedName) {
+		const lastDot = trimmedName.lastIndexOf(".");
+		// Keep dotfiles like `.env` out of the extension path, while still
+		// allowing ordinary `name.ext` filenames to contribute a fallback.
+		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
+			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
+		}
 	}
 	const subtype = block.media_type.split("/")[1] ?? "";
 	if (subtype.endsWith("+json")) {
@@ -91,7 +94,7 @@ const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
-		return `/api/experimental/chats/files/${block.file_id}`;
+		return getChatFileURL(block.file_id);
 	}
 	if (block.data) {
 		return `data:${block.media_type};base64,${block.data}`;

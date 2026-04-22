@@ -19,6 +19,7 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -147,6 +148,7 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
+	Logger           slog.Logger
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
@@ -493,8 +495,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Execute only built-in tools.
 				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-					publishToolAttachments(tr, completedAt, publishMessagePart)
-					ssePart := chatprompt.PartFromContent(tr)
+					publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+					ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 					ssePart.CreatedAt = &completedAt
 					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 				})
@@ -1548,12 +1550,19 @@ func recordToolResultTimestamp(result *stepResult, toolCallID string, ts time.Ti
 }
 
 func publishToolAttachments(
+	ctx context.Context,
+	logger slog.Logger,
 	tr fantasy.ToolResultContent,
 	createdAt time.Time,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) {
 	attachments, err := chattool.AttachmentsFromMetadata(tr.ClientMetadata)
 	if err != nil {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", tr.ToolName),
+			slog.F("tool_call_id", tr.ToolCallID),
+			slog.Error(err),
+		)
 		return
 	}
 	for _, attachment := range attachments {

@@ -7,7 +7,7 @@ export type AttachmentFailure =
 	| { kind: "failed"; detail?: string };
 
 export const getChatFileURL = (fileId: string) =>
-	`/api/experimental/chats/files/${fileId}`;
+	`/api/experimental/chats/files/${encodeURIComponent(fileId)}`;
 
 export const isAbortError = (error: unknown): error is Error =>
 	error instanceof Error && error.name === "AbortError";
