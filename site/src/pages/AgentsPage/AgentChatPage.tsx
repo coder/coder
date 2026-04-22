@@ -143,15 +143,11 @@ export function savePersistedSidebarTabId(
 	);
 }
 
-export function clearPersistedSidebarTabId(
-	agentID: string | undefined,
-): void {
+export function clearPersistedSidebarTabId(agentID: string | undefined): void {
 	if (typeof window === "undefined" || !agentID) {
 		return;
 	}
-	localStorage.removeItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
-	);
+	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`);
 }
 
 /** @internal Exported for testing. */

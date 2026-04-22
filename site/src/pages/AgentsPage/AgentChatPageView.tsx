@@ -277,8 +277,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// the user clicks the inline desktop preview card). The initial
 	// value is restored from localStorage so the tab survives session
 	// switches.
-	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(
-		() => getPersistedSidebarTabId(agentId),
+	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
+		getPersistedSidebarTabId(agentId),
 	);
 
 	const setSidebarTabId = useCallback(
