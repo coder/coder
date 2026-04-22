@@ -126,7 +126,6 @@ const ADMIN_SETTINGS_SECTIONS = new Set([
 	"spend",
 	"insights",
 	"instructions",
-	"system-instructions",
 	"experiments",
 	"lifecycle",
 ]);
@@ -1437,10 +1436,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<SettingsNavItem
 							icon={ReceiptTextIcon}
 							label="Instructions"
-							active={
-								settingsSection === "instructions" ||
-								settingsSection === "system-instructions"
-							}
+							active={settingsSection === "instructions"}
 							to="/agents/settings/instructions"
 							state={location.state}
 						/>
