@@ -5225,9 +5225,13 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// webSearchAllowedForTurn applies the current turn's web_search entitlement
-// boundary. Explore chats trust the persisted snapshot from chat creation,
-// while other turns follow the plan-mode policy.
+// webSearchAllowedForTurn returns the current turn's web_search
+// entitlement. Explore chats return the persisted snapshot unchanged.
+// Callers must resolve that snapshot at spawn time, see
+// resolveExploreToolSnapshot and defaultAllowWebSearchForChat. This
+// function does not re-derive it from the current model or plan mode.
+// Non-Explore turns follow the plan-mode policy. Plan mode blocks
+// web_search, Ask mode allows it.
 func webSearchAllowedForTurn(
 	mode database.NullChatMode,
 	planMode database.NullChatPlanMode,

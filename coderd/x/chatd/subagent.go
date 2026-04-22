@@ -462,6 +462,13 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
+// childSubagentChatOptions carries per-child overrides for subagent chat
+// creation. modelConfigIDOverride and planModeOverride apply to any
+// subagent. inheritedMCPServerIDs and allowWebSearch are Explore-only
+// snapshots of the spawning parent turn's effective external-tool
+// entitlement. resolveExploreToolSnapshot computes and persists them on
+// the child chat at spawn time so a later model override cannot
+// re-escalate tool access. Non-Explore children ignore these fields.
 type childSubagentChatOptions struct {
 	chatMode              database.NullChatMode
 	systemPrompt          string
@@ -471,6 +478,23 @@ type childSubagentChatOptions struct {
 	allowWebSearch        bool
 }
 
+// resolveExploreToolSnapshot computes the child chat's inherited
+// external-tool entitlement from the spawning parent turn. It returns the
+// MCP server ID snapshot and web_search snapshot that are persisted on an
+// Explore child at spawn time.
+//
+// The MCP set is filtered in two stages. First,
+// filterExternalMCPConfigsForTurn applies the parent turn's plan-mode
+// policy to the parent's MCP configs, producing visibleConfigs. Second,
+// if the parent is itself an Explore child, the visible set is narrowed to
+// the parent's persisted MCPServerIDs so an Explore chain cannot
+// re-escalate beyond the original grant. Non-Explore parents pass
+// through the second stage unchanged.
+//
+// allowWebSearch intersects the current child model's web_search support
+// with the parent turn's effective web_search entitlement via
+// webSearchAllowedForTurn. These snapshots are taken at spawn time and
+// never recomputed at runtime. runChat trusts the persisted values.
 func (p *Server) resolveExploreToolSnapshot(
 	ctx context.Context,
 	parent database.Chat,
@@ -488,6 +512,9 @@ func (p *Server) resolveExploreToolSnapshot(
 			parent.PlanMode,
 			parent.ParentChatID,
 		)
+		// Empty means the parent is not Explore, so all plan-filtered
+		// configs remain eligible. Populated means the parent is
+		// Explore, so only its persisted snapshot can pass.
 		allowedParentIDs := map[uuid.UUID]struct{}{}
 		if isExploreSubagentMode(parent.Mode) {
 			for _, id := range parent.MCPServerIDs {
@@ -572,17 +599,25 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
-	allowWebSearch, err := p.defaultAllowWebSearchForChat(
-		ctx,
-		modelConfigID,
-		opts.chatMode,
-		childPlanMode,
+	var (
+		allowWebSearch bool
+		err            error
 	)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("resolve child chat web search entitlement: %w", err)
-	}
 	if isExploreSubagentMode(opts.chatMode) {
+		// Explore children trust the spawn-time snapshot persisted by
+		// resolveExploreToolSnapshot. Recomputing here would reintroduce
+		// the re-escalation path the snapshot is meant to block.
 		allowWebSearch = opts.allowWebSearch
+	} else {
+		allowWebSearch, err = p.defaultAllowWebSearchForChat(
+			ctx,
+			modelConfigID,
+			opts.chatMode,
+			childPlanMode,
+		)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("resolve child chat web search entitlement: %w", err)
+		}
 	}
 
 	labelsJSON, err := json.Marshal(database.StringMap{})
