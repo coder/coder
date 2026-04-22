@@ -640,10 +640,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 
 			cliui.Infof(inv.Stdout, "Pausing prebuilds reconciler...")
 			setPrebuild := func(val bool) error {
-				if err = client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{ReconciliationPaused: val}); err != nil {
-					return err
-				}
-				return nil
+				return client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{ReconciliationPaused: val})
 			}
 			if err = setPrebuild(true); err != nil {
 				return xerrors.Errorf("pause prebuilds reconciler: %w", err)
