@@ -62,7 +62,8 @@ type AgentConnFunc func(
 
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
-	OwnerID                        uuid.UUID
+	OwnerID uuid.UUID
+	// ChatID is the active chat's ID. Must not be uuid.Nil.
 	ChatID                         uuid.UUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -95,9 +96,6 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if db == nil {
-				return fantasy.NewTextErrorResponse("database is not configured"), nil
-			}
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
 			}
@@ -216,31 +214,29 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			// later fails. The checkExistingWorkspace recovery
 			// path handles failed workspaces by allowing
 			// re-creation.
-			if options.ChatID != uuid.Nil {
-				updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-					ID: options.ChatID,
-					WorkspaceID: uuid.NullUUID{
-						UUID:  workspace.ID,
-						Valid: true,
-					},
-					BuildID: uuid.NullUUID{
-						UUID:  workspace.LatestBuild.ID,
-						Valid: workspace.LatestBuild.ID != uuid.Nil,
-					},
-					// AgentID is left null because the build hasn't
-					// completed yet. The chatd runtime binds it once
-					// the agent comes online.
-					AgentID: uuid.NullUUID{},
-				})
-				if err != nil {
-					options.Logger.Error(ctx, "failed to persist chat workspace association",
-						slog.F("chat_id", options.ChatID),
-						slog.F("workspace_id", workspace.ID),
-						slog.Error(err),
-					)
-				} else if options.OnChatUpdated != nil {
-					options.OnChatUpdated(updatedChat)
-				}
+			updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID: options.ChatID,
+				WorkspaceID: uuid.NullUUID{
+					UUID:  workspace.ID,
+					Valid: true,
+				},
+				BuildID: uuid.NullUUID{
+					UUID:  workspace.LatestBuild.ID,
+					Valid: workspace.LatestBuild.ID != uuid.Nil,
+				},
+				// AgentID is left null because the build hasn't
+				// completed yet. The chatd runtime binds it once
+				// the agent comes online.
+				AgentID: uuid.NullUUID{},
+			})
+			if err != nil {
+				options.Logger.Error(ctx, "failed to persist chat workspace association",
+					slog.F("chat_id", options.ChatID),
+					slog.F("workspace_id", workspace.ID),
+					slog.Error(err),
+				)
+			} else if options.OnChatUpdated != nil {
+				options.OnChatUpdated(updatedChat)
 			}
 
 			// Wait for the build to complete and the agent to
@@ -329,10 +325,6 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
 	db database.Store,
 ) existingWorkspaceResult {
-	if o.ChatID == uuid.Nil {
-		return existingWorkspaceResult{}
-	}
-
 	chatID := o.ChatID
 	agentConnFn := o.AgentConnFn
 	agentInactiveDisconnectTimeout := o.AgentInactiveDisconnectTimeout

@@ -244,10 +244,25 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
+		// Create a chat record so checkExistingWorkspace
+		// can look up the chat (ChatID is always set in
+		// production, so tests must provide one too).
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-allowlist",
+		})
+		require.NoError(t, err)
+
 		t.Run("Allowed", func(t *testing.T) {
 			createCalled := false
 			tool := chattool.CreateWorkspace(org.ID, db, chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
+				ChatID:             chat.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {

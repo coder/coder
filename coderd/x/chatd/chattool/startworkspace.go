@@ -26,8 +26,10 @@ type StartWorkspaceFn func(
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	DB            database.Store
-	OwnerID       uuid.UUID
+	// DB is the database store. Must be non-nil.
+	DB      database.Store
+	OwnerID uuid.UUID
+	// ChatID is the chat identifier. Must not be uuid.Nil.
 	ChatID        uuid.UUID
 	StartFn       StartWorkspaceFn
 	AgentConnFn   AgentConnFunc
@@ -61,10 +63,6 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			if options.WorkspaceMu != nil {
 				options.WorkspaceMu.Lock()
 				defer options.WorkspaceMu.Unlock()
-			}
-
-			if options.DB == nil || options.ChatID == uuid.Nil {
-				return fantasy.NewTextErrorResponse("start_workspace is not properly configured"), nil
 			}
 
 			chat, err := options.DB.GetChatByID(ctx, options.ChatID)

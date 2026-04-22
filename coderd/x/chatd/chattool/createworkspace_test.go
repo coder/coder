@@ -134,6 +134,12 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	buildID := uuid.New()
 	fallbackAgentID := uuid.New()
 	chatAgentID := uuid.New()
+	chatID := uuid.New()
+
+	// checkExistingWorkspace loads the chat first.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -155,6 +161,9 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
+		Return(database.Chat{ID: chatID}, nil)
 	db.EXPECT().
 		GetWorkspaceBuildByID(gomock.Any(), buildID).
 		Return(database.WorkspaceBuild{
@@ -198,6 +207,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 
 	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
 		OwnerID: ownerID,
+		ChatID:  chatID,
 
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
@@ -337,6 +347,12 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	workspaceID := uuid.New()
 	jobID := uuid.New()
 	buildID := uuid.New()
+	chatID := uuid.New()
+
+	// checkExistingWorkspace loads the chat first.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -357,6 +373,10 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
+
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
+		Return(database.Chat{ID: chatID}, nil)
 
 	// waitForBuild fetches the build by ID.
 	db.EXPECT().
@@ -390,7 +410,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
-		ChatID:      uuid.Nil,
+		ChatID:      chatID,
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -421,6 +441,12 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 	ownerID := uuid.New()
 	orgID := uuid.New()
 	templateID := uuid.New()
+	chatID := uuid.New()
+
+	// checkExistingWorkspace loads the chat first.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -444,6 +470,7 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 
 	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
 		OwnerID: ownerID,
+		ChatID:  chatID,
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			return codersdk.Workspace{}, httperror.NewResponseError(400, codersdk.Response{
 				Message: "missing required parameter",
@@ -525,6 +552,12 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			workspaceID := uuid.New()
 			jobID := uuid.New()
 			buildID := uuid.New()
+			chatID := uuid.New()
+
+			// checkExistingWorkspace loads the chat first.
+			db.EXPECT().
+				GetChatByID(gomock.Any(), chatID).
+				Return(database.Chat{ID: chatID}, nil)
 
 			db.EXPECT().
 				GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -545,6 +578,10 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			db.EXPECT().
 				GetChatWorkspaceTTL(gomock.Any()).
 				Return(tc.ttlReturn, tc.ttlErr)
+
+			db.EXPECT().
+				UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
+				Return(database.Chat{ID: chatID}, nil)
 
 			db.EXPECT().
 				GetWorkspaceBuildByID(gomock.Any(), buildID).
@@ -580,7 +617,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
 				OwnerID: ownerID,
 
-				ChatID:      uuid.Nil,
+				ChatID:      chatID,
 				CreateFn:    createFn,
 				WorkspaceMu: &sync.Mutex{},
 				Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -1018,6 +1055,12 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 	workspaceID := uuid.New()
 	jobID := uuid.New()
 	buildID := uuid.New()
+	chatID := uuid.New()
+
+	// checkExistingWorkspace loads the chat first.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -1038,6 +1081,10 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
+
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
+		Return(database.Chat{ID: chatID}, nil)
 
 	// waitForBuild fetches the build by ID.
 	db.EXPECT().
@@ -1070,7 +1117,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
-		ChatID:      uuid.Nil,
+		ChatID:      chatID,
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
