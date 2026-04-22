@@ -6,6 +6,7 @@ import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { generateLargeDiff } from "../DiffViewer/testHelpers";
 import { GitPanel } from "./GitPanel";
 
 // ---------------------------------------------------------------------------
@@ -320,5 +321,21 @@ export const InlineCommentInput: Story = {
 		if (textarea) {
 			expect(textarea).toBeInTheDocument();
 		}
+	},
+};
+
+export const LargeDiff: Story = {
+	args: {
+		repositories: new Map([
+			[
+				"/home/coder/large-project",
+				makeRepo({
+					repo_root: "/home/coder/large-project",
+					branch: "feat/large-refactor",
+					remote_origin: "https://github.com/coder/large-project.git",
+					unified_diff: generateLargeDiff(40, 60),
+				}),
+			],
+		]),
 	},
 };

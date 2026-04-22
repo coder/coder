@@ -259,6 +259,9 @@ coderd_chatd_stream_subscribers 0
 # HELP coderd_chatd_streams_active Current number of chat stream state entries (in-flight plus retained).
 # TYPE coderd_chatd_streams_active gauge
 coderd_chatd_streams_active 0
+# HELP coderd_chatd_tool_errors_total Total tool calls that returned an error result.
+# TYPE coderd_chatd_tool_errors_total counter
+coderd_chatd_tool_errors_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool execution result.
 # TYPE coderd_chatd_tool_result_size_bytes histogram
 coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
