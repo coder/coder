@@ -8,6 +8,7 @@ import {
 	MockDynamicParametersResponse,
 	MockDynamicParametersResponseWithError,
 	MockPermissions,
+	MockPreviewParameter,
 	MockSliderParameter,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
@@ -195,6 +196,84 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
 				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+			});
+		});
+
+		it("does not clobber user values", async () => {
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockPreviewParameter,
+			]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const form = screen.getByTestId("form");
+			const input = await within(form).findByRole("textbox", {
+				name: /parameter 1/i,
+			});
+			await userEvent.clear(input);
+			await userEvent.type(input, "hi there hello");
+
+			await waitFor(() => {
+				expect(
+					within(form).getByDisplayValue("hi there hello"),
+				).toBeInTheDocument();
+			});
+
+			// Simulate a stale response.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 1,
+							parameters: [MockPreviewParameter, MockValidationParameter],
+						}),
+					}),
+				);
+			});
+
+			// Should have the new field, but keep the existing user-filled values.
+			await waitFor(() => {
+				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
+				expect(
+					within(form).getByDisplayValue("hi there hello"),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("does not clobber auto-filled values", async () => {
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockPreviewParameter,
+				MockSliderParameter,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?param.cpu_count=44&param.parameter1=auto`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			// Simulate a stale response.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters: [
+								MockPreviewParameter,
+								MockSliderParameter,
+								MockValidationParameter,
+							],
+						}),
+					}),
+				);
+			});
+
+			// Should have the new field, but keep the existing auto-filled values.
+			const form = screen.getByTestId("form");
+			await waitFor(() => {
+				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
+				expect(within(form).getByDisplayValue("44")).toBeInTheDocument();
+				expect(within(form).getByDisplayValue("auto")).toBeInTheDocument();
 			});
 		});
 	});
