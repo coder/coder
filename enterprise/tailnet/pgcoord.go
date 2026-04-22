@@ -926,13 +926,7 @@ func (q *querier) wait() {
 func (q *querier) periodicRefresh() {
 	defer q.wg.Done()
 	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
-		q.mu.Lock()
-		keys := make([]mKey, 0, len(q.mappers))
-		for mk := range q.mappers {
-			keys = append(keys, mk)
-		}
-		q.mu.Unlock()
-		q.mappingQ.enqueue(keys...)
+		q.resyncPeerMappings()
 		return nil
 	}, "querier", "periodicRefresh")
 	err := tkr.Wait()
