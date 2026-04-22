@@ -4832,6 +4832,328 @@ func seedChatDependenciesWithProviderPolicy(
 	return user, org, providerConfig, model
 }
 
+func seedChatUserAndOrganization(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+) (database.User, database.Organization) {
+	t.Helper()
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	return user, org
+}
+
+func insertChatProviderConfig(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	apiKey string,
+	baseURL string,
+	enabled bool,
+	centralAPIKeyEnabled bool,
+) database.ChatProvider {
+	t.Helper()
+
+	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             provider,
+		DisplayName:          provider,
+		APIKey:               apiKey,
+		BaseUrl:              baseURL,
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              enabled,
+		CentralApiKeyEnabled: centralAPIKeyEnabled,
+	})
+	require.NoError(t, err)
+	return providerConfig
+}
+
+func marshalChatModelCallConfig(
+	t *testing.T,
+	provider string,
+	openAIStore *bool,
+) json.RawMessage {
+	t.Helper()
+
+	callConfig := codersdk.ChatModelCallConfig{}
+	switch provider {
+	case "openai":
+		callConfig.ProviderOptions = &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{Store: openAIStore},
+		}
+	case "anthropic":
+		callConfig.ProviderOptions = &codersdk.ChatModelProviderOptions{
+			Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+		}
+	}
+	if callConfig.ProviderOptions == nil {
+		return json.RawMessage(`{}`)
+	}
+	encoded, err := json.Marshal(callConfig)
+	require.NoError(t, err)
+	return encoded
+}
+
+func insertChatModelConfigWithOptions(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	model string,
+	enabled bool,
+	isDefault bool,
+	options json.RawMessage,
+) database.ChatModelConfig {
+	t.Helper()
+
+	modelConfig, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             provider,
+		Model:                model,
+		DisplayName:          model,
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              enabled,
+		IsDefault:            isDefault,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              options,
+	})
+	require.NoError(t, err)
+	return modelConfig
+}
+
+func testDefaultComputerUseModel(provider string) (string, bool) {
+	switch provider {
+	case "anthropic":
+		return "claude-opus-4-6", true
+	case "openai":
+		return "computer-use-preview-2025-03-11", true
+	default:
+		return "", false
+	}
+}
+
+func insertComputerUseModelConfig(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	enabled bool,
+	openAIStore *bool,
+) database.ChatModelConfig {
+	t.Helper()
+
+	modelName, ok := testDefaultComputerUseModel(provider)
+	require.True(t, ok, "provider %q should have a default computer-use model", provider)
+	return insertChatModelConfigWithOptions(
+		ctx,
+		t,
+		db,
+		userID,
+		provider,
+		modelName,
+		enabled,
+		false,
+		marshalChatModelCallConfig(t, provider, openAIStore),
+	)
+}
+
+type recordedResponsesComputerUseRequest struct {
+	Model     string
+	ToolTypes []string
+	Store     *bool
+}
+
+func recordOpenAIResponsesComputerUseRequest(req *chattest.OpenAIRequest) recordedResponsesComputerUseRequest {
+	toolTypes := make([]string, 0, len(req.Tools))
+	for _, tool := range req.Tools {
+		toolTypes = append(toolTypes, tool.Type)
+	}
+
+	var store *bool
+	if req.Store != nil {
+		value := *req.Store
+		store = &value
+	}
+
+	return recordedResponsesComputerUseRequest{
+		Model:     req.Model,
+		ToolTypes: toolTypes,
+		Store:     store,
+	}
+}
+
+type recordedAnthropicComputerUseCall struct {
+	Model string
+	Tools []string
+}
+
+func newRecordedAnthropicComputerUseServer(
+	t *testing.T,
+) (string, func() []recordedAnthropicComputerUseCall) {
+	t.Helper()
+
+	var mu sync.Mutex
+	calls := make([]recordedAnthropicComputerUseCall, 0)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var req struct {
+			Model  string `json:"model"`
+			Stream bool   `json:"stream"`
+			Tools  []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		names := make([]string, len(req.Tools))
+		for i, tool := range req.Tools {
+			names[i] = tool.Name
+		}
+		mu.Lock()
+		calls = append(calls, recordedAnthropicComputerUseCall{Model: req.Model, Tools: names})
+		mu.Unlock()
+
+		if !req.Stream {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "msg-test",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       req.Model,
+				"content":     []map[string]any{{"type": "text", "text": "Done."}},
+				"stop_reason": "end_turn",
+				"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		flusher, _ := w.(http.Flusher)
+		chunks := []map[string]any{
+			{
+				"type": "message_start",
+				"message": map[string]any{
+					"id":    "msg-test",
+					"type":  "message",
+					"role":  "assistant",
+					"model": req.Model,
+				},
+			},
+			{
+				"type":  "content_block_start",
+				"index": 0,
+				"content_block": map[string]any{
+					"type": "text",
+					"text": "",
+				},
+			},
+			{
+				"type":  "content_block_delta",
+				"index": 0,
+				"delta": map[string]any{
+					"type": "text_delta",
+					"text": "Done.",
+				},
+			},
+			{"type": "content_block_stop", "index": 0},
+			{
+				"type":  "message_delta",
+				"delta": map[string]any{"stop_reason": "end_turn"},
+				"usage": map[string]any{"output_tokens": 5},
+			},
+			{"type": "message_stop"},
+		}
+		for _, chunk := range chunks {
+			chunkBytes, _ := json.Marshal(chunk)
+			eventType, _ := chunk["type"].(string)
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, chunkBytes)
+			flusher.Flush()
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server.URL, func() []recordedAnthropicComputerUseCall {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]recordedAnthropicComputerUseCall(nil), calls...)
+	}
+}
+
+func createPendingComputerUseParentAndChild(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	parentModelID uuid.UUID,
+	childModelID uuid.UUID,
+	childTitle string,
+	prompt string,
+) (parentChat database.Chat, childChat database.Chat) {
+	t.Helper()
+
+	setupServer := newTestServer(t, db, ps, uuid.New())
+	parent, err := setupServer.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     orgID,
+		OwnerID:            userID,
+		Title:              "parent-computer-use-root",
+		ModelConfigID:      parentModelID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	child, err := setupServer.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: orgID,
+		OwnerID:        userID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  parent.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  parent.ID,
+			Valid: true,
+		},
+		Title:              childTitle,
+		ModelConfigID:      childModelID,
+		ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+		SystemPrompt:       "Computer use instructions\n\n" + prompt,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     parent.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	require.NoError(t, setupServer.Close())
+
+	parentChat, err = db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+	childChat, err = db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	return parentChat, childChat
+}
+
 func waitForTerminalChatStatusEvent(
 	ctx context.Context,
 	t *testing.T,
@@ -5389,116 +5711,8 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
+	anthropicURL, anthropicCalls := newRecordedAnthropicComputerUseServer(t)
 
-	// Track tools and model from the Anthropic LLM calls (the
-	// computer use child chat). We use a raw HTTP handler because
-	// the chattest AnthropicRequest struct does not capture tools.
-	type anthropicCall struct {
-		Model string
-		Tools []string
-	}
-	var anthropicMu sync.Mutex
-	var anthropicCalls []anthropicCall
-
-	anthropicSrv := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			var req struct {
-				Model  string `json:"model"`
-				Stream bool   `json:"stream"`
-				Tools  []struct {
-					Name string `json:"name"`
-				} `json:"tools"`
-			}
-			if err := json.Unmarshal(body, &req); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			names := make([]string, len(req.Tools))
-			for i, tool := range req.Tools {
-				names[i] = tool.Name
-			}
-			anthropicMu.Lock()
-			anthropicCalls = append(anthropicCalls, anthropicCall{
-				Model: req.Model,
-				Tools: names,
-			})
-			anthropicMu.Unlock()
-
-			if !req.Stream {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"id":          "msg-test",
-					"type":        "message",
-					"role":        "assistant",
-					"model":       chattool.ComputerUseModelName,
-					"content":     []map[string]any{{"type": "text", "text": "Done."}},
-					"stop_reason": "end_turn",
-					"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
-				})
-				return
-			}
-
-			// Stream a minimal Anthropic SSE response.
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			flusher, _ := w.(http.Flusher)
-
-			chunks := []map[string]any{
-				{
-					"type": "message_start",
-					"message": map[string]any{
-						"id":    "msg-test",
-						"type":  "message",
-						"role":  "assistant",
-						"model": chattool.ComputerUseModelName,
-					},
-				},
-				{
-					"type":  "content_block_start",
-					"index": 0,
-					"content_block": map[string]any{
-						"type": "text",
-						"text": "",
-					},
-				},
-				{
-					"type":  "content_block_delta",
-					"index": 0,
-					"delta": map[string]any{
-						"type": "text_delta",
-						"text": "Done.",
-					},
-				},
-				{"type": "content_block_stop", "index": 0},
-				{
-					"type":  "message_delta",
-					"delta": map[string]any{"stop_reason": "end_turn"},
-					"usage": map[string]any{"output_tokens": 5},
-				},
-				{"type": "message_stop"},
-			}
-
-			for _, chunk := range chunks {
-				chunkBytes, _ := json.Marshal(chunk)
-				eventType, _ := chunk["type"].(string)
-				_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n",
-					eventType, chunkBytes)
-				flusher.Flush()
-			}
-		},
-	))
-	t.Cleanup(anthropicSrv.Close)
-
-	// OpenAI mock for the root chat. The first streaming call
-	// triggers spawn_agent; subsequent calls reply
-	// with text.
 	var openAICallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -5512,160 +5726,73 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				),
 			)
 		}
-		// Include literal \u0000 in the response text, which is
-		// what a real LLM writes when explaining binary output.
-		// json.Marshal encodes the backslash as \\, producing
-		// \\u0000 in the JSON bytes. The sanitizer must not
-		// corrupt this into invalid JSON.
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("The file contains \\u0000 null bytes.")...,
 		)
 	})
 
-	// Seed the DB: user, openai-compat provider, model config.
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, parentModel := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	insertChatProviderConfig(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", anthropicURL, true, true)
+	anthropicModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
 
-	// Add an Anthropic provider pointing to our mock server.
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		APIKey:               "test-anthropic-key",
-		BaseUrl:              anthropicSrv.URL,
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
-
-	err = db.UpsertChatDesktopEnabled(ctx, true)
-	require.NoError(t, err)
-
-	// Build workspace + agent records so getWorkspaceConn can
-	// resolve the agent for the computer use child.
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-	// Mock agent connection that returns valid display dimensions
-	// for the initial screenshot check in the computer use path.
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().
-		ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).
-		AnyTimes()
-	mockConn.EXPECT().
-		ExecuteDesktopAction(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.DesktopActionResponse{
-			ScreenshotWidth:  1920,
-			ScreenshotHeight: 1080,
-			ScreenshotData:   "iVBOR",
-		}, nil).
-		AnyTimes()
-	mockConn.EXPECT().
-		SetExtraHeaders(gomock.Any()).
-		AnyTimes()
-	mockConn.EXPECT().
-		ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).
-		AnyTimes()
-	mockConn.EXPECT().
-		LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{}, xerrors.New("not found")).
-		AnyTimes()
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-
-	// Create a root chat with a workspace so the child inherits it.
+	server := newActiveTestServer(t, db, ps)
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "computer-use-detection",
-		ModelConfigID:  model.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		ModelConfigID:  parentModel.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("Use the desktop to check the UI"),
 		},
 	})
 	require.NoError(t, err)
 
-	// Wait for the root chat AND the computer use child to finish.
-	// The root chat spawns the child, then the chatd server picks
-	// up and runs the child (which hits the Anthropic mock).
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
-		if got.Status != database.ChatStatusWaiting &&
-			got.Status != database.ChatStatusError {
+		if got.Status != database.ChatStatusWaiting && got.Status != database.ChatStatusError {
 			return false
 		}
-		// Ensure the Anthropic mock received at least one call.
-		anthropicMu.Lock()
-		n := len(anthropicCalls)
-		anthropicMu.Unlock()
-		return n >= 1
+		return len(anthropicCalls()) >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	anthropicMu.Lock()
-	calls := append([]anthropicCall(nil), anthropicCalls...)
-	anthropicMu.Unlock()
-
-	require.NotEmpty(t, calls,
-		"expected at least one Anthropic LLM call")
-
+	calls := anthropicCalls()
+	require.NotEmpty(t, calls, "expected at least one Anthropic LLM call")
 	childModel := calls[0].Model
 	childTools := calls[0].Tools
+	require.Equal(t, anthropicModel.Model, childModel)
+	require.Contains(t, childTools, "computer")
 
-	// 1. Verify the model is the computer use model.
-	require.Equal(t, chattool.ComputerUseModelName, childModel,
-		"computer use subagent should use %s",
-		chattool.ComputerUseModelName)
-
-	// 2. Verify the computer tool is present.
-	require.Contains(t, childTools, "computer",
-		"computer use subagent should have the computer tool")
-
-	// 3. Verify standard workspace tools are present (the same
-	//    set a regular subagent gets).
 	standardTools := []string{
 		"read_file", "write_file", "edit_files", "execute",
 		"process_output", "process_list", "process_signal",
 	}
 	for _, tool := range standardTools {
 		require.Contains(t, childTools, tool,
-			"computer use subagent should have standard tool %q",
-			tool)
+			"computer use subagent should have standard tool %q", tool)
 	}
 
-	// 4. Verify workspace provisioning tools are NOT present.
 	workspaceProvisioningTools := []string{
 		"list_templates", "read_template",
 		"create_workspace", "start_workspace",
 	}
 	for _, tool := range workspaceProvisioningTools {
 		require.NotContains(t, childTools, tool,
-			"computer use subagent should NOT have workspace "+
-				"provisioning tool %q", tool)
+			"computer use subagent should not have workspace provisioning tool %q", tool)
 	}
 
-	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
 		"spawn_agent",
 		"wait_agent", "message_agent", "close_agent",
 	}
 	for _, tool := range subagentTools {
 		require.NotContains(t, childTools, tool,
-			"computer use subagent should NOT have subagent "+
-				"tool %q", tool)
+			"computer use subagent should not have subagent tool %q", tool)
 	}
 
-	// 6. Verify the child chat has Mode = computer_use in
-	//    the DB.
 	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 		ParentIds: []uuid.UUID{chat.ID},
 	})
@@ -5676,8 +5803,273 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	}
 	require.Len(t, children, 1)
 	require.True(t, children[0].Mode.Valid)
-	require.Equal(t, database.ChatModeComputerUse,
-		children[0].Mode.ChatMode)
+	require.Equal(t, database.ChatModeComputerUse, children[0].Mode.ChatMode)
+	require.Equal(t, anthropicModel.ID, children[0].LastModelConfigID)
+}
+
+func TestComputerUseSubagentToolsAndModel_ChildPinnedToAnthropicUsesAnthropicComputerTool(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	anthropicURL, anthropicCalls := newRecordedAnthropicComputerUseServer(t)
+	user, org := seedChatUserAndOrganization(ctx, t, db)
+	insertChatProviderConfig(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", anthropicURL, true, true)
+	anthropicModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	_, childChat := createPendingComputerUseParentAndChild(
+		ctx,
+		t,
+		db,
+		ps,
+		org.ID,
+		user.ID,
+		anthropicModel.ID,
+		anthropicModel.ID,
+		"anthropic-computer-use-child",
+		"Check the desktop",
+	)
+
+	server := newActiveTestServer(t, db, ps)
+	chatResult := waitForTerminalChat(ctx, t, db, childChat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.Equal(t, anthropicModel.ID, chatResult.LastModelConfigID)
+
+	calls := anthropicCalls()
+	require.NotEmpty(t, calls)
+	require.Equal(t, anthropicModel.Model, calls[0].Model)
+	require.Contains(t, calls[0].Tools, "computer")
+	_ = server
+}
+
+func TestComputerUseSubagentToolsAndModel_ChildPinnedToOpenAIUsesOpenAIComputerTool(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var mu sync.Mutex
+	requests := make([]recordedResponsesComputerUseRequest, 0)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			mu.Lock()
+			requests = append(requests, recordOpenAIResponsesComputerUseRequest(req))
+			mu.Unlock()
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done.")...)
+		}
+		return chattest.OpenAINonStreamingResponse("title")
+	})
+
+	user, org := seedChatUserAndOrganization(ctx, t, db)
+	insertChatProviderConfig(ctx, t, db, user.ID, "openai", "test-openai-key", openAIURL, true, true)
+	openAIModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "openai", true, &trueValue)
+	_, childChat := createPendingComputerUseParentAndChild(
+		ctx,
+		t,
+		db,
+		ps,
+		org.ID,
+		user.ID,
+		openAIModel.ID,
+		openAIModel.ID,
+		"openai-computer-use-child",
+		"Check the browser",
+	)
+
+	server := newActiveTestServer(t, db, ps)
+	chatResult := waitForTerminalChat(ctx, t, db, childChat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.Equal(t, openAIModel.ID, chatResult.LastModelConfigID)
+
+	mu.Lock()
+	calls := append([]recordedResponsesComputerUseRequest(nil), requests...)
+	mu.Unlock()
+	require.NotEmpty(t, calls)
+	require.Equal(t, openAIModel.Model, calls[0].Model)
+	require.NotNil(t, calls[0].Store)
+	require.True(t, *calls[0].Store)
+	require.Contains(t, calls[0].ToolTypes, "computer_use_preview")
+	_ = server
+}
+
+func TestComputerUseSubagentToolsAndModel_PinnedOpenAIDoesNotSwitchProvidersOnLaterTurn(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	anthropicURL, anthropicCalls := newRecordedAnthropicComputerUseServer(t)
+	var mu sync.Mutex
+	requests := make([]recordedResponsesComputerUseRequest, 0)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			mu.Lock()
+			requests = append(requests, recordOpenAIResponsesComputerUseRequest(req))
+			mu.Unlock()
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done.")...)
+		}
+		return chattest.OpenAINonStreamingResponse("title")
+	})
+
+	user, org := seedChatUserAndOrganization(ctx, t, db)
+	insertChatProviderConfig(ctx, t, db, user.ID, "openai", "test-openai-key", openAIURL, true, true)
+	insertChatProviderConfig(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", anthropicURL, true, true)
+	openAIModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "openai", true, &trueValue)
+	_ = insertComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	_, childChat := createPendingComputerUseParentAndChild(
+		ctx,
+		t,
+		db,
+		ps,
+		org.ID,
+		user.ID,
+		openAIModel.ID,
+		openAIModel.ID,
+		"openai-pinned-computer-use-child",
+		"Check the browser",
+	)
+
+	server := newActiveTestServer(t, db, ps)
+	firstTurn := waitForTerminalChat(ctx, t, db, childChat.ID)
+	require.Equal(t, database.ChatStatusWaiting, firstTurn.Status)
+
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: childChat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Continue using the pinned computer-use model."),
+		},
+	})
+	require.NoError(t, err)
+	secondTurn := waitForTerminalChat(ctx, t, db, childChat.ID)
+	require.Equal(t, database.ChatStatusWaiting, secondTurn.Status)
+
+	mu.Lock()
+	calls := append([]recordedResponsesComputerUseRequest(nil), requests...)
+	mu.Unlock()
+	require.GreaterOrEqual(t, len(calls), 2)
+	require.Equal(t, openAIModel.Model, calls[0].Model)
+	require.Equal(t, openAIModel.Model, calls[len(calls)-1].Model)
+	require.Contains(t, calls[0].ToolTypes, "computer_use_preview")
+	require.Empty(t, anthropicCalls(), "later turns on a pinned OpenAI child must not silently switch providers")
+}
+
+func TestComputerUseSubagentToolsAndModel_PinnedProviderBecomingUnusableFails(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	falseValue := false
+	tests := []struct {
+		name      string
+		mutate    func(context.Context, *testing.T, database.Store, database.ChatProvider, database.ChatModelConfig)
+		wantError string
+	}{
+		{
+			name: "OpenAIStoreFalse",
+			mutate: func(ctx context.Context, t *testing.T, db database.Store, provider database.ChatProvider, model database.ChatModelConfig) {
+				_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+					Provider:             model.Provider,
+					Model:                model.Model,
+					DisplayName:          model.DisplayName,
+					UpdatedBy:            model.UpdatedBy,
+					Enabled:              model.Enabled,
+					IsDefault:            model.IsDefault,
+					ContextLimit:         model.ContextLimit,
+					CompressionThreshold: model.CompressionThreshold,
+					Options:              marshalChatModelCallConfig(t, "openai", &falseValue),
+					ID:                   model.ID,
+				})
+				require.NoError(t, err)
+			},
+			wantError: "store",
+		},
+		{
+			name: "ProviderDisabled",
+			mutate: func(ctx context.Context, t *testing.T, db database.Store, provider database.ChatProvider, model database.ChatModelConfig) {
+				_, err := db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+					DisplayName:                provider.DisplayName,
+					APIKey:                     provider.APIKey,
+					BaseUrl:                    provider.BaseUrl,
+					ApiKeyKeyID:                provider.ApiKeyKeyID,
+					Enabled:                    false,
+					CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
+					AllowUserApiKey:            provider.AllowUserApiKey,
+					AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
+					ID:                         provider.ID,
+				})
+				require.NoError(t, err)
+			},
+			wantError: "disabled",
+		},
+		{
+			name: "MissingCredentials",
+			mutate: func(ctx context.Context, t *testing.T, db database.Store, provider database.ChatProvider, model database.ChatModelConfig) {
+				_, err := db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+					DisplayName:                provider.DisplayName,
+					APIKey:                     "",
+					BaseUrl:                    provider.BaseUrl,
+					ApiKeyKeyID:                provider.ApiKeyKeyID,
+					Enabled:                    provider.Enabled,
+					CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
+					AllowUserApiKey:            provider.AllowUserApiKey,
+					AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
+					ID:                         provider.ID,
+				})
+				require.NoError(t, err)
+			},
+			wantError: "credential",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if req.Stream {
+					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done.")...)
+				}
+				return chattest.OpenAINonStreamingResponse("title")
+			})
+
+			user, org := seedChatUserAndOrganization(ctx, t, db)
+			providerConfig := insertChatProviderConfig(ctx, t, db, user.ID, "openai", "test-openai-key", openAIURL, true, true)
+			openAIModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "openai", true, &trueValue)
+			_, childChat := createPendingComputerUseParentAndChild(
+				ctx,
+				t,
+				db,
+				ps,
+				org.ID,
+				user.ID,
+				openAIModel.ID,
+				openAIModel.ID,
+				"openai-unusable-child",
+				"Use the computer",
+			)
+
+			server := newActiveTestServer(t, db, ps)
+			firstTurn := waitForTerminalChat(ctx, t, db, childChat.ID)
+			require.Equal(t, database.ChatStatusWaiting, firstTurn.Status)
+			require.NoError(t, server.Close())
+
+			tt.mutate(ctx, t, db, providerConfig, openAIModel)
+
+			restart := newActiveTestServer(t, db, ps)
+			_, err := restart.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID: childChat.ID,
+				Content: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Continue using the computer."),
+				},
+			})
+			require.NoError(t, err)
+			chatResult := waitForTerminalChat(ctx, t, db, childChat.ID)
+			require.Equal(t, database.ChatStatusError, chatResult.Status)
+			require.True(t, chatResult.LastError.Valid)
+			require.Contains(t, strings.ToLower(chatResult.LastError.String), tt.wantError)
+		})
+	}
 }
 
 func TestInterruptChatPersistsPartialResponse(t *testing.T) {

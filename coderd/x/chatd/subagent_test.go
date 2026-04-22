@@ -22,6 +22,8 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	server := newTestServer(t, db, ps, uuid.New())
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
+	insertChatProviderConfig(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", "", true, true)
+	resolvedModel := insertComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
 
 	// Create a parent chat.
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -48,7 +50,7 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 			UUID:  parent.ID,
 			Valid: true,
 		},
-		ModelConfigID:      model.ID,
+		ModelConfigID:      resolvedModel.ID,
 		Title:              "computer-use",
 		ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 		SystemPrompt:       "Computer use instructions\n\n" + prompt,
@@ -69,6 +71,9 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, got.Mode.ChatMode)
+	require.Equal(t, resolvedModel.ID, got.LastModelConfigID)
+	require.NotEqual(t, parent.LastModelConfigID, got.LastModelConfigID,
+		"computer-use children should persist the resolved computer-use model config")
 }
 
 func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {

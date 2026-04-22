@@ -147,6 +147,138 @@ func seedInternalChatDeps(
 	return user, org, model
 }
 
+func seedInternalChatIdentity(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+) (database.User, database.Organization) {
+	t.Helper()
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	return user, org
+}
+
+func insertInternalChatProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	apiKey string,
+	enabled bool,
+) database.ChatProvider {
+	t.Helper()
+
+	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             provider,
+		DisplayName:          provider,
+		APIKey:               apiKey,
+		BaseUrl:              "",
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              enabled,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+	return providerConfig
+}
+
+func marshalInternalChatModelOptions(
+	t *testing.T,
+	provider string,
+	openAIStore *bool,
+) json.RawMessage {
+	t.Helper()
+
+	callConfig := codersdk.ChatModelCallConfig{}
+	switch provider {
+	case "openai":
+		callConfig.ProviderOptions = &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{Store: openAIStore},
+		}
+	case "anthropic":
+		callConfig.ProviderOptions = &codersdk.ChatModelProviderOptions{
+			Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+		}
+	}
+	if callConfig.ProviderOptions == nil {
+		return json.RawMessage(`{}`)
+	}
+	encoded, err := json.Marshal(callConfig)
+	require.NoError(t, err)
+	return encoded
+}
+
+func insertInternalChatModelConfigWithProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	model string,
+	enabled bool,
+	isDefault bool,
+	options json.RawMessage,
+) database.ChatModelConfig {
+	t.Helper()
+
+	modelConfig, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             provider,
+		Model:                model,
+		DisplayName:          model,
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              enabled,
+		IsDefault:            isDefault,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              options,
+	})
+	require.NoError(t, err)
+	return modelConfig
+}
+
+func internalDefaultComputerUseModel(provider string) (string, bool) {
+	switch provider {
+	case "anthropic":
+		return "claude-opus-4-6", true
+	case "openai":
+		return "computer-use-preview-2025-03-11", true
+	default:
+		return "", false
+	}
+}
+
+func insertInternalComputerUseModelConfig(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	provider string,
+	enabled bool,
+	openAIStore *bool,
+) database.ChatModelConfig {
+	t.Helper()
+
+	modelName, ok := internalDefaultComputerUseModel(provider)
+	require.True(t, ok, "provider %q should have a default computer-use model", provider)
+	return insertInternalChatModelConfigWithProvider(
+		ctx,
+		t,
+		db,
+		userID,
+		provider,
+		modelName,
+		enabled,
+		false,
+		marshalInternalChatModelOptions(t, provider, openAIStore),
+	)
+}
+
 func insertInternalChatModelConfig(
 	ctx context.Context,
 	t *testing.T,
@@ -686,6 +818,194 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
+func TestComputerUseAvailability(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	falseValue := false
+	tests := []struct {
+		name          string
+		setupParent   func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		wantAvailable bool
+	}{
+		{
+			name: "AnthropicOnly",
+			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
+				return insertInternalComputerUseModelConfig(ctx, t, db, userID, "anthropic", true, nil)
+			},
+			wantAvailable: true,
+		},
+		{
+			name: "OpenAIOnlyStoreTrue",
+			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue)
+			},
+			wantAvailable: true,
+		},
+		{
+			name: "OpenAIOnlyStoreFalse",
+			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &falseValue)
+			},
+			wantAvailable: false,
+		},
+		{
+			name: "OpenAICompatOnly",
+			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
+				return insertInternalChatModelConfigWithProvider(
+					ctx,
+					t,
+					db,
+					userID,
+					"openai-compat",
+					"gpt-4o-mini",
+					true,
+					true,
+					json.RawMessage(`{}`),
+				)
+			},
+			wantAvailable: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+			user, org := seedInternalChatIdentity(ctx, t, db)
+			parentModel := tt.setupParent(ctx, t, db, user.ID)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+			parentChat := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-availability-"+tt.name)
+
+			availableTypes := availableSubagentTypeIDs(ctx, server, parentChat)
+			if tt.wantAvailable {
+				require.Contains(t, availableTypes, subagentTypeComputerUse)
+			} else {
+				require.NotContains(t, availableTypes, subagentTypeComputerUse)
+			}
+		})
+	}
+}
+
+func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
+	t.Parallel()
+
+	trueValue := true
+	tests := []struct {
+		name            string
+		setupProviders  func(context.Context, *testing.T, database.Store, uuid.UUID) map[string]database.ChatModelConfig
+		parentModel     func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		wantProvider    string
+		wantResolvedKey string
+	}{
+		{
+			name: "FallbacksToAnthropicFromOpenAICompat",
+			setupProviders: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) map[string]database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return map[string]database.ChatModelConfig{
+					"anthropic": insertInternalComputerUseModelConfig(ctx, t, db, userID, "anthropic", true, nil),
+					"openai":    insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue),
+				}
+			},
+			parentModel: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
+				return insertInternalChatModelConfigWithProvider(ctx, t, db, userID, "openai-compat", "gpt-4o-mini", true, true, json.RawMessage(`{}`))
+			},
+			wantProvider:    "anthropic",
+			wantResolvedKey: "anthropic",
+		},
+		{
+			name: "FallbacksToOpenAIWhenAnthropicUnavailable",
+			setupProviders: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) map[string]database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return map[string]database.ChatModelConfig{
+					"openai": insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue),
+				}
+			},
+			parentModel: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
+				return insertInternalChatModelConfigWithProvider(ctx, t, db, userID, "openai-compat", "gpt-4o-mini", true, true, json.RawMessage(`{}`))
+			},
+			wantProvider:    "openai",
+			wantResolvedKey: "openai",
+		},
+		{
+			name: "KeepsOpenAIWhenAlreadyPinnedToOpenAIComputerUse",
+			setupProviders: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) map[string]database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return map[string]database.ChatModelConfig{
+					"anthropic": insertInternalComputerUseModelConfig(ctx, t, db, userID, "anthropic", true, nil),
+					"openai":    insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue),
+				}
+			},
+			parentModel: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue)
+			},
+			wantProvider:    "openai",
+			wantResolvedKey: "openai",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+			ctx := chatdTestContext(t)
+			user, org := seedInternalChatIdentity(ctx, t, db)
+			availableModels := tt.setupProviders(ctx, t, db, user.ID)
+			parentModel := tt.parentModel(ctx, t, db, user.ID)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+			parentChat := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-computer-use-"+tt.name)
+
+			expectedModel, ok := internalDefaultComputerUseModel(tt.wantProvider)
+			require.True(t, ok)
+
+			resp := runSubagentTool(
+				ctx,
+				t,
+				server,
+				parentChat,
+				parentChat.LastModelConfigID,
+				spawnAgentToolName,
+				spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "take a screenshot"},
+			)
+			result := requireSpawnAgentResponse(t, resp)
+			require.Equal(t, subagentTypeComputerUse, result.SubagentType)
+			childID, err := uuid.Parse(result.ChatID)
+			require.NoError(t, err)
+
+			childChat, err := db.GetChatByID(ctx, childID)
+			require.NoError(t, err)
+			require.True(t, childChat.Mode.Valid)
+			require.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
+			require.Equal(t, availableModels[tt.wantResolvedKey].ID, childChat.LastModelConfigID)
+			require.NotEqual(t, parentChat.LastModelConfigID, childChat.LastModelConfigID,
+				"computer use child must persist the resolved model config, not the parent model blindly")
+
+			resolvedConfig, err := server.configCache.ModelConfigByID(ctx, childChat.LastModelConfigID)
+			require.NoError(t, err)
+			childProvider, childModel, err := chatprovider.ResolveModelWithProviderHint(resolvedConfig.Model, resolvedConfig.Provider)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantProvider, childProvider)
+			require.Equal(t, expectedModel, childModel)
+		})
+	}
+}
+
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -1119,32 +1439,19 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 
+	trueValue := true
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
-
 	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(ctx, t, db)
-	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
-
-	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
-
-	parent, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		BuildID:            uuid.NullUUID{UUID: build.ID, Valid: true},
-		AgentID:            uuid.NullUUID{UUID: agent.ID, Valid: true},
-		Title:              "parent-openai",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	parentChat, err := db.GetChatByID(ctx, parent.ID)
-	require.NoError(t, err)
+	user, org := seedInternalChatIdentity(ctx, t, db)
+	insertInternalChatProvider(ctx, t, db, user.ID, "openai-compat", "test-compat-key", true)
+	insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+	insertInternalChatProvider(ctx, t, db, user.ID, "openai", "test-openai-key", true)
+	anthropicModel := insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "openai", true, &trueValue)
+	parentModel := insertInternalChatModelConfigWithProvider(ctx, t, db, user.ID, "openai-compat", "gpt-4o-mini", true, true, json.RawMessage(`{}`))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	parentChat := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-openai-compat")
 
 	resp := runSubagentTool(
 		ctx,
@@ -1162,16 +1469,10 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-
-	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
-	require.Equal(t, parentChat.BuildID, childChat.BuildID)
-	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	assert.NotEqual(t, model.Provider, chattool.ComputerUseModelProvider,
-		"computer use model provider must differ from parent model provider")
-	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
-	assert.NotEmpty(t, chattool.ComputerUseModelName)
+	require.NotEqual(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+	require.Equal(t, anthropicModel.ID, childChat.LastModelConfigID)
 }
 
 func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
