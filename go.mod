@@ -84,8 +84,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7
 // 7) OpenAI Responses computer-use provider (openai.computer tool, screenshot replay, safety acks)
-// See: https://github.com/coder/fantasy/commits/2d9b2070325c
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260422143527-2d9b2070325c
+// See: https://github.com/coder/fantasy/commits/1ecdebf5291b
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260422194400-1ecdebf5291b
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.
