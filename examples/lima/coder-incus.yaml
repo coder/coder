@@ -1,4 +1,4 @@
-# Deploy Coder in Lima with Incus pre-installed
+# Deploy Coder in Lima with Incus
 # See: https://coder.com/docs/install
 # $ limactl start ./coder-incus.yaml
 # $ limactl shell coder-incus
@@ -21,6 +21,7 @@ images:
   - location: "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-genericcloud-arm64-daily.qcow2"
     arch: "aarch64"
 
+# Disable 9p mounts; they are not supported by the Debian cloud image kernel.
 mountTypesUnsupported: [9p]
 
 # Your home directory is mounted read-only
@@ -33,6 +34,7 @@ hostResolver:
   hosts:
     host.docker.internal: host.lima.internal
 provision:
+  # Fallback for Lima versions where hostResolver is not available.
   - mode: system
     script: |
       #!/bin/sh

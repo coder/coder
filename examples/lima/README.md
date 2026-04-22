@@ -41,11 +41,15 @@ This configuration (`coder-incus.yaml`) creates a VM to run Coder workspaces in 
 This will:
 
 - Start a Debian 13 VM
-- Install Incus and Terraform from the official repos
+- Install Incus from the Debian repos and Terraform via the Coder installer
 - Install Coder using the [installation script](../../docs/install/install.sh.md)
 - Generate an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
 - Initialize a [sample Incus template](https://github.com/coder/coder/tree/main/examples/templates/incus) for creating workspaces
 
+Once this completes, you can visit `http://localhost:3000` and start creating workspaces!
+
+Alternatively, enter the VM with `limactl shell coder-incus` and run `coder templates init` to start creating your own templates!
+
 ## Further Information
 
-- To learn more about Lima, [visit the the project's GitHub page](https://github.com/lima-vm/lima/).
+- To learn more about Lima, [visit the project's GitHub page](https://github.com/lima-vm/lima/).
