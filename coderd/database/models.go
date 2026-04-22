@@ -4368,7 +4368,6 @@ type Chat struct {
 	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	AllowWebSearch      bool                  `db:"allow_web_search" json:"allow_web_search"`
 }
 
 type ChatDebugRun struct {

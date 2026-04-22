@@ -59,10 +59,9 @@ func allSubagentDefinitions() []subagentDefinition {
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				inheritedMCPServerIDs, allowWebSearch, err := p.resolveExploreToolSnapshot(
+				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
 					ctx,
 					parent,
-					currentModelConfigID,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -78,7 +77,6 @@ func allSubagentDefinitions() []subagentDefinition {
 					modelConfigIDOverride: &modelConfigID,
 					planModeOverride:      &clearPlanMode,
 					inheritedMCPServerIDs: inheritedMCPServerIDs,
-					allowWebSearch:        allowWebSearch,
 				}, nil
 			},
 		},

@@ -1483,8 +1483,7 @@ CREATE TABLE chats (
     dynamic_tools jsonb,
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
-    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
-    allow_web_search boolean DEFAULT false NOT NULL
+    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL
 );
 
 CREATE TABLE connection_logs (

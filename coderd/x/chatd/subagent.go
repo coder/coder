@@ -465,24 +465,20 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 
 // childSubagentChatOptions carries per-child overrides for subagent chat
 // creation. modelConfigIDOverride and planModeOverride apply to any
-// subagent. inheritedMCPServerIDs and allowWebSearch are Explore-only
-// snapshots of the spawning parent turn's effective external-tool
-// entitlement. resolveExploreToolSnapshot computes and persists them on
-// the child chat at spawn time so a later model override cannot
-// re-escalate tool access. Non-Explore children ignore these fields.
+// subagent. inheritedMCPServerIDs is an Explore-only snapshot of the
+// spawning parent turn's effective external MCP entitlement.
+// resolveExploreToolSnapshot computes and persists it on the child chat.
+// Non-Explore children ignore this field.
 type childSubagentChatOptions struct {
 	chatMode              database.NullChatMode
 	systemPrompt          string
 	modelConfigIDOverride *uuid.UUID
 	planModeOverride      *database.NullChatPlanMode
 	inheritedMCPServerIDs []uuid.UUID
-	allowWebSearch        bool
 }
 
-// resolveExploreToolSnapshot computes the child chat's inherited
-// external-tool entitlement from the spawning parent turn. It returns the
-// MCP server ID snapshot and web_search snapshot that are persisted on an
-// Explore child at spawn time.
+// resolveExploreToolSnapshot computes the child chat's inherited MCP
+// server snapshot from the spawning parent turn.
 //
 // The MCP set is filtered in two stages. First,
 // filterExternalMCPConfigsForTurn applies the parent turn's plan-mode
@@ -491,24 +487,15 @@ type childSubagentChatOptions struct {
 // the parent's persisted MCPServerIDs so an Explore chain cannot
 // re-escalate beyond the original grant. Non-Explore parents pass
 // through the second stage unchanged.
-//
-// allowWebSearch intersects the spawning parent turn's model support for
-// web_search with the parent turn's effective web_search entitlement via
-// webSearchAllowedForTurn. The parent's model is checked deliberately,
-// not a child override model, because anti-escalation requires the child
-// to keep only what the parent actually had. These snapshots are taken at
-// spawn time and never recomputed at runtime. runChat trusts the
-// persisted values.
 func (p *Server) resolveExploreToolSnapshot(
 	ctx context.Context,
 	parent database.Chat,
-	currentModelConfigID uuid.UUID,
-) ([]uuid.UUID, bool, error) {
+) ([]uuid.UUID, error) {
 	inheritedMCPServerIDs := []uuid.UUID{}
 	if len(parent.MCPServerIDs) > 0 {
 		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
 		if err != nil {
-			return nil, false, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
+			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}
 
 		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
@@ -535,17 +522,7 @@ func (p *Server) resolveExploreToolSnapshot(
 		}
 	}
 
-	allowWebSearch, err := p.modelConfigAllowsWebSearch(ctx, currentModelConfigID)
-	if err != nil {
-		return nil, false, xerrors.Errorf("resolve web_search snapshot: %w", err)
-	}
-	allowWebSearch = allowWebSearch && webSearchAllowedForTurn(
-		parent.Mode,
-		parent.PlanMode,
-		parent.AllowWebSearch,
-	)
-
-	return inheritedMCPServerIDs, allowWebSearch, nil
+	return inheritedMCPServerIDs, nil
 }
 
 func (p *Server) createChildSubagentChat(
@@ -603,26 +580,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
-	var (
-		allowWebSearch bool
-		err            error
-	)
-	if isExploreSubagentMode(opts.chatMode) {
-		// Explore children trust the spawn-time snapshot persisted by
-		// resolveExploreToolSnapshot. Recomputing here would reintroduce
-		// the re-escalation path the snapshot is meant to block.
-		allowWebSearch = opts.allowWebSearch
-	} else {
-		allowWebSearch, err = p.defaultAllowWebSearchForChat(
-			ctx,
-			modelConfigID,
-			opts.chatMode,
-			childPlanMode,
-		)
-		if err != nil {
-			return database.Chat{}, xerrors.Errorf("resolve child chat web search entitlement: %w", err)
-		}
-	}
 
 	labelsJSON, err := json.Marshal(database.StringMap{})
 	if err != nil {
@@ -655,7 +612,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ClientType:        parent.ClientType,
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
-			AllowWebSearch:    allowWebSearch,
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,

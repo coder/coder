@@ -1028,15 +1028,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if !opts.ClientType.Valid() {
 		return database.Chat{}, xerrors.Errorf("invalid client_type: %q", opts.ClientType)
 	}
-	allowWebSearch, err := p.defaultAllowWebSearchForChat(
-		ctx,
-		opts.ModelConfigID,
-		opts.ChatMode,
-		effectivePlanMode,
-	)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("resolve chat web search entitlement: %w", err)
-	}
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
 		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
@@ -1063,9 +1054,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ClientType:        opts.ClientType,
 			// Chats created with an initial user message start pending.
 			// Waiting is reserved for idle chats with no pending work.
-			Status:         database.ChatStatusPending,
-			MCPServerIDs:   opts.MCPServerIDs,
-			AllowWebSearch: allowWebSearch,
+			Status:       database.ChatStatusPending,
+			MCPServerIDs: opts.MCPServerIDs,
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
@@ -5225,24 +5215,6 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// webSearchAllowedForTurn returns the current turn's web_search
-// entitlement. Explore chats return the persisted snapshot unchanged.
-// Callers must resolve that snapshot at spawn time, see
-// resolveExploreToolSnapshot and defaultAllowWebSearchForChat. This
-// function does not re-derive it from the current model or plan mode.
-// Non-Explore turns follow the plan-mode policy. Plan mode blocks
-// web_search, non-plan turns allow it.
-func webSearchAllowedForTurn(
-	mode database.NullChatMode,
-	planMode database.NullChatPlanMode,
-	persistedAllowWebSearch bool,
-) bool {
-	if isExploreSubagentMode(mode) {
-		return persistedAllowWebSearch
-	}
-	return !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan
-}
-
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -6458,10 +6430,8 @@ func (p *Server) runChat(
 
 	// Append external MCP tools from the chat's persisted snapshot after the
 	// built-ins so the LLM sees them as additional capabilities. Explore chats
-	// trust only the snapshot stored on the chat row (MCPServerIDs plus
-	// AllowWebSearch); they never recompute a broader entitlement from the
-	// current model override or parent chat state. Workspace-local MCP tools
-	// stay unavailable to Explore chats.
+	// trust only the persisted MCPServerIDs snapshot, and workspace-local MCP
+	// tools stay unavailable to Explore chats.
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
@@ -6490,20 +6460,16 @@ func (p *Server) runChat(
 	}
 
 	// Build provider-native tools (e.g. web search) based on the
-	// current model configuration. Explore chats can only keep the
-	// persisted web_search snapshot, and only when the current model still
-	// supports that provider-native tool.
+	// current model configuration. Explore chats remain read-only, so only
+	// web_search can pass through and write-style provider tools stay
+	// blocked.
 	var providerTools []chatloop.ProviderTool
 	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 		if isExploreSubagent {
-			if !chat.AllowWebSearch {
-				providerTools = nil
-			} else {
-				providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
-					return tool.Definition.GetName() != "web_search"
-				})
-			}
+			providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
+				return tool.Definition.GetName() != "web_search"
+			})
 		}
 	}
 
@@ -6780,53 +6746,6 @@ func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []
 	}
 
 	return tools
-}
-
-// modelConfigAllowsWebSearch reports whether the model config's provider
-// options expose the provider-native web_search tool.
-func (p *Server) modelConfigAllowsWebSearch(
-	ctx context.Context,
-	modelConfigID uuid.UUID,
-) (bool, error) {
-	if modelConfigID == uuid.Nil {
-		return false, nil
-	}
-
-	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		return false, xerrors.Errorf("get model config %s: %w", modelConfigID, err)
-	}
-
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return false, xerrors.Errorf("parse model call config %s: %w", modelConfigID, err)
-		}
-	}
-
-	for _, tool := range buildProviderTools(modelConfig.Provider, callConfig.ProviderOptions) {
-		if tool.Definition.GetName() == "web_search" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// defaultAllowWebSearchForChat returns the initial allow_web_search
-// value for a newly created chat by checking the plan-mode policy and
-// the model's provider options. Explore children bypass this helper
-// and use their spawn-time snapshot instead, see
-// resolveExploreToolSnapshot.
-func (p *Server) defaultAllowWebSearchForChat(
-	ctx context.Context,
-	modelConfigID uuid.UUID,
-	chatMode database.NullChatMode,
-	planMode database.NullChatPlanMode,
-) (bool, error) {
-	if !webSearchAllowedForTurn(chatMode, planMode, false) {
-		return false, nil
-	}
-	return p.modelConfigAllowsWebSearch(ctx, modelConfigID)
 }
 
 // persistChatContextSummary persists a chat context summary to the database.

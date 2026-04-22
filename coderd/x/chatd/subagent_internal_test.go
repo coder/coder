@@ -259,37 +259,6 @@ func insertInternalChatModelConfigWithOptions(
 	return modelConfig
 }
 
-func insertInternalWebSearchModelConfig(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	userID uuid.UUID,
-	model string,
-	enabled bool,
-) database.ChatModelConfig {
-	t.Helper()
-
-	webSearchEnabled := true
-	options, err := json.Marshal(codersdk.ChatModelCallConfig{
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				WebSearchEnabled: &webSearchEnabled,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	return insertInternalChatModelConfigWithOptions(
-		ctx,
-		t,
-		db,
-		userID,
-		model,
-		enabled,
-		options,
-	)
-}
-
 func insertInternalMCPServerConfig(
 	ctx context.Context,
 	t *testing.T,
@@ -707,23 +676,20 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
 }
 
-func TestCreateChat_ExploreRootStartsWithoutToolSnapshot(t *testing.T) {
+func TestCreateChat_ExploreRootStartsWithoutMCPSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, org, _ := seedInternalChatDeps(ctx, t, db)
-	webSearchModel := insertInternalWebSearchModelConfig(
-		ctx, t, db, user.ID, "explore-root-web-search-"+uuid.NewString(), true,
-	)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 
 	root, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "root-explore",
-		ModelConfigID:  webSearchModel.ID,
+		ModelConfigID:  model.ID,
 		ChatMode: database.NullChatMode{
 			ChatMode: database.ChatModeExplore,
 			Valid:    true,
@@ -735,7 +701,6 @@ func TestCreateChat_ExploreRootStartsWithoutToolSnapshot(t *testing.T) {
 	rootChat, err := db.GetChatByID(ctx, root.ID)
 	require.NoError(t, err)
 	require.Empty(t, rootChat.MCPServerIDs)
-	require.False(t, rootChat.AllowWebSearch)
 }
 
 func TestResolveExploreToolSnapshot(t *testing.T) {
@@ -745,10 +710,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, org, _ := seedInternalChatDeps(ctx, t, db)
-	webSearchModel := insertInternalWebSearchModelConfig(
-		ctx, t, db, user.ID, "explore-snapshot-web-search-"+uuid.NewString(), true,
-	)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
 	approvedMCP := insertInternalMCPServerConfig(
 		ctx, t, db, user.ID, "approved-"+uuid.NewString(), true,
 	)
@@ -760,7 +722,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "ask-parent",
-		ModelConfigID:  webSearchModel.ID,
+		ModelConfigID:  model.ID,
 		MCPServerIDs:   []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("hello"),
@@ -774,7 +736,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "plan-parent",
-		ModelConfigID:  webSearchModel.ID,
+		ModelConfigID:  model.ID,
 		PlanMode: database.NullChatPlanMode{
 			ChatPlanMode: database.ChatPlanModePlan,
 			Valid:        true,
@@ -795,37 +757,31 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	exploreParent.Mode = database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	exploreParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	exploreParent.MCPServerIDs = []uuid.UUID{approvedMCP.ID}
-	exploreParent.AllowWebSearch = false
 
 	tests := []struct {
-		name               string
-		parent             database.Chat
-		wantMCPServerIDs   []uuid.UUID
-		wantAllowWebSearch bool
+		name             string
+		parent           database.Chat
+		wantMCPServerIDs []uuid.UUID
 	}{
 		{
-			name:               "AskModeRootSnapshotsAllExternalTools",
-			parent:             askParent,
-			wantMCPServerIDs:   []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
-			wantAllowWebSearch: true,
+			name:             "AskModeRootSnapshotsAllExternalTools",
+			parent:           askParent,
+			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
 		},
 		{
-			name:               "PlanModeRootKeepsOnlyApprovedExternalTools",
-			parent:             planParent,
-			wantMCPServerIDs:   []uuid.UUID{approvedMCP.ID},
-			wantAllowWebSearch: false,
+			name:             "PlanModeRootKeepsOnlyApprovedExternalTools",
+			parent:           planParent,
+			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID},
 		},
 		{
-			name:               "PlanModeSubagentKeepsNoExternalTools",
-			parent:             subagentPlanParent,
-			wantMCPServerIDs:   []uuid.UUID{},
-			wantAllowWebSearch: false,
+			name:             "PlanModeSubagentKeepsNoExternalTools",
+			parent:           subagentPlanParent,
+			wantMCPServerIDs: []uuid.UUID{},
 		},
 		{
-			name:               "ExploreParentCannotReEscalateSnapshot",
-			parent:             exploreParent,
-			wantMCPServerIDs:   []uuid.UUID{approvedMCP.ID},
-			wantAllowWebSearch: false,
+			name:             "ExploreParentCannotReEscalateSnapshot",
+			parent:           exploreParent,
+			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID},
 		},
 	}
 
@@ -834,19 +790,17 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotMCPServerIDs, gotAllowWebSearch, err := server.resolveExploreToolSnapshot(
+			gotMCPServerIDs, err := server.resolveExploreToolSnapshot(
 				ctx,
 				tt.parent,
-				webSearchModel.ID,
 			)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.wantMCPServerIDs, gotMCPServerIDs)
-			require.Equal(t, tt.wantAllowWebSearch, gotAllowWebSearch)
 		})
 	}
 }
 
-func TestCreateChildSubagentChatWithOptions_ExplorePersistsToolSnapshot(t *testing.T) {
+func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -872,7 +826,6 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsToolSnapshot(t *testi
 				Valid:    true,
 			},
 			inheritedMCPServerIDs: []uuid.UUID{mcpCfg.ID},
-			allowWebSearch:        true,
 		},
 	)
 	require.NoError(t, err)
@@ -880,40 +833,6 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsToolSnapshot(t *testi
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
-	require.True(t, childChat.AllowWebSearch)
-}
-
-func TestSpawnAgent_ExploreModelOverrideCannotRegainWebSearch(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	ctx := chatdTestContext(t)
-	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
-	overrideModel := insertInternalWebSearchModelConfig(
-		ctx, t, db, user.ID, "explore-override-web-search-"+uuid.NewString(), true,
-	)
-	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
-	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-no-web-search",
-	)
-
-	resp := runSubagentTool(
-		ctx,
-		t,
-		server,
-		parentChat,
-		parentChat.LastModelConfigID,
-		spawnAgentToolName,
-		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "investigate the codebase"},
-	)
-	childID := requireSpawnAgentChildChatID(t, resp)
-
-	childChat, err := db.GetChatByID(ctx, childID)
-	require.NoError(t, err)
-	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
-	require.False(t, childChat.AllowWebSearch)
 }
 
 func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {

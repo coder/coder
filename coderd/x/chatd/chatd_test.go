@@ -702,277 +702,197 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.Len(t, exploreChildren, 1)
 }
 
-func TestExploreChatUsesPersistedToolSnapshot(t *testing.T) {
+func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name               string
-		allowWebSearch     bool
-		wantAllowWebSearch bool
-	}{
-		{
-			name:               "AllowsWebSearchWhenPersisted",
-			allowWebSearch:     true,
-			wantAllowWebSearch: true,
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	externalMCP := mcpserver.NewMCPServer("external-snapshot-mcp", "1.0.0")
+	externalMCP.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
 		},
-		{
-			name:               "BlocksWebSearchWithoutSnapshot",
-			allowWebSearch:     false,
-			wantAllowWebSearch: false,
+	})
+	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	defer externalMCPServer.Close()
+
+	secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
+	secondMCP.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
 		},
+	})
+	secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
+	defer secondMCPServer.Close()
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	webSearchEnabled := true
+	storeEnabled := true
+	// OpenAI only serializes web_search through the Responses API.
+	// Store=true routes there only for supported Responses models.
+	webSearchModel := insertChatModelConfigWithCallConfig(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"openai",
+		"gpt-4o",
+		codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store:            &storeEnabled,
+					WebSearchEnabled: &webSearchEnabled,
+				},
+			},
+		},
+	)
+	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "External Snapshot MCP",
+		Slug:          "external-snapshot-mcp",
+		Url:           externalMCPServer.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "Second MCP",
+		Slug:          "second-mcp",
+		Url:           secondMCPServer.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		LastModelConfigID: webSearchModel.ID,
+		Title:             "root",
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeApi,
+	})
+	require.NoError(t, err)
+
+	exploreChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		LastModelConfigID: webSearchModel.ID,
+		Title:             "explore",
+		Mode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		Status:       database.ChatStatusPending,
+		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
+		ClientType:   database.ChatClientTypeApi,
+	})
+	require.NoError(t, err)
+	insertUserTextMessage(ctx, t, db, exploreChat.ID, user.ID, webSearchModel.ID, "inspect the codebase")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	workspaceToolName := "workspace-snapshot-mcp__echo"
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-snapshot-mcp",
+			Name:        workspaceToolName,
+			Description: "Workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}}}, nil).
+		AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	_ = server
+
+	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1)
 
-			db, ps := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			externalMCP := mcpserver.NewMCPServer("external-snapshot-mcp", "1.0.0")
-			externalMCP.AddTools(mcpserver.ServerTool{
-				Tool: mcpgo.NewTool("echo",
-					mcpgo.WithDescription("Echoes the input"),
-					mcpgo.WithString("input",
-						mcpgo.Description("The input string"),
-						mcpgo.Required(),
-					),
-				),
-				Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-					input, _ := req.GetArguments()["input"].(string)
-					return mcpgo.NewToolResultText("echo: " + input), nil
-				},
-			})
-			externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
-			defer externalMCPServer.Close()
-			secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
-			secondMCP.AddTools(mcpserver.ServerTool{
-				Tool: mcpgo.NewTool("echo",
-					mcpgo.WithDescription("Echoes the input"),
-					mcpgo.WithString("input",
-						mcpgo.Description("The input string"),
-						mcpgo.Required(),
-					),
-				),
-				Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-					input, _ := req.GetArguments()["input"].(string)
-					return mcpgo.NewToolResultText("echo: " + input), nil
-				},
-			})
-			secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
-			defer secondMCPServer.Close()
-
-			var (
-				requestsMu sync.Mutex
-				requests   []recordedOpenAIRequest
-				rawMu      sync.Mutex
-				rawBodies  []string
-			)
-			innerOpenAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-				if !req.Stream {
-					return chattest.OpenAINonStreamingResponse("ok")
-				}
-
-				requestsMu.Lock()
-				requests = append(requests, recordOpenAIRequest(req))
-				requestsMu.Unlock()
-
-				return chattest.OpenAIStreamingResponse(
-					chattest.OpenAITextChunks("done")...,
-				)
-			})
-			openAIProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				body, err := io.ReadAll(r.Body)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-				if strings.Contains(string(body), `"stream":true`) {
-					rawMu.Lock()
-					rawBodies = append(rawBodies, string(body))
-					rawMu.Unlock()
-				}
-
-				upstreamReq, err := http.NewRequestWithContext(
-					r.Context(),
-					r.Method,
-					innerOpenAIURL+r.URL.RequestURI(),
-					strings.NewReader(string(body)),
-				)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				upstreamReq.Header = r.Header.Clone()
-
-				resp, err := http.DefaultClient.Do(upstreamReq)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadGateway)
-					return
-				}
-				defer resp.Body.Close()
-
-				for key, values := range resp.Header {
-					for _, value := range values {
-						w.Header().Add(key, value)
-					}
-				}
-				w.WriteHeader(resp.StatusCode)
-				_, _ = io.Copy(w, resp.Body)
-			}))
-			defer openAIProxy.Close()
-
-			user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIProxy.URL)
-			webSearchEnabled := true
-			storeEnabled := true
-			// OpenAI only serializes web_search through the Responses API.
-			// Store=true routes there only for supported Responses models.
-			webSearchModel := insertChatModelConfigWithCallConfig(
-				ctx,
-				t,
-				db,
-				user.ID,
-				"openai",
-				"gpt-4o",
-				codersdk.ChatModelCallConfig{
-					ProviderOptions: &codersdk.ChatModelProviderOptions{
-						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-							Store:            &storeEnabled,
-							WebSearchEnabled: &webSearchEnabled,
-						},
-					},
-				},
-			)
-			mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-				DisplayName:   "External Snapshot MCP",
-				Slug:          "external-snapshot-mcp",
-				Url:           externalMCPServer.URL,
-				Transport:     "streamable_http",
-				AuthType:      "none",
-				Availability:  "default_off",
-				Enabled:       true,
-				ToolAllowList: []string{},
-				ToolDenyList:  []string{},
-				CreatedBy:     user.ID,
-				UpdatedBy:     user.ID,
-			})
-			require.NoError(t, err)
-			_, err = db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-				DisplayName:   "Second MCP",
-				Slug:          "second-mcp",
-				Url:           secondMCPServer.URL,
-				Transport:     "streamable_http",
-				AuthType:      "none",
-				Availability:  "default_off",
-				Enabled:       true,
-				ToolAllowList: []string{},
-				ToolDenyList:  []string{},
-				CreatedBy:     user.ID,
-				UpdatedBy:     user.ID,
-			})
-			require.NoError(t, err)
-
-			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-			rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-				AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-				LastModelConfigID: webSearchModel.ID,
-				Title:             "root",
-				Status:            database.ChatStatusWaiting,
-				ClientType:        database.ChatClientTypeApi,
-				AllowWebSearch:    true,
-			})
-			require.NoError(t, err)
-
-			exploreChat, err := db.InsertChat(ctx, database.InsertChatParams{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-				AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-				ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-				RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-				LastModelConfigID: webSearchModel.ID,
-				Title:             "explore",
-				Mode: database.NullChatMode{
-					ChatMode: database.ChatModeExplore,
-					Valid:    true,
-				},
-				Status:         database.ChatStatusPending,
-				MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
-				ClientType:     database.ChatClientTypeApi,
-				AllowWebSearch: tt.allowWebSearch,
-			})
-			require.NoError(t, err)
-			require.Equal(t, tt.allowWebSearch, exploreChat.AllowWebSearch)
-			persistedExploreChat, err := db.GetChatByID(ctx, exploreChat.ID)
-			require.NoError(t, err)
-			require.Equal(t, tt.allowWebSearch, persistedExploreChat.AllowWebSearch)
-			insertUserTextMessage(ctx, t, db, exploreChat.ID, user.ID, webSearchModel.ID, "inspect the codebase")
-
-			ctrl := gomock.NewController(t)
-			mockConn := agentconnmock.NewMockAgentConn(ctrl)
-			mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-			mockConn.EXPECT().ContextConfig(gomock.Any()).
-				Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-			workspaceToolName := "workspace-snapshot-mcp__echo"
-			mockConn.EXPECT().ListMCPTools(gomock.Any()).
-				Return(workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{{
-					ServerName:  "workspace-snapshot-mcp",
-					Name:        workspaceToolName,
-					Description: "Workspace echo tool",
-					Schema: map[string]any{
-						"input": map[string]any{"type": "string"},
-					},
-					Required: []string{"input"},
-				}}}, nil).
-				AnyTimes()
-			mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
-			mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-
-			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-					require.Equal(t, dbAgent.ID, agentID)
-					return mockConn, func() {}, nil
-				}
-			})
-			_ = server
-
-			chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
-			if chatResult.Status == database.ChatStatusError {
-				require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
-			}
-
-			requestsMu.Lock()
-			recorded := append([]recordedOpenAIRequest(nil), requests...)
-			requestsMu.Unlock()
-			require.Len(t, recorded, 1)
-			rawMu.Lock()
-			recordedBodies := append([]string(nil), rawBodies...)
-			rawMu.Unlock()
-			require.Len(t, recordedBodies, 1)
-
-			tools := recorded[0].Tools
-			require.Contains(t, tools, "read_file")
-			require.Contains(t, tools, "execute")
-			require.Contains(t, tools, "process_output")
-			require.Contains(t, tools, "external-snapshot-mcp__echo")
-			require.NotContains(t, tools, "second-mcp__echo")
-			require.NotContains(t, tools, workspaceToolName)
-			require.NotContains(t, tools, "write_file")
-			require.NotContains(t, tools, "edit_files")
-			require.NotContains(t, tools, "spawn_agent")
-			if tt.wantAllowWebSearch {
-				require.Contains(t, recordedBodies[0], `"type":"web_search"`)
-			} else {
-				require.NotContains(t, recordedBodies[0], `"type":"web_search"`)
-			}
-		})
-	}
+	tools := recorded[0].Tools
+	require.Contains(t, tools, "read_file")
+	require.Contains(t, tools, "execute")
+	require.Contains(t, tools, "process_output")
+	require.Contains(t, tools, "external-snapshot-mcp__echo")
+	require.NotContains(t, tools, "second-mcp__echo")
+	require.NotContains(t, tools, workspaceToolName)
+	require.NotContains(t, tools, "write_file")
+	require.NotContains(t, tools, "edit_files")
+	require.NotContains(t, tools, "spawn_agent")
 }
 
 func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {

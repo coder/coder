@@ -436,7 +436,6 @@ INSERT INTO chats (
     plan_mode,
     status,
     mcp_server_ids,
-    allow_web_search,
     labels,
     dynamic_tools,
     client_type
@@ -454,7 +453,6 @@ INSERT INTO chats (
     sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
-    @allow_web_search::boolean,
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
     @client_type::chat_client_type
