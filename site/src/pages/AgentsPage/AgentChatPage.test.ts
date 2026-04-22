@@ -3,10 +3,14 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	clearPersistedSidebarTabId,
 	draftInputStorageKeyPrefix,
 	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
+	getPersistedSidebarTabId,
+	lastActiveSidebarTabStorageKeyPrefix,
 	restoreOptimisticRequestSnapshot,
+	savePersistedSidebarTabId,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -910,5 +914,108 @@ describe("submitEditAndScroll", () => {
 		});
 
 		expect(editMessage).toHaveBeenCalled();
+	});
+});
+
+describe("sidebar tab persistence", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	describe("getPersistedSidebarTabId", () => {
+		it("returns null when no value is stored for that agent", () => {
+			expect(getPersistedSidebarTabId("agent-1")).toBeNull();
+		});
+
+		it("returns the stored string when one is present", () => {
+			localStorage.setItem(
+				`${lastActiveSidebarTabStorageKeyPrefix}agent-1`,
+				"terminal",
+			);
+			expect(getPersistedSidebarTabId("agent-1")).toBe("terminal");
+		});
+
+		it("returns null when agentID is undefined", () => {
+			expect(getPersistedSidebarTabId(undefined)).toBeNull();
+		});
+
+		it("returns null when agentID is empty string", () => {
+			expect(getPersistedSidebarTabId("")).toBeNull();
+		});
+
+		it("reads from the key agents.last-active-tab.<agentID>", () => {
+			const agentID = "agent-xyz";
+			localStorage.setItem(`agents.last-active-tab.${agentID}`, "git");
+			expect(localStorage.getItem(`agents.last-active-tab.${agentID}`)).toBe(
+				"git",
+			);
+			expect(getPersistedSidebarTabId(agentID)).toBe("git");
+		});
+	});
+
+	describe("savePersistedSidebarTabId", () => {
+		it("writes tabID to agents.last-active-tab.<agentID>", () => {
+			savePersistedSidebarTabId("agent-1", "desktop");
+			expect(
+				localStorage.getItem(`${lastActiveSidebarTabStorageKeyPrefix}agent-1`),
+			).toBe("desktop");
+		});
+
+		it("is a no-op when agentID is undefined", () => {
+			savePersistedSidebarTabId(undefined, "desktop");
+			expect(localStorage.length).toBe(0);
+		});
+
+		it("is a no-op when agentID is empty string", () => {
+			savePersistedSidebarTabId("", "desktop");
+			expect(localStorage.length).toBe(0);
+		});
+
+		it("can be round-tripped with getPersistedSidebarTabId", () => {
+			savePersistedSidebarTabId("agent-rt", "terminal");
+			expect(getPersistedSidebarTabId("agent-rt")).toBe("terminal");
+		});
+
+		it("does not collide across different agentIDs", () => {
+			savePersistedSidebarTabId("agent-a", "git");
+			savePersistedSidebarTabId("agent-b", "desktop");
+			expect(getPersistedSidebarTabId("agent-a")).toBe("git");
+			expect(getPersistedSidebarTabId("agent-b")).toBe("desktop");
+		});
+	});
+
+	describe("clearPersistedSidebarTabId", () => {
+		it("removes agents.last-active-tab.<agentID> from storage", () => {
+			savePersistedSidebarTabId("agent-1", "terminal");
+			clearPersistedSidebarTabId("agent-1");
+			expect(getPersistedSidebarTabId("agent-1")).toBeNull();
+		});
+
+		it("is a no-op when nothing is stored", () => {
+			// Calling twice should not throw.
+			clearPersistedSidebarTabId("agent-1");
+			clearPersistedSidebarTabId("agent-1");
+			expect(getPersistedSidebarTabId("agent-1")).toBeNull();
+		});
+
+		it("is a no-op when agentID is undefined", () => {
+			savePersistedSidebarTabId("agent-1", "git");
+			clearPersistedSidebarTabId(undefined);
+			expect(getPersistedSidebarTabId("agent-1")).toBe("git");
+		});
+
+		it("is a no-op when agentID is empty string", () => {
+			savePersistedSidebarTabId("agent-1", "git");
+			clearPersistedSidebarTabId("");
+			expect(getPersistedSidebarTabId("agent-1")).toBe("git");
+		});
+
+		it("only affects the target agent's entry", () => {
+			savePersistedSidebarTabId("agent-a", "git");
+			savePersistedSidebarTabId("agent-b", "desktop");
+			clearPersistedSidebarTabId("agent-a");
+			expect(getPersistedSidebarTabId("agent-a")).toBeNull();
+			expect(getPersistedSidebarTabId("agent-b")).toBe("desktop");
+		});
 	});
 });

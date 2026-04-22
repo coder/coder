@@ -96,6 +96,8 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
+/** localStorage key prefix for the per-session active right-panel tab. */
+export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
@@ -115,6 +117,41 @@ export function getPersistedDraftInputValue(
 	return parseStoredDraft(
 		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
 	).text;
+}
+
+export function getPersistedSidebarTabId(
+	agentID: string | undefined,
+): string | null {
+	if (typeof window === "undefined" || !agentID) {
+		return null;
+	}
+	return localStorage.getItem(
+		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
+	);
+}
+
+export function savePersistedSidebarTabId(
+	agentID: string | undefined,
+	tabID: string,
+): void {
+	if (typeof window === "undefined" || !agentID) {
+		return;
+	}
+	localStorage.setItem(
+		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
+		tabID,
+	);
+}
+
+export function clearPersistedSidebarTabId(
+	agentID: string | undefined,
+): void {
+	if (typeof window === "undefined" || !agentID) {
+		return;
+	}
+	localStorage.removeItem(
+		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
+	);
 }
 
 /** @internal Exported for testing. */
