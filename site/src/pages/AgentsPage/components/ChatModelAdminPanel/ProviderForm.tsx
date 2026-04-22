@@ -88,6 +88,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
+	const [apiKeyModified, setApiKeyModified] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [centralAPIKeyEnabled, setCentralAPIKeyEnabled] = useState(
 		initialValues.centralAPIKeyEnabled,
@@ -100,6 +101,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+	const isBedrockProvider = provider === "bedrock";
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const shouldShowAPIKeyField = centralAPIKeyEnabled;
 	const shouldShowFallbackToggle = centralAPIKeyEnabled && allowUserAPIKey;
@@ -109,30 +111,56 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		initialValues.allowCentralAPIKeyFallback;
 	const effectiveFallback =
 		shouldShowFallbackToggle && allowCentralAPIKeyFallback;
-	// Require a key whenever central-key usage is enabled and there is no
-	// stored deployment key yet. This covers both create and update flows,
-	// including toggling central-key usage on for an existing provider.
+	// Most providers require a stored deployment key whenever central-key
+	// usage is enabled and there is no saved key yet. Bedrock can also use
+	// ambient AWS credentials from the Coder server, so its API key stays
+	// optional.
 	const requiresAPIKey =
 		!isAPIKeyEnvManaged &&
+		!isBedrockProvider &&
 		centralAPIKeyEnabled &&
 		!providerState.hasManagedAPIKey;
 
 	const effectiveApiKey =
 		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
+	const hasTypedAPIKey = effectiveApiKey.length > 0;
+	// Clearing a saved Bedrock bearer token switches the provider back
+	// to ambient AWS credentials, so updates must send an explicit
+	// empty string.
+	const isClearingBedrockAPIKey =
+		isBedrockProvider &&
+		providerState.hasManagedAPIKey &&
+		apiKeyModified &&
+		effectiveApiKey === "";
+	const hasPendingAPIKeyChange =
+		(centralAPIKeyEnabled && hasTypedAPIKey) || isClearingBedrockAPIKey;
+	const shouldCreateAPIKey = centralAPIKeyEnabled && hasTypedAPIKey;
 	const hasCredentialSource = centralAPIKeyEnabled || allowUserAPIKey;
+	const apiKeyDescription = isBedrockProvider
+		? "Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials."
+		: "Secret key used to authenticate requests to this provider.";
+	const baseURLDescription = isBedrockProvider
+		? "Optional. Overrides the Bedrock runtime endpoint. Set AWS_REGION on the Coder server to select the target region."
+		: "Custom endpoint for this provider. Leave empty to use the default.";
+	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
 	const deleteProviderDescription = normalizedProviderConfig?.allow_user_api_key
 		? "Are you sure you want to delete this provider? Any personal API " +
 			"keys that users have saved for this provider will also be " +
 			"permanently deleted. This action is irreversible."
 		: "Are you sure you want to delete this provider? This action is irreversible.";
+	// New Bedrock providers can be saved immediately with ambient AWS
+	// credentials, even before any fields differ from their defaults.
+	const hasNewBedrockAmbientConfiguration =
+		isBedrockProvider && !providerConfig && centralAPIKeyEnabled;
 
 	const isDirty =
 		displayName.trim() !== initialValues.displayName ||
-		effectiveApiKey !== "" ||
+		hasPendingAPIKeyChange ||
 		baseURLValue.trim() !== initialValues.baseURL.trim() ||
 		centralAPIKeyEnabled !== initialValues.centralAPIKeyEnabled ||
 		allowUserAPIKey !== initialValues.allowUserAPIKey ||
-		effectiveFallback !== effectiveInitialFallback;
+		effectiveFallback !== effectiveInitialFallback ||
+		hasNewBedrockAmbientConfiguration;
 
 	const canSave =
 		!providerConfigsUnavailable &&
@@ -140,7 +168,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		!isAPIKeyEnvManaged &&
 		isDirty &&
 		hasCredentialSource &&
-		(!requiresAPIKey || effectiveApiKey);
+		(!requiresAPIKey || hasTypedAPIKey);
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -153,7 +181,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			return;
 		}
 
-		if (requiresAPIKey && !effectiveApiKey) {
+		if (requiresAPIKey && !hasTypedAPIKey) {
 			return;
 		}
 
@@ -168,8 +196,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				...(trimmedDisplayName !== currentDisplayName && {
 					display_name: trimmedDisplayName,
 				}),
-				...(centralAPIKeyEnabled &&
-					effectiveApiKey && { api_key: effectiveApiKey }),
+				...(hasPendingAPIKeyChange && { api_key: effectiveApiKey }),
 				...(trimmedBaseURL !== currentBaseURL && {
 					base_url: trimmedBaseURL,
 				}),
@@ -198,7 +225,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		} else {
 			const req: TypesGen.CreateChatProviderConfigRequest = {
 				provider,
-				...(centralAPIKeyEnabled && { api_key: effectiveApiKey }),
+				...(shouldCreateAPIKey && { api_key: effectiveApiKey }),
 				central_api_key_enabled: centralAPIKeyEnabled,
 				allow_user_api_key: allowUserAPIKey,
 				allow_central_api_key_fallback: effectiveFallback,
@@ -218,6 +245,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		setApiKeyTouched(false);
+		setApiKeyModified(false);
 		setApiKey(API_KEY_PLACEHOLDER);
 	};
 
@@ -280,36 +308,57 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								label="API Key"
 								htmlFor={apiKeyInputId}
 								required={requiresAPIKey}
-								description="Secret key used to authenticate requests to this provider."
+								description={apiKeyDescription}
 							>
-								<Input
-									id={apiKeyInputId}
-									name="provider_api_token"
-									type="password"
-									autoComplete="off"
-									data-1p-ignore
-									data-lpignore="true"
-									data-form-type="other"
-									data-bwignore
-									style={{ WebkitTextSecurity: "disc" } as CSSProperties}
-									className="h-9 font-mono text-[13px]"
-									placeholder="sk-..."
-									required={requiresAPIKey}
-									value={apiKey}
-									onFocus={handleApiKeyFocus}
-									onChange={(event) => {
-										setApiKey(event.target.value);
-										setApiKeyTouched(true);
-									}}
-									disabled={isDisabled}
-								/>
+								<div className="space-y-1.5">
+									<Input
+										id={apiKeyInputId}
+										name="provider_api_token"
+										type="password"
+										autoComplete="off"
+										data-1p-ignore
+										data-lpignore="true"
+										data-form-type="other"
+										data-bwignore
+										style={{ WebkitTextSecurity: "disc" } as CSSProperties}
+										className="h-9 font-mono text-[13px]"
+										placeholder={apiKeyPlaceholder}
+										required={requiresAPIKey}
+										value={apiKey}
+										onFocus={handleApiKeyFocus}
+										onChange={(event) => {
+											setApiKey(event.target.value);
+											setApiKeyTouched(true);
+											setApiKeyModified(true);
+										}}
+										disabled={isDisabled}
+									/>
+									{isBedrockProvider &&
+										providerState.hasManagedAPIKey &&
+										!isDisabled &&
+										(!apiKeyModified || apiKey !== "") && (
+											<div className="flex justify-end">
+												<button
+													type="button"
+													className="appearance-none border-0 bg-transparent p-0 text-xs text-content-link hover:cursor-pointer hover:underline"
+													onClick={() => {
+														setApiKey("");
+														setApiKeyTouched(true);
+														setApiKeyModified(true);
+													}}
+												>
+													Clear stored token
+												</button>
+											</div>
+										)}
+								</div>
 							</ProviderField>
 						)}
 
 						<ProviderField
 							label="Base URL"
 							htmlFor={baseURLInputId}
-							description="Custom endpoint for this provider. Leave empty to use the default."
+							description={baseURLDescription}
 						>
 							<Input
 								id={baseURLInputId}

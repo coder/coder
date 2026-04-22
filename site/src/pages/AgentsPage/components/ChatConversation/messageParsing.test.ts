@@ -3,6 +3,7 @@ import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
+	getEditableUserMessagePayload,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -70,6 +71,86 @@ describe("parseToolResultIsError", () => {
 				{ status: "completed" },
 			),
 		).toBe(false);
+	});
+});
+
+describe("getEditableUserMessagePayload", () => {
+	it("keeps only editable stored attachments", () => {
+		const cases = [
+			{
+				message: {
+					id: 1,
+					chat_id: "chat-1",
+					created_at: "2026-04-21T00:00:00.000Z",
+					role: "user",
+					content: [
+						{ type: "text", text: "Please edit this draft." },
+						{ type: "file", media_type: "image/png", file_id: "image-file" },
+						{
+							type: "file",
+							media_type: "application/json",
+							file_id: "json-file",
+							name: "report.json",
+						},
+						{
+							type: "file",
+							media_type: "application/pdf",
+							file_id: "pdf-file",
+							name: "manual.pdf",
+						},
+						{
+							type: "file",
+							media_type: "application/zip",
+							file_id: "zip-file",
+							name: "archive.zip",
+						},
+					],
+				} satisfies ChatMessage,
+				want: {
+					text: "Please edit this draft.",
+					fileBlocks: [
+						{ type: "file", media_type: "image/png", file_id: "image-file" },
+						{
+							type: "file",
+							media_type: "application/json",
+							file_id: "json-file",
+							name: "report.json",
+						},
+						{
+							type: "file",
+							media_type: "application/pdf",
+							file_id: "pdf-file",
+							name: "manual.pdf",
+						},
+					],
+				},
+			},
+			{
+				message: {
+					id: 2,
+					chat_id: "chat-1",
+					created_at: "2026-04-21T00:00:00.000Z",
+					role: "user",
+					content: [
+						{ type: "text", text: "Share the archive instead." },
+						{
+							type: "file",
+							media_type: "application/zip",
+							file_id: "zip-file",
+							name: "archive.zip",
+						},
+					],
+				} satisfies ChatMessage,
+				want: {
+					text: "Share the archive instead.",
+					fileBlocks: undefined,
+				},
+			},
+		];
+
+		for (const { message, want } of cases) {
+			expect(getEditableUserMessagePayload(message)).toEqual(want);
+		}
 	});
 });
 

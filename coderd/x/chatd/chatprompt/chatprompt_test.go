@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -2382,6 +2383,103 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
 		require.Equal(t, imageData, mediaOutput.Data)
 		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+
+	t.Run("MediaResultCarriesPromotedAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-promoted"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-00Z.png"
+
+		attachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    attachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			Data             string `json:"data"`
+			MimeType         string `json:"mime_type"`
+			Text             string `json:"text"`
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, imageData, persisted.Data)
+		require.Equal(t, mimeType, persisted.MimeType)
+		require.Equal(t, attachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
+
+		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{sdkPart})
+
+		prompt := loadPrompt(t, chat)
+		require.Len(t, prompt, 2)
+
+		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		require.True(t, ok, "expected ToolResultPart")
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
+		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
+		require.Equal(t, imageData, mediaOutput.Data)
+		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+	t.Run("MediaResultUsesMatchingAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-matching-attachment"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-01Z.png"
+
+		mismatchedAttachmentID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+		matchingAttachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-ffffffffffff")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    mismatchedAttachmentID,
+				MediaType: "application/pdf",
+				Name:      "report.pdf",
+			},
+			chattool.AttachmentMetadata{
+				FileID:    matchingAttachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, matchingAttachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
 	})
 
 	t.Run("MediaResultWithText", func(t *testing.T) {

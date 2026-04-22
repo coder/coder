@@ -29,6 +29,10 @@ import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import {
+	AttachmentBlock,
+	type PreviewTextAttachment,
+} from "./AttachmentBlocks";
 import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -39,7 +43,7 @@ import type {
 	ParsedMessageEntry,
 	RenderBlock,
 } from "./types";
-import { FileBlock, UserMessageContent } from "./UserMessageContent";
+import { UserMessageContent } from "./UserMessageContent";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -135,7 +139,7 @@ export const BlockList: FC<{
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
+	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -283,11 +287,13 @@ export const BlockList: FC<{
 					}
 					case "file":
 						return (
-							<FileBlock
+							<AttachmentBlock
 								key={`${keyPrefix}-file-${block.file_id ?? index}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
+								framePreview
+								showTextStatus
 							/>
 						);
 					case "sources":
@@ -388,7 +394,8 @@ const ChatMessageItem = memo<{
 	}) => {
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] = useState<string | null>(null);
+		const [previewText, setPreviewText] =
+			useState<PreviewTextAttachment | null>(null);
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -510,7 +517,8 @@ const ChatMessageItem = memo<{
 				)}
 				{previewText !== null && (
 					<TextPreviewDialog
-						content={previewText}
+						content={previewText.content}
+						fileName={previewText.fileName}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}

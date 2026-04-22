@@ -237,11 +237,18 @@ export const parseMessageContent = (
 	return parsed;
 };
 
+const isEditableAttachmentMediaType = (mediaType: string): boolean =>
+	mediaType.startsWith("image/") ||
+	mediaType === "text/plain" ||
+	mediaType === "text/markdown" ||
+	mediaType === "text/csv" ||
+	mediaType === "application/json" ||
+	mediaType === "application/pdf";
+
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
 ): block is TypesGen.ChatFilePart =>
-	block.type === "file" &&
-	(block.media_type.startsWith("image/") || block.media_type === "text/plain");
+	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
