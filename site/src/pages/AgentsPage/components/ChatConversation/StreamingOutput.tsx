@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -5,7 +6,6 @@ import {
 	ConversationItem,
 	Message,
 	MessageContent,
-	Response,
 	Shimmer,
 } from "../ChatElements";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
@@ -20,32 +20,25 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "reconnecting";
 
 /**
- * True when the block list contains at least one content block
- * (text, reasoning, or tool call). Any of these indicate the
- * model has moved past the initial "Thinking..." phase.
+ * True when the block list contains at least one text or reasoning
+ * block. Tool-call blocks don't count; the placeholder should
+ * remain visible between tool calls so the user knows the model
+ * is still working.
  */
-const hasVisibleContentBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some(
-		(b) => b.type === "response" || b.type === "thinking" || b.type === "tool",
-	);
+const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
+	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
 /**
- * Stateless "Thinking..." shimmer used during the streaming phase
- * when no text or reasoning blocks have arrived yet. Unlike the
- * `StartingPlaceholder` in `ChatStatusCallout`, this has no
- * delayed-startup timer — the streaming phase is transient and
- * will be replaced as soon as real content arrives.
+ * Placeholder shown during streaming before text or reasoning
+ * blocks arrive. Matches the collapsible thinking disclosure
+ * style so the user sees one consistent "Thinking" indicator.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="relative">
-		<Response aria-hidden className="invisible select-none">
-			Thinking...
-		</Response>
-		<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-			<Shimmer as="div" className="text-[13px] leading-relaxed">
-				Thinking...
-			</Shimmer>
-		</div>
+	<div className="flex w-full items-center gap-1.5 text-content-secondary">
+		<ChevronDownIcon className="size-icon-sm shrink-0 -rotate-90" />
+		<Shimmer as="span" className="text-xs">
+			Thinking
+		</Shimmer>
 	</div>
 );
 
@@ -85,7 +78,8 @@ export const StreamingOutput: FC<{
 	// first visible content, preventing the indicator from
 	// flickering away when only tool-call parts (or whitespace-
 	// only text deltas) have been received so far.
-	const needsStreamingThinking = isStreaming && !hasVisibleContentBlock(blocks);
+	const needsStreamingThinking =
+		isStreaming && !hasTextOrReasoningBlock(blocks);
 
 	const shouldShowStatusCallout =
 		hasTransientLiveStatus(liveStatus) || needsStreamingThinking;
