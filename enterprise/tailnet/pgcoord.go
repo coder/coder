@@ -1650,10 +1650,11 @@ type heartbeats struct {
 	firstHeartbeat   chan<- struct{}
 	failedHeartbeats int
 
-	lock            sync.RWMutex
-	coordinators    map[uuid.UUID]time.Time
-	lastDBHeartbeat map[uuid.UUID]time.Time
-	timer           *quartz.Timer
+	lock                 sync.RWMutex
+	coordinators         map[uuid.UUID]time.Time
+	lastDBHeartbeat      map[uuid.UUID]time.Time
+	expiredCoordinators  map[uuid.UUID]struct{}
+	timer                *quartz.Timer
 
 	wg sync.WaitGroup
 
@@ -1676,8 +1677,9 @@ func newHeartbeats(
 		self:            self,
 		update:          update,
 		firstHeartbeat:  firstHeartbeat,
-		coordinators:    make(map[uuid.UUID]time.Time),
-		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
+		coordinators:        make(map[uuid.UUID]time.Time),
+		lastDBHeartbeat:     make(map[uuid.UUID]time.Time),
+		expiredCoordinators: make(map[uuid.UUID]struct{}),
 		clock:           clk,
 	}
 	// Start the expiry timer so checkExpiry runs even if no pubsub
@@ -1769,13 +1771,23 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	if _, ok := h.coordinators[id]; !ok {
-		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
-		// send on a separate goroutine to avoid holding lock.  Triggering update can be async.
-		// Use filterUpdateReset so that mappers clear their sent cache and re-evaluate all peers.
-		// This is needed because peers that were LOST-skipped during the coordinator's absence
-		// need to be re-sent now that the coordinator has recovered.
+		// Determine whether this coordinator is recovering after expiry
+		// or joining for the first time. Recovery needs a full reset so
+		// mappers re-evaluate peers that were LOST during the absence.
+		// First-time joins only need an incremental update.
+		_, wasExpired := h.expiredCoordinators[id]
+		delete(h.expiredCoordinators, id)
+		filter := filterUpdateUpdated
+		if wasExpired {
+			filter = filterUpdateReset
+		}
+		h.logger.Info(h.ctx, "heartbeats (re)started",
+			slog.F("other_coordinator_id", id),
+			slog.F("was_expired", wasExpired),
+		)
+		// send on a separate goroutine to avoid holding lock.
 		go func() {
-			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
 		}()
 	}
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
@@ -1932,10 +1944,26 @@ func (h *heartbeats) checkExpiry() {
 			}
 		}
 		if discovered {
-			// Use filterUpdateReset so mappers clear their sent cache
-			// and re-evaluate peers that were previously marked LOST.
+			// Check if any discovered coordinator was previously
+			// expired. If so, mappers need a full reset to
+			// re-evaluate peers that were marked LOST. Otherwise,
+			// an incremental update suffices for first-time joins.
+			needsReset := false
+			for id := range dbMap {
+				if _, ok := h.expiredCoordinators[id]; ok {
+					if _, ok2 := h.coordinators[id]; ok2 {
+						// Was expired but just re-added.
+						delete(h.expiredCoordinators, id)
+						needsReset = true
+					}
+				}
+			}
+			filter := filterUpdateUpdated
+			if needsReset {
+				filter = filterUpdateReset
+			}
 			go func() {
-				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateReset})
+				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
 			}()
 		}
 	}
@@ -1944,6 +1972,7 @@ func (h *heartbeats) checkExpiry() {
 	for id, lastHB := range candidates {
 		expired = true
 		delete(h.coordinators, id)
+		h.expiredCoordinators[id] = struct{}{}
 		h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 	}
 	if expired {
