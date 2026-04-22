@@ -260,7 +260,7 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	select {
 	case <-c.respLoopDone:
 		c.logger.Debug(ctx, "responses closed after disconnect")
-		return nil
+		return retErr
 	case <-ctx.Done():
 		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
 	}
