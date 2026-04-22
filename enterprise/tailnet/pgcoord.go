@@ -57,7 +57,7 @@ func publishTunnelUpdate(ps pubsub.Pubsub, logger slog.Logger, ctx context.Conte
 
 func publishCoordinatorHeartbeat(ps pubsub.Pubsub, logger slog.Logger, ctx context.Context, id uuid.UUID) {
 	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
-		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.Error(err))
+		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
 	}
 }
 
