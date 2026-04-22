@@ -179,9 +179,6 @@ type AttachmentFailureLabels = {
 	failed: string;
 };
 
-const attachmentRetentionTooltip =
-	"Chat attachments are deleted after the retention window set for this deployment.";
-
 const imageAttachmentFailureLabels: AttachmentFailureLabels = {
 	expired: "Image expired",
 	failed: "Image failed to load",
@@ -222,7 +219,9 @@ const AttachmentFallbackTile: FC<{
 	// A bare "failed" (e.g. an inline base64 decode failure, where the
 	// browser exposes nothing useful) stays a plain tile.
 	const tooltipBody =
-		state.kind === "expired" ? attachmentRetentionTooltip : state.detail;
+		state.kind === "expired"
+			? "Chat attachments are deleted after the retention window set for this deployment."
+			: state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -300,9 +299,6 @@ const RemoteTextAttachmentButton: FC<{
 	);
 	const request = useLatestAbortController(isKnownExpired);
 
-	// A fileId we already know is expired (because another rendering of the
-	// same attachment in this conversation hit a 404) skips the fetch and
-	// renders the shared fallback tile so every reference stays consistent.
 	if (isKnownExpired) {
 		return (
 			<AttachmentFallbackTile
@@ -369,12 +365,6 @@ const RemoteTextAttachmentButton: FC<{
 				}
 				setIsLoading(false);
 				if (result.kind !== "loaded") {
-					// Remote fetch classified the response as expired or
-					// generally unavailable. Replace the button with the
-					// shared fallback tile so every attachment failure
-					// surfaces the same accessible affordance plus the
-					// per-failure detail (retention copy or API message)
-					// in the tooltip body.
 					if (result.kind === "expired") {
 						markExpired(fileId);
 					}

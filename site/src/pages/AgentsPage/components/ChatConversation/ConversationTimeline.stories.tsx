@@ -771,8 +771,6 @@ export const UserMessageWithFailedTextAttachmentNonJSONBody: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View preview.txt" }),
 		).not.toBeInTheDocument();
-		// The raw response body must not appear inline in the message list;
-		// any detail goes into the tooltip body, which only opens on hover.
 		expect(canvas.queryByText(/Temporary failure/i)).not.toBeInTheDocument();
 	},
 };

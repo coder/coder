@@ -84,9 +84,6 @@ export const AttachmentPreview: FC<{
 			if (result.kind === "loaded") {
 				return result.content;
 			}
-			// Persisted user-side attachment failed to load (e.g. expired, or
-			// the server returned an error). Surface a toast so the user sees
-			// the failure instead of silently getting nothing back.
 			const resultMessage = getTextAttachmentErrorMessage(result);
 			if (resultMessage !== null) {
 				toast.error(resultMessage);

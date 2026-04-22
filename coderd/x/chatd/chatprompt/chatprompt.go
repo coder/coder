@@ -706,9 +706,8 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 	return sdkPartFromContent(block, nil)
 }
 
-// PartFromContentWithLogger mirrors PartFromContent, but logs malformed
-// tool attachment metadata when a ToolResultContent carries invalid
-// ClientMetadata.
+// PartFromContentWithLogger is for call sites that can surface malformed
+// attachment metadata immediately instead of dropping it silently.
 func PartFromContentWithLogger(
 	ctx context.Context,
 	logger slog.Logger,
