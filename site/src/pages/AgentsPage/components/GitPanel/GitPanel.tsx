@@ -55,6 +55,13 @@ interface GitPanelProps {
 	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	/**
+	 * Repo roots that have been dirty at some point during this session.
+	 * Used to keep a repo's tab visible after its diff goes empty, so the
+	 * tab strip does not visibly flip when the agent edits a file and
+	 * then reverts it.
+	 */
+	everDirty?: ReadonlySet<string>;
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -70,6 +77,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	isExpanded,
 	remoteDiffStats,
 	chatInputRef,
+	everDirty,
 }) => {
 	const hasRemoteStats =
 		(remoteDiffStats?.additions ?? 0) > 0 ||
@@ -102,9 +110,24 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return stats;
 	})();
 
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
-		a.localeCompare(b),
-	);
+	// Build the visible tab set. Include any repo that is dirty right
+	// now (in repoStats) plus any repo that was dirty at some point
+	// during this session (in everDirty) and is still known to the
+	// watcher. The ever-dirty retention avoids a visible flip when the
+	// agent edits a file and immediately reverts it; without it, the
+	// tab would vanish on the clean transition and reappear on the
+	// next edit.
+	const localRepos = (() => {
+		const roots = new Set<string>(repoStats.keys());
+		if (everDirty) {
+			for (const root of everDirty) {
+				if (repositories.has(root)) {
+					roots.add(root);
+				}
+			}
+		}
+		return Array.from(roots).sort((a, b) => a.localeCompare(b));
+	})();
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.
@@ -122,7 +145,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 				setView({ type: "local", repoRoot: localRepos[0] });
 			}
 		} else if (view.type === "local") {
-			if (!repoStats.has(view.repoRoot)) {
+			// The active local tab is still valid as long as it is in
+			// localRepos, which now includes ever-dirty (currently clean)
+			// repos in addition to those with live diff stats.
+			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
 					setView({ type: "remote" });
 				} else if (localRepos.length > 0) {
@@ -130,7 +156,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 				}
 			}
 		}
-	}, [view, showRemoteTab, localRepos, repoStats]);
+	}, [view, showRemoteTab, localRepos]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 

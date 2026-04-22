@@ -85,6 +85,7 @@ const buildGitWatcher = (): ComponentProps<
 	typeof AgentChatPageView
 >["gitWatcher"] => ({
 	repositories: new Map(),
+	everDirty: new Set(),
 	refresh: fn().mockReturnValue(true),
 });
 

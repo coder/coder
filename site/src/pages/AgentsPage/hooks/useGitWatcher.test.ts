@@ -664,4 +664,190 @@ describe("useGitWatcher", () => {
 		});
 		expect(result.current.repositories).toBe(ref1);
 	});
+
+	it("tracks everDirty: adds repo on first non-empty diff", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "some diff",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+	});
+
+	it("tracks everDirty: retains repo after diff goes empty", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		// First, dirty the repo.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+
+		// Revert the repo to clean (empty diff). The repo stays in
+		// repositories, and everDirty retains it so the UI can keep
+		// the tab visible.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.repositories.get("/repo")?.unified_diff).toBe("");
+		});
+		expect(result.current.everDirty.has("/repo")).toBe(true);
+	});
+
+	it("tracks everDirty: does not add on first empty diff", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.repositories.size).toBe(1);
+		});
+		expect(result.current.everDirty.size).toBe(0);
+	});
+
+	it("tracks everDirty: removes repo on removed: true", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "",
+						removed: true,
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.repositories.size).toBe(0);
+		});
+		expect(result.current.everDirty.size).toBe(0);
+	});
+
+	it("tracks everDirty: clears on chatId change", async () => {
+		const socket1 = createMockSocket();
+
+		const { result, rerender } = renderHook(
+			({ chatId }: { chatId: string }) =>
+				useGitWatcher({ chatId, agentStatus: "connected" }),
+			{ initialProps: { chatId: "chat-A" } },
+		);
+
+		act(() => socket1.simulateOpen());
+
+		act(() => {
+			socket1.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+
+		// Switch to a different chat. The hook tears down and recreates
+		// the socket; state must reset.
+		createMockSocket();
+		rerender({ chatId: "chat-B" });
+
+		expect(result.current.repositories.size).toBe(0);
+		expect(result.current.everDirty.size).toBe(0);
+	});
 });

@@ -29,6 +29,14 @@ interface UseGitWatcherOptions {
 interface UseGitWatcherResult {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	/**
+	 * Set of repo roots that have shown a non-empty unified_diff at any
+	 * point during this hook's lifetime. Used by GitPanel to keep a tab
+	 * visible after the tree goes clean, instead of hiding it the moment
+	 * the diff empties out (which causes a visible flip when the agent
+	 * edits a file and then reverts it).
+	 */
+	everDirty: ReadonlySet<string>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
@@ -42,6 +50,9 @@ export function useGitWatcher({
 	const [repositories, setRepositories] = useState<
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
 	>(new Map());
+	const [everDirty, setEverDirty] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
 	const [isConnected, setIsConnected] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
@@ -111,6 +122,21 @@ export function useGitWatcher({
 							}
 							return changed ? next : prev;
 						});
+						setEverDirty((prev) => {
+							let changed = false;
+							const next = new Set(prev);
+							for (const repo of data.repositories!) {
+								if (repo.removed) {
+									if (next.delete(repo.repo_root)) {
+										changed = true;
+									}
+								} else if (repo.unified_diff && !next.has(repo.repo_root)) {
+									next.add(repo.repo_root);
+									changed = true;
+								}
+							}
+							return changed ? next : prev;
+						});
 					} else if (data.type === "error") {
 						console.warn("[useGitWatcher] server error:", data.message);
 					}
@@ -139,9 +165,10 @@ export function useGitWatcher({
 			dispose();
 			setIsConnected(false);
 			setRepositories(new Map());
+			setEverDirty(new Set());
 			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, isConnected, refresh };
+	return { repositories, everDirty, isConnected, refresh };
 }
