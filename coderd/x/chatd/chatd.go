@@ -885,8 +885,9 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
-	// ErrChatArchived indicates the chat is archived and cannot accept
-	// new messages, edits, or queued-message promotions.
+	// ErrChatArchived indicates the chat is archived and cannot
+	// accept modifications (messages, edits, promotions, or
+	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
 
 	// errChatTakenByOtherWorker is a sentinel used inside the

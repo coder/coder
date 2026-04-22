@@ -7438,8 +7438,8 @@ func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
 	err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
-	// Force the chat into requires_action so SubmitToolResults
-	// reaches the archived check rather than the status check.
+	// Set requires_action so the test exercises a realistic
+	// scenario where SubmitToolResults would be called.
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
 		Status: database.ChatStatusRequiresAction,
