@@ -516,3 +516,63 @@ func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
 	assert.Equal(t, peer, key)
 	q.done(key)
 }
+
+// TestPeriodicRefresh_EnqueuesAllMapperKeys verifies that periodicRefresh
+// enqueues all mapper keys into mappingQ on each tick, without requiring
+// a database, pubsub, or real coordinator.
+func TestPeriodicRefresh_EnqueuesAllMapperKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	logger := testutil.Logger(t)
+	mClock := quartz.NewMock(t)
+
+	// Trap the TickerFunc so we can control when it fires.
+	trap := mClock.Trap().TickerFunc("querier", "periodicRefresh")
+	defer trap.Close()
+
+	// Build a minimal querier with a few mapper entries.
+	q := &querier{
+		ctx:      ctx,
+		logger:   logger.Named("querier"),
+		clock:    mClock,
+		mappingQ: newWorkQ[mKey](ctx),
+		mappers:  make(map[mKey]*mapper),
+	}
+
+	key1 := mKey(uuid.New())
+	key2 := mKey(uuid.New())
+	key3 := mKey(uuid.New())
+	q.mappers[key1] = nil
+	q.mappers[key2] = nil
+	q.mappers[key3] = nil
+
+	q.wg.Add(1)
+	go q.periodicRefresh()
+
+	// Wait for the TickerFunc to be registered, then release it.
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	require.Equal(t, mapperRefreshInterval, call.Duration)
+
+	// Advance the clock to trigger the tick callback.
+	mClock.Advance(mapperRefreshInterval).MustWait(ctx)
+
+	// All three keys should now be enqueued in mappingQ.
+	batch, err := q.mappingQ.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 3)
+
+	got := make(map[mKey]struct{})
+	for _, k := range batch {
+		got[k] = struct{}{}
+	}
+	require.Contains(t, got, key1)
+	require.Contains(t, got, key2)
+	require.Contains(t, got, key3)
+
+	// Clean up: cancel context so periodicRefresh exits.
+	cancel()
+	q.wg.Wait()
+}
