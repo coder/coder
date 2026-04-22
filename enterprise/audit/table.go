@@ -400,6 +400,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_error":            ActionIgnore, // Internal.
 		"mode":                  ActionTrack,
 		"mcp_server_ids":        ActionTrack,
+		"allow_web_search":      ActionIgnore, // Derived tool entitlement snapshot.
 		"labels":                ActionTrack,
 		"pin_order":             ActionTrack,
 		"last_read_message_id":  ActionIgnore, // User-scoped read cursor.

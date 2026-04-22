@@ -467,6 +467,54 @@ type childSubagentChatOptions struct {
 	systemPrompt          string
 	modelConfigIDOverride *uuid.UUID
 	planModeOverride      *database.NullChatPlanMode
+	inheritedMCPServerIDs []uuid.UUID
+	allowWebSearch        bool
+}
+
+func (p *Server) resolveExploreToolSnapshot(
+	ctx context.Context,
+	parent database.Chat,
+	currentModelConfigID uuid.UUID,
+) ([]uuid.UUID, bool, error) {
+	inheritedMCPServerIDs := []uuid.UUID{}
+	if len(parent.MCPServerIDs) > 0 {
+		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+		if err != nil {
+			return nil, false, xerrors.Errorf("get parent MCP server configs: %w", err)
+		}
+
+		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
+			configs,
+			parent.PlanMode,
+			parent.ParentChatID,
+		)
+		allowedParentIDs := map[uuid.UUID]struct{}{}
+		if isExploreSubagentMode(parent.Mode) {
+			for _, id := range parent.MCPServerIDs {
+				allowedParentIDs[id] = struct{}{}
+			}
+		}
+		for _, cfg := range visibleConfigs {
+			if len(allowedParentIDs) > 0 {
+				if _, ok := allowedParentIDs[cfg.ID]; !ok {
+					continue
+				}
+			}
+			inheritedMCPServerIDs = append(inheritedMCPServerIDs, cfg.ID)
+		}
+	}
+
+	allowWebSearch, err := p.modelConfigAllowsWebSearch(ctx, currentModelConfigID)
+	if err != nil {
+		return nil, false, xerrors.Errorf("resolve web_search snapshot: %w", err)
+	}
+	allowWebSearch = allowWebSearch && webSearchAllowedForTurn(
+		parent.Mode,
+		parent.PlanMode,
+		parent.AllowWebSearch,
+	)
+
+	return inheritedMCPServerIDs, allowWebSearch, nil
 }
 
 func (p *Server) createChildSubagentChat(
@@ -518,8 +566,23 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	mcpServerIDs := parent.MCPServerIDs
+	if isExploreSubagentMode(opts.chatMode) {
+		mcpServerIDs = append([]uuid.UUID(nil), opts.inheritedMCPServerIDs...)
+	}
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
+	}
+	allowWebSearch, err := p.defaultAllowWebSearchForChat(
+		ctx,
+		modelConfigID,
+		opts.chatMode,
+		childPlanMode,
+	)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("resolve child chat web search entitlement: %w", err)
+	}
+	if isExploreSubagentMode(opts.chatMode) {
+		allowWebSearch = opts.allowWebSearch
 	}
 
 	labelsJSON, err := json.Marshal(database.StringMap{})
@@ -553,6 +616,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ClientType:        parent.ClientType,
 			Status:            database.ChatStatusPending,
 			MCPServerIDs:      mcpServerIDs,
+			AllowWebSearch:    allowWebSearch,
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
