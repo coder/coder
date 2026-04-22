@@ -2230,6 +2230,36 @@ type chatAutoArchiveDeps struct {
 	modelConfig database.ChatModelConfig
 }
 
+// archiveHarness bundles the per-subtest setup shared by every
+// TestAutoArchiveInactiveChats case. Subtests read fields off the
+// harness directly instead of repeating six lines of identical
+// plumbing.
+type archiveHarness struct {
+	ctx    context.Context
+	clk    *quartz.Mock
+	db     database.Store
+	rawDB  *sql.DB
+	logger slog.Logger
+	deps   chatAutoArchiveDeps
+}
+
+func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	return &archiveHarness{
+		ctx:    ctx,
+		clk:    clk,
+		db:     db,
+		rawDB:  rawDB,
+		logger: logger,
+		deps:   archiveTestDeps(ctx, t, db),
+	}
+}
+
 // createArchiveChat inserts a chat with an optional backdated
 // created_at. Title is propagated through so tests can assert on
 // digest contents.
@@ -2291,13 +2321,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "AutoArchiveDisabled",
 			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(0)))
 
@@ -2323,13 +2348,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "ArchivesInactiveRoot",
 			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
 
@@ -2373,13 +2393,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "SkipsPinnedAndChildren",
 			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
@@ -2435,13 +2450,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// lists at most 25 titles and surfaces the rest via
 				// additional_archived_count so the template can render
 				// "...and N more".
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
@@ -2474,13 +2484,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "MultipleOwners",
 			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 				user2 := dbgen.User(t, db, database.User{})
 				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
 
@@ -2531,13 +2536,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "SecondTickIdempotent",
 			run: func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
@@ -2594,16 +2594,11 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// effects (audits, digests) follow the same pattern:
 				// dispatch only runs when rows > 0, so tick 3 emits
 				// no new audits or digests.
-				ctx := testutil.Context(t, testutil.WaitLong)
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
 				restore := dbpurge.SetChatAutoArchiveBatchSizeForTest(20)
 				t.Cleanup(restore)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := archiveTestDeps(ctx, t, db)
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
