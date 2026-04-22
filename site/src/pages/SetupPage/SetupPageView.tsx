@@ -193,9 +193,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			<div className="flex flex-col w-full max-w-[500px] px-4">
 				<header className="mb-8">
 					<CoderIcon className="w-12 h-12 text-content-primary" />
-					<h1 className="text-2xl font-normal mt-4 mb-0">
-						Welcome to <strong>Coder</strong>
-					</h1>
+					<h1 className="text-2xl font-semibold mt-4 mb-0">Welcome to Coder</h1>
 					<p className="mt-3 mb-0 text-sm text-content-secondary font-normal">
 						Set up your admin account and start building secure, reproducible
 						dev environments.
@@ -233,8 +231,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{/* Password */}
 					<PasswordField
-						field={getFieldHelpers("password")}
 						label="Password"
+						field={getFieldHelpers("password")}
 						autoComplete="new-password"
 					/>
 
