@@ -520,7 +520,7 @@ func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
 // TestPeriodicRefresh_EnqueuesAllMapperKeys verifies that periodicRefresh
 // enqueues all mapper keys into mappingQ on each tick, without requiring
 // a database, pubsub, or real coordinator.
-func TestPeriodicRefresh_EnqueuesAllMapperKeys(t *testing.T) {
+func TestQuerier_periodicRefresh(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
