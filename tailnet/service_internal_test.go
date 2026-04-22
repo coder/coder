@@ -146,7 +146,7 @@ func TestLoopRespBatchDrain(t *testing.T) {
 			resps:  ch,
 		}
 
-		// First message is PeerUpdate, second is error — both buffered.
+		// First message is PeerUpdate, second is error. Both are buffered.
 		ch <- &proto.CoordinateResponse{
 			PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{peerUpdate(1), peerUpdate(2)},
 		}

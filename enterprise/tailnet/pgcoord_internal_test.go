@@ -56,7 +56,7 @@ func TestBestToUpdate_DoesNotModifySent(t *testing.T) {
 		},
 	}
 
-	// Call bestToUpdate — it should NOT modify m.sent.
+	// Call bestToUpdate. It should NOT modify m.sent.
 	su := m.bestToUpdate(best)
 	require.NotNil(t, su)
 	require.Len(t, su.resp.PeerUpdates, 1)
