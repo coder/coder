@@ -96,7 +96,7 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
-/** localStorage key prefix for the per-session active right-panel tab. */
+/** @internal localStorage key prefix for the per-chat active sidebar tab. Exported for testing. */
 export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
@@ -119,35 +119,47 @@ export function getPersistedDraftInputValue(
 	).text;
 }
 
+/**
+ * Read the persisted active sidebar tab ID for a given chat. Returns
+ * `null` when no value is stored or the chat ID is missing.
+ */
 export function getPersistedSidebarTabId(
-	agentID: string | undefined,
+	chatID: string | undefined,
 ): string | null {
-	if (typeof window === "undefined" || !agentID) {
+	if (typeof window === "undefined" || !chatID) {
 		return null;
 	}
 	return localStorage.getItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
+		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
 	);
 }
 
+/**
+ * Persist the active sidebar tab ID for a given chat so it can be
+ * restored across session switches. No-op when the chat ID is missing.
+ */
 export function savePersistedSidebarTabId(
-	agentID: string | undefined,
+	chatID: string | undefined,
 	tabID: string,
 ): void {
-	if (typeof window === "undefined" || !agentID) {
+	if (typeof window === "undefined" || !chatID) {
 		return;
 	}
 	localStorage.setItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`,
+		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
 		tabID,
 	);
 }
 
-export function clearPersistedSidebarTabId(agentID: string | undefined): void {
-	if (typeof window === "undefined" || !agentID) {
+/**
+ * Remove the persisted active sidebar tab ID for a given chat. Called
+ * when a chat is archived so a future unarchive starts fresh.
+ */
+export function clearPersistedSidebarTabId(chatID: string | undefined): void {
+	if (typeof window === "undefined" || !chatID) {
 		return;
 	}
-	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${agentID}`);
+	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
 }
 
 /** @internal Exported for testing. */

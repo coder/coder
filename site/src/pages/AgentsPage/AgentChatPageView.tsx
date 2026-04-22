@@ -4,7 +4,6 @@ import {
 	type FC,
 	type ReactNode,
 	type RefObject,
-	useCallback,
 	useRef,
 	useState,
 } from "react";
@@ -281,13 +280,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		getPersistedSidebarTabId(agentId),
 	);
 
-	const setSidebarTabId = useCallback(
-		(tabId: string) => {
-			setSidebarTabIdState(tabId);
-			savePersistedSidebarTabId(agentId, tabId);
-		},
-		[agentId],
-	);
+	// The Vite config compiles this directory with
+	// babel-plugin-react-compiler (see site/vite.config.mts), which
+	// auto-memoizes closures. A plain arrow is sufficient.
+	const setSidebarTabId = (tabId: string) => {
+		setSidebarTabIdState(tabId);
+		savePersistedSidebarTabId(agentId, tabId);
+	};
 
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);

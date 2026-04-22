@@ -1096,3 +1096,43 @@ export const PersistsSidebarTabClick: Story = {
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
 	},
 };
+
+/**
+ * When localStorage holds a tab ID whose tab is not currently available
+ * (e.g. `"terminal"` while the workspace is stopped), the sidebar
+ * should fall back to the first available tab (Git) and the stored
+ * value must be preserved so it can be honoured once the tab reappears.
+ *
+ * This locks down the contract described in the PR: `getEffectiveTabId`
+ * only reads `sidebarTabId` and never writes back. A future write-back
+ * in the fallback path would silently break restore-after-recovery, so
+ * this story exists to catch that regression.
+ */
+export const PreservesUnavailableSidebarTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	// Render without a workspace or workspace agent so the Terminal tab
+	// is not in the sidebar's tab list.
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Git is the only available tab, so it should be selected by
+		// the getEffectiveTabId fallback.
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// The Terminal tab must not be rendered at all.
+		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
+
+		// The stored value must still be "terminal" so that when the
+		// workspace returns, the user's choice is honoured.
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
