@@ -44,8 +44,11 @@ const (
 	// scanCooldown is the minimum interval between successive scans.
 	scanCooldown = 1 * time.Second
 	// fallbackPollInterval is the safety-net poll period used when no
-	// filesystem events arrive.
-	fallbackPollInterval = 30 * time.Second
+	// filesystem events arrive. Short enough that out-of-band edits
+	// (interactive SSH, long-running watchers) surface within a few
+	// seconds; long enough that an idle clean repo does not poll hot.
+	// scanCooldown still caps the actual scan frequency.
+	fallbackPollInterval = 5 * time.Second
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.
 	// This must stay under the WebSocket message size limit.

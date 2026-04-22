@@ -875,7 +875,7 @@ func TestFallbackPollTriggersScan(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "poll.go"), []byte("package poll\n"), 0o600))
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "poll.go")})
 
-	// Only the 30s fallback poll can trigger scans (no filesystem
+	// Only the fallback poll can trigger scans (no filesystem
 	// watcher).
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
@@ -887,9 +887,9 @@ func TestFallbackPollTriggersScan(t *testing.T) {
 	// Add a new dirty file so the next scan has a delta to report.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "poll2.go"), []byte("package poll\n"), 0o600))
 
-	// Advance to the 30s fallback poll interval. This should
-	// trigger a scan without any explicit refresh.
-	mClock.Advance(30 * time.Second).MustWait(context.Background())
+	// Advance to the fallback poll interval. This should trigger a
+	// scan without any explicit refresh.
+	mClock.Advance(5 * time.Second).MustWait(context.Background())
 
 	msg2 := recvMsg(ctx, t, ch)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg2.Type)
@@ -1421,4 +1421,99 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 		}
 	}
 	require.True(t, foundRemoved, "expected repo %s to be marked as removed", repoDir)
+}
+
+// TestRunLoopExitsPromptlyOnCancel_DuringPoll pins that RunLoop
+// returns quickly when its context is cancelled while it is blocked
+// on the fallback poll ticker. Regression guard for the fallback
+// interval: if a future change introduces a non-cancellable wait
+// here, this test will hang and fail.
+func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.RunLoop(ctx, func() {})
+	}()
+
+	// Wait for the RunLoop to register its ticker so cancellation
+	// happens against a live select rather than a pre-start one.
+	mClock.Advance(10 * time.Millisecond).MustWait(context.Background())
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("RunLoop did not return within WaitShort after ctx cancel")
+	}
+}
+
+// TestRunLoopExitsPromptlyOnCancel_DuringCooldown pins that RunLoop
+// returns quickly when its context is cancelled while a
+// rateLimitedScan is sleeping out the cooldown between scans.
+// Regression guard: all waits inside the cooldown path must select
+// on ctx.Done().
+func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	scanStarted := make(chan struct{}, 1)
+	blocked := make(chan struct{})
+	scanFn := func() {
+		// Signal the first scan so the test can fire a second
+		// trigger while this one is in-flight. Block until the
+		// test releases us, mimicking a slow I/O scan.
+		select {
+		case scanStarted <- struct{}{}:
+		default:
+		}
+		<-blocked
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.RunLoop(ctx, scanFn)
+	}()
+
+	// First trigger: consumed immediately (cooldown is not yet
+	// active because lastScanAt is zero). scanFn blocks on <-blocked,
+	// so RunLoop cannot loop back to select until we unblock.
+	h.RequestScan()
+	<-scanStarted
+
+	// Release the first scan; it sets lastScanAt to "now".
+	close(blocked)
+
+	// Fire a second trigger. Because lastScanAt is fresh,
+	// rateLimitedScan will enter its cooldown wait.
+	h.RequestScan()
+
+	// Give the goroutine a tick to enter the cooldown select.
+	mClock.Advance(10 * time.Millisecond).MustWait(context.Background())
+
+	// Cancel while the cooldown timer is pending. The select in
+	// rateLimitedScan must pick ctx.Done().
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("RunLoop did not return within WaitShort after ctx cancel during cooldown")
+	}
 }
