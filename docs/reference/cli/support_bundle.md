@@ -6,13 +6,13 @@ Generate a support bundle to troubleshoot issues connecting to a workspace.
 ## Usage
 
 ```console
-coder support bundle [flags] <workspace> [<agent>]
+coder support bundle [flags] [<workspace>] [<agent>]
 ```
 
 ## Description
 
 ```console
-This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).
+This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You may specify a single workspace (and optionally an agent name). When run inside a workspace, the workspace and agent are inferred from the environment if not provided.
 ```
 
 ## Options
