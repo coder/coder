@@ -354,12 +354,14 @@ export const EverDirtyRepoGoneClean: Story = {
 		everDirty: new Set(["/home/coder/coder"]),
 	},
 	play: async ({ canvasElement }) => {
-		// The repo tab is still present even though the current diff
-		// is empty, because it was dirty earlier in the session.
-		const tab = canvasElement.querySelector(
-			'button[class*="shrink-0"]',
-		) as HTMLElement | null;
-		expect(tab).not.toBeNull();
+		// The repo tab is still present (identified by the 'Working'
+		// prefix used by GitPanel's tab-strip button) even though the
+		// current diff is empty, because it was dirty earlier in the
+		// session.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(1);
 
 		// The content pane shows the diff viewer's empty-diff state.
 		expect(canvasElement.textContent ?? "").toContain("No file changes");
@@ -379,9 +381,12 @@ export const CleanRepoFromStart: Story = {
 		everDirty: new Set(),
 	},
 	play: async ({ canvasElement }) => {
-		// No local repo tab should appear in the tab strip.
-		const tabStripText = canvasElement.textContent ?? "";
-		expect(tabStripText).not.toContain("Working");
+		// No local repo tab should appear in the tab strip. The
+		// 'Working' prefix is GitPanel's tab-strip label contract.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(0);
 	},
 };
 

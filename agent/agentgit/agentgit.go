@@ -48,6 +48,13 @@ const (
 	// (interactive SSH, long-running watchers) surface within a few
 	// seconds; long enough that an idle clean repo does not poll hot.
 	// scanCooldown still caps the actual scan frequency.
+	//
+	// Cost sketch: each idle tick forks ~3 git subprocesses per
+	// subscribed repo (rev-parse, symbolic-ref, diff HEAD), plus one
+	// diff --no-index per untracked file. At 5s cadence that is ~36
+	// subprocesses/minute per repo per open chat connection. Tune
+	// this constant if that proves too expensive on workspaces with
+	// many subscribed repos.
 	fallbackPollInterval = 5 * time.Second
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.

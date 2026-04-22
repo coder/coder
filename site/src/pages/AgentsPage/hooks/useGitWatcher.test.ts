@@ -898,7 +898,7 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.lastCheckedAt).toBeDefined();
 		});
-		const firstDate = result.current.lastCheckedAt;
+		const firstIso = result.current.lastCheckedAt?.toISOString();
 
 		// A malformed scanned_at must not wipe the previous value.
 		act(() => {
@@ -909,6 +909,47 @@ describe("useGitWatcher", () => {
 			});
 		});
 
-		expect(result.current.lastCheckedAt).toBe(firstDate);
+		// Compare by ISO string, not reference. A future refactor that
+		// re-creates the Date object identically should still pass; what
+		// matters is that the observed timestamp did not change.
+		expect(result.current.lastCheckedAt?.toISOString()).toBe(firstIso);
+	});
+
+	it("tracks everDirty: preserves across agentStatus flap on the same chat", async () => {
+		const socket1 = createMockSocket();
+
+		const { result, rerender } = renderHook(
+			({ agentStatus }: { agentStatus: WorkspaceAgentStatus | undefined }) =>
+				useGitWatcher({ chatId: "chat-stable", agentStatus }),
+			{ initialProps: { agentStatus: "connected" as WorkspaceAgentStatus } },
+		);
+
+		act(() => socket1.simulateOpen());
+		act(() => {
+			socket1.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+
+		// Simulate a transient agentStatus flap. This tears down the
+		// socket but must not forget that /repo was dirty during this
+		// chat session.
+		createMockSocket();
+		rerender({ agentStatus: "connecting" as WorkspaceAgentStatus });
+		expect(result.current.everDirty.has("/repo")).toBe(true);
+
+		createMockSocket();
+		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
+		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
 });

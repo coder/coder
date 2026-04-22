@@ -1465,9 +1465,15 @@ func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	t.Parallel()
 
+	repoDir := initTestRepo(t)
 	logger := slogtest.Make(t, nil)
 	mClock := quartz.NewMock(t)
 	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
+
+	// Subscribe a real repo so Scan() actually does work and, on
+	// completion, updates lastScanAt. Without this, Scan() early-
+	// returns on empty roots and the cooldown branch never arms.
+	require.True(t, h.Subscribe([]string{repoDir}))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1475,13 +1481,15 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	scanStarted := make(chan struct{}, 1)
 	blocked := make(chan struct{})
 	scanFn := func() {
-		// Signal the first scan so the test can fire a second
-		// trigger while this one is in-flight. Block until the
-		// test releases us, mimicking a slow I/O scan.
+		// Run a real Scan so lastScanAt is set by the handler;
+		// that is the precondition for the cooldown branch.
+		_ = h.Scan(ctx)
 		select {
 		case scanStarted <- struct{}{}:
 		default:
 		}
+		// Block until the test releases us, mimicking a slow
+		// follow-up scan that parks RunLoop inside rateLimitedScan.
 		<-blocked
 	}
 
@@ -1491,17 +1499,18 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 		h.RunLoop(ctx, scanFn)
 	}()
 
-	// First trigger: consumed immediately (cooldown is not yet
-	// active because lastScanAt is zero). scanFn blocks on <-blocked,
-	// so RunLoop cannot loop back to select until we unblock.
+	// First trigger: consumed immediately (lastScanAt is zero).
+	// scanFn runs Scan() (which sets lastScanAt), signals
+	// scanStarted, then blocks on <-blocked.
 	h.RequestScan()
 	<-scanStarted
 
-	// Release the first scan; it sets lastScanAt to "now".
+	// Release the first scan; RunLoop loops back to select.
 	close(blocked)
 
-	// Fire a second trigger. Because lastScanAt is fresh,
-	// rateLimitedScan will enter its cooldown wait.
+	// Fire a second trigger. Because lastScanAt is fresh (set by
+	// the real Scan above), rateLimitedScan enters its cooldown
+	// wait on this trigger.
 	h.RequestScan()
 
 	// Give the goroutine a tick to enter the cooldown select.
