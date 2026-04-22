@@ -204,14 +204,54 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 	}
 
 	for _, item := range response.Output {
-		var args recorder.ToolArgs
+		var (
+			args     recorder.ToolArgs
+			toolName string
+			itemID   string
+			callID   string
+		)
 
-		// recording other function types to be considered: https://github.com/coder/aibridge/issues/121
 		switch item.Type {
 		case string(constant.ValueOf[constant.FunctionCall]()):
 			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments)
+			toolName = item.Name
+			itemID = item.ID
+			callID = item.CallID
+
 		case string(constant.ValueOf[constant.CustomToolCall]()):
 			args = item.Input
+			toolName = item.Name
+			itemID = item.ID
+			callID = item.CallID
+
+		// Agentic tools: the client sends a corresponding *_output
+		// item correlated by call_id.
+		case "computer_call",
+			string(constant.ValueOf[constant.LocalShellCall]()),
+			string(constant.ValueOf[constant.ShellCall]()),
+			string(constant.ValueOf[constant.ApplyPatchCall]()):
+			toolName = item.Name
+			if toolName == "" {
+				toolName = item.Type
+			}
+			itemID = item.ID
+			callID = item.CallID
+
+		// Hosted tools: executed server-side, these output items
+		// carry only an id field, not call_id. The client never
+		// submits output for them.
+		// https://platform.openai.com/docs/api-reference/responses/create
+		case string(constant.ValueOf[constant.WebSearchCall]()),
+			string(constant.ValueOf[constant.FileSearchCall]()),
+			string(constant.ValueOf[constant.CodeInterpreterCall]()),
+			string(constant.ValueOf[constant.ImageGenerationCall]()),
+			string(constant.ValueOf[constant.McpCall]()):
+			toolName = item.Name
+			if toolName == "" {
+				toolName = item.Type
+			}
+			itemID = item.ID
+
 		default:
 			continue
 		}
@@ -219,12 +259,13 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 		if err := i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
 			InterceptionID: i.ID().String(),
 			MsgID:          response.ID,
-			ToolCallID:     item.CallID,
-			Tool:           item.Name,
+			ItemID:         itemID,
+			ToolCallID:     callID,
+			Tool:           toolName,
 			Args:           args,
 			Injected:       false,
 		}); err != nil {
-			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", item.Name))
+			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", toolName))
 		}
 	}
 }

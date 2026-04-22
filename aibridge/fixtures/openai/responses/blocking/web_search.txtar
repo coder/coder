@@ -1,0 +1,103 @@
+-- request --
+{
+  "input": [
+    {
+      "role": "user",
+      "content": "What is the current weather in Cape Town?"
+    }
+  ],
+  "model": "gpt-5",
+  "stream": false,
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ]
+}
+
+-- non-streaming --
+{
+  "id": "resp_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+  "object": "response",
+  "created_at": 1767875200,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1767875205,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-0806",
+  "output": [
+    {
+      "id": "ws_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+      "type": "web_search_call",
+      "status": "completed"
+    },
+    {
+      "id": "msg_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Based on my search, the current weather in Cape Town is partly cloudy with a temperature of around 22°C (72°F).",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "start_index": 28,
+              "end_index": 47,
+              "url": "https://weather.example.com/cape-town",
+              "title": "Cape Town Weather"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "web_search"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 42,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 150,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 192
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -73,6 +73,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectToolRecorded: &recorder.ToolUsageRecord{
 				MsgID:      "resp_0da6045a8b68fa5200695fa23dcc2c81a19c849f627abf8a31",
 				Tool:       "add",
+				ItemID:     "fc_0da6045a8b68fa5200695fa23e198081a19bf68887d47ae93d",
 				ToolCallID: "call_CJSaa2u51JG996575oVljuNq",
 				Args:       map[string]any{"a": float64(3), "b": float64(5)},
 				Injected:   false,
@@ -115,6 +116,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectToolRecorded: &recorder.ToolUsageRecord{
 				MsgID:      "resp_09c614364030cdf000696942589da081a0af07f5859acb7308",
 				Tool:       "code_exec",
+				ItemID:     "ctc_09c614364030cdf0006969425bf33481a09cc0f9522af2d980",
 				ToolCallID: "call_haf8njtwrVZ1754Gm6fjAtuA",
 				Args:       "print(\"hello world\")",
 				Injected:   false,
@@ -166,6 +168,29 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectedClient: aibridge.ClientUnknown,
 		},
 		{
+			name:                 "blocking_web_search",
+			fixture:              fixtures.OaiResponsesBlockingWebSearch,
+			expectModel:          "gpt-5",
+			expectPromptRecorded: "What is the current weather in Cape Town?",
+			expectToolRecorded: &recorder.ToolUsageRecord{
+				MsgID:    "resp_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+				Tool:     "web_search_call",
+				ItemID:   "ws_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+				Injected: false,
+			},
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1",
+				Input:  42,
+				Output: 150,
+				ExtraTokenTypes: map[string]int64{
+					"input_cached":     0,
+					"output_reasoning": 0,
+					"total_tokens":     192,
+				},
+			},
+			expectedClient: aibridge.ClientUnknown,
+		},
+		{
 			name:                 "streaming_simple",
 			fixture:              fixtures.OaiResponsesStreamingSimple,
 			streaming:            true,
@@ -212,6 +237,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectToolRecorded: &recorder.ToolUsageRecord{
 				MsgID:      "resp_0c3fb28cfcf463a500695fa2f0239481a095ec6ce3dfe4d458",
 				Tool:       "add",
+				ItemID:     "fc_0c3fb28cfcf463a500695fa2f0b0a881a0890103ba88b0628e",
 				ToolCallID: "call_7VaiUXZYuuuwWwviCrckxq6t",
 				Args:       map[string]any{"a": float64(3), "b": float64(5)},
 				Injected:   false,
@@ -256,6 +282,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectToolRecorded: &recorder.ToolUsageRecord{
 				MsgID:      "resp_0c26996bc41c2a0500696942e83634819fb71b2b8ff8a4a76c",
 				Tool:       "code_exec",
+				ItemID:     "ctc_0c26996bc41c2a0500696942ee6db8819fa6e841317eecbfb2",
 				ToolCallID: "call_2gSnF58IEhXLwlbnqbm5XKMd",
 				Args:       "print(\"hello world\")",
 				Injected:   false,

@@ -178,6 +178,7 @@ func (i *responsesInterceptionBase) invokeInjectedTool(ctx context.Context, resp
 	_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
 		InterceptionID:  i.ID().String(),
 		MsgID:           responseID,
+		ItemID:          fc.ID,
 		ToolCallID:      fc.CallID,
 		ServerURL:       &tool.ServerURL,
 		Tool:            tool.Name,

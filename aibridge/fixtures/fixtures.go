@@ -108,6 +108,9 @@ var (
 
 	//go:embed openai/responses/blocking/wrong_response_format.txtar
 	OaiResponsesBlockingWrongResponseFormat []byte
+
+	//go:embed openai/responses/blocking/web_search.txtar
+	OaiResponsesBlockingWebSearch []byte
 )
 
 var (
