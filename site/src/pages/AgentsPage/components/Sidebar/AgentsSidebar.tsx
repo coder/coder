@@ -49,7 +49,6 @@ import {
 	SettingsIcon,
 	ShieldIcon,
 	ShrinkIcon,
-	SparklesIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
@@ -1463,13 +1462,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							label="Lifecycle"
 							active={settingsSection === "lifecycle"}
 							to="/agents/settings/lifecycle"
-							state={location.state}
-						/>
-						<SettingsNavItem
-							icon={SparklesIcon}
-							label="Insights"
-							active={settingsSection === "insights"}
-							to="/agents/settings/insights"
 							state={location.state}
 						/>
 					</nav>
