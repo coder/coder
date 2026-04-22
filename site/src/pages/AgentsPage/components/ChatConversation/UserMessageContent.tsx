@@ -1,147 +1,15 @@
-import { FileTextIcon } from "lucide-react";
-import { type FC, Fragment, useEffect, useRef, useState } from "react";
+import { type FC, Fragment } from "react";
 import { cn } from "#/utils/cn";
-import {
-	decodeInlineTextAttachment,
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../../utils/fetchTextAttachment";
-import { ImageThumbnail } from "../AgentChatInput";
 import { Message, MessageContent } from "../ChatElements";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import {
+	AttachmentBlock,
+	type PreviewTextAttachment,
+} from "./AttachmentBlocks";
 import type {
 	MessageDisplayState,
-	UserFileRenderBlock,
 	UserInlineRenderBlock,
 } from "./messageHelpers";
-
-const InlineTextAttachmentButton: FC<{
-	content: string;
-	onPreview?: (content: string) => void;
-	isPlaceholder?: boolean;
-}> = ({ content, onPreview, isPlaceholder }) => {
-	return (
-		<button
-			type="button"
-			aria-label="View text attachment"
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-			onClick={(event) => {
-				event.stopPropagation();
-				onPreview?.(content);
-			}}
-		>
-			<FileTextIcon className="size-icon-sm shrink-0 text-content-secondary" />
-			<span
-				className={cn(
-					"line-clamp-2 min-w-0 text-content-secondary",
-					isPlaceholder ? "text-sm" : "font-mono text-xs",
-				)}
-			>
-				{isPlaceholder ? content : formatTextAttachmentPreview(content)}
-			</span>
-		</button>
-	);
-};
-
-const TextAttachmentButton: FC<{
-	fileId: string;
-	onPreview?: (content: string) => void;
-}> = ({ fileId, onPreview }) => {
-	const [content, setContent] = useState<string | null>(null);
-	const controllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => controllerRef.current?.abort();
-	}, []);
-
-	return (
-		<InlineTextAttachmentButton
-			content={content ?? "Pasted text"}
-			isPlaceholder={content === null}
-			onPreview={async () => {
-				if (content !== null) {
-					onPreview?.(content);
-					return;
-				}
-
-				controllerRef.current?.abort();
-				const controller = new AbortController();
-				controllerRef.current = controller;
-
-				let fetchedContent: string;
-				try {
-					fetchedContent = await fetchTextAttachmentContent(
-						fileId,
-						controller.signal,
-					);
-				} catch (error) {
-					if (controllerRef.current === controller) {
-						controllerRef.current = null;
-					}
-					if (error instanceof Error && error.name === "AbortError") {
-						return;
-					}
-					console.error("Failed to load text attachment:", error);
-					return;
-				}
-
-				if (controllerRef.current === controller) {
-					controllerRef.current = null;
-				}
-				setContent(fetchedContent);
-				onPreview?.(fetchedContent);
-			}}
-		/>
-	);
-};
-
-export const FileBlock: FC<{
-	block: UserFileRenderBlock;
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
-}> = ({ block, onImageClick, onTextFileClick }) => {
-	if (block.media_type === "text/plain") {
-		if (block.file_id) {
-			return (
-				<TextAttachmentButton
-					fileId={block.file_id}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-		if (block.data != null) {
-			return (
-				<InlineTextAttachmentButton
-					content={decodeInlineTextAttachment(block.data)}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-	}
-	if (!block.media_type.startsWith("image/")) {
-		return null;
-	}
-	const src = block.file_id
-		? `/api/experimental/chats/files/${block.file_id}`
-		: `data:${block.media_type};base64,${block.data}`;
-	return (
-		<button
-			type="button"
-			aria-label="View image"
-			className="inline-block rounded-md border-0 bg-transparent p-0"
-			onClick={(event) => {
-				event.stopPropagation();
-				onImageClick?.(src);
-			}}
-		>
-			<ImageThumbnail
-				previewUrl={src}
-				name="Attached image"
-				className="cursor-pointer transition-opacity hover:opacity-80"
-			/>
-		</button>
-	);
-};
 
 const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
 	if (block.type === "response") {
@@ -165,7 +33,7 @@ export const UserMessageContent: FC<{
 	isEditing?: boolean;
 	fadeFromBottom?: boolean;
 	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
+	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
 	displayState,
 	markdown,
@@ -209,11 +77,12 @@ export const UserMessageContent: FC<{
 							)}
 						>
 							{displayState.userFileBlocks.map((block, index) => (
-								<FileBlock
+								<AttachmentBlock
 									key={`user-file-${block.file_id ?? index}`}
 									block={block}
 									onImageClick={onImageClick}
 									onTextFileClick={onTextFileClick}
+									showTextStatus
 								/>
 							))}
 						</div>

@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -66,8 +67,9 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
 // prompt messages, resolving user file references via the provided
-// resolver. Persisted file references without bytes are omitted from
-// the prompt instead of being replayed back to the model.
+// resolver. Missing-data placeholders are emitted only for replayed
+// user uploads; assistant-side and tool-side file metadata without
+// bytes is dropped from later model turns.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -76,8 +78,8 @@ func ConvertMessagesWithFiles(
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
-	// resolution. Assistant-side file attachments remain persisted chat
-	// metadata and are intentionally not replayed to the model.
+	// resolution. Assistant-side file attachments remain persisted
+	// chat metadata and are intentionally not replayed to the model.
 	type parsedMessage struct {
 		role  codersdk.ChatMessageRole
 		parts []codersdk.ChatMessagePart
@@ -124,6 +126,10 @@ func ConvertMessagesWithFiles(
 			return nil, xerrors.Errorf("resolve chat files: %w", err)
 		}
 	}
+	userMissingFilePolicy := dropMissingFiles
+	if resolver != nil {
+		userMissingFilePolicy = placeholderMissingFiles
+	}
 
 	// Phase 3: Build fantasy messages from SDK parts via
 	// partsToMessageParts. Track tool names for injection.
@@ -144,7 +150,13 @@ func ConvertMessagesWithFiles(
 				},
 			})
 		case codersdk.ChatMessageRoleUser:
-			userParts := partsToMessageParts(logger, pm.parts, resolved)
+			userParts := partsToMessageParts(
+				ctx,
+				logger,
+				pm.parts,
+				resolved,
+				userMissingFilePolicy,
+			)
 			if len(userParts) == 0 {
 				continue
 			}
@@ -154,7 +166,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(logger, pm.parts, nil),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -178,7 +190,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(logger, pm.parts, nil)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -691,6 +703,29 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 // PartFromContent converts fantasy content into a SDK chat message
 // part, preserving ProviderMetadata and ProviderExecuted fields.
 func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, nil)
+}
+
+// PartFromContentWithLogger is for call sites that can surface malformed
+// attachment metadata immediately instead of dropping it silently.
+func PartFromContentWithLogger(
+	ctx context.Context,
+	logger slog.Logger,
+	block fantasy.Content,
+) codersdk.ChatMessagePart {
+	return sdkPartFromContent(block, func(content fantasy.ToolResultContent, err error) {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", content.ToolName),
+			slog.F("tool_call_id", content.ToolCallID),
+			slog.Error(err),
+		)
+	})
+}
+
+func sdkPartFromContent(
+	block fantasy.Content,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	switch value := block.(type) {
 	case fantasy.TextContent:
 		return codersdk.ChatMessagePart{
@@ -765,9 +800,9 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolResultContent:
-		return toolResultContentToPart(value)
+		return toolResultContentToPart(value, logMalformedAttachmentMetadata)
 	case *fantasy.ToolResultContent:
-		return toolResultContentToPart(*value)
+		return toolResultContentToPart(*value, logMalformedAttachmentMetadata)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
@@ -783,7 +818,10 @@ func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isErr
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
-func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
+func toolResultContentToPart(
+	content fantasy.ToolResultContent,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) codersdk.ChatMessagePart {
 	var result json.RawMessage
 	var isError bool
 	var isMedia bool
@@ -809,11 +847,24 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		}
 	case fantasy.ToolResultOutputContentMedia:
 		isMedia = true
-		result, _ = json.Marshal(persistedMediaResult{
+		persisted := persistedMediaResult{
 			Data:     output.Data,
 			MimeType: output.MediaType,
 			Text:     output.Text,
-		})
+		}
+		// Tool renderers only receive the persisted result JSON, while
+		// ClientMetadata is consumed later to append sibling file parts.
+		// Mirror attachment identity here so promoted media can be
+		// recognized as the same durable attachment downstream.
+		if attachment, ok := matchingAttachmentForMedia(
+			content,
+			output.MediaType,
+			logMalformedAttachmentMetadata,
+		); ok {
+			persisted.AttachmentFileID = attachment.FileID.String()
+			persisted.AttachmentName = attachment.Name
+		}
+		result, _ = json.Marshal(persisted)
 	default:
 		result = []byte(`{}`)
 	}
@@ -822,6 +873,26 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	part.ProviderExecuted = content.ProviderExecuted
 	part.ProviderMetadata = marshalProviderMetadata(content.ProviderMetadata)
 	return part
+}
+
+func matchingAttachmentForMedia(
+	content fantasy.ToolResultContent,
+	mediaType string,
+	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
+) (chattool.AttachmentMetadata, bool) {
+	attachments, err := chattool.AttachmentsFromMetadata(content.ClientMetadata)
+	if err != nil {
+		if logMalformedAttachmentMetadata != nil {
+			logMalformedAttachmentMetadata(content, err)
+		}
+		return chattool.AttachmentMetadata{}, false
+	}
+	for _, attachment := range attachments {
+		if attachment.MediaType == mediaType {
+			return attachment, true
+		}
+	}
+	return chattool.AttachmentMetadata{}, false
 }
 
 // Keep in sync with coderd/x/chatd/subagent.go.
@@ -1191,6 +1262,25 @@ func formatSyntheticPasteText(name string, body []byte) string {
 	return sb.String()
 }
 
+func formatMissingAttachmentText(mediaType string) string {
+	const missingAttachmentBody = "[missing-attachment] The user attached a file here, but the content has expired and is no longer available."
+	const missingAttachmentAction = " If you need to inspect it, ask the user to re-upload."
+
+	if parsedMediaType, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsedMediaType
+	}
+	mediaType = strings.TrimSpace(mediaType)
+	if mediaType == "" || mediaType == "application/octet-stream" {
+		return missingAttachmentBody + missingAttachmentAction
+	}
+	return fmt.Sprintf(
+		"%s Reported MIME type: %s.%s",
+		missingAttachmentBody,
+		mediaType,
+		missingAttachmentAction,
+	)
+}
+
 // fileReferencePartToText formats a file-reference SDK part as
 // plain text for LLM consumption. LLMs don't understand
 // file-reference natively, so we convert to a readable text
@@ -1237,10 +1327,11 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 	// IsError takes precedence and is handled above.
 	// Detect media content flagged by toolResultContentToPart.
 	// Screenshots from the computer use tool are stored as
-	// {"data":"<base64>","mime_type":"image/png","text":"..."}.
-	// Without this detection, the entire base64 payload is sent
-	// as text tokens, which quickly exceeds the context limit
-	// on follow-up messages.
+	// {"data":"<base64>","mime_type":"image/png","text":"..."}
+	// with optional attachment identity fields when the same image
+	// was also promoted into a durable file part. Without this
+	// detection, the entire base64 payload is sent as text tokens,
+	// which quickly exceeds the context limit on follow-up messages.
 	if part.IsMedia {
 		var media persistedMediaResult
 		unmarshalErr := json.Unmarshal(part.Result, &media)
@@ -1289,22 +1380,36 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 // cannot drift.
 //
 // The "mime_type" key intentionally diverges from the fantasy
-// struct tag (json:"media_type"). Do not change it without
-// updating both paths.
+// struct tag (json:"media_type"). Optional attachment identity
+// fields are UI hints only. They let the frontend recognize when the
+// same media was also promoted into a durable file part, but the prompt
+// reconstruction path must continue to ignore them. Keep additions
+// backwards-compatible because existing rows may omit these fields.
 type persistedMediaResult struct {
-	Data     string `json:"data"`
-	MimeType string `json:"mime_type"`
-	Text     string `json:"text"`
+	Data             string `json:"data"`
+	MimeType         string `json:"mime_type"`
+	Text             string `json:"text"`
+	AttachmentFileID string `json:"attachment_file_id,omitempty"`
+	AttachmentName   string `json:"attachment_name,omitempty"`
 }
 
+type missingFilePolicy uint8
+
+const (
+	dropMissingFiles missingFilePolicy = iota
+	placeholderMissingFiles
+)
+
 // partsToMessageParts converts SDK chat message parts into fantasy
-// message parts for LLM dispatch. It handles file data injection
-// from resolved files, file-reference to text conversion, and
-// source part skipping.
+// message parts for LLM dispatch. resolved is a lookup map for file
+// bytes, and policy controls whether missing file-backed parts are
+// dropped or replaced with text placeholders.
 func partsToMessageParts(
+	ctx context.Context,
 	logger slog.Logger,
 	parts []codersdk.ChatMessagePart,
 	resolved map[uuid.UUID]FileData,
+	policy missingFilePolicy,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1345,8 +1450,10 @@ func partsToMessageParts(
 			data := part.Data
 			mediaType := part.MediaType
 			var name string
+			resolvedFile := false
 			if part.FileID.Valid {
 				if fd, ok := resolved[part.FileID.UUID]; ok {
+					resolvedFile = true
 					data = fd.Data
 					name = fd.Name
 					if mediaType == "" {
@@ -1354,13 +1461,7 @@ func partsToMessageParts(
 					}
 				}
 			}
-			if len(data) == 0 {
-				// File parts without bytes are persistence metadata, not
-				// prompt content. User uploads should have been resolved
-				// above; assistant tool attachments intentionally are not
-				// replayed into later model turns.
-				continue
-			}
+			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
 			// Providers only accept a small set of MIME types in file
 			// content blocks, typically images and PDFs. A synthetic
 			// paste sent as a text/plain FilePart is dropped or rejected,
@@ -1369,14 +1470,35 @@ func partsToMessageParts(
 			if isSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
-					ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+					ProviderOptions: opts,
 				})
+				continue
+			}
+			if part.FileID.Valid && !resolvedFile {
+				if policy == placeholderMissingFiles {
+					logger.Info(ctx,
+						"chat file unavailable, replacing file part with text placeholder",
+						slog.F("file_id", part.FileID.UUID),
+						slog.F("media_type", mediaType),
+					)
+					result = append(result, fantasy.TextPart{
+						Text:            formatMissingAttachmentText(mediaType),
+						ProviderOptions: opts,
+					})
+				}
+				continue
+			}
+			if len(data) == 0 {
+				// File parts without bytes are persistence metadata, empty
+				// uploads, or provider-invalid prompt content. Unresolved
+				// file-backed parts are handled above so empty uploads do
+				// not look expired.
 				continue
 			}
 			result = append(result, fantasy.FilePart{
 				Data:            data,
 				MediaType:       mediaType,
-				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case codersdk.ChatMessagePartTypeFileReference:
 			// LLMs don't understand file-reference natively.

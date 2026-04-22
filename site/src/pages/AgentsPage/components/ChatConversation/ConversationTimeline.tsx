@@ -28,6 +28,11 @@ import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import {
+	AttachmentBlock,
+	type PreviewTextAttachment,
+} from "./AttachmentBlocks";
+import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { ReasoningDisclosure } from "./ReasoningDisclosure";
@@ -38,7 +43,7 @@ import type {
 	ParsedMessageEntry,
 	RenderBlock,
 } from "./types";
-import { FileBlock, UserMessageContent } from "./UserMessageContent";
+import { UserMessageContent } from "./UserMessageContent";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -94,7 +99,7 @@ export const BlockList: FC<{
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
+	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -242,11 +247,13 @@ export const BlockList: FC<{
 					}
 					case "file":
 						return (
-							<FileBlock
+							<AttachmentBlock
 								key={`${keyPrefix}-file-${block.file_id ?? index}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
+								framePreview
+								showTextStatus
 							/>
 						);
 					case "sources":
@@ -347,7 +354,8 @@ const ChatMessageItem = memo<{
 	}) => {
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] = useState<string | null>(null);
+		const [previewText, setPreviewText] =
+			useState<PreviewTextAttachment | null>(null);
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -458,10 +466,9 @@ const ChatMessageItem = memo<{
 							)}
 						</div>
 					)}
-				{/* Spacer for assistant messages without an action bar
-				   (e.g. reasoning-only or sources-only) so they have
-				   consistent bottom padding before the next user bubble. */}
-				{displayState.needsAssistantBottomSpacer && <div className="min-h-6" />}
+				{displayState.needsAssistantBottomSpacer && (
+					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+				)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -470,7 +477,8 @@ const ChatMessageItem = memo<{
 				)}
 				{previewText !== null && (
 					<TextPreviewDialog
-						content={previewText}
+						content={previewText.content}
+						fileName={previewText.fileName}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -863,48 +871,55 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
-				{parsedMessages.map(({ message, parsed }, msgIdx) => {
-					if (message.role === "user") {
+			<ExpiredFileIdsProvider>
+				<div
+					data-testid="conversation-timeline"
+					className="flex flex-col gap-2"
+				>
+					{parsedMessages.map(({ message, parsed }, msgIdx) => {
+						if (message.role === "user") {
+							return (
+								<StickyUserMessage
+									key={message.id}
+									message={message}
+									parsed={parsed}
+									onEditUserMessage={onEditUserMessage}
+									editingMessageId={editingMessageId}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								/>
+							);
+						}
+						// Hide actions on assistant messages that are not
+						// the last in a consecutive assistant chain.
+						const next = parsedMessages[msgIdx + 1];
+						const isLastInChain = !next || next.message.role === "user";
 						return (
-							<StickyUserMessage
+							<ChatMessageItem
 								key={message.id}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+								askUserQuestionResponseTextByToolId={
+									historicalAskUserQuestionResponseTextByToolId
+								}
+								hasUserResponseAfterAskQuestion={
+									hasUserResponseAfterAskQuestion
+								}
+								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								hideActions={!isLastInChain}
+								mcpServers={mcpServers}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								showDesktopPreviews={showDesktopPreviews}
 							/>
 						);
-					}
-					// Hide actions on assistant messages that are not
-					// the last in a consecutive assistant chain.
-					const next = parsedMessages[msgIdx + 1];
-					const isLastInChain = !next || next.message.role === "user";
-					return (
-						<ChatMessageItem
-							key={message.id}
-							message={message}
-							parsed={parsed}
-							onImplementPlan={onImplementPlan}
-							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-							isChatCompleted={isChatCompleted}
-							latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-							askUserQuestionResponseTextByToolId={
-								historicalAskUserQuestionResponseTextByToolId
-							}
-							hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
-							urlTransform={urlTransform}
-							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							hideActions={!isLastInChain}
-							mcpServers={mcpServers}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							showDesktopPreviews={showDesktopPreviews}
-						/>
-					);
-				})}
-			</div>
+					})}
+				</div>
+			</ExpiredFileIdsProvider>
 		);
 	},
 );

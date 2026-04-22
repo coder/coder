@@ -28,7 +28,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
-	"github.com/coder/coder/v2/coderd/chatfiles"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -50,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -5386,27 +5386,29 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetChatProviderByID(ctx, providerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
+	err := api.Database.InTx(func(tx database.Store) error {
+		provider, err := tx.GetChatProviderByIDForUpdate(ctx, providerID)
+		switch {
+		case err == nil:
+			if err := tx.DeleteChatModelConfigsByProvider(ctx, provider.Provider); err != nil {
+				return xerrors.Errorf("soft delete chat model configs for provider %q: %w", provider.Provider, err)
+			}
+			if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+				return err
+			}
+			if err := tx.DeleteChatProviderByID(ctx, provider.ID); err != nil {
+				return xerrors.Errorf("delete chat provider %s: %w", provider.ID, err)
+			}
+			return nil
+		case xerrors.Is(err, sql.ErrNoRows):
+			return err
+		default:
+			return xerrors.Errorf("get chat provider %s for delete: %w", providerID, err)
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
-		if database.IsForeignKeyViolation(err,
-			database.ForeignKeyChatMessagesModelConfigID,
-			database.ForeignKeyChatsLastModelConfigID,
-		) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Provider models are still referenced by existing chats.",
-				Detail:  err.Error(),
-			})
+	}, nil)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5700,6 +5702,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var inserted database.ChatModelConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, insertParams.Provider); err != nil {
+			return err
+		}
+
 		insertAsDefault := isDefault
 		if !insertAsDefault {
 			_, err := tx.GetDefaultChatModelConfig(ctx)
@@ -5745,7 +5751,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
@@ -5878,6 +5884,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, updateParams.Provider); err != nil {
+			return err
+		}
+
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
@@ -5887,6 +5897,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
 			return err
 		}
 
@@ -5905,6 +5918,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				// Do not wrap with %w. The outer handler maps target misses to 404.
+				return xerrors.Errorf("refresh updated chat model config: %v", err)
+			}
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
 		updated = refreshedConfig
@@ -5918,11 +5935,14 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
+			return
+		case xerrors.Is(err, errChatModelConfigNotFound):
+			httpapi.ResourceNotFound(rw)
 			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6024,6 +6044,11 @@ func ensureDefaultChatModelConfig(
 	params := chatModelConfigToUpdateParams(candidateConfig)
 	params.IsDefault = true
 	if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Do not wrap with %w. Callers map target misses to 404, but a
+			// default-candidate race is an internal retryable failure.
+			return xerrors.Errorf("set default model config: %v", err)
+		}
 		return xerrors.Errorf("set default model config: %w", err)
 	}
 	return nil
@@ -6311,6 +6336,30 @@ func normalizeChatProviderBaseURL(raw string) (string, error) {
 
 func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
+}
+
+var (
+	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
+	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+)
+
+// requireChatProviderForModelConfig takes a FOR UPDATE lock on the provider
+// row to serialize model-config writes with deleteChatProvider. Do not swap
+// this call for the non-locking provider lookup.
+func requireChatProviderForModelConfig(
+	ctx context.Context,
+	tx database.Store,
+	provider string,
+) error {
+	_, err := tx.GetChatProviderByProviderForUpdate(ctx, provider)
+	switch {
+	case err == nil:
+		return nil
+	case xerrors.Is(err, sql.ErrNoRows):
+		return errChatProviderNotConfigured
+	default:
+		return xerrors.Errorf("get chat provider %q: %w", provider, err)
+	}
 }
 
 const maxChatProviderAPIKeySize = 10240 // 10 KB

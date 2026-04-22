@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/chatfiles"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 )
 
 func TestDetectMediaType_WebP(t *testing.T) {
