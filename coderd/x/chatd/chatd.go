@@ -6581,7 +6581,6 @@ func (p *Server) runChat(
 			}
 			p.publishMessagePart(chat.ID, role, part)
 		},
-		Logger:     logger,
 		Compaction: compactionOptions,
 		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
 			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)

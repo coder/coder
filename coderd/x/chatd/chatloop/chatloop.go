@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -148,7 +149,6 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
-	Logger           slog.Logger
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
@@ -1153,12 +1153,7 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		metricLabel := tc.ToolName
-		if metricLabel == "" {
-			metricLabel = "unknown"
-		} else if !builtinToolNames[metricLabel] {
-			metricLabel = "mcp"
-		}
+		metricLabel := resolveToolMetricLabel(tc.ToolName, builtinToolNames, toolMap[tc.ToolName])
 		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
@@ -1167,7 +1162,8 @@ func executeSingleTool(
 		}
 	}()
 
-	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+	_, isProviderRunner := providerRunnerNames[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
@@ -1182,6 +1178,12 @@ func executeSingleTool(
 		return result
 	}
 
+	logger.Debug(ctx, "tool execution",
+		slog.F("tool_name", tc.ToolName),
+		slog.F("tool_call_id", tc.ToolCallID),
+		slog.F("builtin", builtinToolNames[tc.ToolName]),
+		slog.F("is_provider_runner", isProviderRunner),
+	)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  tc.ToolName,
@@ -1783,4 +1785,24 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// resolveToolMetricLabel returns the Prometheus tool_name label
+// for a tool call. Builtin tools use their real name; MCP tools
+// use "mcp:<server_slug>"; unknown tools use "unknown".
+func resolveToolMetricLabel(
+	name string,
+	builtinToolNames map[string]bool,
+	tool fantasy.AgentTool,
+) string {
+	if name == "" {
+		return "unknown"
+	}
+	if builtinToolNames[name] {
+		return name
+	}
+	if identifier, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+		return "mcp:" + identifier.MCPServerSlug()
+	}
+	return "mcp"
 }
