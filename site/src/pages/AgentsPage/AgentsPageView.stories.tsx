@@ -183,6 +183,7 @@ const agentsRouting = {
 				},
 				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
+				{ path: "admin", element: <AgentsRouteElement /> },
 				{ path: "agents", element: <AgentsRouteElement /> },
 				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
@@ -676,6 +677,26 @@ export const OpensSettingsForNonAdmins: Story = {
 				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const OpensAdminSubPanelOnMobile: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+
+		await expect(
+			await screen.findByRole("link", { name: "Providers" }),
+		).toBeInTheDocument();
+		await expect(
+			await screen.findByRole("link", { name: "Spend" }),
+		).toBeInTheDocument();
 	},
 };
 

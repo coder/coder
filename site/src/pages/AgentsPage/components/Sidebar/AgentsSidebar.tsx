@@ -140,6 +140,9 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
 		const section = settingsMatch[1];
+		if (section === "admin") {
+			return { panel: "settings-admin", section: undefined };
+		}
 		return {
 			panel: ADMIN_SETTINGS_SECTIONS.has(section ?? "")
 				? "settings-admin"
@@ -1383,7 +1386,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								icon={Settings2Icon}
 								label="Manage Agents"
 								active={sidebarView.panel === "settings-admin" && isAdmin}
-								to="/agents/settings/agents"
+								to="/agents/settings/admin"
 								state={location.state}
 								trailingIcon={ChevronRightIcon}
 							/>
@@ -1394,7 +1397,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<SettingsNavItem
 							icon={BotIcon}
 							label="Agents"
-							active={settingsSection === "agents"}
+							active={!settingsSection || settingsSection === "agents"}
 							to="/agents/settings/agents"
 							state={location.state}
 						/>
