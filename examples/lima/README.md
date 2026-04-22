@@ -8,7 +8,7 @@ tags: [local, docker, incus, vm, lima]
 
 This provides sample [Lima](https://github.com/lima-vm/lima) configurations for Coder.
 This lets you quickly test out Coder in a self-contained environment.
-Both of these configurations allow you to run Docker containers in workspaces.
+The Docker configuration runs workspaces in Docker containers; the Incus configuration runs workspaces in Incus system containers (with Docker available inside each workspace).
 
 > Prerequisite: You must have `lima` installed and available to use this.
 
@@ -44,7 +44,7 @@ This will:
 - Install Incus and Terraform from the official repos
 - Install Coder using the [installation script](../../docs/install/install.sh.md)
 - Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
-- Initializes a [sample Incus template](https://github.com/coder/coder/tree/main/examples/templates/incus) for creating workspaces.
+- Initializes a [sample Incus template](https://github.com/coder/coder/tree/main/examples/templates/incus) for creating workspaces
 
 ## Further Information
 

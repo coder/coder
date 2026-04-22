@@ -1,6 +1,6 @@
 # Deploy Coder in Lima with Docker via the install script
 # See: https://coder.com/docs/install
-# $ limactl start ./coder.yaml
+# $ limactl start ./coder-docker.yaml
 # $ limactl shell coder
 # The web UI is accessible on http://localhost:3000 -- ports are forwarded automatically by lima:
 # $ coder login http://localhost:3000

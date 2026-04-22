@@ -1,8 +1,8 @@
 # Deploy Coder in Lima with Incus pre-installed
 # See: https://coder.com/docs/install
-# $ limactl start ./incus.yaml
-# $ limactl shell incus
-# The web UI is accessible on http://localhost:3000 -- ports are forwarded automatically by lima:
+# $ limactl start ./coder-incus.yaml
+# $ limactl shell coder-incus
+# The web UI is accessible on http://localhost:3000. Ports are forwarded automatically by Lima.
 # $ coder login http://localhost:3000
 
 minimumLimaVersion: "2.0.0"
@@ -110,17 +110,11 @@ provision:
       # Set up initial user
       [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password) --first-user-trial=false
       # Create an initial Incus template
-      # TODO: revert to 'coder templates init --id incus' once
-      # https://github.com/coder/coder/tree/cj/examples/update-incus is merged.
-      temp_template_dir=$(mktemp -d)
-      curl -fsSL "https://github.com/coder/coder/archive/refs/heads/cj/examples/update-incus.tar.gz" | tar -xz -C "${temp_template_dir}"
-      pushd "${temp_template_dir}"/coder-*/examples/templates/incus
-      terraform init
-      terraform plan
-      terraform providers lock
+      coder templates init --id incus
+      pushd ./incus
       coder templates push incus --yes
       popd
-      rm -rfv "${temp_template_dir}"
+      rm -rf ./incus
 probes:
   - description: "incus to be installed"
     script: |
