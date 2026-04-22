@@ -84,11 +84,20 @@ func resolveComputerUseTarget(
 	}
 
 	if parentChat.LastModelConfigID != uuid.Nil {
+		enabledProvider, err := p.computerUseEnabledProviderChecker(ctx)
+		if err != nil {
+			return computerUseTarget{}, err
+		}
 		parentConfig, err := p.configCache.ModelConfigByID(ctx, parentChat.LastModelConfigID)
 		if err == nil {
 			target, targetErr := computerUseTargetFromConfig(parentConfig)
 			if targetErr == nil && computerUseTargetEligibilityError(target, keyChecker) == nil {
-				return target, nil
+				// Child chats may fall back if the parent's pinned provider is no
+				// longer enabled. Active computer use chats still fail fast in
+				// validatePinnedComputerUseTarget.
+				if enabledProvider(target.provider) {
+					return target, nil
+				}
 			}
 		} else if !xerrors.Is(err, sql.ErrNoRows) {
 			return computerUseTarget{}, xerrors.Errorf("get parent computer use model config: %w", err)

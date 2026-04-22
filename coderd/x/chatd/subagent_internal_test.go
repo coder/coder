@@ -921,13 +921,14 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 
 	trueValue := true
 	tests := []struct {
-		name                    string
-		setupProviders          func(context.Context, *testing.T, database.Store, uuid.UUID) map[string]database.ChatModelConfig
-		parentModel             func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
-		parentModelKey          string
-		wantProvider            string
-		wantResolvedKey         string
-		wantDifferentFromParent bool
+		name                            string
+		setupProviders                  func(context.Context, *testing.T, database.Store, uuid.UUID) map[string]database.ChatModelConfig
+		parentModel                     func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		parentModelKey                  string
+		disableProviderAfterParentSpawn string
+		wantProvider                    string
+		wantResolvedKey                 string
+		wantDifferentFromParent         bool
 	}{
 		{
 			name: "FallbacksToAnthropicFromOpenAICompat",
@@ -964,6 +965,22 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 			wantDifferentFromParent: true,
 		},
 		{
+			name: "FallbacksWhenPinnedOpenAIProviderDisabledAfterParentSpawn",
+			setupProviders: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) map[string]database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
+				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
+				return map[string]database.ChatModelConfig{
+					"anthropic": insertInternalComputerUseModelConfig(ctx, t, db, userID, "anthropic", true, nil),
+					"openai":    insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue),
+				}
+			},
+			parentModelKey:                  "openai",
+			disableProviderAfterParentSpawn: "openai",
+			wantProvider:                    "anthropic",
+			wantResolvedKey:                 "anthropic",
+			wantDifferentFromParent:         true,
+		},
+		{
 			name: "KeepsOpenAIWhenAlreadyPinnedToOpenAIComputerUse",
 			setupProviders: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) map[string]database.ChatModelConfig {
 				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
@@ -998,6 +1015,31 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 			parentChat := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-computer-use-"+tt.name)
+			if tt.disableProviderAfterParentSpawn != "" {
+				providers, err := db.GetChatProviders(ctx)
+				require.NoError(t, err)
+				providerConfig := database.ChatProvider{}
+				for _, candidate := range providers {
+					if candidate.Provider == tt.disableProviderAfterParentSpawn {
+						providerConfig = candidate
+						break
+					}
+				}
+				require.NotEqual(t, uuid.Nil, providerConfig.ID, "provider %q should exist", tt.disableProviderAfterParentSpawn)
+				_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+					DisplayName:                providerConfig.DisplayName,
+					APIKey:                     providerConfig.APIKey,
+					BaseUrl:                    providerConfig.BaseUrl,
+					ApiKeyKeyID:                providerConfig.ApiKeyKeyID,
+					Enabled:                    false,
+					CentralApiKeyEnabled:       providerConfig.CentralApiKeyEnabled,
+					AllowUserApiKey:            providerConfig.AllowUserApiKey,
+					AllowCentralApiKeyFallback: providerConfig.AllowCentralApiKeyFallback,
+					ID:                         providerConfig.ID,
+				})
+				require.NoError(t, err)
+				server.configCache.InvalidateProviders()
+			}
 
 			expectedModel, ok := internalDefaultComputerUseModel(tt.wantProvider)
 			require.True(t, ok)
