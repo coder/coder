@@ -18,7 +18,6 @@ import {
 	FOLLOW_THRESHOLD_PX,
 	findNearestScrollableAncestor,
 	getBottomGap,
-	getScrollMode,
 	resolveAnchorTarget,
 	restoreAnchorScrollTop,
 	type ScrollMode,
@@ -93,6 +92,7 @@ function useChatViewportController({
 	const initialFollowLockFrameRef = useRef<number | null>(null);
 	const isRestoringRef = useRef(false);
 	const isInitialFollowLockRef = useRef(true);
+	const isAwaitingDetachedAnchorRef = useRef(false);
 	const isPointerDownRef = useRef(false);
 	const isTouchActiveRef = useRef(false);
 	const activeTouchCountRef = useRef(0);
@@ -144,6 +144,22 @@ function useChatViewportController({
 		isInitialFollowLockRef.current = false;
 	});
 
+	const armInitialFollowLock = useEffectEvent((frames = 2) => {
+		cancelInitialFollowLock();
+		isInitialFollowLockRef.current = true;
+		const step = (remainingFrames: number) => {
+			initialFollowLockFrameRef.current = requestAnimationFrame(() => {
+				if (remainingFrames <= 1) {
+					initialFollowLockFrameRef.current = null;
+					isInitialFollowLockRef.current = false;
+					return;
+				}
+				step(remainingFrames - 1);
+			});
+		};
+		step(frames);
+	});
+
 	const pinToLatest = useEffectEvent(() => {
 		const container = scrollElementRef.current;
 		if (!container) {
@@ -180,7 +196,9 @@ function useChatViewportController({
 				return;
 			}
 			anchorRef.current = null;
+			isAwaitingDetachedAnchorRef.current = false;
 			syncMode("following-latest");
+			armInitialFollowLock();
 			if (behavior === "instant") {
 				isProgrammaticScrollRef.current = false;
 				scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
@@ -237,10 +255,16 @@ function useChatViewportController({
 			}
 			anchorRef.current = null;
 			isProgrammaticScrollRef.current = false;
+			isAwaitingDetachedAnchorRef.current = false;
 			pinToLatest();
 			return;
 		}
-		if (isInitialFollowLockRef.current) {
+		if (
+			isInitialFollowLockRef.current ||
+			isAwaitingDetachedAnchorRef.current ||
+			isPointerDownRef.current ||
+			isTouchActiveRef.current
+		) {
 			return;
 		}
 		restoreAnchor();
@@ -304,10 +328,13 @@ function useChatViewportController({
 			const movingDown = currentScrollTop > previousScrollTop;
 			const nextMode =
 				modeRef.current === "following-latest"
-					? getScrollMode(bottomGap, FOLLOW_THRESHOLD_PX)
+					? "following-latest"
 					: bottomGap <= 1 || (movingDown && bottomGap <= FOLLOW_THRESHOLD_PX)
 						? "following-latest"
 						: "detached";
+			// Detached mode now reflects explicit user intent. While we are already
+			// following the live tail, passive layout growth must not infer a detach
+			// transition just because the bottom gap briefly changes mid-stream.
 			if (isInitialFollowLockRef.current && nextMode === "detached") {
 				return;
 			}
@@ -316,8 +343,10 @@ function useChatViewportController({
 			}
 			if (nextMode === "detached") {
 				anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+				isAwaitingDetachedAnchorRef.current = false;
 			} else {
 				anchorRef.current = null;
+				isAwaitingDetachedAnchorRef.current = false;
 			}
 		};
 
@@ -329,10 +358,11 @@ function useChatViewportController({
 			cancelDeferredPin();
 			cancelInitialFollowLock();
 			isProgrammaticScrollRef.current = false;
+			isAwaitingDetachedAnchorRef.current = true;
 			if (modeRef.current !== "detached") {
 				syncMode("detached");
 			}
-			anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+			anchorRef.current = null;
 		};
 
 		const handleWheel = (event: WheelEvent) => {
@@ -444,14 +474,7 @@ function useChatViewportController({
 		if (modeRef.current === "following-latest") {
 			anchorRef.current = null;
 			isProgrammaticScrollRef.current = false;
-			cancelInitialFollowLock();
-			isInitialFollowLockRef.current = true;
-			initialFollowLockFrameRef.current = requestAnimationFrame(() => {
-				initialFollowLockFrameRef.current = requestAnimationFrame(() => {
-					initialFollowLockFrameRef.current = null;
-					isInitialFollowLockRef.current = false;
-				});
-			});
+			armInitialFollowLock();
 			scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
 		}
 
@@ -482,6 +505,7 @@ function useChatViewportController({
 				}
 				anchorRef.current = null;
 				isProgrammaticScrollRef.current = false;
+				armInitialFollowLock();
 				scheduleDeferredPinToLatest(DEFERRED_PIN_FRAME_COUNT);
 				return;
 			}

@@ -744,11 +744,9 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
-	// Dispatch a wheel event first so the scroll handler treats
-	// this as user-initiated scrolling and disables follow mode.
-	// A bare scrollTop assignment fires a scroll event but the
-	// handler only re-pins (never disables autoScroll) unless
-	// a user-interaction event (wheel/touch/pointer) is active.
+	// Simulate a user scrolling upward. A bare scrollTop assignment is only a
+	// geometry change, which the container intentionally ignores while it is
+	// still following the live tail.
 	scrollContainer.dispatchEvent(
 		new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
 	);
@@ -1832,6 +1830,51 @@ export const CreateWorkspaceExpandDoesNotShiftViewport: Story = {
 
 const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
 const visibilityResetStore = buildStoreWithMessages(buildLongConversation(30));
+const jumpToBottomStreamingThinkingStore = (() => {
+	const store = buildStoreWithMessages(buildLongConversation(11), "running");
+	store.setStreamState({
+		blocks: [
+			{
+				type: "thinking",
+				text: "Jump reasoning step. ".repeat(2200),
+			},
+		],
+		toolCalls: {},
+		toolResults: {},
+		sources: [],
+	});
+	return store;
+})();
+const streamingThinkingTailStore = (() => {
+	const store = buildStoreWithMessages(buildLongConversation(11), "running");
+	store.setStreamState({
+		blocks: [
+			{
+				type: "thinking",
+				text: "Reasoning step. ".repeat(2200),
+			},
+		],
+		toolCalls: {},
+		toolResults: {},
+		sources: [],
+	});
+	return store;
+})();
+const loadWithStreamingThinkingStore = (() => {
+	const store = buildStoreWithMessages(buildLongConversation(11), "running");
+	store.setStreamState({
+		blocks: [
+			{
+				type: "thinking",
+				text: "Initial reasoning. ".repeat(2400),
+			},
+		],
+		toolCalls: {},
+		toolResults: {},
+		sources: [],
+	});
+	return store;
+})();
 
 /**
  * Backgrounding the page mid-gesture should clear stale touch state so
@@ -1978,6 +2021,183 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 		);
 
 		// Scroll-to-bottom button should not be visible.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};
+
+/** Clicking Scroll to bottom during a large live thinking stream should re-arm
+ *  follow mode long enough for the continuing stream growth to settle at the
+ *  actual bottom. */
+export const ScrollToBottomSticksDuringStreamingThinking: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={streamingThinkingTailStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollAwayFromBottom(scrollContainer);
+		const button = await waitFor(() => {
+			const nextButton = canvas.getByRole("button", {
+				name: "Scroll to bottom",
+			});
+			expect(nextButton).toBeVisible();
+			return nextButton;
+		});
+
+		await userEvent.click(button);
+
+		streamingThinkingTailStore.setStreamState({
+			blocks: [
+				{
+					type: "thinking",
+					text: "Reasoning step. ".repeat(2600),
+				},
+			],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		});
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
+const JumpToBottomHandleStory: FC = () => {
+	const jumpToBottomRef = useRef<(() => void) | null>(null);
+
+	return (
+		<>
+			<button type="button" onClick={() => jumpToBottomRef.current?.()}>
+				Jump to bottom
+			</button>
+			<StoryAgentChatPageView
+				store={jumpToBottomStreamingThinkingStore}
+				onScrollToBottomChange={(scrollToBottom) => {
+					jumpToBottomRef.current = scrollToBottom;
+				}}
+			/>
+		</>
+	);
+};
+
+/** Invoking the external jump-to-bottom handle during a large live thinking
+ *  stream should keep the viewport pinned while the stream continues to grow. */
+export const JumpToBottomHandleSticksDuringStreamingThinking: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <JumpToBottomHandleStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		scrollAwayFromBottom(scrollContainer);
+		await waitFor(() => {
+			const nextButton = canvas.getByRole("button", {
+				name: "Scroll to bottom",
+			});
+			expect(nextButton).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Jump to bottom" }),
+		);
+
+		jumpToBottomStreamingThinkingStore.setStreamState({
+			blocks: [
+				{
+					type: "thinking",
+					text: "Jump reasoning step. ".repeat(2600),
+				},
+			],
+			toolCalls: {},
+			toolResults: {},
+			sources: [],
+		});
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
+
+/** Loading a running chat with a large live thinking tail should stay pinned
+ *  to the latest content instead of opening detached above bottom. */
+export const StreamingThinkingLoadStaysPinned: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView store={loadWithStreamingThinkingStore} />
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
