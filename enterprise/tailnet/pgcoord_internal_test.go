@@ -76,23 +76,31 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).
+		Return(nil, nil).AnyTimes()
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
 	defer trap.Close()
 
 	uut := heartbeats{
-		ctx:          ctx,
-		logger:       logger,
-		clock:        mClock,
-		self:         uuid.UUID{1},
-		update:       make(chan hbUpdate, 4),
-		coordinators: make(map[uuid.UUID]time.Time),
+		ctx:             ctx,
+		logger:          logger,
+		store:           mStore,
+		clock:           mClock,
+		self:            uuid.UUID{1},
+		update:          make(chan hbUpdate, 4),
+		coordinators:    make(map[uuid.UUID]time.Time),
+		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
 	}
+	uut.timer = mClock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, uut.checkExpiry, "heartbeats", "newHeartbeats")
 
 	coord2 := uuid.UUID{2}
 	coord3 := uuid.UUID{3}
 
-	uut.listen(ctx, []byte(coord2.String()), nil)
+	go uut.listen(ctx, []byte(coord2.String()), nil)
+	trap.MustWait(ctx).MustRelease(ctx)
 
 	// coord 3 heartbeat comes very soon after
 	mClock.Advance(time.Millisecond).MustWait(ctx)
