@@ -2344,6 +2344,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot send messages to an archived chat.",
+		})
+		return
+	}
+
 	// Gate message sending behind the same agents-access check
 	// used by postChats. Sending a message triggers AI/LLM
 	// inference, so it should require the same authorization as
@@ -2453,6 +2460,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
 			return
 		}
+		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot send messages to an archived chat.",
+			})
+			return
+		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
 			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 				Message: "Message queue is full.",
@@ -2495,6 +2508,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot edit messages in an archived chat.",
+		})
+		return
+	}
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2540,6 +2560,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		switch {
+		case xerrors.Is(editErr, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot edit messages in an archived chat.",
+			})
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Chat message not found.",
@@ -2616,6 +2640,13 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot promote queued messages in an archived chat.",
+		})
+		return
+	}
+
 	// Gate queued-message promotion behind agents-access.
 	// Promoting a queued message triggers AI/LLM inference,
 	// same as sending a new message.
@@ -2651,6 +2682,12 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	if txErr != nil {
 		if maybeWriteLimitErr(ctx, rw, txErr) {
+			return
+		}
+		if xerrors.Is(txErr, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot promote queued messages in an archived chat.",
+			})
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
