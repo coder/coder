@@ -20,12 +20,14 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "reconnecting";
 
 /**
- * True when the block list contains at least one text or reasoning
- * block. Tool-call and other non-text blocks don't count because
- * they don't replace the "Thinking..." placeholder visually.
+ * True when the block list contains at least one content block
+ * (text, reasoning, or tool call). Any of these indicate the
+ * model has moved past the initial "Thinking..." phase.
  */
-const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some((b) => b.type === "response" || b.type === "thinking");
+const hasVisibleContentBlock = (blocks: readonly RenderBlock[]): boolean =>
+	blocks.some(
+		(b) => b.type === "response" || b.type === "thinking" || b.type === "tool",
+	);
 
 /**
  * Stateless "Thinking..." shimmer used during the streaming phase
@@ -83,8 +85,7 @@ export const StreamingOutput: FC<{
 	// first visible content, preventing the indicator from
 	// flickering away when only tool-call parts (or whitespace-
 	// only text deltas) have been received so far.
-	const needsStreamingThinking =
-		isStreaming && !hasTextOrReasoningBlock(blocks);
+	const needsStreamingThinking = isStreaming && !hasVisibleContentBlock(blocks);
 
 	const shouldShowStatusCallout =
 		hasTransientLiveStatus(liveStatus) || needsStreamingThinking;
