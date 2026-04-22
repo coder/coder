@@ -865,7 +865,6 @@ type querier struct {
 	healthy bool
 
 	clock quartz.Clock
-
 }
 
 func newQuerier(ctx context.Context,
