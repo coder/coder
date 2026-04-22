@@ -162,6 +162,13 @@ func consumeJSONEOF(decoder *json.Decoder) error {
 	return err
 }
 
+// safeRateLimitHeaderNames lists rate-limit headers that contain
+// "token" in the name but carry numeric usage counters, not
+// credentials. They are checked in isSensitiveName before the
+// generic "token" substring match so they pass through unredacted.
+// Add new entries here when a provider introduces a rate-limit
+// header family containing "token" (e.g. Anthropic's per-modality,
+// Priority Tier, or fast-mode headers).
 var safeRateLimitHeaderNames = map[string]struct{}{
 	"anthropic-ratelimit-requests-limit":          {},
 	"anthropic-ratelimit-requests-remaining":      {},
@@ -175,6 +182,18 @@ var safeRateLimitHeaderNames = map[string]struct{}{
 	"anthropic-ratelimit-output-tokens-limit":     {},
 	"anthropic-ratelimit-output-tokens-remaining": {},
 	"anthropic-ratelimit-output-tokens-reset":     {},
+	"anthropic-priority-input-tokens-limit":       {},
+	"anthropic-priority-input-tokens-remaining":   {},
+	"anthropic-priority-input-tokens-reset":       {},
+	"anthropic-priority-output-tokens-limit":      {},
+	"anthropic-priority-output-tokens-remaining":  {},
+	"anthropic-priority-output-tokens-reset":      {},
+	"anthropic-fast-input-tokens-limit":           {},
+	"anthropic-fast-input-tokens-remaining":       {},
+	"anthropic-fast-input-tokens-reset":           {},
+	"anthropic-fast-output-tokens-limit":          {},
+	"anthropic-fast-output-tokens-remaining":      {},
+	"anthropic-fast-output-tokens-reset":          {},
 	"x-ratelimit-limit-requests":                  {},
 	"x-ratelimit-limit-tokens":                    {},
 	"x-ratelimit-remaining-requests":              {},
