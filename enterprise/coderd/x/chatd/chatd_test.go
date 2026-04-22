@@ -1558,7 +1558,9 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			if err != nil {
 				return
 			}
-			_ = call.Release(ctx)
+			if err := call.Release(ctx); err != nil {
+				return
+			}
 			subscriberClock.Advance(200 * time.Millisecond)
 		}
 	}()
