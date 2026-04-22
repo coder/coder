@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -62,17 +63,27 @@ func (t *testAgentTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 type testMCPAgentTool struct {
 	*testAgentTool
 	configID uuid.UUID
+	slug     string
 }
 
 func newTestMCPAgentTool(name string, configID uuid.UUID) fantasy.AgentTool {
+	var tslug string
+	if strings.Contains(name, "__") {
+		tslug = strings.Split(name, "__")[0]
+	}
 	return &testMCPAgentTool{
 		testAgentTool: &testAgentTool{info: fantasy.ToolInfo{Name: name}},
 		configID:      configID,
+		slug:          tslug,
 	}
 }
 
 func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
+}
+
+func (t *testMCPAgentTool) MCPServerSlug() string {
+	return t.slug
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
