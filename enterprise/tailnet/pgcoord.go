@@ -928,10 +928,12 @@ func (q *querier) periodicRefresh() {
 	defer q.wg.Done()
 	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
 		q.mu.Lock()
-		defer q.mu.Unlock()
+		keys := make([]mKey, 0, len(q.mappers))
 		for mk := range q.mappers {
-			q.mappingQ.enqueue(mk)
+			keys = append(keys, mk)
 		}
+		q.mu.Unlock()
+		q.mappingQ.enqueue(keys...)
 		return nil
 	}, "querier", "periodicRefresh")
 	err := tkr.Wait()
@@ -1362,10 +1364,12 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
-	defer q.mu.Unlock()
+	keys := make([]mKey, 0, len(q.mappers))
 	for mk := range q.mappers {
-		q.mappingQ.enqueue(mk)
+		keys = append(keys, mk)
 	}
+	q.mu.Unlock()
+	q.mappingQ.enqueue(keys...)
 }
 
 func (q *querier) handleUpdates() {
