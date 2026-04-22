@@ -1318,10 +1318,14 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			if tt.variant == subagentTypeComputerUse {
 				providerKeys = chatprovider.ProviderAPIKeys{Anthropic: "test-anthropic-key"}
 			}
-			server := newInternalTestServer(t, db, ps, providerKeys)
 
 			ctx := chatdTestContext(t)
 			user, org, model := seedInternalChatDeps(ctx, t, db)
+			if tt.variant == subagentTypeComputerUse {
+				insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+				_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+			}
+			server := newInternalTestServer(t, db, ps, providerKeys)
 			parentChat := createInternalParentChat(
 				ctx,
 				t,
@@ -1491,12 +1495,14 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+	_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
 
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:   "MCP Test",
