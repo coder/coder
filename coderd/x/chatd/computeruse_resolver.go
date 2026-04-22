@@ -122,7 +122,7 @@ func (p *Server) resolveParentPinnedComputerUseTarget(
 		return computerUseTarget{}, false, nil
 	}
 
-	enabledProvider, err := p.computerUseEnabledProviderChecker(ctx)
+	enabledProviderChecker, err := p.computerUseEnabledProviderChecker(ctx)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to build computer use enabled-provider checker",
 			slog.F("owner_id", parentChat.OwnerID),
@@ -155,7 +155,7 @@ func (p *Server) resolveParentPinnedComputerUseTarget(
 	// Child chats may fall back if the parent's pinned provider is no
 	// longer enabled. Active computer use chats still fail fast in
 	// validatePinnedComputerUseTarget.
-	if enabledProvider(target.provider) {
+	if enabledProviderChecker(target.provider) {
 		return target, true, nil
 	}
 	return computerUseTarget{}, false, nil
@@ -197,11 +197,11 @@ func validatePinnedComputerUseTargetWithKeys(
 	if err != nil {
 		return computerUseTarget{}, xerrors.Errorf("resolve pinned computer use model metadata: %w", err)
 	}
-	enabledProvider, err := p.computerUseEnabledProviderChecker(ctx)
+	enabledProviderChecker, err := p.computerUseEnabledProviderChecker(ctx)
 	if err != nil {
 		return computerUseTarget{}, err
 	}
-	if !enabledProvider(target.provider) {
+	if !enabledProviderChecker(target.provider) {
 		err := xerrors.Errorf("computer use provider %q is disabled", target.provider)
 		return computerUseTarget{}, chaterror.WithClassification(err, chaterror.ClassifiedError{
 			Message:  err.Error(),
