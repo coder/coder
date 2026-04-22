@@ -26075,6 +26075,175 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 	return items, nil
 }
 
+const getWorkspaceAgentPluginByAgentIDAndSlug = `-- name: GetWorkspaceAgentPluginByAgentIDAndSlug :one
+SELECT id, created_at, agent_id, slug, display_name, icon, url, backend_entry
+FROM workspace_agent_plugins
+WHERE agent_id = $1 AND slug = $2
+`
+
+type GetWorkspaceAgentPluginByAgentIDAndSlugParams struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	Slug    string    `db:"slug" json:"slug"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentPluginByAgentIDAndSlug(ctx context.Context, arg GetWorkspaceAgentPluginByAgentIDAndSlugParams) (WorkspaceAgentPlugin, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentPluginByAgentIDAndSlug, arg.AgentID, arg.Slug)
+	var i WorkspaceAgentPlugin
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.BackendEntry,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentPluginsByAgentID = `-- name: GetWorkspaceAgentPluginsByAgentID :many
+SELECT id, created_at, agent_id, slug, display_name, icon, url, backend_entry
+FROM workspace_agent_plugins
+WHERE agent_id = $1
+ORDER BY slug
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentPluginsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentPlugin, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentPluginsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentPlugin
+	for rows.Next() {
+		var i WorkspaceAgentPlugin
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Url,
+			&i.BackendEntry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentPluginsByAgentIDs = `-- name: GetWorkspaceAgentPluginsByAgentIDs :many
+SELECT id, created_at, agent_id, slug, display_name, icon, url, backend_entry
+FROM workspace_agent_plugins
+WHERE agent_id = ANY($1::uuid[])
+ORDER BY agent_id, slug
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentPluginsByAgentIDs(ctx context.Context, agentIds []uuid.UUID) ([]WorkspaceAgentPlugin, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentPluginsByAgentIDs, pq.Array(agentIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentPlugin
+	for rows.Next() {
+		var i WorkspaceAgentPlugin
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Slug,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Url,
+			&i.BackendEntry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertWorkspaceAgentPlugin = `-- name: UpsertWorkspaceAgentPlugin :one
+INSERT INTO workspace_agent_plugins (
+    id,
+    created_at,
+    agent_id,
+    slug,
+    display_name,
+    icon,
+    url,
+    backend_entry
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8
+) ON CONFLICT (agent_id, slug)
+DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    icon = EXCLUDED.icon,
+    url = EXCLUDED.url,
+    backend_entry = EXCLUDED.backend_entry
+RETURNING id, created_at, agent_id, slug, display_name, icon, url, backend_entry
+`
+
+type UpsertWorkspaceAgentPluginParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
+	Slug         string    `db:"slug" json:"slug"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	Icon         string    `db:"icon" json:"icon"`
+	Url          string    `db:"url" json:"url"`
+	BackendEntry string    `db:"backend_entry" json:"backend_entry"`
+}
+
+func (q *sqlQuerier) UpsertWorkspaceAgentPlugin(ctx context.Context, arg UpsertWorkspaceAgentPluginParams) (WorkspaceAgentPlugin, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceAgentPlugin,
+		arg.ID,
+		arg.CreatedAt,
+		arg.AgentID,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Url,
+		arg.BackendEntry,
+	)
+	var i WorkspaceAgentPlugin
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.BackendEntry,
+	)
+	return i, err
+}
+
 const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
 DELETE FROM
 	workspace_agent_port_share

@@ -3180,6 +3180,23 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), appA.AgentID).Return([]database.WorkspaceApp{appA, appB}, nil).AnyTimes()
 		check.Args(appA.AgentID).Asserts(ws, policy.ActionRead).Returns(slice.New(appA, appB))
 	}))
+	s.Run("GetWorkspaceAgentPluginByAgentIDAndSlug", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		plugin := testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{AgentID: agt.ID})
+		arg := database.GetWorkspaceAgentPluginByAgentIDAndSlugParams{AgentID: agt.ID, Slug: plugin.Slug}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentPluginByAgentIDAndSlug(gomock.Any(), arg).Return(plugin, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns(plugin)
+	}))
+	s.Run("GetWorkspaceAgentPluginsByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		pluginA := testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{})
+		pluginB := testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{AgentID: pluginA.AgentID})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), pluginA.AgentID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentPluginsByAgentID(gomock.Any(), pluginA.AgentID).Return([]database.WorkspaceAgentPlugin{pluginA, pluginB}, nil).AnyTimes()
+		check.Args(pluginA.AgentID).Asserts(ws, policy.ActionRead).Returns(slice.New(pluginA, pluginB))
+	}))
 	s.Run("GetWorkspaceBuildByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
@@ -4309,6 +4326,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceApp{a, b})
 	}))
+	s.Run("GetWorkspaceAgentPluginsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{})
+		ids := []uuid.UUID{a.AgentID, b.AgentID}
+		dbm.EXPECT().GetWorkspaceAgentPluginsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentPlugin{a, b}, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Returns([]database.WorkspaceAgentPlugin{a, b})
+	}))
 	s.Run("GetWorkspaceResourcesByJobIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
 		dbm.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), ids).Return([]database.WorkspaceResource{}, nil).AnyTimes()
@@ -4359,6 +4385,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		arg := database.UpsertWorkspaceAppParams{ID: uuid.New(), AgentID: agent.ID, Health: database.WorkspaceAppHealthDisabled, SharingLevel: database.AppSharingLevelOwner, OpenIn: database.WorkspaceAppOpenInSlimWindow}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().UpsertWorkspaceApp(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agent.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate)
+	}))
+	s.Run("UpsertWorkspaceAgentPlugin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		agent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpsertWorkspaceAgentPluginParams{ID: uuid.New(), AgentID: agent.ID}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceAgentPlugin(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WorkspaceAgentPlugin{AgentID: agent.ID}), nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceResourceMetadata", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

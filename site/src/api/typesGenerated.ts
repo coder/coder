@@ -8558,6 +8558,7 @@ export interface WorkspaceAgent {
 	readonly version: string;
 	readonly api_version: string;
 	readonly apps: readonly WorkspaceApp[];
+	readonly plugins: readonly WorkspaceAgentPlugin[];
 	/**
 	 * DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	 */
@@ -8844,6 +8845,20 @@ export interface WorkspaceAgentMetadataResult {
 	readonly age: number;
 	readonly value: string;
 	readonly error: string;
+}
+
+// From codersdk/workspaceagentplugins.go
+/**
+ * WorkspaceAgentPlugin represents a UI plugin attached to a workspace agent.
+ * Plugins are rendered as iframe tabs in the agents UI RightPanel.
+ */
+export interface WorkspaceAgentPlugin {
+	readonly id: string;
+	readonly slug: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly url: string;
+	readonly backend_entry?: string;
 }
 
 // From codersdk/workspaceagentportshare.go

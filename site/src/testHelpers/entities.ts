@@ -1018,6 +1018,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+	plugins: [],
 };
 
 export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {

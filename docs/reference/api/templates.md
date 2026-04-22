@@ -2487,6 +2487,16 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
           "uuid": "string",
           "valid": true
         },
+        "plugins": [
+          {
+            "backend_entry": "string",
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "slug": "string",
+            "url": "string"
+          }
+        ],
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -2614,6 +2624,13 @@ Status Code **200**
 | `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
 | `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
+| `»» plugins`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» backend_entry`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» icon`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» slug`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» url`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
@@ -3153,6 +3170,16 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
           "uuid": "string",
           "valid": true
         },
+        "plugins": [
+          {
+            "backend_entry": "string",
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "slug": "string",
+            "url": "string"
+          }
+        ],
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -3280,6 +3307,13 @@ Status Code **200**
 | `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                |
 | `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
+| `»» plugins`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» backend_entry`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» icon`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» slug`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» url`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |

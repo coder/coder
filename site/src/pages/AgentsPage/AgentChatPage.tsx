@@ -546,7 +546,9 @@ type _UncoveredAgentFields = Omit<
 // section of the Omit above and to the bailout comparison
 // in the workspace watcher message handler. If no, add it
 // to the excluded section of the Omit.
-const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
+const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {
+	plugins: true,
+};
 
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();

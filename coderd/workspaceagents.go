@@ -67,6 +67,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		ctx        = r.Context()
 		waws       = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 		dbApps     []database.WorkspaceApp
+		dbPlugins  []database.WorkspaceAgentPlugin
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
 	)
@@ -75,6 +76,13 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	eg.Go(func() (err error) {
 		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, waws.WorkspaceAgent.ID)
 		return err
+	})
+	eg.Go(func() (err error) {
+		dbPlugins, err = api.Database.GetWorkspaceAgentPluginsByAgentID(ctx, waws.WorkspaceAgent.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return nil
 	})
 	eg.Go(func() (err error) {
 		//nolint:gocritic // TODO: can we make this not require system restricted?
@@ -114,7 +122,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), db2sdk.WorkspaceAgentPlugins(dbPlugins), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -697,7 +705,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	defer cancel()
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, nil, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -812,6 +820,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
 		waws.WorkspaceAgent,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -937,6 +946,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 		nil,
 		nil,
 		nil,
+		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
@@ -1029,6 +1039,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 		nil,
 		nil,
 		nil,
+		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
@@ -1111,6 +1122,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
 		waws.WorkspaceAgent,
+		nil,
 		nil,
 		nil,
 		nil,

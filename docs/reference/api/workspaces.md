@@ -231,6 +231,16 @@ of the template will be used.
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -595,6 +605,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -926,6 +946,16 @@ of the template will be used.
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1218,6 +1248,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   "uuid": "string",
                   "valid": true
                 },
+                "plugins": [
+                  {
+                    "backend_entry": "string",
+                    "display_name": "string",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "slug": "string",
+                    "url": "string"
+                  }
+                ],
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
@@ -1525,6 +1565,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -2092,6 +2142,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [

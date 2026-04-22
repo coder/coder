@@ -5507,6 +5507,51 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentMetadata(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentMetadata), ctx, arg)
 }
 
+// GetWorkspaceAgentPluginByAgentIDAndSlug mocks base method.
+func (m *MockStore) GetWorkspaceAgentPluginByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAgentPluginByAgentIDAndSlugParams) (database.WorkspaceAgentPlugin, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentPluginByAgentIDAndSlug", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentPlugin)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentPluginByAgentIDAndSlug indicates an expected call of GetWorkspaceAgentPluginByAgentIDAndSlug.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentPluginByAgentIDAndSlug(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPluginByAgentIDAndSlug", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPluginByAgentIDAndSlug), ctx, arg)
+}
+
+// GetWorkspaceAgentPluginsByAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentPluginsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentPluginsByAgentID", ctx, agentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgentPlugin)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentPluginsByAgentID indicates an expected call of GetWorkspaceAgentPluginsByAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentPluginsByAgentID(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPluginsByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPluginsByAgentID), ctx, agentID)
+}
+
+// GetWorkspaceAgentPluginsByAgentIDs mocks base method.
+func (m *MockStore) GetWorkspaceAgentPluginsByAgentIDs(ctx context.Context, agentIds []uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentPluginsByAgentIDs", ctx, agentIds)
+	ret0, _ := ret[0].([]database.WorkspaceAgentPlugin)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentPluginsByAgentIDs indicates an expected call of GetWorkspaceAgentPluginsByAgentIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentPluginsByAgentIDs(ctx, agentIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPluginsByAgentIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPluginsByAgentIDs), ctx, agentIds)
+}
+
 // GetWorkspaceAgentPortShare mocks base method.
 func (m *MockStore) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	m.ctrl.T.Helper()
@@ -10317,6 +10362,21 @@ func (m *MockStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.Ups
 func (mr *MockStoreMockRecorder) UpsertWebpushVAPIDKeys(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWebpushVAPIDKeys", reflect.TypeOf((*MockStore)(nil).UpsertWebpushVAPIDKeys), ctx, arg)
+}
+
+// UpsertWorkspaceAgentPlugin mocks base method.
+func (m *MockStore) UpsertWorkspaceAgentPlugin(ctx context.Context, arg database.UpsertWorkspaceAgentPluginParams) (database.WorkspaceAgentPlugin, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertWorkspaceAgentPlugin", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentPlugin)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertWorkspaceAgentPlugin indicates an expected call of UpsertWorkspaceAgentPlugin.
+func (mr *MockStoreMockRecorder) UpsertWorkspaceAgentPlugin(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWorkspaceAgentPlugin", reflect.TypeOf((*MockStore)(nil).UpsertWorkspaceAgentPlugin), ctx, arg)
 }
 
 // UpsertWorkspaceAgentPortShare mocks base method.

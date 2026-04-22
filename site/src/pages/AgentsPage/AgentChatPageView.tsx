@@ -4,6 +4,7 @@ import {
 	type FC,
 	type ReactNode,
 	type RefObject,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -30,6 +31,8 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { PluginIframe } from "./components/RightPanel/PluginIframe";
+import type { PluginContext } from "./components/RightPanel/pluginMessageBus";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
@@ -265,6 +268,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// the user clicks the inline desktop preview card).
 	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
 
+	// Build plugin context from workspace/agent data for iframe plugins.
+	const pluginContext = useMemo<PluginContext>(
+		() => ({
+			apiUrl: window.location.origin,
+			workspaceId: workspace?.id ?? "",
+			agentId: workspaceAgent?.id ?? "",
+			chatId: agentId,
+		}),
+		[workspace?.id, workspaceAgent?.id, agentId],
+	);
+
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);
 		setSidebarTabId("desktop");
@@ -497,6 +511,24 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 											},
 										]
 									: []),
+								// Plugin tabs: one per plugin defined on the agent.
+								...(workspaceAgent?.plugins ?? []).map((plugin) => ({
+									id: `plugin-${plugin.slug}`,
+									label: plugin.display_name || plugin.slug,
+									icon: plugin.icon ? (
+										<img src={plugin.icon} alt="" className="h-4 w-4" />
+									) : undefined,
+									content: (
+										<PluginIframe
+											plugin={plugin}
+											context={pluginContext}
+											isVisible={
+												shouldShowSidebar &&
+												sidebarTabId === `plugin-${plugin.slug}`
+											}
+										/>
+									),
+								})),
 							]}
 							onClose={() => onSetShowSidebarPanel(false)}
 							isExpanded={visualExpanded}

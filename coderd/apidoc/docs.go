@@ -22428,6 +22428,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "plugins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentPlugin"
+                    }
+                },
                 "ready_at": {
                     "type": "string",
                     "format": "date-time"
@@ -22763,6 +22769,30 @@ const docTemplate = `{
                 "workspace_agent_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentPlugin": {
+            "type": "object",
+            "properties": {
+                "backend_entry": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         },

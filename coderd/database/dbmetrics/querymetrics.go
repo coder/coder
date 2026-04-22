@@ -2944,6 +2944,30 @@ func (m queryMetricsStore) GetWorkspaceAgentMetadata(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentPluginByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAgentPluginByAgentIDAndSlugParams) (database.WorkspaceAgentPlugin, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentPluginByAgentIDAndSlug(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentPluginByAgentIDAndSlug").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentPluginByAgentIDAndSlug").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentPluginsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentPluginsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentPluginsByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentPluginsByAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentPluginsByAgentIDs(ctx context.Context, agentIds []uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentPluginsByAgentIDs(ctx, agentIds)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentPluginsByAgentIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentPluginsByAgentIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentPortShare(ctx, arg)
@@ -5502,6 +5526,14 @@ func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWebpushVAPIDKeys").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertWorkspaceAgentPlugin(ctx context.Context, arg database.UpsertWorkspaceAgentPluginParams) (database.WorkspaceAgentPlugin, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAgentPlugin(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPlugin").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWorkspaceAgentPlugin").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

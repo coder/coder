@@ -1746,6 +1746,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		nil,
 		nil,
 		nil,
+		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
@@ -1888,6 +1889,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
 		agents[0],
+		nil,
 		nil,
 		nil,
 		nil,

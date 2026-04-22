@@ -3026,6 +3026,12 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				return xerrors.Errorf("insert agent app: %w", err)
 			}
 		}
+
+		for _, plugin := range prAgent.Plugins {
+			if err := insertAgentPlugin(ctx, db, dbAgent.ID, plugin); err != nil {
+				return xerrors.Errorf("insert agent plugin: %w", err)
+			}
+		}
 	}
 
 	arg := database.InsertWorkspaceResourceMetadataParams{
@@ -3681,6 +3687,35 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 	}
 
 	snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
+
+	return nil
+}
+
+func insertAgentPlugin(ctx context.Context, db database.Store, agentID uuid.UUID, plugin *sdkproto.Plugin) error {
+	var pluginID string
+	if plugin.Id == "" || plugin.Id == uuid.Nil.String() {
+		pluginID = uuid.NewString()
+	} else {
+		pluginID = plugin.Id
+	}
+	id, err := uuid.Parse(pluginID)
+	if err != nil {
+		return xerrors.Errorf("parse plugin uuid: %w", err)
+	}
+
+	_, err = db.UpsertWorkspaceAgentPlugin(ctx, database.UpsertWorkspaceAgentPluginParams{
+		ID:           id,
+		CreatedAt:    dbtime.Now(),
+		AgentID:      agentID,
+		Slug:         plugin.Slug,
+		DisplayName:  plugin.DisplayName,
+		Icon:         plugin.Icon,
+		Url:          plugin.Url,
+		BackendEntry: plugin.BackendEntry,
+	})
+	if err != nil {
+		return xerrors.Errorf("upsert plugin: %w", err)
+	}
 
 	return nil
 }

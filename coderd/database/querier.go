@@ -716,6 +716,9 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error)
 	GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWorkspaceAgentLogsAfterParams) ([]WorkspaceAgentLog, error)
 	GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorkspaceAgentMetadataParams) ([]WorkspaceAgentMetadatum, error)
+	GetWorkspaceAgentPluginByAgentIDAndSlug(ctx context.Context, arg GetWorkspaceAgentPluginByAgentIDAndSlugParams) (WorkspaceAgentPlugin, error)
+	GetWorkspaceAgentPluginsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentPlugin, error)
+	GetWorkspaceAgentPluginsByAgentIDs(ctx context.Context, agentIds []uuid.UUID) ([]WorkspaceAgentPlugin, error)
 	GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByBuildIDRow, error)
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error)
@@ -1209,6 +1212,7 @@ type sqlcQuerier interface {
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatProviderKey(ctx context.Context, arg UpsertUserChatProviderKeyParams) (UserChatProviderKey, error)
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
+	UpsertWorkspaceAgentPlugin(ctx context.Context, arg UpsertWorkspaceAgentPluginParams) (WorkspaceAgentPlugin, error)
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error)
 	//

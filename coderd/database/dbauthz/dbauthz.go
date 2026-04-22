@@ -4501,6 +4501,27 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.Ge
 	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentPluginByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAgentPluginByAgentIDAndSlugParams) (database.WorkspaceAgentPlugin, error) {
+	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
+		return database.WorkspaceAgentPlugin{}, err
+	}
+	return q.db.GetWorkspaceAgentPluginByAgentIDAndSlug(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAgentPluginsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	if _, err := q.GetWorkspaceByAgentID(ctx, agentID); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentPluginsByAgentID(ctx, agentID)
+}
+
+func (q *querier) GetWorkspaceAgentPluginsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentPlugin, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentPluginsByAgentIDs(ctx, ids)
+}
+
 func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -7596,6 +7617,17 @@ func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.Upser
 		return err
 	}
 	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentPlugin(ctx context.Context, arg database.UpsertWorkspaceAgentPluginParams) (database.WorkspaceAgentPlugin, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return database.WorkspaceAgentPlugin{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceAgentPlugin{}, err
+	}
+	return q.db.UpsertWorkspaceAgentPlugin(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

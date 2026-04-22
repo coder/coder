@@ -190,6 +190,7 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
+  repeated Plugin plugins = 27;
 }
 
 enum AppSharingLevel {
@@ -280,6 +281,17 @@ message App {
   string group = 13;
   string id = 14; // If nil, new UUID will be generated.
   string tooltip = 15;
+}
+
+// Plugin represents a UI plugin attached to a workspace agent.
+// Plugins are rendered as iframe tabs in the agents UI.
+message Plugin {
+  string id = 1;
+  string slug = 2;
+  string display_name = 3;
+  string icon = 4;
+  string url = 5;
+  string backend_entry = 6;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

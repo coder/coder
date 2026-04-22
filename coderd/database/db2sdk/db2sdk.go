@@ -443,7 +443,7 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 }
 
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
-	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
+	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, plugins []codersdk.WorkspaceAgentPlugin, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
 ) (codersdk.WorkspaceAgent, error) {
 	envs, err := WorkspaceAgentEnvironment(dbAgent)
@@ -491,6 +491,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
+		Plugins:                  plugins,
 		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       troubleshootingURL,
 		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
@@ -651,6 +652,25 @@ func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAp
 		URI:         status.Uri.String,
 		Message:     status.Message,
 		State:       codersdk.WorkspaceAppStatusState(status.State),
+	}
+}
+
+func WorkspaceAgentPlugins(dbPlugins []database.WorkspaceAgentPlugin) []codersdk.WorkspaceAgentPlugin {
+	plugins := make([]codersdk.WorkspaceAgentPlugin, 0, len(dbPlugins))
+	for _, p := range dbPlugins {
+		plugins = append(plugins, WorkspaceAgentPlugin(p))
+	}
+	return plugins
+}
+
+func WorkspaceAgentPlugin(p database.WorkspaceAgentPlugin) codersdk.WorkspaceAgentPlugin {
+	return codersdk.WorkspaceAgentPlugin{
+		ID:           p.ID,
+		Slug:         p.Slug,
+		DisplayName:  p.DisplayName,
+		Icon:         p.Icon,
+		URL:          p.Url,
+		BackendEntry: p.BackendEntry,
 	}
 }
 

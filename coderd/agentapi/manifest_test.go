@@ -329,6 +329,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
+		mDB.EXPECT().GetWorkspaceAgentPluginsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentPlugin{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return(scripts, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: agent.ID,
@@ -361,6 +362,7 @@ func TestGetManifest(t *testing.T) {
 			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
 			Scripts:       protoScripts,
 			Apps:          protoApps,
+			Plugins:       []*agentproto.WorkspaceAgentPlugin{},
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
@@ -396,6 +398,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentPluginsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentPlugin{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.WorkspaceAgentScript{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: childAgent.ID,
@@ -428,6 +431,7 @@ func TestGetManifest(t *testing.T) {
 			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
 			Scripts:       []*agentproto.WorkspaceAgentScript{},
 			Apps:          []*agentproto.WorkspaceApp{},
+			Plugins:       []*agentproto.WorkspaceAgentPlugin{},
 			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
 			Secrets:       []*agentproto.WorkspaceSecret{},
@@ -459,6 +463,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentPluginsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentPlugin{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.WorkspaceAgentScript{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: childAgent.ID,
@@ -578,6 +583,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
+		mDB.EXPECT().GetWorkspaceAgentPluginsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentPlugin{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return(scripts, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: agent.ID,
@@ -609,6 +615,7 @@ func TestGetManifest(t *testing.T) {
 			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
 			Scripts:       protoScripts,
 			Apps:          protoApps,
+			Plugins:       []*agentproto.WorkspaceAgentPlugin{},
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},

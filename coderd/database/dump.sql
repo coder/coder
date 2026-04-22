@@ -2967,6 +2967,17 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
 
 COMMENT ON COLUMN workspace_agent_metadata.display_order IS 'Specifies the order in which to display agent metadata in user interfaces.';
 
+CREATE TABLE workspace_agent_plugins (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    agent_id uuid NOT NULL,
+    slug character varying(64) NOT NULL,
+    display_name character varying(256) DEFAULT ''::character varying NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    url character varying(4096) NOT NULL,
+    backend_entry character varying(1024) DEFAULT ''::character varying NOT NULL
+);
+
 CREATE TABLE workspace_agent_port_share (
     workspace_id uuid NOT NULL,
     agent_name text NOT NULL,
@@ -3682,6 +3693,12 @@ ALTER TABLE ONLY workspace_agent_memory_resource_monitors
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
+
+ALTER TABLE ONLY workspace_agent_plugins
+    ADD CONSTRAINT workspace_agent_plugins_agent_id_slug_key UNIQUE (agent_id, slug);
+
+ALTER TABLE ONLY workspace_agent_plugins
+    ADD CONSTRAINT workspace_agent_plugins_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
@@ -4446,6 +4463,9 @@ ALTER TABLE ONLY workspace_agent_memory_resource_monitors
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_plugins
+    ADD CONSTRAINT workspace_agent_plugins_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;

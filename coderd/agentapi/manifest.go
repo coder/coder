@@ -40,6 +40,7 @@ type ManifestAPI struct {
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
 	var (
 		dbApps        []database.WorkspaceApp
+		dbPlugins     []database.WorkspaceAgentPlugin
 		scripts       []database.WorkspaceAgentScript
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
@@ -54,6 +55,13 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
 		dbApps, err = a.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		dbPlugins, err = a.Database.GetWorkspaceAgentPluginsByAgentID(ctx, workspaceAgent.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -147,6 +155,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
 		Scripts:       dbAgentScriptsToProto(scripts),
 		Apps:          apps,
+		Plugins:       dbAgentPluginsToProto(dbPlugins),
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets),
@@ -288,6 +297,21 @@ func dbUserSecretsToProto(secrets []database.UserSecret) []*agentproto.Workspace
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
 			Value:    []byte(s.Value),
+		})
+	}
+	return ret
+}
+
+func dbAgentPluginsToProto(dbPlugins []database.WorkspaceAgentPlugin) []*agentproto.WorkspaceAgentPlugin {
+	ret := make([]*agentproto.WorkspaceAgentPlugin, 0, len(dbPlugins))
+	for _, p := range dbPlugins {
+		ret = append(ret, &agentproto.WorkspaceAgentPlugin{
+			Id:           p.ID[:],
+			Slug:         p.Slug,
+			DisplayName:  p.DisplayName,
+			Icon:         p.Icon,
+			Url:          p.Url,
+			BackendEntry: p.BackendEntry,
 		})
 	}
 	return ret

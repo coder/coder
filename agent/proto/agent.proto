@@ -99,6 +99,18 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	repeated WorkspaceAgentPlugin plugins = 20;
+}
+
+// WorkspaceAgentPlugin is a UI plugin attached to a workspace agent.
+// Plugins are rendered as iframe tabs in the agents UI.
+message WorkspaceAgentPlugin {
+	bytes id = 1;
+	string slug = 2;
+	string display_name = 3;
+	string icon = 4;
+	string url = 5;
+	string backend_entry = 6;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest

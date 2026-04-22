@@ -244,6 +244,7 @@ export interface Agent {
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
   apiKeyScope: string;
+  plugins: Plugin[];
 }
 
 export interface Agent_Metadata {
@@ -341,6 +342,19 @@ export interface App {
   /** If nil, new UUID will be generated. */
   id: string;
   tooltip: string;
+}
+
+/**
+ * Plugin represents a UI plugin attached to a workspace agent.
+ * Plugins are rendered as iframe tabs in the agents UI.
+ */
+export interface Plugin {
+  id: string;
+  slug: string;
+  displayName: string;
+  icon: string;
+  url: string;
+  backendEntry: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -950,6 +964,9 @@ export const Agent = {
     if (message.apiKeyScope !== "") {
       writer.uint32(210).string(message.apiKeyScope);
     }
+    for (const v of message.plugins) {
+      Plugin.encode(v!, writer.uint32(218).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1174,6 +1191,30 @@ export const App = {
     }
     if (message.tooltip !== "") {
       writer.uint32(122).string(message.tooltip);
+    }
+    return writer;
+  },
+};
+
+export const Plugin = {
+  encode(message: Plugin, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.slug !== "") {
+      writer.uint32(18).string(message.slug);
+    }
+    if (message.displayName !== "") {
+      writer.uint32(26).string(message.displayName);
+    }
+    if (message.icon !== "") {
+      writer.uint32(34).string(message.icon);
+    }
+    if (message.url !== "") {
+      writer.uint32(42).string(message.url);
+    }
+    if (message.backendEntry !== "") {
+      writer.uint32(50).string(message.backendEntry);
     }
     return writer;
   },

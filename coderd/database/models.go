@@ -5675,6 +5675,17 @@ type WorkspaceAgentMetadatum struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
+type WorkspaceAgentPlugin struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
+	Slug         string    `db:"slug" json:"slug"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	Icon         string    `db:"icon" json:"icon"`
+	Url          string    `db:"url" json:"url"`
+	BackendEntry string    `db:"backend_entry" json:"backend_entry"`
+}
+
 type WorkspaceAgentPortShare struct {
 	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
 	AgentName   string            `db:"agent_name" json:"agent_name"`

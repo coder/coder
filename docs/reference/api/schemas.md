@@ -7318,6 +7318,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -8668,6 +8678,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -11607,6 +11627,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "uuid": "string",
               "valid": true
             },
+            "plugins": [
+              {
+                "backend_entry": "string",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "slug": "string",
+                "url": "string"
+              }
+            ],
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -11890,6 +11920,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "uuid": "string",
     "valid": true
   },
+  "plugins": [
+    {
+      "backend_entry": "string",
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "url": "string"
+    }
+  ],
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "scripts": [
@@ -11947,6 +11987,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`                       | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                              |
+| `plugins`                    | array of [codersdk.WorkspaceAgentPlugin](#codersdkworkspaceagentplugin)                      | false    |              |                                                                                                                                                                              |
 | `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
@@ -12316,6 +12357,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `icon`               | string | false    |              |             |
 | `id`                 | string | false    |              |             |
 | `workspace_agent_id` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentPlugin
+
+```json
+{
+  "backend_entry": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "slug": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `backend_entry` | string | false    |              |             |
+| `display_name`  | string | false    |              |             |
+| `icon`          | string | false    |              |             |
+| `id`            | string | false    |              |             |
+| `slug`          | string | false    |              |             |
+| `url`           | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentPortShare
 
@@ -12766,6 +12831,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "uuid": "string",
             "valid": true
           },
+          "plugins": [
+            {
+              "backend_entry": "string",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "slug": "string",
+              "url": "string"
+            }
+          ],
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -13234,6 +13309,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "uuid": "string",
         "valid": true
       },
+      "plugins": [
+        {
+          "backend_entry": "string",
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "url": "string"
+        }
+      ],
       "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "scripts": [
@@ -13582,6 +13667,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   "uuid": "string",
                   "valid": true
                 },
+                "plugins": [
+                  {
+                    "backend_entry": "string",
+                    "display_name": "string",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "slug": "string",
+                    "url": "string"
+                  }
+                ],
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
