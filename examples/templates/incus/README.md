@@ -15,7 +15,7 @@ Develop in an Incus System Container and run nested Docker containers using Incu
 
 This template uses the [Incus guest API](https://linuxcontainers.org/incus/docs/main/dev-incus/) (`/dev/incus/sock`) to deliver the Coder agent token and URL into the container without any host filesystem coupling. This means:
 
-- **The provisioner does not need to run on the Incus host.** There are no bind mounts or local file writes — all configuration is passed via Incus `user.*` config keys and read from inside the container at runtime.
+- **The provisioner does not need to run on the Incus host.** There are no bind mounts or local file writes. All configuration is passed via Incus `user.*` config keys and read from inside the container at runtime.
 - **The agent binary is downloaded automatically.** The standard Coder init script fetches the correct binary from the Coder server on every boot, keeping it in sync with the server version.
 - **The agent token is refreshed on every start.** Terraform updates the `user.coder_agent_token` config key each workspace start. A watcher service inside the container listens for config changes via the guest API events endpoint and restarts the agent when a new token arrives.
 
@@ -29,7 +29,7 @@ This template uses the [Incus guest API](https://linuxcontainers.org/incus/docs/
 
 ### Packages
 
-Essential packages (`curl`, `git`) are installed via cloud-init on first boot, before the agent starts. Additional packages (e.g. `docker.io`) are installed via a non-blocking [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script) that runs on each workspace start. It does not block login — users can connect to the workspace immediately while packages install in the background. On subsequent starts, it detects packages are already installed and skips the installation.
+Essential packages (`curl`, `git`) are installed via cloud-init on first boot, before the agent starts. Additional packages (e.g. `docker.io`) are installed via a non-blocking [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script) that runs on each workspace start. It does not block login; users can connect to the workspace immediately while packages install in the background. On subsequent starts, it detects packages are already installed and skips the installation.
 
 ## Prerequisites
 
@@ -62,8 +62,9 @@ Essential packages (`curl`, `git`) are installed via cloud-init on first boot, b
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | **Image** | Container image with cloud-init. Options: Debian 13, Debian 12, Ubuntu 24.04, Ubuntu 22.04 | `images:debian/13/cloud` |
-| **CPU** | Number of CPUs (1–8) | `1` |
-| **Memory** | Memory in GB (1–16) | `2` |
+| **CPU** | Number of CPUs (1-8) | `1` |
+| **Memory** | Memory in GB (1-16) | `2` |
+| **Storage pool** | Incus storage pool name | `coder` |
 | **Git repository** | Clone a git repo inside the workspace | _(empty)_ |
 
 ## Extending this template

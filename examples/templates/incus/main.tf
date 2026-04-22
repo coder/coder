@@ -81,6 +81,15 @@ data "coder_parameter" "git_repo" {
   mutable     = true
 }
 
+data "coder_parameter" "pool" {
+  type         = "string"
+  name         = "pool"
+  display_name = "Storage pool"
+  default      = "coder"
+  description  = "Incus storage pool name"
+  mutable      = false
+}
+
 resource "coder_agent" "main" {
   count = data.coder_workspace.me.start_count
   arch  = data.coder_provisioner.me.arch
@@ -166,7 +175,7 @@ resource "incus_instance" "dev" {
     # Pass the agent token and URL via Incus user config keys.
     # These are readable from inside the container via the guest API at
     # /dev/incus/sock, which removes the need for bind-mounting files from
-    # the host. This decouples the provisioner from the Incus host — they
+    # the host. This decouples the provisioner from the Incus host. They
     # no longer need to share a filesystem. The token is refreshed by
     # Terraform on every workspace start; Incus updates the config on the
     # instance even while it is stopped, so the new value is available
@@ -310,7 +319,7 @@ EOF
 
 locals {
   workspace_user = lower(data.coder_workspace_owner.me.name)
-  pool           = "coder"
+  pool           = data.coder_parameter.pool.value
   # Workaround for the LXC provider stripping empty string config values, causing unexpected new values.
   agent_token       = data.coder_workspace.me.start_count == 1 ? coder_agent.main[0].token : "no-token"
   agent_init_script = data.coder_workspace.me.start_count == 1 ? coder_agent.main[0].init_script : "#!/bin/sh\nexit 0"
