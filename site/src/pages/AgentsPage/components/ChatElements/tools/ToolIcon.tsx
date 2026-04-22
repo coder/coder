@@ -4,6 +4,7 @@ import {
 	ClipboardListIcon,
 	FileIcon,
 	FilePenIcon,
+	LayoutDashboardIcon,
 	MonitorIcon,
 	PlayIcon,
 	PlusCircleIcon,
@@ -112,6 +113,8 @@ export const ToolIcon: React.FC<{
 			return <BookOpenIcon className={base} />;
 		case "start_workspace":
 			return <PlayIcon className={base} />;
+		case "render_for_user":
+			return <LayoutDashboardIcon className={base} />;
 
 		default:
 			return <WrenchIcon className={base} />;

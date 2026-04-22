@@ -54,6 +54,8 @@
 		"@fontsource/ibm-plex-mono": "5.2.7",
 		"@fontsource/jetbrains-mono": "5.2.8",
 		"@fontsource/source-code-pro": "5.2.7",
+		"@json-render/core": "0.18.0",
+		"@json-render/react": "0.18.0",
 		"@lexical/react": "0.41.0",
 		"@lexical/utils": "0.41.0",
 		"@monaco-editor/react": "4.7.0",
@@ -118,7 +120,8 @@
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"websocket-ts": "2.2.1",
-		"yup": "1.7.1"
+		"yup": "1.7.1",
+		"zod": "4.3.6"
 	},
 	"devDependencies": {
 		"@babel/core": "7.29.0",

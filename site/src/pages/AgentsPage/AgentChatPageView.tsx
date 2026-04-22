@@ -1,9 +1,10 @@
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, LayoutDashboardIcon } from "lucide-react";
 
 import {
 	type FC,
 	type ReactNode,
 	type RefObject,
+	useEffect,
 	useRef,
 	useState,
 } from "react";
@@ -31,6 +32,7 @@ import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
+import { RenderPanel } from "./components/RightPanel/RenderPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
@@ -38,6 +40,7 @@ import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { useRenderForUserSpec } from "./hooks/useRenderForUserSpec";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -265,6 +268,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const effectiveScrollToBottomRef =
 		scrollToBottomRef ?? internalScrollToBottomRef;
 
+	// Extract render_for_user spec from chat messages for the
+	// right panel tab. Returns null when no such tool call exists.
+	const renderSpec = useRenderForUserSpec(store);
+
+	// Auto-open the right panel and switch to the render tab when
+	// a render_for_user tool call first appears.
+	const prevRenderSpecRef = useRef(renderSpec);
+	useEffect(() => {
+		if (renderSpec && !prevRenderSpecRef.current) {
+			onSetShowSidebarPanel(true);
+			setSidebarTabId("render");
+		}
+		prevRenderSpecRef.current = renderSpec;
+	}, [renderSpec, onSetShowSidebarPanel]);
+
 	// State for programmatically switching the sidebar tab (e.g. when
 	// the user clicks the inline desktop preview card).
 	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
@@ -327,6 +345,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			? [{ id: "terminal", label: "Terminal" }]
 			: []),
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+		...(renderSpec
+			? [
+					{
+						id: "render",
+						label: renderSpec.title || "AI View",
+						icon: <LayoutDashboardIcon className="h-3 w-3" />,
+					},
+				]
+			: []),
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(
@@ -368,6 +395,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
 					/>
 				);
+			case "render":
+				return renderSpec ? (
+					<RenderPanel spec={renderSpec.spec} title={renderSpec.title} />
+				) : null;
 			default:
 				return null;
 		}

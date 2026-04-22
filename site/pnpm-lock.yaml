@@ -64,6 +64,12 @@ importers:
       '@fontsource/source-code-pro':
         specifier: 5.2.7
         version: 5.2.7
+      '@json-render/core':
+        specifier: 0.18.0
+        version: 0.18.0(zod@4.3.6)
+      '@json-render/react':
+        specifier: 0.18.0
+        version: 0.18.0(react@19.2.2)(zod@4.3.6)
       '@lexical/react':
         specifier: 0.41.0
         version: 0.41.0(react-dom@19.2.2(react@19.2.2))(react@19.2.2)(yjs@13.6.29)
@@ -259,6 +265,9 @@ importers:
       yup:
         specifier: 1.7.1
         version: 1.7.1
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
     devDependencies:
       '@babel/core':
         specifier: 7.29.0
@@ -1065,6 +1074,16 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==, tarball: https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz}
+
+  '@json-render/core@0.18.0':
+    resolution: {integrity: sha512-zm0K9cgxZLGshw5TmdKe3Xc6fpjbONdlj3v+Er+HhCYZ9fSJpv32d9VzQds4bDW36vPfdieAOcsPR9+EcTff7Q==, tarball: https://registry.npmjs.org/@json-render/core/-/core-0.18.0.tgz}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@json-render/react@0.18.0':
+    resolution: {integrity: sha512-rT0hJ9mK2BGfLxZ/ztS4UF1XqAz/o+FNtFgii7hea7VjD4u0wJYyRphe4a5DetS/dSMZFECXkmida+xi3wKl9A==, tarball: https://registry.npmjs.org/@json-render/react/-/react-0.18.0.tgz}
+    peerDependencies:
+      react: ^19.2.3
 
   '@leeoniya/ufuzzy@1.0.10':
     resolution: {integrity: sha512-OR1yiyN8cKBn5UiHjKHUl0LcrTQt4vZPUpIf96qIIZVLxgd4xyASuRvTZ3tjbWvuyQAMgvKsq61Nwu131YyHnA==, tarball: https://registry.npmjs.org/@leeoniya/ufuzzy/-/ufuzzy-1.0.10.tgz}
@@ -6370,8 +6389,8 @@ packages:
   yup@1.7.1:
     resolution: {integrity: sha512-GKHFX2nXul2/4Dtfxhozv701jLQHdf6J34YDh2cEkpqoo8le5Mg6/LrdseVLrFarmFygZTlfIhHx/QKfb/QWXw==, tarball: https://registry.npmjs.org/yup/-/yup-1.7.1.tgz}
 
-  zod@4.1.13:
-    resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==, tarball: https://registry.npmjs.org/zod/-/zod-4.1.13.tgz}
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==, tarball: https://registry.npmjs.org/zod/-/zod-4.3.6.tgz}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==, tarball: https://registry.npmjs.org/zwitch/-/zwitch-2.0.4.tgz}
@@ -7013,6 +7032,17 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@json-render/core@0.18.0(zod@4.3.6)':
+    dependencies:
+      zod: 4.3.6
+
+  '@json-render/react@0.18.0(react@19.2.2)(zod@4.3.6)':
+    dependencies:
+      '@json-render/core': 0.18.0(zod@4.3.6)
+      react: 19.2.2
+    transitivePeerDependencies:
+      - zod
 
   '@leeoniya/ufuzzy@1.0.10': {}
 
@@ -10569,7 +10599,7 @@ snapshots:
       smol-toml: 1.5.2
       strip-json-comments: 5.0.3
       typescript: 6.0.2
-      zod: 4.1.13
+      zod: 4.3.6
 
   langium@4.2.1:
     dependencies:
@@ -12898,6 +12928,6 @@ snapshots:
       toposort: 2.0.2
       type-fest: 2.19.0
 
-  zod@4.1.13: {}
+  zod@4.3.6: {}
 
   zwitch@2.0.4: {}

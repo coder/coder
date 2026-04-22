@@ -237,6 +237,14 @@ export const ToolLabel: React.FC<{
 					Screenshot
 				</span>
 			);
+		case "render_for_user": {
+			const viewTitle = parsed ? asString(parsed.title) : "";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{viewTitle ? `View: ${viewTitle}` : "Rendering view…"}
+				</span>
+			);
+		}
 		case "propose_plan": {
 			const path = parsed ? asString(parsed.path) || "PLAN.md" : "PLAN.md";
 			const filename = path.split("/").pop() || "PLAN.md";

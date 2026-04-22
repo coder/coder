@@ -29,6 +29,7 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
+import { RenderForUserTool } from "./RenderForUserTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import {
@@ -63,7 +64,6 @@ import {
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
-
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -702,6 +702,26 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const RenderForUserRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const title = parsedArgs ? asString(parsedArgs.title) : "";
+	const rec = asRecord(result);
+
+	return (
+		<RenderForUserTool
+			title={title}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -951,6 +971,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	computer: ComputerRenderer,
+	render_for_user: RenderForUserRenderer,
 };
 
 // ---------------------------------------------------------------------------
