@@ -18,8 +18,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/mcp"
 )
 
 // mockToolName is the primary mock tool name used in MCP tests.

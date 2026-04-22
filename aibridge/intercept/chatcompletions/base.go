@@ -15,16 +15,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/coder/aibridge/config"
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/intercept/apidump"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/recorder"
-	"github.com/coder/aibridge/tracing"
-	"github.com/coder/quartz"
-
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/quartz"
 )
 
 type interceptionBase struct {

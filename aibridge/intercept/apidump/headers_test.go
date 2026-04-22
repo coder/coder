@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"cdr.dev/slog/v3"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 )
 

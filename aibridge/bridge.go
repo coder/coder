@@ -18,13 +18,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/circuitbreaker"
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/metrics"
-	"github.com/coder/aibridge/provider"
-	"github.com/coder/aibridge/recorder"
-	"github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/tracing"
 )
 
 const (

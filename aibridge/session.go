@@ -9,7 +9,7 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.

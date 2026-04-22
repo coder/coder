@@ -12,10 +12,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge/intercept/apidump"
-	"github.com/coder/aibridge/metrics"
-	"github.com/coder/aibridge/provider"
-	"github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
 )
 

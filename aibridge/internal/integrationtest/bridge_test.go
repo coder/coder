@@ -24,15 +24,15 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/fixtures"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/provider"
-	"github.com/coder/aibridge/recorder"
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/fixtures"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestMain(m *testing.M) {

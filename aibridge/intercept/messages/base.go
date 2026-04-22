@@ -16,23 +16,21 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"golang.org/x/xerrors"
-
-	aibconfig "github.com/coder/aibridge/config"
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/intercept/apidump"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/recorder"
-	"github.com/coder/aibridge/tracing"
-	"github.com/coder/aibridge/utils"
-	"github.com/coder/quartz"
-
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	aibconfig "github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 // bedrockSupportedBetaFlags is the set of Anthropic-Beta flags that AWS Bedrock

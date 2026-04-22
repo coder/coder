@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
 var testTracer = otel.Tracer("bridge_test")

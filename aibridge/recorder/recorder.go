@@ -5,14 +5,12 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/coder/aibridge/metrics"
-	"github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/tracing"
 )
 
 var (

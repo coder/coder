@@ -14,10 +14,10 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/intercept"
-	"github.com/coder/aibridge/intercept/chatcompletions"
-	"github.com/coder/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
 // Test that when the upstream provider returns an error before streaming starts,

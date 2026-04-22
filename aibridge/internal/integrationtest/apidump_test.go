@@ -14,12 +14,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/fixtures"
-	"github.com/coder/aibridge/intercept/apidump"
-	"github.com/coder/aibridge/internal/testutil"
-	"github.com/coder/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/fixtures"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/provider"
 )
 
 func TestAPIDump(t *testing.T) {

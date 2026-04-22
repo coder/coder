@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge/config"
-	"github.com/coder/aibridge/metrics"
-	"github.com/coder/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/provider"
 )
 
 // Common response bodies for circuit breaker tests.

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	aibcontext "github.com/coder/aibridge/context"
-	"github.com/coder/aibridge/recorder"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestAsActor(t *testing.T) {

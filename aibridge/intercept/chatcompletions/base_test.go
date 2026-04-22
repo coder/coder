@@ -6,7 +6,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestScanForCorrelatingToolCallID(t *testing.T) {

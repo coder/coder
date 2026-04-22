@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 // MockRecorder is a test implementation of aibridge.Recorder that
