@@ -888,6 +888,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	require.Contains(t, tools, "execute")
 	require.Contains(t, tools, "process_output")
 	require.Contains(t, tools, "external-snapshot-mcp__echo")
+	require.Contains(t, tools, "web_search", "Explore provider tool filter should let web_search through when the current model supports it")
 	require.NotContains(t, tools, "second-mcp__echo")
 	require.NotContains(t, tools, workspaceToolName)
 	require.NotContains(t, tools, "write_file")
