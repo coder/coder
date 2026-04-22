@@ -6,7 +6,7 @@ import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsS
 import { SectionHeader } from "./components/SectionHeader";
 import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
 
-export interface AgentSettingsSystemInstructionsPageViewProps {
+export interface AgentSettingsInstructionsPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
@@ -29,8 +29,8 @@ export interface AgentSettingsSystemInstructionsPageViewProps {
 	isSavePlanModeInstructionsError: boolean;
 }
 
-export const AgentSettingsSystemInstructionsPageView: FC<
-	AgentSettingsSystemInstructionsPageViewProps
+export const AgentSettingsInstructionsPageView: FC<
+	AgentSettingsInstructionsPageViewProps
 > = ({
 	systemPromptData,
 	planModeInstructionsData,

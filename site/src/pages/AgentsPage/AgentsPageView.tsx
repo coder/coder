@@ -6,6 +6,7 @@ import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
+	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -117,8 +118,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	// Mobile can't fit the sidebar nav and content side by side,
 	// so we show one or the other depending on the route depth.
-	const isSettingsPanel =
-		sidebarView.panel === "settings" || sidebarView.panel === "settings-admin";
+	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isAnalytics = sidebarView.panel === "analytics";

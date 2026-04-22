@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
-	AgentSettingsSystemInstructionsPageView,
-	type AgentSettingsSystemInstructionsPageViewProps,
-} from "./AgentSettingsSystemInstructionsPageView";
+	AgentSettingsInstructionsPageView,
+	type AgentSettingsInstructionsPageViewProps,
+} from "./AgentSettingsInstructionsPageView";
 
 const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant.";
 
-const baseArgs: AgentSettingsSystemInstructionsPageViewProps = {
+const baseArgs: AgentSettingsInstructionsPageViewProps = {
 	systemPromptData: {
 		system_prompt: "Always explain tradeoffs before proposing a change.",
 		include_default_system_prompt: true,
@@ -26,13 +26,13 @@ const baseArgs: AgentSettingsSystemInstructionsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsSystemInstructionsPageView",
-	component: AgentSettingsSystemInstructionsPageView,
+	title: "pages/AgentsPage/AgentSettingsInstructionsPageView",
+	component: AgentSettingsInstructionsPageView,
 	args: baseArgs,
-} satisfies Meta<typeof AgentSettingsSystemInstructionsPageView>;
+} satisfies Meta<typeof AgentSettingsInstructionsPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsSystemInstructionsPageView>;
+type Story = StoryObj<typeof AgentSettingsInstructionsPageView>;
 
 export const Default: Story = {};
 

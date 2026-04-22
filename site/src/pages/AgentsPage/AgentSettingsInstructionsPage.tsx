@@ -8,9 +8,9 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsSystemInstructionsPageView } from "./AgentSettingsSystemInstructionsPageView";
+import { AgentSettingsInstructionsPageView } from "./AgentSettingsInstructionsPageView";
 
-const AgentSettingsSystemInstructionsPage: FC = () => {
+const AgentSettingsInstructionsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 
@@ -31,7 +31,7 @@ const AgentSettingsSystemInstructionsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsSystemInstructionsPageView
+			<AgentSettingsInstructionsPageView
 				systemPromptData={systemPromptQuery.data}
 				planModeInstructionsData={planModeInstructionsQuery.data}
 				onSaveSystemPrompt={saveSystemPromptMutation.mutate}
@@ -49,4 +49,4 @@ const AgentSettingsSystemInstructionsPage: FC = () => {
 	);
 };
 
-export default AgentSettingsSystemInstructionsPage;
+export default AgentSettingsInstructionsPage;

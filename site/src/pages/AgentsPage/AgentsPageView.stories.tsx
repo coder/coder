@@ -31,10 +31,10 @@ import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
+import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
 import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
-import AgentSettingsSystemInstructionsPage from "./AgentSettingsSystemInstructionsPage";
 import { AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 
@@ -179,7 +179,7 @@ const agentsRouting = {
 				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
 				{
 					path: "instructions",
-					element: <AgentSettingsSystemInstructionsPage />,
+					element: <AgentSettingsInstructionsPage />,
 				},
 				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },

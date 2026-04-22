@@ -52,7 +52,7 @@ import {
 	SparklesIcon,
 	SquarePenIcon,
 	Trash2Icon,
-	UsersIcon,
+	UserIcon,
 } from "lucide-react";
 import {
 	createContext,
@@ -151,6 +151,12 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 		};
 	}
 	return { panel: "chats" };
+}
+
+export function isSettingsView(
+	view: SidebarView,
+): view is Extract<SidebarView, { panel: "settings" | "settings-admin" }> {
+	return view.panel === "settings" || view.panel === "settings-admin";
 }
 
 interface AgentsSidebarProps {
@@ -846,13 +852,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
-	const isSettingsPanel =
-		sidebarView.panel === "settings" || sidebarView.panel === "settings-admin";
+	const isSettingsPanel = isSettingsView(sidebarView);
+	const isFallbackToUserPanel =
+		sidebarView.panel === "settings-admin" && !isAdmin;
 	const settingsPanel =
 		sidebarView.panel === "settings-admin" && isAdmin
 			? "settings-admin"
 			: "settings";
-	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
+	const settingsSection =
+		isSettingsPanel && !isFallbackToUserPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
 		enabled: isSettingsPanel && !isAdmin,
@@ -1359,7 +1367,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				{settingsPanel === "settings" ? (
 					<nav className="flex flex-col gap-0.5 px-2 py-2">
 						<SettingsNavItem
-							icon={UsersIcon}
+							icon={UserIcon}
 							label="General"
 							active={!settingsSection || settingsSection === "general"}
 							to="/agents/settings/general"
@@ -1385,7 +1393,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<SettingsNavItem
 								icon={Settings2Icon}
 								label="Manage Agents"
-								active={sidebarView.panel === "settings-admin" && isAdmin}
+								active={false}
 								to="/agents/settings/admin"
 								state={location.state}
 								trailingIcon={ChevronRightIcon}
@@ -1417,7 +1425,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						/>
 						<SettingsNavItem
 							icon={ServerIcon}
-							label="MCP servers"
+							label="MCP Servers"
 							active={settingsSection === "mcp-servers"}
 							to="/agents/settings/mcp-servers"
 							state={location.state}
