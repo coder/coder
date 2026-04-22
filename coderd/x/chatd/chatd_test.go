@@ -746,6 +746,22 @@ func TestExploreChatUsesPersistedToolSnapshot(t *testing.T) {
 			})
 			externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
 			defer externalMCPServer.Close()
+			secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
+			secondMCP.AddTools(mcpserver.ServerTool{
+				Tool: mcpgo.NewTool("echo",
+					mcpgo.WithDescription("Echoes the input"),
+					mcpgo.WithString("input",
+						mcpgo.Description("The input string"),
+						mcpgo.Required(),
+					),
+				),
+				Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+					input, _ := req.GetArguments()["input"].(string)
+					return mcpgo.NewToolResultText("echo: " + input), nil
+				},
+			})
+			secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
+			defer secondMCPServer.Close()
 
 			var (
 				requestsMu sync.Mutex
@@ -832,6 +848,20 @@ func TestExploreChatUsesPersistedToolSnapshot(t *testing.T) {
 				DisplayName:   "External Snapshot MCP",
 				Slug:          "external-snapshot-mcp",
 				Url:           externalMCPServer.URL,
+				Transport:     "streamable_http",
+				AuthType:      "none",
+				Availability:  "default_off",
+				Enabled:       true,
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+				CreatedBy:     user.ID,
+				UpdatedBy:     user.ID,
+			})
+			require.NoError(t, err)
+			_, err = db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				DisplayName:   "Second MCP",
+				Slug:          "second-mcp",
+				Url:           secondMCPServer.URL,
 				Transport:     "streamable_http",
 				AuthType:      "none",
 				Availability:  "default_off",
@@ -931,6 +961,7 @@ func TestExploreChatUsesPersistedToolSnapshot(t *testing.T) {
 			require.Contains(t, tools, "execute")
 			require.Contains(t, tools, "process_output")
 			require.Contains(t, tools, "external-snapshot-mcp__echo")
+			require.NotContains(t, tools, "second-mcp__echo")
 			require.NotContains(t, tools, workspaceToolName)
 			require.NotContains(t, tools, "write_file")
 			require.NotContains(t, tools, "edit_files")
