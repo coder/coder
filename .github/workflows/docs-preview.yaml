@@ -1,0 +1,42 @@
+# This workflow posts a docs preview link as a PR comment whenever a
+# pull request that touches files under docs/ is opened.  The preview
+# is served by coder.com's branch-preview feature at /docs/@<branch>.
+#
+# Branch names are URL-encoded so that names containing slashes or
+# other special characters produce working links.
+
+name: docs-preview
+
+on:
+  pull_request:
+    types:
+      - opened
+    paths:
+      - "docs/**"
+
+permissions:
+  contents: read
+
+jobs:
+  docs-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # needed for commenting on PRs
+    steps:
+      - name: Post docs preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # URL-encode the branch name so slashes and special
+          # characters don't break the preview URL.
+          encoded=$(jq -rn --arg b "$BRANCH" '$b | @uri')
+          url="https://coder.com/docs/@${encoded}"
+
+          gh pr comment "${PR_NUMBER}" \
+            --repo "${{ github.repository }}" \
+            --body "## Docs preview
+          [:book: View docs preview](${url})
+
+          <!-- docs-preview -->"
