@@ -20,7 +20,7 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
-import { createMockWebSocket } from "#/testHelpers/websockets";
+import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
@@ -47,33 +47,7 @@ describe("CreateWorkspacePage", () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
-
-		vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-			(_versionId, _ownerId, callbacks) => {
-				const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-				mockWebSocket.addEventListener("message", (event) => {
-					callbacks.onMessage(JSON.parse(event.data));
-				});
-				mockWebSocket.addEventListener("error", () => {
-					callbacks.onError(
-						new Error("Connection for dynamic parameters failed."),
-					);
-				});
-				mockWebSocket.addEventListener("close", () => {
-					callbacks.onClose();
-				});
-
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify(MockDynamicParametersResponse),
-					}),
-				);
-
-				return mockWebSocket;
-			},
-		);
+		mockDynamicParameterWebSocket(MockDynamicParametersResponse);
 	});
 
 	afterEach(() => {
@@ -106,31 +80,8 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("sends parameter updates via WebSocket when form values change", async () => {
-			const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(
-							new Error("Connection for dynamic parameters failed."),
-						);
-					});
-					mockWebSocket.addEventListener("close", () => {
-						callbacks.onClose();
-					});
-
-					publisher.publishOpen(new Event("open"));
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(MockDynamicParametersResponse),
-						}),
-					);
-
-					return mockWebSocket;
-				},
+			const [mockWebSocket] = mockDynamicParameterWebSocket(
+				MockDynamicParametersResponse,
 			);
 
 			renderCreateWorkspacePage();
@@ -167,17 +118,7 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("handles WebSocket error gracefully", async () => {
-			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(new Error("Connection failed"));
-					});
-
-					return mockWebSocket;
-				},
-			);
+			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
 
 			renderCreateWorkspacePage();
 
@@ -192,23 +133,15 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
-					within(alert).getByRole("heading", { name: /connection failed/i }),
+					within(alert).getByRole("heading", {
+						name: /connection for dynamic parameters failed/i,
+					}),
 				).toBeInTheDocument();
 			});
 		});
 
 		it("handles WebSocket close event", async () => {
-			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("close", () => {
-						callbacks.onClose();
-					});
-
-					return mockWebSocket;
-				},
-			);
+			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
 
 			renderCreateWorkspacePage();
 
@@ -231,27 +164,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
-			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: 0,
-								parameters: [MockDropdownParameter],
-								diagnostics: [],
-							}),
-						}),
-					);
-
-					return mockWebSocket;
-				},
-			);
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockDropdownParameter,
+			]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -286,23 +201,7 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(MockDynamicParametersResponseWithError),
-						}),
-					);
-
-					return mockWebSocket;
-				},
-			);
+			mockDynamicParameterWebSocket(MockDynamicParametersResponseWithError);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -346,38 +245,20 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-				(_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+			const [mockWebSocket, publisher] =
+				mockDynamicParameterWebSocket(mockResponseInitial);
+			const originalSend = mockWebSocket.send;
+			mockWebSocket.send = vi.fn((data) => {
+				originalSend.call(mockWebSocket, data);
 
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					publisher.publishOpen(new Event("open"));
-
+				if (typeof data === "string" && data.includes('"200"')) {
 					publisher.publishMessage(
 						new MessageEvent("message", {
-							data: JSON.stringify(mockResponseInitial),
+							data: JSON.stringify(mockResponseWithError),
 						}),
 					);
-
-					const originalSend = mockWebSocket.send;
-					mockWebSocket.send = vi.fn((data) => {
-						originalSend.call(mockWebSocket, data);
-
-						if (typeof data === "string" && data.includes('"200"')) {
-							publisher.publishMessage(
-								new MessageEvent("message", {
-									data: JSON.stringify(mockResponseWithError),
-								}),
-							);
-						}
-					});
-
-					return mockWebSocket;
-				},
-			);
+				}
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
