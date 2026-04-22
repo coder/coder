@@ -51,7 +51,7 @@ func GuessClient(r *http.Request) Client {
 		return ClientRoo
 	case strings.HasPrefix(userAgent, "coder-agents/"):
 		return ClientCoderAgents
-	case strings.HasPrefix(userAgent, "charm crush/"):
+	case strings.HasPrefix(userAgent, "charm crush/") || strings.HasPrefix(userAgent, "charm-crush/"):
 		return ClientCrush
 	case r.Header.Get("x-cursor-client-version") != "":
 		return ClientCursor

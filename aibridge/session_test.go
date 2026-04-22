@@ -182,6 +182,11 @@ func TestGuessSessionID(t *testing.T) {
 			name:   "coder_agents_without_chat_id",
 			client: aibridge.ClientCoderAgents,
 		},
+		// Crush.
+		{
+			name:   "crush_returns_empty",
+			client: aibridge.ClientCrush,
+		},
 		// Roo.
 		{
 			name:   "roo_returns_empty",

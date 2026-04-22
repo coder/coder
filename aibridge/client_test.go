@@ -79,8 +79,13 @@ func TestGuessClient(t *testing.T) {
 			wantClient: aibridge.ClientCoderAgents,
 		},
 		{
-			name:       "charm_crush",
+			name:       "charm_crush_space",
 			userAgent:  "Charm Crush/0.1.11",
+			wantClient: aibridge.ClientCrush,
+		},
+		{
+			name:       "charm_crush_hyphen",
+			userAgent:  "Charm-Crush/0.2.0 (https://charm.land/crush)",
 			wantClient: aibridge.ClientCrush,
 		},
 		{
