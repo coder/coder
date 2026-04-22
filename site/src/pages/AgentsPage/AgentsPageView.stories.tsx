@@ -677,6 +677,10 @@ export const OpensSettingsForNonAdmins: Story = {
 				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
+
+		expect(
+			screen.queryByRole("link", { name: "Manage Agents" }),
+		).not.toBeInTheDocument();
 	},
 };
 
