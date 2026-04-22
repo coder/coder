@@ -6015,7 +6015,7 @@ func (p *Server) runChat(
 		// FOR UPDATE lock is held only for the INSERT statements.
 		// Marshaling is pure CPU work with no database dependency.
 		assistantParts := buildAssistantPartsForPersist(
-			ctx,
+			persistCtx,
 			p.logger,
 			assistantBlocks,
 			toolResults,
@@ -6035,7 +6035,7 @@ func (p *Server) runChat(
 
 		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
 		for i, tr := range toolResults {
-			trPart := chatprompt.PartFromContent(tr)
+			trPart := chatprompt.PartFromContentWithLogger(ctx, logger, tr)
 			if trPart.ToolName != "" {
 				if configID, ok := toolNameToConfigID[trPart.ToolName]; ok {
 					trPart.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
@@ -6496,6 +6496,7 @@ func (p *Server) runChat(
 			}
 			p.publishMessagePart(chat.ID, role, part)
 		},
+		Logger:     logger,
 		Compaction: compactionOptions,
 		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
 			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)
