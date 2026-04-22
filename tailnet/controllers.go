@@ -246,10 +246,12 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
-		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
-		return xerrors.Errorf("send disconnect: %w", err)
+		// Log but don't return early; we must still clean up below.
+		c.logger.Warn(context.Background(), "failed to send disconnect", slog.Error(err))
+		retErr = xerrors.Errorf("send disconnect: %w", err)
+	} else {
+		c.logger.Debug(context.Background(), "sent disconnect")
 	}
-	c.logger.Debug(context.Background(), "sent disconnect")
 
 	// We shouldn't just close the protocol right away, because the way dRPC streams work is
 	// that if you close them, that could take effect immediately, even before the Disconnect
