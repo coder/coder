@@ -149,6 +149,8 @@ func createParentChatWithInheritedContext(
 	t.Helper()
 
 	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertInternalChatProvider(ctx, t, db, user.ID, "anthropic", "test-anthropic-key", true)
+	_ = insertInternalComputerUseModelConfig(ctx, t, db, user.ID, "anthropic", true, nil)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,

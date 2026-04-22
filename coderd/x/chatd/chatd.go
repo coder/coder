@@ -6299,32 +6299,6 @@ func (p *Server) runChat(
 		},
 	}
 
-	if isComputerUse {
-		// Override model for computer use subagent.
-		resolvedProvider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(
-			chattool.ComputerUseModelName,
-			chattool.ComputerUseModelProvider,
-		)
-		if resolveErr != nil {
-			return result, xerrors.Errorf("resolve computer use model metadata: %w", resolveErr)
-		}
-		cuModel, cuDebugEnabled, cuErr := p.newDebugAwareModelFromConfig(
-			ctx,
-			chat,
-			chattool.ComputerUseModelProvider,
-			chattool.ComputerUseModelName,
-			providerKeys,
-			chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
-		)
-		if cuErr != nil {
-			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
-		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		debugProvider = resolvedProvider
-		debugModel = resolvedModel
-	}
 	if debugEnabled {
 		if debugSvc == nil {
 			return result, xerrors.New("chat debug service missing after enablement check")
@@ -6460,10 +6434,12 @@ func (p *Server) runChat(
 		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
 		providerTools = append(providerTools, chatloop.ProviderTool{
 			Definition: chattool.ComputerUseProviderTool(
+				model.Provider(),
 				desktopGeometry.DeclaredWidth,
 				desktopGeometry.DeclaredHeight,
 			),
 			Runner: chattool.NewComputerUseTool(
+				model.Provider(),
 				desktopGeometry.DeclaredWidth,
 				desktopGeometry.DeclaredHeight,
 				workspaceCtx.getWorkspaceConn,
@@ -6850,6 +6826,30 @@ func (p *Server) resolveChatModel(
 	resolvedModel string,
 	err error,
 ) {
+	if chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse {
+		target, providerKeys, err := validatePinnedComputerUseTarget(ctx, p, chat)
+		if err != nil {
+			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf(
+				"resolve pinned computer use model: %w", err,
+			)
+		}
+		model, debugEnabled, err = p.newDebugAwareModelFromConfig(
+			ctx,
+			chat,
+			target.config.Provider,
+			target.config.Model,
+			providerKeys,
+			chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
+		)
+		if err != nil {
+			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf(
+				"create pinned computer use model: %w", err,
+			)
+		}
+		return model, target.config, providerKeys, debugEnabled, target.provider, target.model, nil
+	}
+
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error

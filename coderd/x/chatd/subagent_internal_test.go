@@ -900,11 +900,13 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 
 	trueValue := true
 	tests := []struct {
-		name            string
-		setupProviders  func(context.Context, *testing.T, database.Store, uuid.UUID) map[string]database.ChatModelConfig
-		parentModel     func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
-		wantProvider    string
-		wantResolvedKey string
+		name                    string
+		setupProviders          func(context.Context, *testing.T, database.Store, uuid.UUID) map[string]database.ChatModelConfig
+		parentModel             func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		parentModelKey          string
+		wantProvider            string
+		wantResolvedKey         string
+		wantDifferentFromParent bool
 	}{
 		{
 			name: "FallbacksToAnthropicFromOpenAICompat",
@@ -920,8 +922,9 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
 				return insertInternalChatModelConfigWithProvider(ctx, t, db, userID, "openai-compat", "gpt-4o-mini", true, true, json.RawMessage(`{}`))
 			},
-			wantProvider:    "anthropic",
-			wantResolvedKey: "anthropic",
+			wantProvider:            "anthropic",
+			wantResolvedKey:         "anthropic",
+			wantDifferentFromParent: true,
 		},
 		{
 			name: "FallbacksToOpenAIWhenAnthropicUnavailable",
@@ -935,8 +938,9 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
 				return insertInternalChatModelConfigWithProvider(ctx, t, db, userID, "openai-compat", "gpt-4o-mini", true, true, json.RawMessage(`{}`))
 			},
-			wantProvider:    "openai",
-			wantResolvedKey: "openai",
+			wantProvider:            "openai",
+			wantResolvedKey:         "openai",
+			wantDifferentFromParent: true,
 		},
 		{
 			name: "KeepsOpenAIWhenAlreadyPinnedToOpenAIComputerUse",
@@ -948,12 +952,10 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 					"openai":    insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue),
 				}
 			},
-			parentModel: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
-				insertInternalChatProvider(ctx, t, db, userID, "openai", "test-openai-key", true)
-				return insertInternalComputerUseModelConfig(ctx, t, db, userID, "openai", true, &trueValue)
-			},
-			wantProvider:    "openai",
-			wantResolvedKey: "openai",
+			parentModelKey:          "openai",
+			wantProvider:            "openai",
+			wantResolvedKey:         "openai",
+			wantDifferentFromParent: false,
 		},
 	}
 
@@ -967,7 +969,12 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 			ctx := chatdTestContext(t)
 			user, org := seedInternalChatIdentity(ctx, t, db)
 			availableModels := tt.setupProviders(ctx, t, db, user.ID)
-			parentModel := tt.parentModel(ctx, t, db, user.ID)
+			parentModel := database.ChatModelConfig{}
+			if tt.parentModelKey != "" {
+				parentModel = availableModels[tt.parentModelKey]
+			} else {
+				parentModel = tt.parentModel(ctx, t, db, user.ID)
+			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 			parentChat := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-computer-use-"+tt.name)
 
@@ -993,8 +1000,12 @@ func TestSpawnAgent_ComputerUsePinsResolvedModelConfig(t *testing.T) {
 			require.True(t, childChat.Mode.Valid)
 			require.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
 			require.Equal(t, availableModels[tt.wantResolvedKey].ID, childChat.LastModelConfigID)
-			require.NotEqual(t, parentChat.LastModelConfigID, childChat.LastModelConfigID,
-				"computer use child must persist the resolved model config, not the parent model blindly")
+			if tt.wantDifferentFromParent {
+				require.NotEqual(t, parentChat.LastModelConfigID, childChat.LastModelConfigID,
+					"computer use child must persist the resolved model config, not the parent model blindly")
+			} else {
+				require.Equal(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+			}
 
 			resolvedConfig, err := server.configCache.ModelConfigByID(ctx, childChat.LastModelConfigID)
 			require.NoError(t, err)

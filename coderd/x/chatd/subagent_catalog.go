@@ -77,18 +77,23 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isAnthropicConfigured(ctx) || !p.isDesktopEnabled(ctx) {
+				if !p.isComputerUseConfigured(ctx) || !p.isDesktopEnabled(ctx) {
 					return `type "computer_use" is unavailable because computer use is not configured`
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+				target, err := resolveComputerUseTarget(ctx, p, parent)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,
 						Valid:    true,
 					},
-					systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
+					systemPrompt:          computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
+					modelConfigIDOverride: &target.config.ID,
 				}, nil
 			},
 		},
