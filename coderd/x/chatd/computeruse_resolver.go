@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -51,6 +52,15 @@ func (p *Server) isComputerUseConfigured(ctx context.Context) bool {
 		}
 		target, err := computerUseTargetFromConfig(cfg)
 		if err != nil {
+			normalizedProvider := chatprovider.NormalizeProvider(cfg.Provider)
+			if normalizedProvider == "" {
+				normalizedProvider = strings.TrimSpace(cfg.Provider)
+			}
+			p.logger.Debug(ctx, "skipping invalid computer use model config",
+				slog.F("model_config_id", cfg.ID),
+				slog.F("provider", normalizedProvider),
+				slog.Error(err),
+			)
 			continue
 		}
 		if err := computerUseTargetEligibilityError(target, deploymentKeys); err == nil {

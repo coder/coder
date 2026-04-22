@@ -853,7 +853,7 @@ func TestComputerUseAvailability(t *testing.T) {
 			wantAvailable: false,
 		},
 		{
-			name: "OpenAICompatOnly",
+			name: "MalformedOpenAICompatOnly",
 			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
 				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
 				return insertInternalChatModelConfigWithProvider(
@@ -869,6 +869,27 @@ func TestComputerUseAvailability(t *testing.T) {
 				)
 			},
 			wantAvailable: false,
+		},
+		{
+			name: "MalformedOpenAICompatSkippedWhenAnthropicValid",
+			setupParent: func(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) database.ChatModelConfig {
+				insertInternalChatProvider(ctx, t, db, userID, "openai-compat", "test-compat-key", true)
+				malformed := insertInternalChatModelConfigWithProvider(
+					ctx,
+					t,
+					db,
+					userID,
+					"openai-compat",
+					"gpt-4o-mini",
+					true,
+					true,
+					json.RawMessage(`{}`),
+				)
+				insertInternalChatProvider(ctx, t, db, userID, "anthropic", "test-anthropic-key", true)
+				_ = insertInternalComputerUseModelConfig(ctx, t, db, userID, "anthropic", true, nil)
+				return malformed
+			},
+			wantAvailable: true,
 		},
 	}
 
