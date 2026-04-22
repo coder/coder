@@ -28,6 +28,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
           # URL-encode the branch name so slashes and special
           # characters don't break the preview URL.
@@ -35,7 +36,7 @@ jobs:
           url="https://coder.com/docs/@${encoded}"
 
           gh pr comment "${PR_NUMBER}" \
-            --repo "${{ github.repository }}" \
+            --repo "${REPO}" \
             --body "## Docs preview
           [:book: View docs preview](${url})
 
