@@ -65,7 +65,7 @@ Essential packages (`curl`, `git`) are installed via cloud-init on first boot, b
 | **CPU** | Number of CPUs (1-8) | `1` |
 | **Memory** | Memory in GB (1-16) | `2` |
 | **Storage pool** | Incus storage pool name | `coder` |
-| **Git repository** | Clone a git repo inside the workspace | _(empty)_ |
+| **Git repository** | Clone a git repo inside the workspace | *(empty)* |
 
 ## Extending this template
 
