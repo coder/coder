@@ -267,7 +267,7 @@ func (p *heartbeatDropPubsub) SubscribeWithErr(event string, listener pubsub.Lis
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
+	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 
 		store, ps := dbtestutil.NewDB(t)
