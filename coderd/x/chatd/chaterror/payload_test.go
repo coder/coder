@@ -28,6 +28,19 @@ func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	}, payload)
 }
 
+func TestStreamErrorPayloadIncludesProviderDetail(t *testing.T) {
+	t.Parallel()
+
+	payload := chaterror.StreamErrorPayload(chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Image exceeds 5 MB maximum."}}`),
+	)))
+
+	require.Equal(t, "Image exceeds 5 MB maximum.", payload.Detail)
+}
+
 func TestStreamErrorPayloadNilForEmptyClassification(t *testing.T) {
 	t.Parallel()
 

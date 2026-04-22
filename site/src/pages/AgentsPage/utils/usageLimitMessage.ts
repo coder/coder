@@ -32,6 +32,7 @@ export type ChatProviderFailureKind =
  */
 export type ChatDetailError = {
 	message: string;
+	detail?: string;
 	kind: ChatProviderFailureKind | (string & {});
 	provider?: string;
 	retryable?: boolean;
@@ -54,6 +55,7 @@ export const chatDetailErrorsEqual = (
 	return (
 		left.kind === right.kind &&
 		left.message === right.message &&
+		left.detail === right.detail &&
 		left.provider === right.provider &&
 		left.retryable === right.retryable &&
 		left.statusCode === right.statusCode

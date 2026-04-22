@@ -3130,7 +3130,6 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 
 	// Track which status processChat writes during cleanup.
 	var finalStatus database.ChatStatus
-	cleanupDone := make(chan struct{})
 
 	// The deferred cleanup in processChat runs a transaction.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -3144,7 +3143,6 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
 			finalStatus = params.Status
-			close(cleanupDone)
 			return database.Chat{ID: chatID, Status: params.Status}, nil
 		},
 	)
@@ -3167,13 +3165,16 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
 
 	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
-	go server.processChat(ctx, chat)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.processChat(ctx, chat)
+	}()
 
-	select {
-	case <-cleanupDone:
-	case <-ctx.Done():
-		t.Fatal("processChat did not complete")
-	}
+	// Wait for processChat to finish entirely. It re-reads chat state and
+	// runs more cleanup after UpdateChatStatus, so signaling completion from
+	// the status update itself races test teardown.
+	testutil.TryReceive(ctx, t, done)
 
 	// If the stale notification interrupted us, status would be
 	// "waiting" (the ErrInterrupted path). Since the gate blocked

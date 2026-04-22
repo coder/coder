@@ -81,7 +81,7 @@ export const TerminalOverloadedError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded.",
+				message: "Anthropic is temporarily overloaded (HTTP 529).",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -94,11 +94,10 @@ export const TerminalOverloadedError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is currently overloaded./i),
+			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByText(/http 529/i)).toBeVisible();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
@@ -245,6 +244,34 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** Provider detail renders as a muted secondary line under the main error. */
+export const GenericErrorShowsProviderDetail: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "generic",
+				message: "Anthropic returned an unexpected error (HTTP 400).",
+				detail:
+					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+				provider: "anthropic",
+				statusCode: 400,
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error \(http 400\)/i),
+		).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };
 

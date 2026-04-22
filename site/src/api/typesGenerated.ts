@@ -2180,6 +2180,11 @@ export interface ChatStreamError {
 	 */
 	readonly message: string;
 	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
+	/**
 	 * Kind classifies the error for consistent client rendering.
 	 */
 	readonly kind?: string;
