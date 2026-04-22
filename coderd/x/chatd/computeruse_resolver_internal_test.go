@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,4 +23,27 @@ func TestComputerUseTargetFromConfig_RejectsUnsupportedProvider(t *testing.T) {
 	classified := chaterror.Classify(err)
 	require.Equal(t, chaterror.KindConfig, classified.Kind)
 	require.Equal(t, "openai-compat", classified.Provider)
+}
+
+func TestComputerUseTargetEligibilityError_ClassifiesInvalidOpenAIOptions(t *testing.T) {
+	t.Parallel()
+
+	target := computerUseTarget{
+		provider: "openai",
+		model:    "computer-use-preview-2025-03-11",
+		config: database.ChatModelConfig{
+			Provider: "openai",
+			Model:    "computer-use-preview-2025-03-11",
+			Enabled:  true,
+			Options:  json.RawMessage(`{"provider_options":`),
+		},
+	}
+
+	err := computerUseTargetEligibilityError(target, func(string) bool { return true })
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parse computer use model call config")
+
+	classified := chaterror.Classify(err)
+	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.Equal(t, "openai", classified.Provider)
 }

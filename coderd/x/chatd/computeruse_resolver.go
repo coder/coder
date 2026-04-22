@@ -283,7 +283,10 @@ func computerUseTargetEligibilityError(
 	if !chattool.SupportsComputerUse(target.provider) {
 		return xerrors.Errorf("computer use provider %q is not supported", target.provider)
 	}
-	defaultModel, _ := chattool.DefaultComputerUseModel(target.provider)
+	defaultModel, ok := chattool.DefaultComputerUseModel(target.provider)
+	if !ok {
+		return xerrors.Errorf("computer use provider %q has no default model", target.provider)
+	}
 	if target.model != defaultModel {
 		return xerrors.Errorf("computer use provider %q requires model %q", target.provider, defaultModel)
 	}
@@ -296,7 +299,11 @@ func computerUseTargetEligibilityError(
 	if target.provider == "openai" {
 		enabled, err := computerUseOpenAIStoreEnabled(target.config)
 		if err != nil {
-			return err
+			return chaterror.WithClassification(err, chaterror.ClassifiedError{
+				Message:  err.Error(),
+				Kind:     chaterror.KindConfig,
+				Provider: target.provider,
+			})
 		}
 		if !enabled {
 			return xerrors.New("computer use OpenAI model config requires provider_options.openai.store=true")
@@ -305,6 +312,8 @@ func computerUseTargetEligibilityError(
 	return nil
 }
 
+// computerUseOpenAIStoreEnabled treats an omitted OpenAI Store flag
+// as enabled so existing configs keep working.
 func computerUseOpenAIStoreEnabled(cfg database.ChatModelConfig) (bool, error) {
 	callConfig := codersdk.ChatModelCallConfig{}
 	if len(cfg.Options) > 0 {
