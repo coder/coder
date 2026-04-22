@@ -164,6 +164,13 @@ func TestWebSearchAllowedForTurn(t *testing.T) {
 			want:                    false,
 		},
 		{
+			name:                    "ExploreModeIgnoresPlanMode",
+			mode:                    exploreMode,
+			planMode:                planMode,
+			persistedAllowWebSearch: true,
+			want:                    true,
+		},
+		{
 			name:                    "ExploreModeUsesPersistedTrue",
 			mode:                    exploreMode,
 			persistedAllowWebSearch: true,

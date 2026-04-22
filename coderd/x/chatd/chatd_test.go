@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -63,13 +64,7 @@ type recordedOpenAIRequest struct {
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
-	if tool.Function.Name != "" {
-		return tool.Function.Name
-	}
-	if tool.Name != "" {
-		return tool.Name
-	}
-	return tool.Type
+	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
 }
 
 func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {

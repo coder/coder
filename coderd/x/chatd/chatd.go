@@ -5231,7 +5231,7 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 // resolveExploreToolSnapshot and defaultAllowWebSearchForChat. This
 // function does not re-derive it from the current model or plan mode.
 // Non-Explore turns follow the plan-mode policy. Plan mode blocks
-// web_search, Ask mode allows it.
+// web_search, non-plan turns allow it.
 func webSearchAllowedForTurn(
 	mode database.NullChatMode,
 	planMode database.NullChatPlanMode,
@@ -5374,6 +5374,11 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
+		// External MCP tools pass through here. They were snapshot-filtered
+		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
+		// implement MCPToolIdentifier, so workspace tools are excluded
+		// here too, in addition to the structural exclusion in runChat
+		// tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}
@@ -6807,6 +6812,11 @@ func (p *Server) modelConfigAllowsWebSearch(
 	return false, nil
 }
 
+// defaultAllowWebSearchForChat returns the initial allow_web_search
+// value for a newly created chat by checking the plan-mode policy and
+// the model's provider options. Explore children bypass this helper
+// and use their spawn-time snapshot instead, see
+// resolveExploreToolSnapshot.
 func (p *Server) defaultAllowWebSearchForChat(
 	ctx context.Context,
 	modelConfigID uuid.UUID,

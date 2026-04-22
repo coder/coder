@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -491,10 +492,13 @@ type childSubagentChatOptions struct {
 // re-escalate beyond the original grant. Non-Explore parents pass
 // through the second stage unchanged.
 //
-// allowWebSearch intersects the current child model's web_search support
-// with the parent turn's effective web_search entitlement via
-// webSearchAllowedForTurn. These snapshots are taken at spawn time and
-// never recomputed at runtime. runChat trusts the persisted values.
+// allowWebSearch intersects the spawning parent turn's model support for
+// web_search with the parent turn's effective web_search entitlement via
+// webSearchAllowedForTurn. The parent's model is checked deliberately,
+// not a child override model, because anti-escalation requires the child
+// to keep only what the parent actually had. These snapshots are taken at
+// spawn time and never recomputed at runtime. runChat trusts the
+// persisted values.
 func (p *Server) resolveExploreToolSnapshot(
 	ctx context.Context,
 	parent database.Chat,
@@ -504,7 +508,7 @@ func (p *Server) resolveExploreToolSnapshot(
 	if len(parent.MCPServerIDs) > 0 {
 		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
 		if err != nil {
-			return nil, false, xerrors.Errorf("get parent MCP server configs: %w", err)
+			return nil, false, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}
 
 		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
@@ -594,7 +598,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	mcpServerIDs := parent.MCPServerIDs
 	if isExploreSubagentMode(opts.chatMode) {
-		mcpServerIDs = append([]uuid.UUID(nil), opts.inheritedMCPServerIDs...)
+		mcpServerIDs = slices.Clone(opts.inheritedMCPServerIDs)
 	}
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
