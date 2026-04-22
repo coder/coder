@@ -179,8 +179,8 @@ type RunOptions struct {
 	Logger slog.Logger
 
 	// BuiltinToolNames lists tool names that are built into chatd.
-	// Tool results from tools not in this set are recorded under
-	// the "mcp" label to bound cardinality.
+	// Tool results from tools not in this set are recorded with
+	// the "mcp:" prefix.
 	BuiltinToolNames map[string]bool
 }
 
