@@ -582,7 +582,7 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 	f.callback = callback
 }
 
-func (_ *fakeCoordinatee) Node() *tailnet.Node {
+func (*fakeCoordinatee) Node() *tailnet.Node {
 	return nil
 }
 
