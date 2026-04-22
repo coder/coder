@@ -1,5 +1,6 @@
 import { ChevronDownIcon, WrenchIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { getErrorMessage } from "#/api/errors";
 import type { ChatDebugStep } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import {
@@ -11,7 +12,6 @@ import { cn } from "#/utils/cn";
 import { DebugAttemptAccordion } from "./DebugAttemptAccordion";
 import {
 	CopyableCodeBlock,
-	DEBUG_PANEL_METADATA_CLASS_NAME,
 	DebugDataSection,
 	EmptyHelper,
 	KeyValueGrid,
@@ -100,15 +100,18 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 		response.warnings.length > 0 ||
 		!!response.finishReason;
 
-	// Detect whether there is an error payload.
-	const stringError =
-		typeof step.error === "string" ? (step.error as string) : undefined;
+	// Detect whether there is an error payload. `step.error` is typed
+	// as an object but the runtime may deliver either a string or a
+	// non-empty object, so probe both shapes via an `unknown` view.
+	const rawError: unknown = step.error;
+	const isStringError =
+		typeof rawError === "string" && rawError.trim().length > 0;
 	const hasError =
-		(stringError !== undefined && stringError.trim().length > 0) ||
-		(!!step.error &&
-			typeof step.error === "object" &&
-			Object.keys(step.error).length > 0);
-	const errorText = stringError ?? safeJsonStringify(step.error);
+		isStringError ||
+		(typeof rawError === "object" &&
+			rawError !== null &&
+			Object.keys(rawError).length > 0);
+	const errorText = getErrorMessage(rawError, safeJsonStringify(rawError));
 
 	return (
 		<Collapsible defaultOpen={defaultOpen}>
@@ -156,7 +159,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 
 				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
-					<div className={DEBUG_PANEL_METADATA_CLASS_NAME}>
+					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
 						{request.options.max_output_tokens !== undefined ? (
 							<MetadataItem
@@ -368,11 +371,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 						<DebugDataSection title="Error">
 							<CopyableCodeBlock
 								code={errorText}
-								label={
-									stringError !== undefined
-										? "Copy error text"
-										: "Copy error JSON"
-								}
+								label={isStringError ? "Copy error text" : "Copy error JSON"}
 							/>
 						</DebugDataSection>
 					) : null}

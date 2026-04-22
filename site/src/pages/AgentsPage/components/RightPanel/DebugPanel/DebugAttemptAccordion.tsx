@@ -9,7 +9,6 @@ import {
 import { cn } from "#/utils/cn";
 import { DATE_FORMAT, formatDateTime, humanDuration } from "#/utils/time";
 import {
-	DEBUG_PANEL_METADATA_CLASS_NAME,
 	DebugCodeBlock,
 	DebugDataSection,
 	EmptyHelper,
@@ -136,7 +135,7 @@ export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
 											{attempt.status || "unknown"}
 										</Badge>
 									</div>
-									<p className={DEBUG_PANEL_METADATA_CLASS_NAME}>
+									<p className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 										<span>{getAttemptTimingLabel(attempt)}</span>
 									</p>
 								</div>

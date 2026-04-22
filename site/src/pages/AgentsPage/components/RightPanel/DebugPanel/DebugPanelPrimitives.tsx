@@ -4,17 +4,6 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { cn } from "#/utils/cn";
 import { getRoleBadgeVariant, safeJsonStringify } from "./debugPanelUtils";
 
-const DEBUG_PANEL_SECTION_TITLE_CLASS_NAME =
-	"text-xs font-medium text-content-secondary";
-
-export const DEBUG_PANEL_METADATA_CLASS_NAME =
-	"flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary";
-
-const DEBUG_PANEL_SECTION_CLASS_NAME = "space-y-1.5";
-
-const DEBUG_PANEL_CODE_BLOCK_CLASS_NAME =
-	"w-full max-w-full max-h-[28rem] overflow-auto rounded-lg bg-surface-tertiary/60 px-3 py-2.5 font-mono text-[12px] leading-5 text-content-primary shadow-inner";
-
 interface DebugDataSectionProps {
 	title: string;
 	description?: ReactNode;
@@ -29,8 +18,8 @@ export const DebugDataSection: FC<DebugDataSectionProps> = ({
 	className,
 }) => {
 	return (
-		<section className={cn(DEBUG_PANEL_SECTION_CLASS_NAME, className)}>
-			<h4 className={DEBUG_PANEL_SECTION_TITLE_CLASS_NAME}>{title}</h4>
+		<section className={cn("space-y-1.5", className)}>
+			<h4 className="text-xs font-medium text-content-secondary">{title}</h4>
 			{description ? (
 				<p className="text-xs leading-5 text-content-tertiary">{description}</p>
 			) : null}
@@ -49,7 +38,12 @@ export const DebugCodeBlock: FC<DebugCodeBlockProps> = ({
 	className,
 }) => {
 	return (
-		<pre className={cn(DEBUG_PANEL_CODE_BLOCK_CLASS_NAME, className)}>
+		<pre
+			className={cn(
+				"w-full max-w-full max-h-[28rem] overflow-auto rounded-lg bg-surface-tertiary/60 px-3 py-2.5 font-mono text-[12px] leading-5 text-content-primary shadow-inner",
+				className,
+			)}
+		>
 			<code>{code}</code>
 		</pre>
 	);
