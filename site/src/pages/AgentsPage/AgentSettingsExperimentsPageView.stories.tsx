@@ -10,6 +10,13 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	onSaveDesktopEnabled: fn(),
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
+	debugLoggingData: {
+		allow_users: false,
+		forced_by_deployment: false,
+	},
+	onSaveDebugLogging: fn(),
+	isSavingDebugLogging: false,
+	isSaveDebugLoggingError: false,
 };
 
 const meta = {
@@ -21,7 +28,58 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof AgentSettingsExperimentsPageView>;
 
-export const Default: Story = {};
+export const AllowUsersOff: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Allow users to enable chat debug logging",
+		});
+
+		expect(
+			await canvas.findByText("Let users record chat debug logs"),
+		).toBeInTheDocument();
+		expect(toggle).not.toBeChecked();
+	},
+};
+
+export const AllowUsersOn: Story = {
+	args: {
+		debugLoggingData: {
+			allow_users: true,
+			forced_by_deployment: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Allow users to enable chat debug logging",
+		});
+
+		expect(toggle).toBeChecked();
+	},
+};
+
+export const ForcedByDeployment: Story = {
+	args: {
+		debugLoggingData: {
+			allow_users: true,
+			forced_by_deployment: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Allow users to enable chat debug logging",
+		});
+
+		expect(toggle).toBeDisabled();
+		expect(
+			await canvas.findByText(
+				/Debug logging is already enabled deployment-wide/i,
+			),
+		).toBeInTheDocument();
+	},
+};
 
 export const DesktopSetting: Story = {
 	play: async ({ canvasElement }) => {

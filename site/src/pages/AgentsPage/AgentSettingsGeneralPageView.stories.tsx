@@ -12,6 +12,14 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserPrompt: fn(),
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
+	userDebugLoggingData: {
+		debug_logging_enabled: false,
+		user_toggle_allowed: false,
+		forced_by_deployment: false,
+	},
+	onSaveUserDebugLogging: fn(),
+	isSavingUserDebugLogging: false,
+	isSaveUserDebugLoggingError: false,
 };
 
 const meta = {
@@ -111,5 +119,51 @@ export const RendersChatLayoutSection: Story = {
 		expect(
 			await canvas.findByRole("switch", { name: "Full-width chat" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const ShowsChatDebugLoggingToggle: Story = {
+	args: {
+		userDebugLoggingData: {
+			debug_logging_enabled: false,
+			user_toggle_allowed: true,
+			forced_by_deployment: false,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable personal chat debug logging",
+		});
+
+		expect(
+			await canvas.findByText("Record debug logs for my chats"),
+		).toBeInTheDocument();
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveUserDebugLogging).toHaveBeenCalledWith({
+				debug_logging_enabled: true,
+			});
+		});
+	},
+};
+
+export const HidesChatDebugLoggingToggle: Story = {
+	args: {
+		userDebugLoggingData: {
+			debug_logging_enabled: false,
+			user_toggle_allowed: false,
+			forced_by_deployment: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByText("Record debug logs for my chats")).toBeNull();
+		expect(
+			canvas.queryByRole("switch", {
+				name: "Enable personal chat debug logging",
+			}),
+		).toBeNull();
 	},
 };

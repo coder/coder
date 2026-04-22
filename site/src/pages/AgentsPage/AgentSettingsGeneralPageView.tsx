@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
+import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
 export interface AgentSettingsGeneralPageViewProps {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -15,6 +16,15 @@ export interface AgentSettingsGeneralPageViewProps {
 	>;
 	isSavingUserPrompt: boolean;
 	isSaveUserPromptError: boolean;
+	userDebugLoggingData: TypesGen.UserChatDebugLoggingSettings | undefined;
+	onSaveUserDebugLogging: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateUserChatDebugLoggingRequest,
+		unknown
+	>;
+	isSavingUserDebugLogging: boolean;
+	isSaveUserDebugLoggingError: boolean;
 }
 
 export const AgentSettingsGeneralPageView: FC<
@@ -24,6 +34,10 @@ export const AgentSettingsGeneralPageView: FC<
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
+	userDebugLoggingData,
+	onSaveUserDebugLogging,
+	isSavingUserDebugLogging,
+	isSaveUserDebugLoggingError,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -39,6 +53,12 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
+			<UserChatDebugLoggingSettings
+				userSettings={userDebugLoggingData}
+				onSaveUserSetting={onSaveUserDebugLogging}
+				isSavingUserSetting={isSavingUserDebugLogging}
+				isSaveUserSettingError={isSaveUserDebugLoggingError}
+			/>
 		</div>
 	);
 };
