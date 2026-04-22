@@ -127,6 +127,63 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 	})
 }
 
+func TestWebSearchAllowedForTurn(t *testing.T) {
+	t.Parallel()
+
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	exploreMode := database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}
+
+	tests := []struct {
+		name                    string
+		mode                    database.NullChatMode
+		planMode                database.NullChatPlanMode
+		persistedAllowWebSearch bool
+		want                    bool
+	}{
+		{
+			name:                    "AskModeAllowsWebSearch",
+			persistedAllowWebSearch: false,
+			want:                    true,
+		},
+		{
+			name:                    "PlanModeBlocksWebSearch",
+			planMode:                planMode,
+			persistedAllowWebSearch: true,
+			want:                    false,
+		},
+		{
+			name:                    "ExploreModeUsesPersistedFalse",
+			mode:                    exploreMode,
+			persistedAllowWebSearch: false,
+			want:                    false,
+		},
+		{
+			name:                    "ExploreModeUsesPersistedTrue",
+			mode:                    exploreMode,
+			persistedAllowWebSearch: true,
+			want:                    true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, webSearchAllowedForTurn(
+				tt.mode,
+				tt.planMode,
+				tt.persistedAllowWebSearch,
+			))
+		})
+	}
+}
+
 func TestActiveToolNamesForTurn(t *testing.T) {
 	t.Parallel()
 
@@ -300,36 +357,32 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 func TestAllowedExploreToolNames(t *testing.T) {
 	t.Parallel()
 
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	got := allowedExploreToolNames(makeTools(
-		"read_file",
-		"write_file",
-		"edit_files",
-		"execute",
-		"process_output",
-		"process_list",
-		"process_signal",
-		"spawn_agent",
-		"wait_agent",
-		"read_skill",
-		"read_skill_file",
-		"ask_user_question",
-	))
+	externalConfigID := uuid.New()
+	got := allowedExploreToolNames([]fantasy.AgentTool{
+		newTestAgentTool("read_file"),
+		newTestAgentTool("write_file"),
+		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
+		newTestAgentTool("workspace-mcp__echo"),
+		newTestAgentTool("execute"),
+		newTestAgentTool("process_output"),
+		newTestAgentTool("process_list"),
+		newTestAgentTool("process_signal"),
+		newTestAgentTool("spawn_agent"),
+		newTestAgentTool("wait_agent"),
+		newTestAgentTool("read_skill"),
+		newTestAgentTool("read_skill_file"),
+		newTestAgentTool("ask_user_question"),
+	})
 
 	require.Equal(t, []string{
 		"read_file",
+		"external-mcp__echo",
 		"execute",
 		"process_output",
 		"read_skill",
 		"read_skill_file",
 	}, got)
+	require.NotContains(t, got, "workspace-mcp__echo")
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
