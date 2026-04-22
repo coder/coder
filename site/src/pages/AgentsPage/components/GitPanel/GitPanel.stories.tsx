@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
@@ -264,6 +264,22 @@ export const MultipleRepos: Story = {
 export const EmptyState: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
+	},
+};
+
+/** No repositories and no remote tab; Git controls should be disabled. */
+export const GitNotActive: Story = {
+	args: {
+		repositories: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
+		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
+		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
+		await expect(
+			canvas.getByText("Git is not set up for this chat."),
+		).toBeVisible();
 	},
 };
 

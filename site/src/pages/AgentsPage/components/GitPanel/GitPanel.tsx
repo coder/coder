@@ -32,6 +32,10 @@ import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
+const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
+const GIT_NOT_SETUP_BODY =
+	"Git status will appear here once a workspace with a Git repository is attached.";
+
 interface DiffStats {
 	additions: number;
 	deletions: number;
@@ -76,6 +80,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		(remoteDiffStats?.deletions ?? 0) > 0;
 
 	const showRemoteTab = Boolean(prTab) || hasRemoteStats;
+	const isGitActive = repositories.size > 0 || showRemoteTab;
 
 	const prTitle = remoteDiffStats?.pull_request_title;
 	const prState = remoteDiffStats?.pull_request_state;
@@ -236,8 +241,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 							type="button"
 							onClick={() => handleDiffStyleChange("unified")}
 							aria-label="Unified diff"
+							disabled={!isGitActive}
+							title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors",
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50",
 								diffStyle === "unified"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -249,8 +256,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 							type="button"
 							onClick={() => handleDiffStyleChange("split")}
 							aria-label="Split diff"
+							disabled={!isGitActive}
+							title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -264,6 +273,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 						size="icon"
 						onClick={handleRefresh}
 						aria-label="Refresh"
+						disabled={!isGitActive}
+						title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
 						className="h-6 w-6 text-content-secondary hover:text-content-primary"
 					>
 						<RefreshCwIcon
@@ -280,6 +291,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 				{view.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
+						isGitActive={isGitActive}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
@@ -308,22 +320,36 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 const RemoteContent: FC<{
 	prTab?: { prNumber: number; chatId: string };
+	isGitActive: boolean;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
-}> = ({ prTab, isExpanded, chatInputRef, diffStyle, diffStatus }) => {
+}> = ({
+	prTab,
+	isGitActive,
+	isExpanded,
+	chatInputRef,
+	diffStyle,
+	diffStatus,
+}) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
-					<GitCompareArrowsIcon className="size-5 text-content-secondary" />
+					{isGitActive ? (
+						<GitCompareArrowsIcon className="size-5 text-content-secondary" />
+					) : (
+						<GitBranchIcon className="size-5 text-content-secondary" />
+					)}
 				</div>
 				<p className="text-sm font-medium text-content-primary">
-					No pushed changes yet
+					{isGitActive ? "No pushed changes yet" : `${GIT_NOT_SETUP_TITLE}.`}
 				</p>
 				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					Once commits are pushed, the branch diff will appear here.
+					{isGitActive
+						? "Once commits are pushed, the branch diff will appear here."
+						: GIT_NOT_SETUP_BODY}
 				</p>
 			</div>
 		);
