@@ -1669,13 +1669,13 @@ func newHeartbeats(
 	clk quartz.Clock,
 ) *heartbeats {
 	h := &heartbeats{
-		ctx:            ctx,
-		logger:         logger,
-		pubsub:         ps,
-		store:          store,
-		self:           self,
-		update:         update,
-		firstHeartbeat: firstHeartbeat,
+		ctx:             ctx,
+		logger:          logger,
+		pubsub:          ps,
+		store:           store,
+		self:            self,
+		update:          update,
+		firstHeartbeat:  firstHeartbeat,
 		coordinators:    make(map[uuid.UUID]time.Time),
 		lastDBHeartbeat: make(map[uuid.UUID]time.Time),
 		clock:           clk,
@@ -1845,7 +1845,7 @@ func (h *heartbeats) checkExpiry() {
 	//    invisible to other pods.
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
-		// Fall through — expire based on pubsub data only, no discovery.
+		// Fall through , expire based on pubsub data only, no discovery.
 	} else {
 		dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
 		for _, c := range dbCoords {
@@ -1864,7 +1864,7 @@ func (h *heartbeats) checkExpiry() {
 			h.lastDBHeartbeat[id] = dbTime
 			if !hasPrev {
 				// First DB check for this coordinator. Record the
-				// baseline but don't recover — we have no previous
+				// baseline but don't recover , we have no previous
 				// value to compare against.
 				continue
 			}
@@ -1912,7 +1912,7 @@ func (h *heartbeats) checkExpiry() {
 			// future DB values, not pubsub timestamps.
 			h.lastDBHeartbeat[id] = dbTime
 			if !hasPrev {
-				// First sighting — store baseline, don't add yet.
+				// First sighting , store baseline, don't add yet.
 				// We need a second observation to confirm liveness.
 				h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
 					slog.F("other_coordinator_id", id),
@@ -1922,7 +1922,7 @@ func (h *heartbeats) checkExpiry() {
 			}
 			if dbTime.After(prevDBTime) {
 				// The coordinator's heartbeat_at has advanced since
-				// our last check — it is alive. Add it to the map.
+				// our last check , it is alive. Add it to the map.
 				h.logger.Info(h.ctx, "discovered unknown coordinator from database",
 					slog.F("other_coordinator_id", id),
 					slog.F("db_heartbeat_at", dbTime),
