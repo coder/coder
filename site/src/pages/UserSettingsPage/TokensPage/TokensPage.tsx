@@ -35,7 +35,7 @@ const TokensPage: FC = () => {
 			<Section
 				title="Tokens"
 				className={cn(
-					"[&_code]:bg-content-secondary [&_code]:text-content-primary",
+					"[&_code]:bg-surface-secondary [&_code]:text-content-primary",
 					"[&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-sm",
 				)}
 				description={
