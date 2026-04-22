@@ -12,7 +12,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
@@ -875,7 +874,6 @@ type querier struct {
 
 	clock quartz.Clock
 
-	resyncGroup singleflight.Group
 }
 
 func newQuerier(ctx context.Context,
@@ -1289,15 +1287,7 @@ func (q *querier) subscribe() {
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
-		// The goroutine prevents blocking the pubsub callback
-		// while acquiring q.mu. Singleflight coalesces concurrent
-		// resyncs so only one enqueue pass runs at a time.
-		go func() {
-			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
-				q.resyncPeerMappings()
-				return struct{}{}, nil
-			})
-		}()
+		q.resyncPeerMappings()
 		return
 	}
 	if err != nil {
@@ -1323,14 +1313,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
-		// See listenPeer for the goroutine and singleflight
-		// rationale.
-		go func() {
-			_, _, _ = q.resyncGroup.Do("resync", func() (any, error) {
-				q.resyncPeerMappings()
-				return struct{}{}, nil
-			})
-		}()
+		q.resyncPeerMappings()
 		return
 	}
 	if err != nil {
