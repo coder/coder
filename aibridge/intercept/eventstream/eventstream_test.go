@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/quartz"
 )
@@ -86,7 +85,7 @@ func TestEventStream_NoWarning_WhenFlushIsFast(t *testing.T) {
 
 	stream := eventstream.NewEventStream(ctx, logger, nil, clk)
 
-	// No clock advance — flush duration stays at 0, below threshold.
+	// No clock advance, flush duration stays at 0, below threshold.
 	w := &clockAdvancingFlusher{
 		ResponseRecorder: httptest.NewRecorder(),
 		clk:              clk,

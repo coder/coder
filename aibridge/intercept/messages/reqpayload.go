@@ -315,7 +315,7 @@ func (p RequestPayload) tools() ([]json.RawMessage, error) {
 
 func (RequestPayload) resultToRawMessage(items []gjson.Result) []json.RawMessage {
 	// gjson.Result conversion to json.RawMessage is needed because
-	// gjson.Result does not implement json.Marshaler — would
+	// gjson.Result does not implement json.Marshaler. It would
 	// serialize its struct fields instead of the raw JSON it represents.
 	rawMessages := make([]json.RawMessage, 0, len(items))
 	for _, item := range items {

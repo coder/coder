@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
