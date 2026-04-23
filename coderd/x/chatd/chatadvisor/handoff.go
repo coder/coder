@@ -37,14 +37,20 @@ func BuildAdvisorMessages(
 	}
 
 	messages := make([]fantasy.Message, 0, len(conversationSnapshot)+2)
-	messages = append(messages, textMessage(fantasy.MessageRoleSystem, AdvisorSystemPrompt))
 
+	// Place inherited system messages before AdvisorSystemPrompt so the
+	// advisor contract is the final system instruction the model sees.
+	// Later system directives win when they conflict, and the parent's
+	// prompt may tell the model to address the end user directly or use
+	// tools. The advisor must override those behaviors, not be overridden
+	// by them.
 	for _, msg := range conversationSnapshot {
 		if msg.Role != fantasy.MessageRoleSystem {
 			continue
 		}
 		messages = append(messages, cloneMessage(msg))
 	}
+	messages = append(messages, textMessage(fantasy.MessageRoleSystem, AdvisorSystemPrompt))
 
 	recent := make([]fantasy.Message, 0, min(len(conversationSnapshot), advisorRecentMessageLimit))
 	remainingBudget := advisorConversationJSONByteBudget
@@ -72,9 +78,63 @@ func BuildAdvisorMessages(
 		remainingBudget -= messageBytes
 	}
 	slices.Reverse(recent)
+	recent = dropOrphanToolMessages(recent)
 	messages = append(messages, recent...)
 	messages = append(messages, textMessage(fantasy.MessageRoleUser, trimmedQuestion))
 	return messages
+}
+
+// dropOrphanToolMessages removes tool-role messages whose tool-call references
+// have been truncated out of the recent window. Providers reject prompts with
+// tool_result blocks that do not have a matching tool_use, so a truncation cut
+// that lands between an assistant tool-call message and its tool-result message
+// would otherwise produce a provider error rather than advice. The backward
+// walk always picks up tool results before their originating assistant
+// message, so orphan results can only appear at the leading edge of the
+// recent window. A single forward pass tracking known tool-call IDs is
+// sufficient to drop them.
+func dropOrphanToolMessages(recent []fantasy.Message) []fantasy.Message {
+	if len(recent) == 0 {
+		return recent
+	}
+	known := make(map[string]struct{})
+	result := make([]fantasy.Message, 0, len(recent))
+	for _, msg := range recent {
+		if msg.Role == fantasy.MessageRoleAssistant {
+			for _, part := range msg.Content {
+				call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+				if !ok {
+					continue
+				}
+				known[call.ToolCallID] = struct{}{}
+			}
+			result = append(result, msg)
+			continue
+		}
+		if msg.Role != fantasy.MessageRoleTool {
+			result = append(result, msg)
+			continue
+		}
+
+		kept := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok {
+				kept = append(kept, part)
+				continue
+			}
+			if _, matched := known[tr.ToolCallID]; matched {
+				kept = append(kept, part)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		trimmed := msg
+		trimmed.Content = kept
+		result = append(result, trimmed)
+	}
+	return result
 }
 
 func textMessage(role fantasy.MessageRole, text string) fantasy.Message {

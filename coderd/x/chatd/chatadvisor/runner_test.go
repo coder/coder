@@ -290,11 +290,12 @@ func TestBuildAdvisorMessagesTruncatesToRecentMessageLimit(t *testing.T) {
 	}
 
 	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
-	// advisor system + cloned existing system + 20 most recent user messages + question.
+	// cloned existing system + advisor system + 20 most recent user messages + question.
 	require.Len(t, messages, 23)
 	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
-	require.Contains(t, singleText(t, messages[0]), "parent agent")
-	require.Equal(t, "existing system", singleText(t, messages[1]))
+	require.Equal(t, "existing system", singleText(t, messages[0]))
+	require.Equal(t, fantasy.MessageRoleSystem, messages[1].Role)
+	require.Contains(t, singleText(t, messages[1]), "parent agent")
 	require.Equal(t, "msg-05", singleText(t, messages[2]))
 	require.Equal(t, "msg-24", singleText(t, messages[len(messages)-2]))
 	require.Equal(t, "Need advice", singleText(t, messages[len(messages)-1]))
@@ -317,14 +318,96 @@ func TestBuildAdvisorMessagesStopsAtOversizedMessage(t *testing.T) {
 	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
 	require.Len(t, messages, 4)
 	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
-	require.Contains(t, singleText(t, messages[0]), "parent agent")
-	require.Equal(t, "existing system", singleText(t, messages[1]))
+	require.Equal(t, "existing system", singleText(t, messages[0]))
+	require.Equal(t, fantasy.MessageRoleSystem, messages[1].Role)
+	require.Contains(t, singleText(t, messages[1]), "parent agent")
 	require.Equal(t, "user-late", singleText(t, messages[2]))
 	require.Equal(t, "Need advice", singleText(t, messages[3]))
 
 	for _, msg := range messages {
 		require.NotContains(t, singleText(t, msg), strings.Repeat("x", 100))
 	}
+}
+
+func TestBuildAdvisorMessagesPlacesAdvisorPromptAfterInheritedSystem(t *testing.T) {
+	t.Parallel()
+
+	snapshot := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "parent-first"),
+		textMessage(fantasy.MessageRoleSystem, "parent-second"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+
+	// Inherited system messages come first in their original order, then
+	// the advisor contract, then the recent tail, then the question.
+	// This ordering makes the advisor prompt the last system directive
+	// so it wins over conflicting parent instructions.
+	require.Len(t, messages, 5)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Equal(t, "parent-first", singleText(t, messages[0]))
+	require.Equal(t, fantasy.MessageRoleSystem, messages[1].Role)
+	require.Equal(t, "parent-second", singleText(t, messages[1]))
+	require.Equal(t, fantasy.MessageRoleSystem, messages[2].Role)
+	require.Contains(t, singleText(t, messages[2]), "parent agent")
+	require.Equal(t, fantasy.MessageRoleUser, messages[3].Role)
+	require.Equal(t, "hello", singleText(t, messages[3]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[4].Role)
+	require.Equal(t, "Need advice", singleText(t, messages[4]))
+}
+
+func TestBuildAdvisorMessagesDropsOrphanToolResults(t *testing.T) {
+	t.Parallel()
+
+	// Simulate a truncation cut that lands between the assistant tool-call
+	// message and its tool-result. The resulting recent window should not
+	// contain an orphan tool_result referencing a missing tool_use block.
+	// Building the window with only [tool_result, assistant_reply] mimics
+	// the state produced by the backward walk hitting its byte budget right
+	// before the tool-call assistant message.
+	snapshot := []fantasy.Message{
+		toolResultMessage("call-1", "ok"),
+		textMessage(fantasy.MessageRoleAssistant, "final reply"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+
+	// Advisor system + assistant reply + question. The orphan tool result
+	// must not appear in the advisor prompt.
+	require.Len(t, messages, 3)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Contains(t, singleText(t, messages[0]), "parent agent")
+	require.Equal(t, fantasy.MessageRoleAssistant, messages[1].Role)
+	require.Equal(t, "final reply", singleText(t, messages[1]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[2].Role)
+	require.Equal(t, "Need advice", singleText(t, messages[2]))
+
+	for _, msg := range messages {
+		require.NotEqual(t, fantasy.MessageRoleTool, msg.Role)
+	}
+}
+
+func TestBuildAdvisorMessagesKeepsPairedToolCallAndResult(t *testing.T) {
+	t.Parallel()
+
+	snapshot := []fantasy.Message{
+		toolCallAssistantMessage("call-1", "search", `{"q":"x"}`),
+		toolResultMessage("call-1", "ok"),
+		textMessage(fantasy.MessageRoleAssistant, "done"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+
+	// Advisor system + assistant tool call + tool result + assistant reply
+	// + question. The matched pair must survive.
+	require.Len(t, messages, 5)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, messages[1].Role)
+	require.Equal(t, fantasy.MessageRoleTool, messages[2].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, messages[3].Role)
+	require.Equal(t, "done", singleText(t, messages[3]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[4].Role)
 }
 
 func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
@@ -342,6 +425,31 @@ func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
 		Role: role,
 		Content: []fantasy.MessagePart{
 			fantasy.TextPart{Text: text},
+		},
+	}
+}
+
+func toolCallAssistantMessage(callID, name, input string) fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{
+			fantasy.ToolCallPart{
+				ToolCallID: callID,
+				ToolName:   name,
+				Input:      input,
+			},
+		},
+	}
+}
+
+func toolResultMessage(callID, text string) fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleTool,
+		Content: []fantasy.MessagePart{
+			fantasy.ToolResultPart{
+				ToolCallID: callID,
+				Output:     fantasy.ToolResultOutputContentText{Text: text},
+			},
 		},
 	}
 }
