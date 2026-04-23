@@ -2014,7 +2014,7 @@ describe("mergeWatchedChatSummary", () => {
 
 	it("preserves has_unread for the active chat", () => {
 		const cachedChat = makeChat("chat-1", {
-			has_unread: true,
+			has_unread: false,
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
@@ -2027,7 +2027,7 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "status_change",
 				activeChatId: "chat-1",
 			}).has_unread,
-		).toBe(true);
+		).toBe(false);
 	});
 });
 

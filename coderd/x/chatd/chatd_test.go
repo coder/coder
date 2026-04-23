@@ -2834,6 +2834,99 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	require.Equal(t, []uuid.UUID{modelConfigA.ID, modelConfigB.ID, modelConfigC.ID}, userModelConfigIDs)
 }
 
+func TestAutoPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	firstRunStarted := make(chan struct{})
+	allowFirstRunFinish := make(chan struct{})
+	var requestCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		switch requestCount.Add(1) {
+		case 1:
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("first run partial")[0]
+				select {
+				case <-firstRunStarted:
+				default:
+					close(firstRunStarted)
+				}
+				<-allowFirstRunFinish
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("fallback run done")...)
+		}
+	})
+
+	server := newActiveTestServer(t, db, ps)
+	user, org, modelConfig := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "auto-promote queued fallback",
+		ModelConfigID:      modelConfig.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	testutil.TryReceive(ctx, t, firstRunStarted)
+
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("legacy queued row")})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  chat.ID,
+		Content: queuedContent,
+	})
+	require.NoError(t, err)
+
+	close(allowFirstRunFinish)
+
+	require.Eventually(t, func() bool {
+		return requestCount.Load() >= 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+	chatd.WaitUntilIdleForTest(server)
+
+	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queuedMessages)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
+	require.Equal(t, modelConfig.ID, storedChat.LastModelConfigID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var found bool
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		sdkMessage := db2sdk.ChatMessage(message)
+		require.Len(t, sdkMessage.Content, 1)
+		if sdkMessage.Content[0].Text != "legacy queued row" {
+			continue
+		}
+		require.True(t, message.ModelConfigID.Valid)
+		require.Equal(t, modelConfig.ID, message.ModelConfigID.UUID)
+		found = true
+	}
+	require.True(t, found)
+}
+
 func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 	t.Parallel()
 
