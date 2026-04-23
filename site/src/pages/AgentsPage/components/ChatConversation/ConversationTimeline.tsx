@@ -112,6 +112,8 @@ const ReasoningDisclosure = memo<{
 	const isPreviewConstrained =
 		mode === "preview" && isStreaming && manualToggle === null;
 
+	const previewScrollRef = useRef<HTMLDivElement>(null);
+
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -120,6 +122,16 @@ const ReasoningDisclosure = memo<{
 	});
 	const displayText = isStreaming ? visibleText : text;
 	const hasText = displayText.trim().length > 0;
+
+	// Auto-scroll the preview container to the bottom as new
+	// thinking content streams in.
+	const displayTextLength = displayText.length;
+	useEffect(() => {
+		if (displayTextLength && isPreviewConstrained && previewScrollRef.current) {
+			previewScrollRef.current.scrollTop =
+				previewScrollRef.current.scrollHeight;
+		}
+	}, [displayTextLength, isPreviewConstrained]);
 
 	return (
 		<Collapsible
@@ -151,9 +163,10 @@ const ReasoningDisclosure = memo<{
 			{hasText && (
 				<CollapsibleContent>
 					<div
+						ref={previewScrollRef}
 						className={cn(
 							"mt-1 pl-5",
-							isPreviewConstrained && "max-h-24 overflow-hidden",
+							isPreviewConstrained && "max-h-24 overflow-y-auto",
 						)}
 					>
 						<Response
