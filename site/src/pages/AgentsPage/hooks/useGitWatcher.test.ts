@@ -979,5 +979,4 @@ describe("useGitWatcher", () => {
 		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
 		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
-
 });

@@ -389,4 +389,3 @@ export const CleanRepoFromStart: Story = {
 		expect(tabs).toHaveLength(0);
 	},
 };
-
