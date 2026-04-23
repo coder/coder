@@ -83,6 +83,11 @@ export const SuccessfulAdvice: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
 		expect(await canvas.findByText("Quick summary")).toBeInTheDocument();
+		// Guards against a regression where `resolvedResultType` drops to
+		// undefined: the advice body would still render via the fallback
+		// branch, but the header badge would silently switch to
+		// "No guidance" instead of "Guidance ready".
+		expect(canvas.getByText("Guidance ready")).toBeInTheDocument();
 		expect(
 			canvas.getByText(
 				(_, element) =>
