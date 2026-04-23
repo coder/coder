@@ -108,9 +108,11 @@ export const Running: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
-		expect(canvas.getAllByText("Consulting advisor…").length).toBeGreaterThan(
-			0,
-		);
+		// "Consulting advisor…" appears in both the header status badge and
+		// the body spinner label, so we expect exactly two matches. Asserting
+		// the count keeps the coverage for the body indicator even if the
+		// header ever stops rendering the same string.
+		expect(canvas.getAllByText("Consulting advisor…")).toHaveLength(2);
 	},
 };
 
@@ -199,6 +201,26 @@ export const BlankError: Story = {
 		expect(canvas.getByText("Advisor request failed.")).toBeInTheDocument();
 		expect(
 			canvas.getByText("Advisor could not return guidance."),
+		).toBeInTheDocument();
+	},
+};
+
+// Exercises the plain-string result branch in AdvisorRenderer (Tool.tsx),
+// where a non-object `result` is treated as raw advice text when
+// `isError` is false.
+export const PlainStringResult: Story = {
+	args: {
+		status: "completed",
+		args: { question: sampleQuestion },
+		result: "Prefer extracting a shared helper once two renderers need it.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
+		expect(
+			await canvas.findByText(
+				"Prefer extracting a shared helper once two renderers need it.",
+			),
 		).toBeInTheDocument();
 	},
 };
