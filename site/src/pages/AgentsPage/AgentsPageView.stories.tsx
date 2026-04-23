@@ -707,8 +707,6 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		}),
 	},
 	play: async () => {
-		// On mobile the sidebar gear icon is hidden, so start on the
-		// settings route directly and navigate to the admin sub-panel.
 		await userEvent.click(
 			await screen.findByRole("link", { name: "Manage Agents" }),
 		);
