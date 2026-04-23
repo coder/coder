@@ -1422,7 +1422,8 @@ CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_config_id uuid
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq

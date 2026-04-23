@@ -882,8 +882,12 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content)
-VALUES (@chat_id, @content)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+VALUES (
+    @chat_id,
+    @content,
+    sqlc.narg('model_config_id')::uuid
+)
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many

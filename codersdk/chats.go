@@ -1220,10 +1220,11 @@ const (
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
-	ID        int64             `json:"id"`
-	ChatID    uuid.UUID         `json:"chat_id" format:"uuid"`
-	Content   []ChatMessagePart `json:"content"`
-	CreatedAt time.Time         `json:"created_at" format:"date-time"`
+	ID            int64             `json:"id"`
+	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	Content       []ChatMessagePart `json:"content"`
+	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.

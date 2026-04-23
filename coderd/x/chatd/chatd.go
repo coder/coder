@@ -983,7 +983,8 @@ type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
 	QueuedMessageID int64
-	ModelConfigID   *uuid.UUID
+	// ModelConfigID is ignored. Promotion uses the queued row's stored model config.
+	ModelConfigID *uuid.UUID
 }
 
 // PromoteQueuedResult contains post-promotion message metadata.
@@ -1264,6 +1265,10 @@ func (p *Server) SendMessage(
 			queued, err := tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 				ChatID:  opts.ChatID,
 				Content: content.RawMessage,
+				ModelConfigID: uuid.NullUUID{
+					UUID:  modelConfigID,
+					Valid: modelConfigID != uuid.Nil,
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert queued message: %w", err)
@@ -1768,23 +1773,22 @@ func (p *Server) PromoteQueued(
 			return ErrChatArchived
 		}
 
-		modelConfigID := lockedChat.LastModelConfigID
-		if opts.ModelConfigID != nil {
-			modelConfigID = *opts.ModelConfigID
-		}
-
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("get queued messages: %w", err)
 		}
 
 		var (
-			targetContent json.RawMessage
-			found         bool
+			targetContent       json.RawMessage
+			targetModelConfigID = lockedChat.LastModelConfigID
+			found               bool
 		)
 		for _, qm := range queuedMessages {
 			if qm.ID == opts.QueuedMessageID {
 				targetContent = qm.Content
+				if qm.ModelConfigID.Valid {
+					targetModelConfigID = qm.ModelConfigID.UUID
+				}
 				found = true
 				break
 			}
@@ -1805,7 +1809,7 @@ func (p *Server) PromoteQueued(
 			ctx,
 			tx,
 			lockedChat,
-			modelConfigID,
+			targetModelConfigID,
 			pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
@@ -3338,7 +3342,14 @@ func insertUserMessageAndSetPending(
 	message := messages[0]
 
 	if lockedChat.Status == database.ChatStatusPending {
-		return message, lockedChat, nil
+		if modelConfigID == uuid.Nil || lockedChat.LastModelConfigID == modelConfigID {
+			return message, lockedChat, nil
+		}
+		updatedChat, err := store.GetChatByID(ctx, lockedChat.ID)
+		if err != nil {
+			return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("reload chat after message insert: %w", err)
+		}
+		return message, updatedChat, nil
 	}
 
 	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -4760,6 +4771,11 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
 	}
 
+	queuedModelConfigID := chat.LastModelConfigID
+	if nextQueued.ModelConfigID.Valid {
+		queuedModelConfigID = nextQueued.ModelConfigID.UUID
+	}
+
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 		ChatID: chat.ID,
 	}
@@ -4770,7 +4786,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 			Valid:      len(nextQueued.Content) > 0,
 		},
 		database.ChatMessageVisibilityBoth,
-		chat.LastModelConfigID,
+		queuedModelConfigID,
 		chatprompt.CurrentContentVersion,
 	).withCreatedBy(chat.OwnerID))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
