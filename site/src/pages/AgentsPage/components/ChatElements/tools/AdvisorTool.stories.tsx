@@ -133,6 +133,9 @@ export const LimitReached: Story = {
 				"You have reached the advisor limit for this conversation.",
 			),
 		).toBeInTheDocument();
+		// Assert the semantic role screen readers rely on to announce the
+		// limit state. A refactor that drops role="status" should fail here.
+		expect(canvas.getByRole("status")).toBeInTheDocument();
 	},
 };
 
@@ -152,6 +155,9 @@ export const ErrorState: Story = {
 		expect(
 			canvas.getByText("The advisor service is temporarily unavailable."),
 		).toBeInTheDocument();
+		// Assert the semantic role screen readers rely on to announce the
+		// error state. A refactor that drops role="alert" should fail here.
+		expect(canvas.getByRole("alert")).toBeInTheDocument();
 	},
 };
 
@@ -206,6 +212,7 @@ export const BlankError: Story = {
 		expect(
 			canvas.getByText("Advisor could not return guidance."),
 		).toBeInTheDocument();
+		expect(canvas.getByRole("alert")).toBeInTheDocument();
 	},
 };
 

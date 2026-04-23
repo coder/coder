@@ -49,7 +49,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 		advisorModelText.length > 0 || remainingUses !== undefined;
 
 	const headerStatus = isRunning
-		? "Consulting advisor…"
+		? RUNNING_MESSAGE
 		: showLimitReached
 			? "Limit reached"
 			: showError
