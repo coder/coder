@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -553,10 +554,20 @@ func (api *API) chatAgentModelOverrideSiteConfig(
 			getter: api.Database.GetChatGeneralModelOverride,
 			upsert: api.Database.UpsertChatGeneralModelOverride,
 		}, nil
+	case codersdk.ChatAgentModelOverrideContextPlanSubagent:
+		return chatAgentModelOverrideSiteConfig{
+			getter: api.Database.GetChatPlanSubagentModelOverride,
+			upsert: api.Database.UpsertChatPlanSubagentModelOverride,
+		}, nil
 	case codersdk.ChatAgentModelOverrideContextExplore:
 		return chatAgentModelOverrideSiteConfig{
 			getter: api.Database.GetChatExploreModelOverride,
 			upsert: api.Database.UpsertChatExploreModelOverride,
+		}, nil
+	case codersdk.ChatAgentModelOverrideContextComputerUse:
+		return chatAgentModelOverrideSiteConfig{
+			getter: api.Database.GetChatComputerUseModelOverride,
+			upsert: api.Database.UpsertChatComputerUseModelOverride,
 		}, nil
 	default:
 		return chatAgentModelOverrideSiteConfig{}, xerrors.Errorf(
@@ -564,6 +575,90 @@ func (api *API) chatAgentModelOverrideSiteConfig(
 			overrideContext,
 		)
 	}
+}
+
+type chatAgentModelOverrideEffectiveness struct {
+	isEffective   *bool
+	ignoredReason string
+}
+
+func chatEnabledProvidersContain(
+	providers []database.ChatProvider,
+	providerName string,
+) bool {
+	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
+	for _, provider := range providers {
+		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+			return true
+		}
+	}
+	return false
+}
+
+func (api *API) getChatAgentModelOverrideEffectiveness(
+	ctx context.Context,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+	modelConfigID *uuid.UUID,
+) (chatAgentModelOverrideEffectiveness, error) {
+	if overrideContext != codersdk.ChatAgentModelOverrideContextComputerUse ||
+		modelConfigID == nil {
+		return chatAgentModelOverrideEffectiveness{}, nil
+	}
+
+	modelConfig, err := api.Database.GetChatModelConfigByID(
+		//nolint:gocritic // Admin settings need deployment-scoped model metadata to report computer use compatibility.
+		dbauthz.AsSystemRestricted(ctx),
+		*modelConfigID,
+	)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return chatAgentModelOverrideEffectiveness{}, nil
+		}
+		return chatAgentModelOverrideEffectiveness{}, xerrors.Errorf(
+			"get chat model config: %w",
+			err,
+		)
+	}
+	if !modelConfig.Enabled {
+		return chatAgentModelOverrideEffectiveness{}, nil
+	}
+
+	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
+		modelConfig.Model,
+		modelConfig.Provider,
+	)
+	if err != nil {
+		return chatAgentModelOverrideEffectiveness{}, nil
+	}
+
+	enabledProviders, err := api.Database.GetEnabledChatProviders(
+		//nolint:gocritic // Admin settings need deployment-scoped provider state to report computer use compatibility.
+		dbauthz.AsSystemRestricted(ctx),
+	)
+	if err != nil {
+		return chatAgentModelOverrideEffectiveness{}, xerrors.Errorf(
+			"get enabled chat providers: %w",
+			err,
+		)
+	}
+	if !chatEnabledProvidersContain(enabledProviders, providerName) {
+		return chatAgentModelOverrideEffectiveness{
+			isEffective:   ptr.Ref(false),
+			ignoredReason: "The saved model's provider is not enabled for chat. Computer use will keep using the Anthropic default until you choose a compatible override.",
+		}, nil
+	}
+	if chatprovider.NormalizeProvider(providerName) !=
+		chatprovider.NormalizeProvider(chattool.ComputerUseModelProvider) {
+		return chatAgentModelOverrideEffectiveness{
+			isEffective: ptr.Ref(false),
+			ignoredReason: fmt.Sprintf(
+				"The saved model uses the %s provider. Computer use currently keeps using the Anthropic default unless the override also uses Anthropic.",
+				providerName,
+			),
+		}, nil
+	}
+
+	return chatAgentModelOverrideEffectiveness{isEffective: ptr.Ref(true)}, nil
 }
 
 func (api *API) getChatAgentModelOverrideConfig(
@@ -3898,11 +3993,28 @@ func (api *API) getChatAgentModelOverride(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	effectiveness, err := api.getChatAgentModelOverrideEffectiveness(
+		ctx,
+		overrideContext,
+		modelConfigID,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Internal error checking %s model override compatibility.",
+				overrideContext,
+			),
+			Detail: err.Error(),
+		})
+		return
+	}
 
 	resp := codersdk.ChatAgentModelOverrideResponse{
 		Context:       overrideContext,
 		ModelConfigID: formatChatModelOverride(modelConfigID),
 		IsMalformed:   isMalformed,
+		IsEffective:   effectiveness.isEffective,
+		IgnoredReason: effectiveness.ignoredReason,
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

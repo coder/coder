@@ -20366,6 +20366,18 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatComputerUseModelOverride = `-- name: GetChatComputerUseModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_computer_use_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatComputerUseModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatComputerUseModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
@@ -20451,6 +20463,18 @@ func (q *sqlQuerier) GetChatPlanModeInstructions(ctx context.Context) (string, e
 	var plan_mode_instructions string
 	err := row.Scan(&plan_mode_instructions)
 	return plan_mode_instructions, err
+}
+
+const getChatPlanSubagentModelOverride = `-- name: GetChatPlanSubagentModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_plan_subagent_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatPlanSubagentModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatPlanSubagentModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
 }
 
 const getChatRetentionDays = `-- name: GetChatRetentionDays :one
@@ -20728,6 +20752,16 @@ func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) er
 	return err
 }
 
+const upsertChatComputerUseModelOverride = `-- name: UpsertChatComputerUseModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_computer_use_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_computer_use_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatComputerUseModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatComputerUseModelOverride, value)
+	return err
+}
+
 const upsertChatDebugLoggingAllowUsers = `-- name: UpsertChatDebugLoggingAllowUsers :exec
 INSERT INTO site_configs (key, value)
 VALUES (
@@ -20823,6 +20857,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatPlanModeInstructions(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatPlanModeInstructions, value)
+	return err
+}
+
+const upsertChatPlanSubagentModelOverride = `-- name: UpsertChatPlanSubagentModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_subagent_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_subagent_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatPlanSubagentModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatPlanSubagentModelOverride, value)
 	return err
 }
 

@@ -1273,11 +1273,17 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
-export type ChatAgentModelOverrideContext = "explore" | "general";
+export type ChatAgentModelOverrideContext =
+	| "computer_use"
+	| "explore"
+	| "general"
+	| "plan_subagent";
 
 export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
+	"computer_use",
 	"explore",
 	"general",
+	"plan_subagent",
 ];
 
 // From codersdk/chats.go
@@ -1289,6 +1295,17 @@ export interface ChatAgentModelOverrideResponse {
 	readonly context: ChatAgentModelOverrideContext;
 	readonly model_config_id: string;
 	readonly is_malformed: boolean;
+	/**
+	 * IsEffective reports whether the saved override is currently usable for
+	 * this context at a deployment level. It is only set for contexts with
+	 * additional compatibility rules, such as computer use.
+	 */
+	readonly is_effective?: boolean;
+	/**
+	 * IgnoredReason explains why a saved override is being ignored for the
+	 * current context at a deployment level.
+	 */
+	readonly ignored_reason?: string;
 }
 
 // From codersdk/chats.go

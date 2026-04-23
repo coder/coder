@@ -183,6 +183,22 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override';
 
+-- name: GetChatPlanSubagentModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_plan_subagent_model_override'), '') :: text AS model_config_id;
+
+-- name: UpsertChatPlanSubagentModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_subagent_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_subagent_model_override';
+
+-- name: GetChatComputerUseModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_computer_use_model_override'), '') :: text AS model_config_id;
+
+-- name: UpsertChatComputerUseModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_computer_use_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_computer_use_model_override';
+
 -- name: GetChatDesktopEnabled :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop;

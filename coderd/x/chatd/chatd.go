@@ -6293,10 +6293,34 @@ func (p *Server) runChat(
 	}
 
 	if isComputerUse {
-		// Override model for computer use subagent.
+		// Computer use always needs a provider-compatible model. Honor the
+		// admin override when it can actually drive the computer tool, and
+		// otherwise fall back to the legacy Anthropic default.
+		computerUseProvider := chattool.ComputerUseModelProvider
+		computerUseModel := chattool.ComputerUseModelName
+		configuredComputerUseModel, useConfiguredComputerUseModel, resolveErr := p.resolveComputerUseOverrideModelConfig(
+			ctx,
+			chat.OwnerID,
+			func(
+				_ context.Context,
+				_ uuid.UUID,
+			) (chatprovider.ProviderAPIKeys, error) {
+				return providerKeys, nil
+			},
+		)
+		if resolveErr != nil {
+			return result, xerrors.Errorf(
+				"resolve computer use model override: %w",
+				resolveErr,
+			)
+		}
+		if useConfiguredComputerUseModel {
+			computerUseProvider = configuredComputerUseModel.Provider
+			computerUseModel = configuredComputerUseModel.Model
+		}
 		resolvedProvider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(
-			chattool.ComputerUseModelName,
-			chattool.ComputerUseModelProvider,
+			computerUseModel,
+			computerUseProvider,
 		)
 		if resolveErr != nil {
 			return result, xerrors.Errorf("resolve computer use model metadata: %w", resolveErr)
@@ -6304,8 +6328,8 @@ func (p *Server) runChat(
 		cuModel, cuDebugEnabled, cuErr := p.newDebugAwareModelFromConfig(
 			ctx,
 			chat,
-			chattool.ComputerUseModelProvider,
-			chattool.ComputerUseModelName,
+			computerUseProvider,
+			computerUseModel,
 			providerKeys,
 			chatprovider.UserAgent(),
 			chatprovider.CoderHeaders(chat),

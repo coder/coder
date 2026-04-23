@@ -13,43 +13,67 @@ type SaveModelOverride = (
 
 export interface AgentSettingsAgentsPageViewProps {
 	generalModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
+	planSubagentModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
+	computerUseModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
+	onSavePlanSubagentModelOverride?: SaveModelOverride;
+	isSavingPlanSubagentModelOverride?: boolean;
+	isSavePlanSubagentModelOverrideError?: boolean;
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	onSaveComputerUseModelOverride?: SaveModelOverride;
+	isSavingComputerUseModelOverride?: boolean;
+	isSaveComputerUseModelOverrideError?: boolean;
 }
 
 export const AgentSettingsAgentsPageView: FC<
 	AgentSettingsAgentsPageViewProps
 > = ({
 	generalModelOverrideData,
+	planSubagentModelOverrideData,
 	exploreModelOverrideData,
+	computerUseModelOverrideData,
 	modelConfigsData,
 	modelConfigsError,
 	isLoadingModelConfigs,
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
+	onSavePlanSubagentModelOverride,
+	isSavingPlanSubagentModelOverride = false,
+	isSavePlanSubagentModelOverrideError = false,
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	onSaveComputerUseModelOverride,
+	isSavingComputerUseModelOverride = false,
+	isSaveComputerUseModelOverrideError = false,
 }) => {
 	const enabledModelConfigs = (modelConfigsData ?? []).filter(
 		(modelConfig) => modelConfig.enabled,
 	);
-	const generalModelDescription =
-		"Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace.";
 	const showGeneralModelSection =
 		onSaveGeneralModelOverride !== undefined ||
 		generalModelOverrideData !== undefined ||
 		isSavingGeneralModelOverride ||
 		isSaveGeneralModelOverrideError;
+	const showPlanSubagentModelSection =
+		onSavePlanSubagentModelOverride !== undefined ||
+		planSubagentModelOverrideData !== undefined ||
+		isSavingPlanSubagentModelOverride ||
+		isSavePlanSubagentModelOverrideError;
+	const showComputerUseModelSection =
+		onSaveComputerUseModelOverride !== undefined ||
+		computerUseModelOverrideData !== undefined ||
+		isSavingComputerUseModelOverride ||
+		isSaveComputerUseModelOverrideError;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -61,12 +85,12 @@ export const AgentSettingsAgentsPageView: FC<
 				<section aria-label="General model" className="flex flex-col gap-3">
 					<SectionHeader
 						label="General model"
-						description={generalModelDescription}
+						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
 						level="section"
 					/>
 					<SubagentModelOverrideSettings
 						title="General model"
-						description={generalModelDescription}
+						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
 						modelOverrideData={generalModelOverrideData}
 						enabledModelConfigs={enabledModelConfigs}
 						modelConfigsError={modelConfigsError}
@@ -75,6 +99,31 @@ export const AgentSettingsAgentsPageView: FC<
 						isSaving={isSavingGeneralModelOverride}
 						isSaveError={isSaveGeneralModelOverrideError}
 						saveErrorMessage="Failed to save general model override."
+						showHeader={false}
+					/>
+				</section>
+			)}
+			{showPlanSubagentModelSection && onSavePlanSubagentModelOverride && (
+				<section
+					aria-label="Plan subagent model"
+					className="flex flex-col gap-3"
+				>
+					<SectionHeader
+						label="Plan subagent model"
+						description="Deployment-wide model override for delegated child chats that continue running in plan mode. Root plan mode chats still keep their own selected model."
+						level="section"
+					/>
+					<SubagentModelOverrideSettings
+						title="Plan subagent model"
+						description="Deployment-wide model override for delegated child chats that continue running in plan mode. Root plan mode chats still keep their own selected model."
+						modelOverrideData={planSubagentModelOverrideData}
+						enabledModelConfigs={enabledModelConfigs}
+						modelConfigsError={modelConfigsError}
+						isLoading={isLoadingModelConfigs}
+						onSaveModelOverride={onSavePlanSubagentModelOverride}
+						isSaving={isSavingPlanSubagentModelOverride}
+						isSaveError={isSavePlanSubagentModelOverrideError}
+						saveErrorMessage="Failed to save plan subagent model override."
 						showHeader={false}
 					/>
 				</section>
@@ -108,6 +157,31 @@ export const AgentSettingsAgentsPageView: FC<
 					showHeader={false}
 				/>
 			</section>
+			{showComputerUseModelSection && onSaveComputerUseModelOverride && (
+				<section
+					aria-label="Computer use subagent model"
+					className="flex flex-col gap-3"
+				>
+					<SectionHeader
+						label="Computer use subagent model"
+						description="Deployment-wide model override for computer use subagents. Desktop support must stay enabled, and incompatible providers still fall back to the Anthropic computer-use default."
+						level="section"
+					/>
+					<SubagentModelOverrideSettings
+						title="Computer use subagent model"
+						description="Deployment-wide model override for computer use subagents. Desktop support must stay enabled, and incompatible providers still fall back to the Anthropic computer-use default."
+						modelOverrideData={computerUseModelOverrideData}
+						enabledModelConfigs={enabledModelConfigs}
+						modelConfigsError={modelConfigsError}
+						isLoading={isLoadingModelConfigs}
+						onSaveModelOverride={onSaveComputerUseModelOverride}
+						isSaving={isSavingComputerUseModelOverride}
+						isSaveError={isSaveComputerUseModelOverrideError}
+						saveErrorMessage="Failed to save computer use model override."
+						showHeader={false}
+					/>
+				</section>
+			)}
 		</div>
 	);
 };

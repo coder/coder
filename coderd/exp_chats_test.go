@@ -9785,6 +9785,8 @@ func TestChatModelOverrides(t *testing.T) {
 		context       codersdk.ChatAgentModelOverrideContext
 		modelConfigID string
 		isMalformed   bool
+		isEffective   *bool
+		ignoredReason string
 	}
 
 	type settingTest struct {
@@ -9811,6 +9813,8 @@ func TestChatModelOverrides(t *testing.T) {
 			context:       resp.Context,
 			modelConfigID: resp.ModelConfigID,
 			isMalformed:   resp.IsMalformed,
+			isEffective:   resp.IsEffective,
+			ignoredReason: resp.IgnoredReason,
 		}, nil
 	}
 
@@ -9839,6 +9843,16 @@ func TestChatModelOverrides(t *testing.T) {
 			},
 		},
 		{
+			name:    "PlanSubagent",
+			context: codersdk.ChatAgentModelOverrideContextPlanSubagent,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatPlanSubagentModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatPlanSubagentModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
+		{
 			name:    "Explore",
 			context: codersdk.ChatAgentModelOverrideContextExplore,
 			dbGet: func(ctx context.Context, db database.Store) (string, error) {
@@ -9846,6 +9860,16 @@ func TestChatModelOverrides(t *testing.T) {
 			},
 			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
 				return db.UpsertChatExploreModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
+		{
+			name:    "ComputerUse",
+			context: codersdk.ChatAgentModelOverrideContextComputerUse,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatComputerUseModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatComputerUseModelOverride(dbauthz.AsSystemRestricted(ctx), value)
 			},
 		},
 	}
@@ -9981,6 +10005,77 @@ func TestChatModelOverrides(t *testing.T) {
 		})
 	}
 
+	t.Run("ComputerUseGETReportsIncompatibleSavedOverride", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		openAIModel := createChatModelConfig(t, adminClient)
+
+		err := putOverride(
+			ctx,
+			adminClient,
+			codersdk.ChatAgentModelOverrideContextComputerUse,
+			openAIModel.ID.String(),
+		)
+		require.NoError(t, err)
+
+		resp, err := getOverride(
+			ctx,
+			adminClient,
+			codersdk.ChatAgentModelOverrideContextComputerUse,
+		)
+		require.NoError(t, err)
+		require.Equal(t, openAIModel.ID.String(), resp.modelConfigID)
+		require.NotNil(t, resp.isEffective)
+		require.False(t, *resp.isEffective)
+		require.Equal(
+			t,
+			"The saved model uses the openai provider. Computer use currently keeps using the Anthropic default unless the override also uses Anthropic.",
+			resp.ignoredReason,
+		)
+	})
+
+	t.Run("ComputerUseGETReportsCompatibleSavedOverride", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		_, err := adminClient.CreateChatProvider(
+			ctx,
+			codersdk.CreateChatProviderConfigRequest{
+				Provider: "anthropic",
+				APIKey:   "test-anthropic-key",
+			},
+		)
+		require.NoError(t, err)
+		anthropicModel := createAdditionalChatModelConfig(
+			t,
+			adminClient,
+			"anthropic",
+			"claude-sonnet-4",
+		)
+
+		err = putOverride(
+			ctx,
+			adminClient,
+			codersdk.ChatAgentModelOverrideContextComputerUse,
+			anthropicModel.ID.String(),
+		)
+		require.NoError(t, err)
+
+		resp, err := getOverride(
+			ctx,
+			adminClient,
+			codersdk.ChatAgentModelOverrideContextComputerUse,
+		)
+		require.NoError(t, err)
+		require.Equal(t, anthropicModel.ID.String(), resp.modelConfigID)
+		require.NotNil(t, resp.isEffective)
+		require.True(t, *resp.isEffective)
+		require.Empty(t, resp.ignoredReason)
+	})
+
 	t.Run("UnknownContextReturns400", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -9993,7 +10088,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat agent model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore. Got "not-a-context".`,
+			`Expected one of general, plan_subagent, explore, computer_use. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 
@@ -10002,7 +10097,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat agent model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore. Got "not-a-context".`,
+			`Expected one of general, plan_subagent, explore, computer_use. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 	})

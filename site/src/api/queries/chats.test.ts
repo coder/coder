@@ -136,9 +136,17 @@ describe("chat agent model override query helpers", () => {
 			"chat-agent-model-override",
 			"general",
 		]);
+		expect(chatAgentModelOverrideQuery("plan_subagent").queryKey).toEqual([
+			"chat-agent-model-override",
+			"plan_subagent",
+		]);
 		expect(chatAgentModelOverrideQuery("explore").queryKey).toEqual([
 			"chat-agent-model-override",
 			"explore",
+		]);
+		expect(chatAgentModelOverrideQuery("computer_use").queryKey).toEqual([
+			"chat-agent-model-override",
+			"computer_use",
 		]);
 	});
 
@@ -152,31 +160,43 @@ describe("chat agent model override query helpers", () => {
 			model_config_id: "model-1",
 			is_malformed: false,
 		} satisfies TypesGen.ChatAgentModelOverrideResponse);
+		queryClient.setQueryData(chatAgentModelOverrideKey("plan_subagent"), {
+			context: "plan_subagent",
+			model_config_id: "model-3",
+			is_malformed: false,
+		} satisfies TypesGen.ChatAgentModelOverrideResponse);
 		queryClient.setQueryData(chatAgentModelOverrideKey("explore"), {
 			context: "explore",
 			model_config_id: "model-9",
 			is_malformed: false,
 		} satisfies TypesGen.ChatAgentModelOverrideResponse);
+		queryClient.setQueryData(chatAgentModelOverrideKey("computer_use"), {
+			context: "computer_use",
+			model_config_id: "model-11",
+			is_malformed: false,
+		} satisfies TypesGen.ChatAgentModelOverrideResponse);
 
 		const mutation = updateChatAgentModelOverrideMutation(
 			queryClient,
-			"general",
+			"plan_subagent",
 		);
-		await mutation.mutationFn({ model_config_id: "model-2" });
+		await mutation.mutationFn({ model_config_id: "model-4" });
 		await mutation.onSuccess?.();
 
 		expect(API.experimental.updateChatAgentModelOverride).toHaveBeenCalledWith(
-			"general",
-			{ model_config_id: "model-2" },
+			"plan_subagent",
+			{ model_config_id: "model-4" },
 		);
 		expect(
-			queryClient.getQueryState(chatAgentModelOverrideKey("general"))
+			queryClient.getQueryState(chatAgentModelOverrideKey("plan_subagent"))
 				?.isInvalidated,
 		).toBe(true);
-		expect(
-			queryClient.getQueryState(chatAgentModelOverrideKey("explore"))
-				?.isInvalidated,
-		).not.toBe(true);
+		for (const context of ["general", "explore", "computer_use"] as const) {
+			expect(
+				queryClient.getQueryState(chatAgentModelOverrideKey(context))
+					?.isInvalidated,
+			).not.toBe(true);
+		}
 	});
 });
 

@@ -45,10 +45,15 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeGeneral,
 			description: "delegated work that may inspect or modify workspace files",
 			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				overrideContext := codersdk.ChatAgentModelOverrideContextGeneral
+				if parent.PlanMode.Valid &&
+					parent.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
+					overrideContext = codersdk.ChatAgentModelOverrideContextPlanSubagent
+				}
 				modelConfigID, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
-					codersdk.ChatAgentModelOverrideContextGeneral,
+					overrideContext,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -98,14 +103,25 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
-				return childSubagentChatOptions{
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveComputerUseOverrideModelConfigID(
+					ctx,
+					parent.OwnerID,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				options := childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,
 						Valid:    true,
 					},
 					systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(prompt),
-				}, nil
+				}
+				if modelConfigID != uuid.Nil {
+					options.modelConfigIDOverride = &modelConfigID
+				}
+				return options, nil
 			},
 		},
 	}

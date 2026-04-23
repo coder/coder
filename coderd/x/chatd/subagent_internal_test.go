@@ -665,6 +665,214 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 	require.False(t, childChat.PlanMode.Valid)
 }
 
+func TestSpawnAgent_GeneralFromPlanParentUsesPlanSubagentOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	generalOverride := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "general-should-not-apply-"+uuid.NewString(), true,
+	)
+	planOverride := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "plan-subagent-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, generalOverride.ID.String()))
+	require.NoError(t, db.UpsertChatPlanSubagentModelOverride(ctx, planOverride.ID.String()))
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "parent-plan-subagent-override",
+		ModelConfigID:  model.ID,
+		PlanMode:       planMode,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan the change"),
+		},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeGeneral,
+		Prompt: "investigate the design",
+	})
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, planOverride.ID, childChat.LastModelConfigID)
+	require.Equal(t, planMode, childChat.PlanMode)
+	require.Equal(t, model.ID, parentChat.LastModelConfigID)
+	require.NotEqual(t, generalOverride.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnAgent_GeneralFromPlanParentFallsBackWhenPlanSubagentOverrideUnset(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	generalOverride := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "general-plan-parent-override-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, generalOverride.ID.String()))
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "parent-plan-subagent-fallback",
+		ModelConfigID:  model.ID,
+		PlanMode:       planMode,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan the rollout"),
+		},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeGeneral,
+		Prompt: "inspect the code paths",
+	})
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+	require.Equal(t, planMode, childChat.PlanMode)
+	require.NotEqual(t, generalOverride.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnAgent_ExploreFromPlanParentUsesExploreOverrideAndClearsPlanMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	exploreOverride := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "explore-plan-override-"+uuid.NewString(), true,
+	)
+	planOverride := insertInternalChatModelConfig(
+		ctx, t, db, user.ID, "plan-should-not-apply-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, exploreOverride.ID.String()))
+	require.NoError(t, db.UpsertChatPlanSubagentModelOverride(ctx, planOverride.ID.String()))
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "parent-plan-explore",
+		ModelConfigID:  model.ID,
+		PlanMode:       planMode,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan the rollout"),
+		},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeExplore,
+		Prompt: "inspect the code paths",
+	})
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, exploreOverride.ID, childChat.LastModelConfigID)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
+	require.False(t, childChat.PlanMode.Valid)
+	require.NotEqual(t, planOverride.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnAgent_PlanSubagentOverrideLogsAndFallsBackWhenCredentialsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	logSink := &subagentTestLogSink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertInternalChatProvider(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"openai-compat",
+		"",
+		false,
+		true,
+		false,
+	)
+	overrideModel := insertInternalChatModelConfigForProvider(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"openai-compat",
+		"gpt-4o-mini",
+		true,
+	)
+	require.NoError(
+		t,
+		db.UpsertChatPlanSubagentModelOverride(ctx, overrideModel.ID.String()),
+	)
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "parent-plan-credentials-fallback",
+		ModelConfigID:  model.ID,
+		PlanMode:       planMode,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan the change"),
+		},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeGeneral,
+		Prompt: "inspect provider credentials",
+	})
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.Equal(t, model.ID, childChat.LastModelConfigID)
+	require.Equal(t, planMode, childChat.PlanMode)
+	require.Len(t, logSink.entriesAtLevelWithMessage(
+		slog.LevelInfo,
+		"model override credentials are unavailable, ignoring",
+	), 1)
+}
+
 func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -1497,7 +1705,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	}
 }
 
-func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
+func TestSpawnAgent_ComputerUseUsesConfiguredOverrideWhenCompatible(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1507,9 +1715,20 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+	computerUseOverride := insertInternalChatModelConfigForProvider(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"anthropic",
+		"claude-sonnet-4",
+		true,
+	)
+	require.NoError(
+		t,
+		db.UpsertChatComputerUseModelOverride(ctx, computerUseOverride.ID.String()),
+	)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
-
-	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
@@ -1517,7 +1736,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 		WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		BuildID:            uuid.NullUUID{UUID: build.ID, Valid: true},
 		AgentID:            uuid.NullUUID{UUID: agent.ID, Valid: true},
-		Title:              "parent-openai",
+		Title:              "parent-computer-use-override",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
@@ -1535,23 +1754,74 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "take a screenshot"},
 	)
-	result := requireSpawnAgentResponse(t, resp)
-	require.Equal(t, subagentTypeComputerUse, result.SubagentType)
-	childID, err := uuid.Parse(result.ChatID)
-	require.NoError(t, err)
+	childID := requireSpawnAgentChildChatID(t, resp)
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
-	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	assert.NotEqual(t, model.Provider, chattool.ComputerUseModelProvider,
-		"computer use model provider must differ from parent model provider")
-	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
-	assert.NotEmpty(t, chattool.ComputerUseModelName)
+	require.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
+	require.Equal(t, computerUseOverride.ID, childChat.LastModelConfigID)
+}
+
+func TestSpawnAgent_ComputerUseLeavesChildMetadataOnParentModelWhenOverrideIncompatible(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+	incompatibleOverride := insertInternalChatModelConfig(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"computer-use-openai-override-"+uuid.NewString(),
+		true,
+	)
+	require.NoError(
+		t,
+		db.UpsertChatComputerUseModelOverride(ctx, incompatibleOverride.ID.String()),
+	)
+	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		BuildID:            uuid.NullUUID{UUID: build.ID, Valid: true},
+		AgentID:            uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Title:              "parent-computer-use-incompatible-override",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		spawnAgentToolName,
+		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "take a screenshot"},
+	)
+	childID := requireSpawnAgentChildChatID(t, resp)
+
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
+	require.Equal(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+	require.NotEqual(t, incompatibleOverride.ID, childChat.LastModelConfigID)
 }
 
 func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {

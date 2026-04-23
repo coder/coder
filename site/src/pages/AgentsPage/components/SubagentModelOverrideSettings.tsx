@@ -14,6 +14,8 @@ export interface MutationCallbacks {
 interface ModelOverrideData {
 	readonly model_config_id: string;
 	readonly is_malformed: boolean;
+	readonly is_effective?: boolean;
+	readonly ignored_reason?: string;
 }
 
 interface UpdateModelOverrideRequest {
@@ -92,6 +94,9 @@ export const SubagentModelOverrideSettings: FC<
 			(option) => option.id === form.values.model_config_id,
 		);
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
+	const ignoredReason = modelOverrideData?.ignored_reason?.trim() ?? "";
+	const hasIgnoredOverride =
+		modelOverrideData?.is_effective === false && ignoredReason !== "";
 	const isModelOverrideDisabled =
 		disabled || isSaving || isLoading || !hasLoadedModelOverride;
 	const canSaveModelOverride =
@@ -137,6 +142,11 @@ export const SubagentModelOverrideSettings: FC<
 						The saved override is malformed and is being treated as unset. Click
 						Save to clear it.
 					</AlertDescription>
+				</Alert>
+			)}
+			{hasIgnoredOverride && (
+				<Alert severity="warning">
+					<AlertDescription>{ignoredReason}</AlertDescription>
 				</Alert>
 			)}
 			{Boolean(modelConfigsError) && (

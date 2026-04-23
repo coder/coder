@@ -21,6 +21,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -108,8 +109,12 @@ func subagentModelOverrideLogLabel(
 	switch overrideContext {
 	case codersdk.ChatAgentModelOverrideContextGeneral:
 		return "general delegated child"
+	case codersdk.ChatAgentModelOverrideContextPlanSubagent:
+		return "plan delegated child"
 	case codersdk.ChatAgentModelOverrideContextExplore:
 		return "explore"
+	case codersdk.ChatAgentModelOverrideContextComputerUse:
+		return "computer use"
 	default:
 		return string(overrideContext)
 	}
@@ -123,8 +128,12 @@ func readSubagentModelOverride(
 	switch overrideContext {
 	case codersdk.ChatAgentModelOverrideContextGeneral:
 		return db.GetChatGeneralModelOverride(ctx)
+	case codersdk.ChatAgentModelOverrideContextPlanSubagent:
+		return db.GetChatPlanSubagentModelOverride(ctx)
 	case codersdk.ChatAgentModelOverrideContextExplore:
 		return db.GetChatExploreModelOverride(ctx)
+	case codersdk.ChatAgentModelOverrideContextComputerUse:
+		return db.GetChatComputerUseModelOverride(ctx)
 	default:
 		return "", xerrors.Errorf(
 			"unknown subagent model override context %q",
@@ -259,6 +268,95 @@ func (p *Server) resolveSubagentModelConfigID(
 		raw,
 		ownerID,
 		p.resolveModelConfigAndNormalizedProvider,
+		p.resolveUserProviderAPIKeys,
+	)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !ok {
+		return uuid.Nil, nil
+	}
+	return modelConfig.ID, nil
+}
+
+func isComputerUseProviderCompatible(providerName string) bool {
+	return chatprovider.NormalizeProvider(providerName) ==
+		chatprovider.NormalizeProvider(chattool.ComputerUseModelProvider)
+}
+
+func (p *Server) resolveComputerUseOverrideModelConfig(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	resolveProviderKeys modelOverrideProviderKeysResolver,
+) (database.ChatModelConfig, bool, error) {
+	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	raw, err := readSubagentModelOverride(
+		chatdCtx,
+		p.db,
+		codersdk.ChatAgentModelOverrideContextComputerUse,
+	)
+	if err != nil {
+		return database.ChatModelConfig{}, false, xerrors.Errorf(
+			"get %s model override: %w",
+			subagentModelOverrideLogLabel(
+				codersdk.ChatAgentModelOverrideContextComputerUse,
+			),
+			err,
+		)
+	}
+	modelConfig, ok, err := p.resolveConfiguredModelOverride(
+		ctx,
+		string(codersdk.ChatAgentModelOverrideContextComputerUse),
+		raw,
+		ownerID,
+		p.resolveModelConfigAndNormalizedProvider,
+		resolveProviderKeys,
+	)
+	if err != nil {
+		return database.ChatModelConfig{}, false, err
+	}
+	if !ok {
+		return database.ChatModelConfig{}, false, nil
+	}
+	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
+		modelConfig.Model,
+		modelConfig.Provider,
+	)
+	if err != nil {
+		p.logger.Info(ctx,
+			"computer use model override metadata is invalid, ignoring",
+			slog.F(
+				"override_context",
+				codersdk.ChatAgentModelOverrideContextComputerUse,
+			),
+			slog.F("model_config_id", modelConfig.ID),
+			slog.Error(err),
+		)
+		return database.ChatModelConfig{}, false, nil
+	}
+	if !isComputerUseProviderCompatible(providerName) {
+		p.logger.Info(ctx,
+			"computer use model override is incompatible, ignoring",
+			slog.F(
+				"override_context",
+				codersdk.ChatAgentModelOverrideContextComputerUse,
+			),
+			slog.F("model_config_id", modelConfig.ID),
+			slog.F("provider", providerName),
+		)
+		return database.ChatModelConfig{}, false, nil
+	}
+	return modelConfig, true, nil
+}
+
+func (p *Server) resolveComputerUseOverrideModelConfigID(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) (uuid.UUID, error) {
+	modelConfig, ok, err := p.resolveComputerUseOverrideModelConfig(
+		ctx,
+		ownerID,
 		p.resolveUserProviderAPIKeys,
 	)
 	if err != nil {

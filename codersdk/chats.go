@@ -567,15 +567,19 @@ type UpdateChatPlanModeInstructionsRequest struct {
 type ChatAgentModelOverrideContext string
 
 const (
-	ChatAgentModelOverrideContextGeneral ChatAgentModelOverrideContext = "general"
-	ChatAgentModelOverrideContextExplore ChatAgentModelOverrideContext = "explore"
+	ChatAgentModelOverrideContextGeneral      ChatAgentModelOverrideContext = "general"
+	ChatAgentModelOverrideContextPlanSubagent ChatAgentModelOverrideContext = "plan_subagent"
+	ChatAgentModelOverrideContextExplore      ChatAgentModelOverrideContext = "explore"
+	ChatAgentModelOverrideContextComputerUse  ChatAgentModelOverrideContext = "computer_use"
 )
 
 // Valid reports whether the override context is one of the supported values.
 func (c ChatAgentModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore:
+		ChatAgentModelOverrideContextPlanSubagent,
+		ChatAgentModelOverrideContextExplore,
+		ChatAgentModelOverrideContextComputerUse:
 		return true
 	default:
 		return false
@@ -586,7 +590,9 @@ func (c ChatAgentModelOverrideContext) Valid() bool {
 func AllChatAgentModelOverrideContexts() []ChatAgentModelOverrideContext {
 	return []ChatAgentModelOverrideContext{
 		ChatAgentModelOverrideContextGeneral,
+		ChatAgentModelOverrideContextPlanSubagent,
 		ChatAgentModelOverrideContextExplore,
+		ChatAgentModelOverrideContextComputerUse,
 	}
 }
 
@@ -596,6 +602,13 @@ type ChatAgentModelOverrideResponse struct {
 	Context       ChatAgentModelOverrideContext `json:"context"`
 	ModelConfigID string                        `json:"model_config_id"`
 	IsMalformed   bool                          `json:"is_malformed"`
+	// IsEffective reports whether the saved override is currently usable for
+	// this context at a deployment level. It is only set for contexts with
+	// additional compatibility rules, such as computer use.
+	IsEffective *bool `json:"is_effective,omitempty"`
+	// IgnoredReason explains why a saved override is being ignored for the
+	// current context at a deployment level.
+	IgnoredReason string `json:"ignored_reason,omitempty"`
 }
 
 // UpdateChatAgentModelOverrideRequest is the request body for updating the
