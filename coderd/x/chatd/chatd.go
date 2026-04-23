@@ -5710,11 +5710,37 @@ func (p *Server) runChat(
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
-	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
-		mcpConfigs,
-		currentPlanMode,
-		chat.ParentChatID,
-	)
+	var mcpConnectConfigs []database.MCPServerConfig
+	var approvedPlanMCPConfigIDs map[uuid.UUID]struct{}
+	if isExploreSubagent && chat.ParentChatID.Valid {
+		// Explore chats clear their own plan mode. Re-apply the spawning
+		// parent's plan-mode MCP policy here as defense in depth for
+		// legacy rows whose MCPServerIDs snapshot predates spawn-time
+		// filtering. Spawn-time filtering remains the primary boundary.
+		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
+		if err != nil {
+			logger.Warn(ctx,
+				"failed to load Explore parent chat for MCP snapshot filter",
+				slog.F("chat_id", chat.ID),
+				slog.F("parent_chat_id", chat.ParentChatID.UUID),
+				slog.Error(err),
+			)
+			mcpConnectConfigs = nil
+			approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
+		} else {
+			mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+				mcpConfigs,
+				parentChat.PlanMode,
+				parentChat.ParentChatID,
+			)
+		}
+	} else {
+		mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+			mcpConfigs,
+			currentPlanMode,
+			chat.ParentChatID,
+		)
+	}
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
