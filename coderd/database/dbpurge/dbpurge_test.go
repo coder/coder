@@ -2599,6 +2599,11 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				child := createArchiveChat(ctx, t, db, rawDB, deps, "child-chat", now.Add(-90*24*time.Hour))
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET parent_chat_id = $1, root_chat_id = $1 WHERE id = $2", root.ID, child.ID)
 				require.NoError(t, err)
+				// Give the child an active status to prove the cascade is
+				// status-blind by design. If someone adds a status filter
+				// to the cascade CTE, this assertion will catch it.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusRunning, child.ID)
+				require.NoError(t, err)
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
