@@ -5,7 +5,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
 )
@@ -102,14 +101,14 @@ func cloneMessage(msg fantasy.Message) fantasy.Message {
 func messageJSONByteCount(msg fantasy.Message) int {
 	data, err := json.Marshal(msg)
 	if err == nil {
-		return utf8.RuneCount(data)
+		return len(data)
 	}
 
 	total := 0
 	for _, part := range msg.Content {
 		partData, partErr := json.Marshal(part)
 		if partErr == nil {
-			total += utf8.RuneCount(partData)
+			total += len(partData)
 		}
 	}
 	return total
