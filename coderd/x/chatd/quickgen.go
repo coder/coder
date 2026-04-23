@@ -45,6 +45,9 @@ const titleGenerationPrompt = "Write a short chat title as a bag of " +
 	"- Lead with identifiers verbatim (issue keys, PR numbers, repo " +
 	"names, file paths, function names, error codes). Preserve their " +
 	"exact casing and punctuation.\n" +
+	"- For deep file paths (more than ~3 segments), prefer the " +
+	"basename (e.g. WorkspaceSchedulePage.tsx) over the full path. " +
+	"Keep the full path only when disambiguation is necessary.\n" +
 	"- After identifiers, add 1-3 keywords describing the subject or " +
 	"action. Prefer nouns and domain terms.\n" +
 	"- No filler: drop articles (a, an, the), conjunctions (and, or, " +
@@ -57,7 +60,7 @@ const titleGenerationPrompt = "Write a short chat title as a bag of " +
 	"- Do not answer the user or describe the title-writing task.\n\n" +
 	"Examples:\n" +
 	"- User: \"Can you read FOOBAR-123 and identify a fix?\"\n" +
-	"  Title: FOOBAR-123 fix investigation\n" +
+	"  Title: FOOBAR-123 investigation\n" +
 	"- User: \"The frobulator in pkg/foo/bar.go keeps panicking on nil " +
 	"inputs\"\n" +
 	"  Title: pkg/foo/bar.go frobulator nil panic\n" +
@@ -75,6 +78,18 @@ const (
 	// recentTurnWindow is the number of most recent turns included
 	// alongside the first user turn in manual title context.
 	recentTurnWindow = 3
+	// maxGeneratedTitleRunes is the validator's hard ceiling on LLM
+	// title output. Sits below titleTruncationRunes so validation
+	// rejects overlong output before truncation silently clips it,
+	// giving the candidate-model fallback in maybeGenerateChatTitle a
+	// chance to try a different model. The error message in
+	// validateGeneratedTitle embeds the literal number for log
+	// grep-ability; keep them in sync.
+	maxGeneratedTitleRunes = 60
+	// titleTruncationRunes is the last-resort safety net in
+	// normalizeTitleOutput. Anything past this is clipped with no
+	// feedback to the caller.
+	titleTruncationRunes = 80
 )
 
 // preferredTitleModels are lightweight models used for title
@@ -485,11 +500,15 @@ func validateGeneratedTitle(title string) error {
 	}
 	// Rune count, not word count: the concept of a "word" is fuzzy
 	// across scripts (CJK has no spaces, agglutinative languages pack
-	// multiple tokens per "word"). 60 runes sits below the 80-rune
-	// truncation in normalizeTitleOutput so validation can actually
-	// fire and trigger the fallback-model retry cascade; truncation
-	// remains a last-resort safety net.
-	if utf8.RuneCountInString(title) > 60 {
+	// multiple tokens per "word"). maxGeneratedTitleRunes sits below
+	// titleTruncationRunes so validation rejects overlong output
+	// before normalizeTitleOutput silently clips it. A rejected title
+	// falls through to the next candidate model in
+	// maybeGenerateChatTitle's candidate loop; truncation remains a
+	// last-resort safety net if validation is ever skipped.
+	if utf8.RuneCountInString(title) > maxGeneratedTitleRunes {
+		// Error literal embeds the rune count so log searches stay
+		// stable; keep the number in sync with the constant above.
 		return xerrors.New("generated title exceeded 60 runes")
 	}
 	return nil
@@ -549,7 +568,7 @@ func normalizeTitleOutput(title string) string {
 	if title == "" {
 		return ""
 	}
-	return truncateRunes(title, 80)
+	return truncateRunes(title, titleTruncationRunes)
 }
 
 func fallbackChatTitle(message string) string {
@@ -737,6 +756,10 @@ func renderManualTitlePrompt(
 	write("- Lead with identifiers verbatim (issue keys, PR numbers, ")
 	write("repo names, file paths, function names, error codes). ")
 	write("Preserve their exact casing and punctuation.\n")
+	write("- For deep file paths (more than ~3 segments), prefer the ")
+	write("basename (e.g. WorkspaceSchedulePage.tsx) over the full ")
+	write("path. Keep the full path only when disambiguation is ")
+	write("necessary.\n")
 	write("- After identifiers, add 1-3 keywords describing the ")
 	write("subject or action. Prefer nouns and domain terms.\n")
 	write("- No filler: drop articles (a, an, the), conjunctions (and, ")

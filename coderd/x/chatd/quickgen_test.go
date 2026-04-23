@@ -337,6 +337,12 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 
+			// Mirror key rule assertions from the single-message prompt
+			// so silent drift between the two surfaces fails tests.
+			require.Contains(t, prompt, "No filler")
+			require.Contains(t, prompt, "basename")
+			require.Contains(t, prompt, "Lead with identifiers verbatim")
+
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
 				require.Contains(t, prompt, tt.conversationBlock)
@@ -370,7 +376,14 @@ func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 
 	// At least one few-shot example that mirrors the user's
 	// reference transformation, pinning the expected output shape.
-	require.Contains(t, titleGenerationPrompt, "FOOBAR-123")
+	// The example's title must not itself contain a banned filler
+	// verb (see "No filler" rule above) or the prompt contradicts
+	// itself.
+	require.Contains(t, titleGenerationPrompt, "FOOBAR-123 investigation")
+	require.NotContains(t, titleGenerationPrompt, "FOOBAR-123 fix investigation")
+
+	// Basename guidance for deep file paths.
+	require.Contains(t, titleGenerationPrompt, "basename")
 
 	// Preserved guidance.
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
@@ -381,9 +394,11 @@ func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 func Test_validateGeneratedTitle(t *testing.T) {
 	t.Parallel()
 
-	// 60 runes exactly. Use ASCII so len == rune count.
-	sixtyRunes := strings.Repeat("a", 60)
-	sixtyOneRunes := strings.Repeat("a", 61)
+	// Use the constant as the source of truth so the test tracks
+	// any future adjustment to the cap. ASCII keeps len == rune
+	// count for readability.
+	atCap := strings.Repeat("a", maxGeneratedTitleRunes)
+	overCap := strings.Repeat("a", maxGeneratedTitleRunes+1)
 
 	tests := []struct {
 		name      string
@@ -399,19 +414,19 @@ func Test_validateGeneratedTitle(t *testing.T) {
 		},
 		{
 			name:    "short title accepted",
-			title:   "FOOBAR-123 fix investigation",
+			title:   "FOOBAR-123 investigation",
 			wantErr: false,
 		},
 		{
-			name:    "sixty runes accepted",
-			title:   sixtyRunes,
+			name:    "at cap accepted",
+			title:   atCap,
 			wantErr: false,
 		},
 		{
-			name:      "sixty one runes rejected",
-			title:     sixtyOneRunes,
+			name:      "over cap rejected",
+			title:     overCap,
 			wantErr:   true,
-			errSubstr: "60",
+			errSubstr: "60 runes",
 		},
 		{
 			// Rune counting is script-agnostic: a short CJK title with
