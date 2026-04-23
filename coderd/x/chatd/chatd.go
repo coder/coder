@@ -6004,6 +6004,7 @@ func (p *Server) loadPlanModeInstructions(
 		)
 		return ""
 	}
+
 	return fetched
 }
 
@@ -7221,10 +7222,6 @@ func (p *Server) runChat(
 			chatsanitize.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
 			)
-			// Re-inject advisor guidance after compaction/reload.
-			if advisorRuntime != nil {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, chatadvisor.ParentGuidanceBlock)
-			}
 			// Re-derive instruction and skills from the reloaded
 			// messages so that any context added during the
 			// chatloop (e.g. via persistInstructionFiles when
@@ -7256,6 +7253,12 @@ func (p *Server) runChat(
 					isRootChat:           isRootChat,
 				},
 			)
+			// Re-inject advisor guidance after rebuilding system
+			// blocks so compaction/reload preserves the same
+			// system-message ordering as the initial prompt path.
+			if advisorRuntime != nil {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, chatadvisor.ParentGuidanceBlock)
+			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
