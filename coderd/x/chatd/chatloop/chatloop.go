@@ -1213,8 +1213,20 @@ func executeSingleTool(
 			slog.F("tool_error", resp.Content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		// ToolResponse.Data should contain decoded binary
+		// bytes per contract. Re-encode to base64 for the
+		// string field that ToolResultOutputContentMedia
+		// expects. As a defense-in-depth measure, detect data
+		// that is already valid base64 to avoid double-encoding
+		// if a producer breaks the contract.
+		mediaData := base64.StdEncoding.EncodeToString(resp.Data)
+		if s := string(resp.Data); isASCII(s) {
+			if _, err := base64.StdEncoding.DecodeString(s); err == nil {
+				mediaData = s
+			}
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
-			Data:      base64.StdEncoding.EncodeToString(resp.Data),
+			Data:      mediaData,
 			MediaType: resp.MediaType,
 			Text:      resp.Content,
 		}
@@ -1784,4 +1796,16 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// isASCII reports whether every byte in s is in the ASCII range.
+// Used to cheaply distinguish decoded binary (contains high bytes)
+// from an already-base64-encoded string (ASCII-only).
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
