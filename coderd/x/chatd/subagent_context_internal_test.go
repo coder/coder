@@ -478,11 +478,10 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
 	insertEnabledAnthropicProvider(ctx, t, db, parentChat.OwnerID)
 	// The direct DB insert above bypasses the pubsub event that
-	// production uses to invalidate the provider cache. Without
-	// this, the background processing goroutine may have already
-	// cached the provider list (OpenAI only) before the Anthropic
-	// provider was inserted, causing isAnthropicConfigured to
-	// return false.
+	// production uses to invalidate the provider cache. Explicitly
+	// invalidate here so the background processing goroutine does
+	// not serve a stale provider list (OpenAI only) that was cached
+	// before the Anthropic provider was inserted.
 	server.configCache.InvalidateProviders()
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
