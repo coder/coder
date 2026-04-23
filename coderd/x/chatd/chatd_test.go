@@ -9188,25 +9188,30 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		"parent must see the advisor reply in its continuation call")
 }
 
+// TestAdvisorGating_ChildChat guards the second dimension of the advisor
+// eligibility condition: even with advisor enabled, a chat whose
+// ParentChatID is set must not register the advisor tool or receive the
+// advisor guidance block. Without this coverage, a refactor that removes
+// or weakens the !chat.ParentChatID.Valid guard would leak advisor into
+// child chats, and the recursive advisor-inside-subagent cost risk the
+// guard exists to prevent would ship silently.
+//
+// The earlier version of this test drove the gating path through
+// spawn_agent, which made it dependent on subagent wiring that changed
+// repeatedly upstream. This version seeds the parent chat directly in the
+// database and asks the server to create a child chat with a valid
+// ParentChatID, exercising the same gating path with no subagent tooling
+// in the way.
 func TestAdvisorGating_ChildChat(t *testing.T) {
 	t.Parallel()
-	// TODO(advisor-rebase): this test was written against pre-sync subagent
-	// spawning mechanics. The upstream subagent refactors (plan/explore
-	// modes, unified spawn_agent) changed how server.CreateChat wires
-	// the subagent chain in low-level tests, so the expected sequence
-	// (root-1, child-1, root-2) never completes. The advisor gating
-	// logic itself is covered by TestAdvisorGating_Disabled +
-	// TestAdvisorGating_RootChat.
-	t.Skip("subagent spawn wiring needs a rewrite; tracked as follow-up")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	var toolsMu sync.Mutex
-	toolsByCall := make([][]string, 0, 3)
-	messagesByCall := make([][]chattest.OpenAIMessage, 0, 3)
+	var capturedTools []string
+	var capturedMessages []chattest.OpenAIMessage
 
-	var streamedCallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
@@ -9217,18 +9222,9 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 			names = append(names, tool.Function.Name)
 		}
 		toolsMu.Lock()
-		toolsByCall = append(toolsByCall, names)
-		messagesByCall = append(messagesByCall, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		capturedTools = names
+		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
 		toolsMu.Unlock()
-
-		if streamedCallCount.Add(1) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk(
-					"spawn_agent",
-					`{"prompt":"do the thing","title":"sub"}`,
-				),
-			)
-		}
 
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("done")...,
@@ -9241,75 +9237,55 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
+
+	// Seed the parent chat directly in the database so the test server
+	// never executes the root turn. That keeps this test focused on the
+	// child-chat gating path without depending on subagent wiring.
+	parent, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		LastModelConfigID: model.ID,
+		Title:             "advisor-root-parent",
+	})
+	require.NoError(t, err)
+
 	server := newActiveTestServer(t, db, ps)
 
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	childChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		Title:          "advisor-child",
 		ModelConfigID:  model.ID,
+		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Spawn a subagent."),
+			codersdk.ChatMessageText("hi"),
 		},
 	})
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
+		got, getErr := db.GetChatByID(ctx, childChat.ID)
 		if getErr != nil {
 			return false
 		}
-		if got.Status != database.ChatStatusWaiting &&
-			got.Status != database.ChatStatusError {
-			return false
-		}
-		toolsMu.Lock()
-		n := len(toolsByCall)
-		toolsMu.Unlock()
-		return n >= 3
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	toolsMu.Lock()
-	recordedTools := append([][]string(nil), toolsByCall...)
-	recordedMessages := append([][]chattest.OpenAIMessage(nil), messagesByCall...)
+	tools := append([]string(nil), capturedTools...)
+	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
 	toolsMu.Unlock()
 
-	var rootTools [][]string
-	var rootMessages [][]chattest.OpenAIMessage
-	var childTools [][]string
-	var childMessages [][]chattest.OpenAIMessage
-	for i, tools := range recordedTools {
-		if slice.Contains(tools, "spawn_agent") {
-			rootTools = append(rootTools, tools)
-			rootMessages = append(rootMessages, recordedMessages[i])
-			continue
-		}
-		childTools = append(childTools, tools)
-		childMessages = append(childMessages, recordedMessages[i])
-	}
-
-	require.NotEmpty(t, rootTools, "expected at least one root chat LLM call")
-	require.NotEmpty(t, childTools, "expected at least one child chat LLM call")
-	require.NotEmpty(t, rootMessages[0], "expected root chat prompt messages")
-	require.NotEmpty(t, childMessages[0], "expected child chat prompt messages")
-
-	require.Contains(t, rootTools[0], "advisor",
-		"root chat should have the advisor tool when enabled")
-	var rootHasGuidance bool
-	for _, msg := range rootMessages[0] {
-		if strings.Contains(msg.Content, chatadvisor.ParentGuidanceBlock) {
-			rootHasGuidance = true
-			break
-		}
-	}
-	require.True(t, rootHasGuidance,
-		"root chat should contain advisor guidance in the prompt")
-
-	require.NotContains(t, childTools[0], "advisor",
-		"child chat should not have the advisor tool even when enabled")
-	for _, msg := range childMessages[0] {
+	require.NotEmpty(t, messages, "expected a streamed LLM request for the child chat")
+	require.NotContains(t, tools, chatadvisor.ToolName,
+		"advisor tool must not be registered for child chats even when enabled")
+	for _, msg := range messages {
 		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"child chat should not contain advisor guidance")
+			"child chat must not contain advisor guidance")
 	}
 }
 

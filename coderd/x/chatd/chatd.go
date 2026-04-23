@@ -19,10 +19,6 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
-	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
-	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
-	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -237,142 +233,12 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) codersdk.AdvisorConfig {
-	raw, err := p.db.GetChatAdvisorConfig(ctx)
+	cfg, err := p.configCache.AdvisorConfig(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
 		return codersdk.AdvisorConfig{}
 	}
-
-	var cfg codersdk.AdvisorConfig
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		logger.Warn(ctx, "failed to parse advisor config", slog.Error(err))
-		return codersdk.AdvisorConfig{}
-	}
 	return cfg
-}
-
-// ensureAdvisorProviderOptions returns a provider options map that is
-// ready to receive a reasoning-effort mutation for the advisor model's
-// provider. When the advisor model config omits a provider_options block
-// ProviderOptionsFromChatModelConfig returns nil, so applyAdvisorReasoningEffort
-// would otherwise silently drop the admin-configured effort. For providers
-// that understand reasoning_effort we seed a minimal options struct so the
-// mutation lands on something, otherwise we return the input unchanged.
-func ensureAdvisorProviderOptions(
-	providerOptions fantasy.ProviderOptions,
-	advisorModel fantasy.LanguageModel,
-	reasoningEffort string,
-) fantasy.ProviderOptions {
-	if strings.TrimSpace(reasoningEffort) == "" {
-		return providerOptions
-	}
-	if advisorModel == nil {
-		return providerOptions
-	}
-
-	provider := advisorModel.Provider()
-	var seed fantasy.ProviderOptionsData
-	switch provider {
-	case fantasyopenai.Name:
-		if fantasyopenai.IsResponsesModel(advisorModel.Model()) {
-			seed = &fantasyopenai.ResponsesProviderOptions{}
-		} else {
-			seed = &fantasyopenai.ProviderOptions{}
-		}
-	case anthropic.Name:
-		seed = &anthropic.ProviderOptions{}
-	case fantasyopenaicompat.Name:
-		seed = &fantasyopenaicompat.ProviderOptions{}
-	case fantasyopenrouter.Name:
-		seed = &fantasyopenrouter.ProviderOptions{}
-	case fantasyvercel.Name:
-		seed = &fantasyvercel.ProviderOptions{}
-	default:
-		return providerOptions
-	}
-
-	if providerOptions == nil {
-		providerOptions = fantasy.ProviderOptions{}
-	}
-	if _, ok := providerOptions[provider]; !ok {
-		providerOptions[provider] = seed
-	}
-	return providerOptions
-}
-
-func applyAdvisorReasoningEffort(
-	providerOptions fantasy.ProviderOptions,
-	reasoningEffort string,
-) {
-	if providerOptions == nil {
-		return
-	}
-	reasoningEffort = strings.TrimSpace(reasoningEffort)
-	if reasoningEffort == "" {
-		return
-	}
-
-	if normalized := chatprovider.ReasoningEffortFromChat(
-		fantasyopenai.Name,
-		&reasoningEffort,
-	); normalized != nil {
-		effort := fantasyopenai.ReasoningEffort(*normalized)
-		if raw, ok := providerOptions[fantasyopenai.Name]; ok {
-			switch opts := raw.(type) {
-			case *fantasyopenai.ProviderOptions:
-				opts.ReasoningEffort = &effort
-			case *fantasyopenai.ResponsesProviderOptions:
-				opts.ReasoningEffort = &effort
-			}
-		}
-		if raw, ok := providerOptions[fantasyopenaicompat.Name]; ok {
-			if opts, ok := raw.(*fantasyopenaicompat.ProviderOptions); ok {
-				opts.ReasoningEffort = &effort
-			}
-		}
-	}
-
-	if normalized := chatprovider.ReasoningEffortFromChat(
-		anthropic.Name,
-		&reasoningEffort,
-	); normalized != nil {
-		if raw, ok := providerOptions[anthropic.Name]; ok {
-			if opts, ok := raw.(*anthropic.ProviderOptions); ok {
-				effort := anthropic.Effort(*normalized)
-				opts.Effort = &effort
-			}
-		}
-	}
-
-	if normalized := chatprovider.ReasoningEffortFromChat(
-		fantasyopenrouter.Name,
-		&reasoningEffort,
-	); normalized != nil {
-		if raw, ok := providerOptions[fantasyopenrouter.Name]; ok {
-			if opts, ok := raw.(*fantasyopenrouter.ProviderOptions); ok {
-				if opts.Reasoning == nil {
-					opts.Reasoning = &fantasyopenrouter.ReasoningOptions{}
-				}
-				effort := fantasyopenrouter.ReasoningEffort(*normalized)
-				opts.Reasoning.Effort = &effort
-			}
-		}
-	}
-
-	if normalized := chatprovider.ReasoningEffortFromChat(
-		fantasyvercel.Name,
-		&reasoningEffort,
-	); normalized != nil {
-		if raw, ok := providerOptions[fantasyvercel.Name]; ok {
-			if opts, ok := raw.(*fantasyvercel.ProviderOptions); ok {
-				if opts.Reasoning == nil {
-					opts.Reasoning = &fantasyvercel.ReasoningOptions{}
-				}
-				effort := fantasyvercel.ReasoningEffort(*normalized)
-				opts.Reasoning.Effort = &effort
-			}
-		}
-	}
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
@@ -508,12 +374,16 @@ func (p *Server) newAdvisorRuntime(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
 	)
-	// ProviderOptionsFromChatModelConfig returns nil when the model
-	// config has no provider_options block. Seed a minimal entry for
-	// the advisor model's provider so the admin-configured reasoning
-	// effort is still applied rather than silently dropped.
-	providerOptions = ensureAdvisorProviderOptions(providerOptions, advisorModel, advisorCfg.ReasoningEffort)
-	applyAdvisorReasoningEffort(providerOptions, advisorCfg.ReasoningEffort)
+	// ProviderOptionsFromChatModelConfig returns nil when the model config
+	// has no provider_options block, so the helper seeds a minimal entry
+	// for the advisor model's provider before applying reasoning_effort.
+	// This keeps the per-provider dispatch in chatprovider so adding a new
+	// provider there propagates here automatically.
+	providerOptions = chatprovider.ApplyReasoningEffortToOptions(
+		providerOptions,
+		advisorModel,
+		advisorCfg.ReasoningEffort,
+	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisorModel,
@@ -7103,7 +6973,7 @@ func (p *Server) runChat(
 
 	var exclusiveToolNames map[string]bool
 	if advisorRuntime != nil {
-		exclusiveToolNames = map[string]bool{"advisor": true}
+		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
 	}
 
 	// Record builtin tool names before appending MCP tools

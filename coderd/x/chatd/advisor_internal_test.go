@@ -7,11 +7,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
-	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
-	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
-	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -25,132 +20,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-// TestApplyAdvisorReasoningEffort exercises each provider's mutation branch so
-// a typo or incorrect type assertion in any single branch fails a unit test
-// rather than shipping silently.
-func TestApplyAdvisorReasoningEffort(t *testing.T) {
-	t.Parallel()
-
-	t.Run("NilProviderOptionsIsNoOp", func(t *testing.T) {
-		t.Parallel()
-		// Must not panic.
-		applyAdvisorReasoningEffort(nil, "medium")
-	})
-
-	t.Run("EmptyEffortIsNoOp", func(t *testing.T) {
-		t.Parallel()
-		effort := fantasyopenai.ReasoningEffortLow
-		opts := &fantasyopenai.ProviderOptions{ReasoningEffort: &effort}
-		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "   ")
-		require.NotNil(t, opts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortLow, *opts.ReasoningEffort)
-	})
-
-	t.Run("UnrecognizedEffortLeavesOptionsUntouched", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyopenai.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "not-a-real-effort")
-		require.Nil(t, opts.ReasoningEffort)
-	})
-
-	t.Run("OpenAIProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyopenai.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "medium")
-		require.NotNil(t, opts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
-	})
-
-	t.Run("OpenAIResponsesProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyopenai.ResponsesProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "medium")
-		require.NotNil(t, opts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
-	})
-
-	t.Run("OpenAICompatProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyopenaicompat.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyopenaicompat.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "medium")
-		require.NotNil(t, opts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
-	})
-
-	t.Run("AnthropicProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyanthropic.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyanthropic.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "high")
-		require.NotNil(t, opts.Effort)
-		require.Equal(t, fantasyanthropic.EffortHigh, *opts.Effort)
-	})
-
-	t.Run("OpenRouterAllocatesReasoningOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyopenrouter.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "medium")
-		require.NotNil(t, opts.Reasoning, "Reasoning container must be allocated")
-		require.NotNil(t, opts.Reasoning.Effort)
-		require.Equal(t, fantasyopenrouter.ReasoningEffort("medium"), *opts.Reasoning.Effort)
-	})
-
-	t.Run("OpenRouterPreservesExistingReasoningContainer", func(t *testing.T) {
-		t.Parallel()
-		enabled := true
-		opts := &fantasyopenrouter.ProviderOptions{
-			Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: &enabled},
-		}
-		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "high")
-		require.NotNil(t, opts.Reasoning.Enabled)
-		require.True(t, *opts.Reasoning.Enabled)
-		require.NotNil(t, opts.Reasoning.Effort)
-		require.Equal(t, fantasyopenrouter.ReasoningEffort("high"), *opts.Reasoning.Effort)
-	})
-
-	t.Run("VercelAllocatesReasoningOptions", func(t *testing.T) {
-		t.Parallel()
-		opts := &fantasyvercel.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{fantasyvercel.Name: opts}
-
-		applyAdvisorReasoningEffort(providerOptions, "minimal")
-		require.NotNil(t, opts.Reasoning)
-		require.NotNil(t, opts.Reasoning.Effort)
-		require.Equal(t, fantasyvercel.ReasoningEffortMinimal, *opts.Reasoning.Effort)
-	})
-
-	t.Run("MultipleProvidersReceiveMutations", func(t *testing.T) {
-		t.Parallel()
-		openaiOpts := &fantasyopenai.ProviderOptions{}
-		anthropicOpts := &fantasyanthropic.ProviderOptions{}
-		providerOptions := fantasy.ProviderOptions{
-			fantasyopenai.Name:    openaiOpts,
-			fantasyanthropic.Name: anthropicOpts,
-		}
-
-		applyAdvisorReasoningEffort(providerOptions, "high")
-		require.NotNil(t, openaiOpts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *openaiOpts.ReasoningEffort)
-		require.NotNil(t, anthropicOpts.Effort)
-		require.Equal(t, fantasyanthropic.EffortHigh, *anthropicOpts.Effort)
-	})
-}
 
 // advisorOverrideStubStore stubs only the database methods that
 // resolveAdvisorModelOverride exercises via the chatConfigCache.
@@ -421,109 +290,6 @@ func TestStripAdvisorGuidanceBlock(t *testing.T) {
 	})
 }
 
-// TestEnsureAdvisorProviderOptions covers the seeding path that prevents
-// admin-configured reasoning_effort from being silently dropped when a
-// model config carries no provider_options block.
-func TestEnsureAdvisorProviderOptions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("EmptyEffortReturnsInputUnchanged", func(t *testing.T) {
-		t.Parallel()
-		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
-		got := ensureAdvisorProviderOptions(nil, model, "")
-		require.Nil(t, got)
-	})
-
-	t.Run("NilModelReturnsInputUnchanged", func(t *testing.T) {
-		t.Parallel()
-		got := ensureAdvisorProviderOptions(nil, nil, "medium")
-		require.Nil(t, got)
-	})
-
-	t.Run("UnknownProviderReturnsInputUnchanged", func(t *testing.T) {
-		t.Parallel()
-		model := &chattest.FakeModel{ProviderName: "unknown", ModelName: "x"}
-		got := ensureAdvisorProviderOptions(nil, model, "medium")
-		require.Nil(t, got)
-	})
-
-	t.Run("SeedsOpenAICompletionsProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		// A model name absent from the Responses allowlist must seed
-		// the completions options struct.
-		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
-		got := ensureAdvisorProviderOptions(nil, model, "medium")
-		require.NotNil(t, got)
-		raw, ok := got[fantasyopenai.Name]
-		require.True(t, ok)
-		_, ok = raw.(*fantasyopenai.ProviderOptions)
-		require.True(t, ok, "expected *ProviderOptions for non-Responses model, got %T", raw)
-	})
-
-	t.Run("SeedsOpenAIResponsesProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		// A model name in the Responses allowlist must seed the
-		// Responses-specific options struct so the OpenAI provider
-		// routes to the Responses endpoint.
-		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
-		got := ensureAdvisorProviderOptions(nil, model, "medium")
-		require.NotNil(t, got)
-		raw, ok := got[fantasyopenai.Name]
-		require.True(t, ok)
-		_, ok = raw.(*fantasyopenai.ResponsesProviderOptions)
-		require.True(t, ok, "expected *ResponsesProviderOptions for Responses model, got %T", raw)
-	})
-
-	t.Run("SeedsAnthropicProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		model := &chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-3-5"}
-		got := ensureAdvisorProviderOptions(nil, model, "high")
-		require.NotNil(t, got)
-		raw, ok := got[fantasyanthropic.Name]
-		require.True(t, ok)
-		_, ok = raw.(*fantasyanthropic.ProviderOptions)
-		require.True(t, ok)
-	})
-
-	t.Run("SeedsOpenRouterProviderOptions", func(t *testing.T) {
-		t.Parallel()
-		model := &chattest.FakeModel{ProviderName: fantasyopenrouter.Name, ModelName: "openrouter-x"}
-		got := ensureAdvisorProviderOptions(nil, model, "low")
-		require.NotNil(t, got)
-		raw, ok := got[fantasyopenrouter.Name]
-		require.True(t, ok)
-		_, ok = raw.(*fantasyopenrouter.ProviderOptions)
-		require.True(t, ok)
-	})
-
-	t.Run("PreservesExistingProviderEntry", func(t *testing.T) {
-		t.Parallel()
-		existing := &fantasyopenai.ProviderOptions{}
-		existingEffort := fantasyopenai.ReasoningEffortLow
-		existing.ReasoningEffort = &existingEffort
-		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: existing}
-
-		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
-		got := ensureAdvisorProviderOptions(providerOptions, model, "medium")
-		require.Same(t, existing, got[fantasyopenai.Name],
-			"existing provider entry must not be replaced")
-	})
-
-	t.Run("SeedSurvivesApplyReasoningEffort", func(t *testing.T) {
-		t.Parallel()
-		// Integration-style check: seed + apply together must produce
-		// a populated effort field even when the input is nil.
-		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
-		providerOptions := ensureAdvisorProviderOptions(nil, model, "medium")
-		applyAdvisorReasoningEffort(providerOptions, "medium")
-
-		opts, ok := providerOptions[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
-		require.True(t, ok)
-		require.NotNil(t, opts.ReasoningEffort)
-		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
-	})
-}
-
 // TestNewAdvisorRuntime covers the three defensive branches in
 // newAdvisorRuntime that gate whether the runtime is created and with what
 // bounds. Without this coverage a regression in any branch ships silently.
@@ -531,7 +297,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.Make()
-	fallbackModel := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+	fallbackModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4"}
 	fallbackCallConfig := codersdk.ChatModelCallConfig{}
 
 	t.Run("ZeroMaxUsesDefaultsToMaxChatSteps", func(t *testing.T) {
