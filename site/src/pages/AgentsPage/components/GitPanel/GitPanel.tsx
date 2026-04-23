@@ -244,7 +244,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							disabled={!isGitActive}
 							title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50",
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:opacity-50",
 								diffStyle === "unified"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -259,7 +259,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							disabled={!isGitActive}
 							title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:opacity-50",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -268,22 +268,29 @@ export const GitPanel: FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={handleRefresh}
-						aria-label="Refresh"
-						disabled={!isGitActive}
-						title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}
-						className="h-6 w-6 text-content-secondary hover:text-content-primary"
-					>
-						<RefreshCwIcon
-							className={cn(
-								"size-3.5",
-								spinning && "motion-safe:animate-spin-once",
-							)}
-						/>
-					</Button>
+					{/*
+					 * The shared Button applies `disabled:pointer-events-none`,
+					 * which would suppress the native `title` tooltip when the
+					 * control is disabled. Wrap it in a span so the tooltip is
+					 * still reachable on hover in the disabled state.
+					 */}
+					<span title={!isGitActive ? GIT_NOT_SETUP_TITLE : undefined}>
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={handleRefresh}
+							aria-label="Refresh"
+							disabled={!isGitActive}
+							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+						>
+							<RefreshCwIcon
+								className={cn(
+									"size-3.5",
+									spinning && "motion-safe:animate-spin-once",
+								)}
+							/>
+						</Button>
+					</span>
 				</div>
 			</div>
 			{/* Content */}
