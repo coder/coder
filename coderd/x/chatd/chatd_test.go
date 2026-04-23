@@ -896,6 +896,103 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	require.NotContains(t, tools, "spawn_agent")
 }
 
+func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	externalMCP := mcpserver.NewMCPServer("root-explore-runtime-mcp", "1.0.0")
+	externalMCP.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	defer externalMCPServer.Close()
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "Root Explore Runtime MCP",
+		Slug:          "root-explore-runtime-mcp",
+		Url:           externalMCPServer.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "root-explore-builtin-only",
+		ModelConfigID:  model.ID,
+		ChatMode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Inspect the codebase."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, exploreChat.ID, server)
+
+	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	if storedChat.Status == database.ChatStatusError {
+		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+	}
+	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
+	require.ElementsMatch(t, []uuid.UUID{mcpConfig.ID}, storedChat.MCPServerIDs)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1)
+
+	tools := recorded[0].Tools
+	require.Contains(t, tools, "read_file")
+	require.Contains(t, tools, "execute")
+	require.NotContains(t, tools, "write_file")
+	require.NotContains(t, tools, "root-explore-runtime-mcp__echo",
+		"root Explore chats should strip persisted external MCP tools at runtime")
+}
+
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
 

@@ -5729,6 +5729,14 @@ func (p *Server) runChat(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
+	if isExploreSubagent && isRootChat {
+		// Root Explore chats stay builtin-only per the accepted plan, so
+		// strip any persisted external MCP configs at runtime regardless of
+		// what's on the chat row. Explore children get their snapshot via
+		// the spawn-time inheritance path and are handled below.
+		mcpConnectConfigs = nil
+		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
+	}
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
