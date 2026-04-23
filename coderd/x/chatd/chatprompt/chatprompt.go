@@ -1338,9 +1338,6 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		var media persistedMediaResult
 		unmarshalErr := json.Unmarshal(part.Result, &media)
 		if unmarshalErr == nil && media.Data != "" && media.MimeType != "" {
-			// Validate that Data is valid base64. Corrupted
-			// media (e.g. raw binary stored as string) would
-			// cause Anthropic to reject the request.
 			_, decErr := base64.StdEncoding.DecodeString(media.Data)
 			if decErr == nil {
 				return fantasy.ToolResultPart{
@@ -1354,29 +1351,36 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 					ProviderOptions: opts,
 				}
 			}
+			// Base64 invalid. Use the human-readable annotation
+			// instead of the full JSON blob to preserve context.
 			logger.Warn(context.Background(),
 				"tool result not valid base64, falling through to text",
 				slog.F("tool_call_id", toolCallID),
 				slog.F("mime_type", media.MimeType),
 				slog.Error(decErr),
 			)
+			if media.Text != "" {
+				resultText = strings.ToValidUTF8(media.Text, "\uFFFD")
+			} else {
+				resultText = "[media content unavailable: corrupted data]"
+			}
+		} else {
+			// Generic warning: unmarshal failure or missing fields.
+			fields := []slog.Field{
+				slog.F("tool_call_id", toolCallID),
+				slog.F("tool_name", part.ToolName),
+				slog.F("has_data", media.Data != ""),
+				slog.F("has_mime_type", media.MimeType != ""),
+			}
+			if unmarshalErr != nil {
+				fields = append(fields, slog.Error(unmarshalErr))
+			}
+			logger.Warn(context.Background(),
+				"media tool result failed reconstruction, falling through to text",
+				fields...,
+			)
 		}
-
-		fields := []slog.Field{
-			slog.F("tool_call_id", toolCallID),
-			slog.F("tool_name", part.ToolName),
-			slog.F("has_data", media.Data != ""),
-			slog.F("has_mime_type", media.MimeType != ""),
-		}
-		if unmarshalErr != nil {
-			fields = append(fields, slog.Error(unmarshalErr))
-		}
-		logger.Warn(context.Background(),
-			"media tool result failed reconstruction, falling through to text",
-			fields...,
-		)
 	}
-
 	// Sanitize invalid UTF-8 in text results before sending
 	// to the LLM. This repairs stored messages that were
 	// poisoned by raw binary in tool results.

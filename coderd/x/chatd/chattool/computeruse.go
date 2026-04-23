@@ -169,7 +169,7 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
 }
 
-func (*computerUseTool) captureScreenshot(
+func (t *computerUseTool) captureScreenshot(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	declaredWidth, declaredHeight int,
@@ -182,6 +182,9 @@ func (*computerUseTool) captureScreenshot(
 	}
 	screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
 	if err != nil {
+		t.logger.Error(ctx, "failed to decode screenshot base64 in captureScreenshot",
+			slog.Error(err),
+		)
 		return fantasy.NewTextErrorResponse(
 			fmt.Sprintf("failed to decode screenshot data: %v", err),
 		), nil
@@ -201,27 +204,25 @@ func (t *computerUseTool) captureSharedScreenshot(
 		), nil
 	}
 
+	screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
+	if err != nil {
+		t.logger.Error(ctx, "failed to decode screenshot base64 in captureSharedScreenshot",
+			slog.Error(err),
+		)
+		return fantasy.NewTextErrorResponse(
+			fmt.Sprintf("failed to decode screenshot data: %v", err),
+		), nil
+	}
+
 	attachmentName := fmt.Sprintf(
 		"screenshot-%s.png",
 		t.clock.Now().UTC().Format("2006-01-02T15-04-05Z"),
 	)
 	if t.storeFile == nil {
 		t.logger.Warn(ctx, "screenshot attachment storage is not configured")
-		screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(
-				fmt.Sprintf("failed to decode screenshot data: %v", err),
-			), nil
-		}
 		return fantasy.NewImageResponse(screenData, "image/png"), nil
 	}
 
-	screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(
-			fmt.Sprintf("failed to decode screenshot data: %v", err),
-		), nil
-	}
 	response := fantasy.NewImageResponse(screenData, "image/png")
 
 	attachment, err := storeScreenshotAttachment(

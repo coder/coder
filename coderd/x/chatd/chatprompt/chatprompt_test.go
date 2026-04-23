@@ -2924,3 +2924,49 @@ func TestToolResultAntivenom(t *testing.T) {
 		require.Contains(t, mediaOutput.Text, "world")
 	})
 }
+
+func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(fantasy.ToolResultContent{
+			ToolCallID: "call-1",
+			ToolName:   "test",
+			Result: fantasy.ToolResultOutputContentText{
+				Text: "hello\xffworld",
+			},
+		})
+
+		require.True(t, utf8.Valid(part.Result),
+			"persisted result must be valid UTF-8, got: %q", string(part.Result))
+	})
+
+	t.Run("MediaTextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		part := chatprompt.ToolResultContentToPartForTest(fantasy.ToolResultContent{
+			ToolCallID: "call-2",
+			ToolName:   "computer",
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      validBase64,
+				MediaType: "image/png",
+				Text:      "screenshot\xfe\xffdone",
+			},
+		})
+
+		require.True(t, part.IsMedia)
+		// Unmarshal the persisted media and check Text field.
+		var media struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text"`
+		}
+		err := json.Unmarshal(part.Result, &media)
+		require.NoError(t, err)
+		require.True(t, utf8.ValidString(media.Text),
+			"persisted media text must be valid UTF-8")
+		require.Contains(t, media.Text, "screenshot")
+		require.Contains(t, media.Text, "done")
+	})
+}

@@ -1277,10 +1277,9 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		result          *mcp.CallToolResult
-		wantContains    []string
-		wantNotContains []string
+		name         string
+		result       *mcp.CallToolResult
+		wantContains []string
 	}{
 		{
 			name: "InvalidUTF8InTextContent",
@@ -1343,9 +1342,6 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 				"response content must be valid UTF-8")
 			for _, want := range tt.wantContains {
 				require.Contains(t, resp.Content, want)
-			}
-			for _, notWant := range tt.wantNotContains {
-				require.NotContains(t, resp.Content, notWant)
 			}
 		})
 	}
