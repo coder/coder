@@ -1921,6 +1921,23 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("merges last_model_config_id when watched updated_at equals cached updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_model_config_id: "11111111-1111-4111-8111-111111111111",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_model_config_id: "22222222-2222-4222-8222-222222222222",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).last_model_config_id,
+		).toBe("22222222-2222-4222-8222-222222222222");
+	});
+
 	it("merges fresh title updates without clobbering a newer status snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
