@@ -470,15 +470,8 @@ const ServerForm: FC<ServerFormProps> = ({
 
 	return (
 		<div className="flex min-h-full flex-col">
-			{/* Back */}
 			<BackButton onClick={onBack} />
-			{/* Header with icon + server name + enabled toggle */}
 			<div className="flex items-center gap-3">
-				<MCPServerIcon
-					iconUrl={form.values.iconURL}
-					name={form.values.displayName || "New server"}
-					className="h-8 w-8"
-				/>
 				<span
 					className="truncate text-lg font-medium text-content-primary"
 					title={form.values.displayName || undefined}
