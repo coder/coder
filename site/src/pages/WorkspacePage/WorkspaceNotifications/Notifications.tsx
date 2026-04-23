@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -8,7 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
 
 export type NotificationItem = {
 	title: string;
@@ -17,9 +16,11 @@ export type NotificationItem = {
 	actions?: ReactNode;
 };
 
+type NotificationSeverity = "warning" | "info";
+
 type NotificationsProps = {
 	items: NotificationItem[];
-	severity: ThemeRole;
+	severity: NotificationSeverity;
 	icon: ReactNode;
 };
 
@@ -29,7 +30,12 @@ export const Notifications: FC<NotificationsProps> = ({
 	icon,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const theme = useTheme();
+
+	// Map severity to border color for the open popover.
+	const outlineColors: Record<string, string> = {
+		warning: "hsl(var(--border-warning))",
+		info: "hsl(var(--border-default))",
+	};
 
 	return (
 		<Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -52,7 +58,7 @@ export const Notifications: FC<NotificationsProps> = ({
 				collisionPadding={16}
 				className="max-w-[400px] p-0 w-auto bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
 				style={{
-					borderColor: theme.roles[severity].outline,
+					borderColor: outlineColors[severity],
 				}}
 			>
 				{items.map((n) => (
@@ -73,13 +79,19 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	icon,
 	isOpen,
 }) => {
+	// Keep the pill background neutral; only color the icon and
+	// the border when the popover is open.
+	const iconColorClass =
+		severity === "warning" ? "[&_svg]:text-content-warning" : "";
+
 	return (
 		<Pill
 			icon={icon}
-			css={(theme) => ({
-				"& svg": { color: theme.roles[severity].outline },
-				borderColor: isOpen ? theme.roles[severity].outline : undefined,
-			})}
+			className={cn(
+				iconColorClass,
+				isOpen && severity === "warning" && "border-amber-300",
+				isOpen && severity === "info" && "border-zinc-400",
+			)}
 		>
 			{items.length}
 		</Pill>

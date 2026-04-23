@@ -30,7 +30,10 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div css={styles.tags}>
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill css={[styles.tag, activeTag === tag && styles.activeTag]}>
+							<Pill
+								type={activeTag === tag ? "active" : undefined}
+								className="cursor-pointer no-underline hover:border-border-hover"
+							>
 								{tag}
 							</Pill>
 						</RouterLink>
@@ -95,20 +98,6 @@ const styles = {
 		gap: 8,
 		justifyContent: "end",
 	},
-
-	tag: (theme) => ({
-		borderColor: theme.palette.divider,
-		textDecoration: "none",
-		cursor: "pointer",
-		"&: hover": {
-			borderColor: theme.palette.primary.main,
-		},
-	}),
-
-	activeTag: (theme) => ({
-		borderColor: theme.roles.active.outline,
-		backgroundColor: theme.roles.active.background,
-	}),
 
 	description: (theme) => ({
 		fontSize: 13,

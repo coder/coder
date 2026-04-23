@@ -30,7 +30,7 @@ const pillRoleVariants = cva("text-content-primary", {
 });
 
 const pillLayoutVariants = cva(
-	"inline-flex cursor-default items-center whitespace-nowrap rounded-full border border-solid text-xs font-normal leading-none [&_svg]:size-[14px]",
+	"inline-flex cursor-default items-center whitespace-nowrap rounded-full border border-solid text-[12px] font-normal leading-none [&_svg]:size-[14px]",
 	{
 		variants: {
 			size: {
