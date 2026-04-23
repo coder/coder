@@ -512,7 +512,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 						{healthIssues.length > 0 && (
 							<Badge variant="warning" size="xs" className="ml-1.5">
 								<TriangleAlertIcon />
-								<span>{healthIssues.length}</span>
+								{/*
+									If there are failed start timings, show that count instead
+									of the health issues count, since it correctly indicates
+									more than one issue instead of a generic "health issue"
+								*/}
+								<span>{failedStartTimings?.length || healthIssues.length}</span>
 							</Badge>
 						)}
 					</Button>
