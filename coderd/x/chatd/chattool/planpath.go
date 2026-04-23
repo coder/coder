@@ -5,6 +5,8 @@ import (
 	"path"
 	"strings"
 
+	"charm.land/fantasy"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -71,6 +73,32 @@ func resolvePlanTurnPath(
 	}
 
 	return planPath, nil
+}
+
+// validatePlanPath checks whether requestedPath targets a plan
+// file and, if so, enforces that it uses an absolute,
+// chat-specific path rather than a relative or shared home-root
+// path. Returns a rejection response and true when the path is
+// invalid. Non-plan file paths pass through without validation.
+func validatePlanPath(
+	ctx context.Context,
+	requestedPath string,
+	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
+) (fantasy.ToolResponse, bool) {
+	if !looksLikePlanFileName(requestedPath) {
+		return fantasy.ToolResponse{}, false
+	}
+	if !isAbsolutePath(requestedPath) {
+		return fantasy.NewTextErrorResponse(
+			"plan files must use absolute paths; " +
+				"use the chat-specific absolute plan path",
+		), true
+	}
+	if resolvePlanPath == nil {
+		return fantasy.ToolResponse{}, false
+	}
+	chatPath, home, err := resolvePlanPath(ctx)
+	return rejectSharedPlanPath(requestedPath, home, chatPath, err)
 }
 
 // chatd consumes agent-normalized POSIX paths. Workspace agents are

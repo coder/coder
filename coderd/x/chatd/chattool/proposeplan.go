@@ -81,18 +81,8 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
 
-	hasPlanFileName := looksLikePlanFileName(requestedPath)
-	if hasPlanFileName && !isAbsolutePath(requestedPath) {
-		return fantasy.NewTextErrorResponse(
-			"plan files must use absolute paths; use the chat-specific absolute plan path",
-		), nil
-	}
-
-	if resolvePlanPath != nil && hasPlanFileName {
-		chatPath, home, err := resolvePlanPath(ctx)
-		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
-			return resp, nil
-		}
+	if resp, rejected := validatePlanPath(ctx, requestedPath, resolvePlanPath); rejected {
+		return resp, nil
 	}
 
 	rc, _, err := conn.ReadFile(ctx, requestedPath, 0, maxProposePlanSize+1)

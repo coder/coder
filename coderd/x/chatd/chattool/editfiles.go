@@ -66,32 +66,11 @@ func executeEditFilesTool(
 		return fantasy.NewTextErrorResponse("files is required"), nil
 	}
 
-	var (
-		chatPath       string
-		home           string
-		planPathErr    error
-		planPathLoaded bool
-	)
 	for i := range args.Files {
 		args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-		file := args.Files[i]
-
-		hasPlanFileName := looksLikePlanFileName(file.Path)
-		if hasPlanFileName && !isAbsolutePath(file.Path) {
+		if resp, rejected := validatePlanPath(ctx, args.Files[i].Path, resolvePlanPath); rejected {
 			return fantasy.NewTextErrorResponse(
-				"plan files must use absolute paths; use the chat-specific absolute plan path; no files in this batch were applied",
-			), nil
-		}
-		if resolvePlanPath == nil || !hasPlanFileName {
-			continue
-		}
-		if !planPathLoaded {
-			chatPath, home, planPathErr = resolvePlanPath(ctx)
-			planPathLoaded = true
-		}
-		if resp, rejected := rejectSharedPlanPath(file.Path, home, chatPath, planPathErr); rejected {
-			return fantasy.NewTextErrorResponse(
-				resp.Content + "; no files in this batch were applied",
+				resp.Content+"; no files in this batch were applied",
 			), nil
 		}
 	}

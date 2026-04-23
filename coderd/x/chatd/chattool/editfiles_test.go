@@ -188,14 +188,16 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name                 string
-			input                string
-			expectedRejectedPath string
+			name                  string
+			input                 string
+			expectedRejectedPath  string
+			expectedResolverCalls int
 		}{
 			{
-				name:                 "SingleHomeRootPlanPath",
-				input:                `{"files":[{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
-				expectedRejectedPath: "/Users/dev/plan.md",
+				name:                  "SingleHomeRootPlanPath",
+				input:                 `{"files":[{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}]}`,
+				expectedRejectedPath:  "/Users/dev/plan.md",
+				expectedResolverCalls: 1,
 			},
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
@@ -203,7 +205,8 @@ func TestEditFiles(t *testing.T) {
 					`{"path":"/Users/dev/subdir/plan.md","edits":[{"search":"old","replace":"new"}]},` +
 					`{"path":"/Users/dev/plan.md","edits":[{"search":"old","replace":"new"}]}` +
 					`]}`,
-				expectedRejectedPath: "/Users/dev/plan.md",
+				expectedRejectedPath:  "/Users/dev/plan.md",
+				expectedResolverCalls: 2,
 			},
 		}
 
@@ -230,7 +233,7 @@ func TestEditFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				assert.True(t, resp.IsError)
-				assert.Equal(t, 1, resolvePlanPathCalls)
+				assert.Equal(t, testCase.expectedResolverCalls, resolvePlanPathCalls)
 				assert.Equal(
 					t,
 					editFilesBatchRejectedMessage(sharedPlanPathResolvedMessage(
