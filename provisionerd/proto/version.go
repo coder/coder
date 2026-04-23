@@ -78,9 +78,14 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.16:
 //   - Added `merge_strategy` field to `provisioner.Env` message
+//
+// API v1.17:
+//   - Added `user_secrets` field to `AcquiredJob.WorkspaceBuild`, to carry
+//     user secret values from coderd to provisioner daemons for onward
+//     delivery to provisioners.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 16
+	CurrentMinor = 17
 )
 
 // CurrentVersion is the current provisionerd API version.
