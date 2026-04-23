@@ -110,8 +110,6 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Router /aibridge/interceptions [get]
 // @Deprecated Use /aibridge/sessions instead.
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("Deprecated", "true")
-
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
