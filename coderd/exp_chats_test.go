@@ -5820,6 +5820,329 @@ func TestPostChatMessages(t *testing.T) {
 	})
 }
 
+func waitForChatWatchStatusChangeEvent(
+	ctx context.Context,
+	t *testing.T,
+	conn *websocket.Conn,
+	chatID uuid.UUID,
+) codersdk.ChatWatchEvent {
+	t.Helper()
+
+	for {
+		var payload codersdk.ChatWatchEvent
+		err := wsjson.Read(ctx, conn, &payload)
+		require.NoError(t, err)
+		if payload.Kind == codersdk.ChatWatchEventKindStatusChange && payload.Chat.ID == chatID {
+			return payload
+		}
+	}
+}
+
+func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfigA := createChatModelConfig(t, client)
+	modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-override-"+uuid.NewString())
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    user.OrganizationID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfigA.ID,
+		Title:             "mid-chat model switch direct send",
+	})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "switch to model b",
+		}},
+		ModelConfigID: ptr.Ref(modelConfigB.ID),
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+	require.NotNil(t, resp.Message)
+	require.NotNil(t, resp.Message.ModelConfigID)
+	require.Equal(t, modelConfigB.ID, *resp.Message.ModelConfigID)
+
+	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
+
+	messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.True(t, messages[0].ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+}
+
+func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfigA := createChatModelConfig(t, client)
+	modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-queued-"+uuid.NewString())
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    user.OrganizationID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfigA.ID,
+		Title:             "mid-chat model switch queued send",
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "queue this with model b",
+		}},
+		ModelConfigID: ptr.Ref(modelConfigB.ID),
+		BusyBehavior:  codersdk.ChatBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Queued)
+	require.NotNil(t, resp.QueuedMessage)
+	require.NotNil(t, resp.QueuedMessage.ModelConfigID)
+	require.Equal(t, modelConfigB.ID, *resp.QueuedMessage.ModelConfigID)
+
+	queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queuedMessages, 1)
+	require.True(t, queuedMessages[0].ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, queuedMessages[0].ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID)
+}
+
+func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfigA := createChatModelConfig(t, client)
+	modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-later-"+uuid.NewString())
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    user.OrganizationID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfigA.ID,
+		Title:             "capture queued enqueue-time model",
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "queue with stored model",
+		}},
+		BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Queued)
+	require.NotNil(t, resp.QueuedMessage)
+	require.NotNil(t, resp.QueuedMessage.ModelConfigID)
+	require.Equal(t, modelConfigA.ID, *resp.QueuedMessage.ModelConfigID)
+
+	_, err = db.UpdateChatLastModelConfigByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatLastModelConfigByIDParams{
+		ID:                chat.ID,
+		LastModelConfigID: modelConfigB.ID,
+	})
+	require.NoError(t, err)
+
+	queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queuedMessages, 1)
+	require.True(t, queuedMessages[0].ModelConfigID.Valid)
+	require.Equal(t, modelConfigA.ID, queuedMessages[0].ModelConfigID.UUID)
+}
+
+func TestSubsequentSendWithoutOverrideUsesPersistedModel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+	modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-persisted-"+uuid.NewString())
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    user.OrganizationID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfigB.ID,
+		Title:             "subsequent send uses persisted model",
+	})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "reuse the persisted model",
+		}},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+	require.NotNil(t, resp.Message)
+	require.NotNil(t, resp.Message.ModelConfigID)
+	require.Equal(t, modelConfigB.ID, *resp.Message.ModelConfigID)
+
+	messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.True(t, messages[0].ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+}
+
+func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DirectSend", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfigA := createChatModelConfig(t, client)
+		modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-watch-direct-"+uuid.NewString())
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfigA.ID,
+			Title:             "watch direct model switch",
+		})
+		require.NoError(t, err)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "watch the direct send override",
+			}},
+			ModelConfigID: ptr.Ref(modelConfigB.ID),
+		})
+		require.NoError(t, err)
+
+		event := waitForChatWatchStatusChangeEvent(ctx, t, conn, chat.ID)
+		require.Equal(t, modelConfigB.ID, event.Chat.LastModelConfigID)
+	})
+
+	t.Run("QueuedPromotion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfigA := createChatModelConfig(t, client)
+		modelConfigB := createAdditionalChatModelConfig(t, client, "gpt-4o-mini-watch-promote-"+uuid.NewString())
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfigA.ID,
+			Title:             "watch queued promotion model switch",
+		})
+		require.NoError(t, err)
+
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+			LastError:   sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		queuedResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "queue the promoted model override",
+			}},
+			ModelConfigID: ptr.Ref(modelConfigB.ID),
+			BusyBehavior:  codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, queuedResp.Queued)
+		require.NotNil(t, queuedResp.QueuedMessage)
+
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		promoteRes, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedResp.QueuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+
+		event := waitForChatWatchStatusChangeEvent(ctx, t, conn, chat.ID)
+		require.Equal(t, modelConfigB.ID, event.Chat.LastModelConfigID)
+	})
+}
+
 func TestChatMessageWithFileReferences(t *testing.T) {
 	t.Parallel()
 
@@ -9359,6 +9682,22 @@ func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) co
 	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+	return modelConfig
+}
+
+func createAdditionalChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient, model string) codersdk.ChatModelConfig {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	contextLimit := int64(4096)
+	isDefault := false
+	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai",
+		Model:        model,
 		ContextLimit: &contextLimit,
 		IsDefault:    &isDefault,
 	})
