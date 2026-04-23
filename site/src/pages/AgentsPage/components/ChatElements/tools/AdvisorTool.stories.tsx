@@ -167,6 +167,10 @@ export const EmptyQuestion: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("No question provided.")).toBeInTheDocument();
+		// Confirm the advice body still renders alongside the blank-question
+		// fallback, so a future refactor that suppresses the body for empty
+		// questions cannot pass silently.
+		expect(await canvas.findByText("Quick summary")).toBeInTheDocument();
 	},
 };
 
