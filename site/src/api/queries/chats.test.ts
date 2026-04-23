@@ -1921,6 +1921,79 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("merges fresh title updates without clobbering a newer status snapshot", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Updated title",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Updated title",
+		});
+	});
+
+	it("merges fresh diff status updates without clobbering status or title", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Old title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/2",
+			pull_request_state: "merged",
+			pull_request_title: "New title",
+			pull_request_draft: false,
+			changes_requested: true,
+			additions: 4,
+			deletions: 5,
+			changed_files: 6,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Stale title",
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Fresh title",
+			diff_status: watchedDiffStatus,
+		});
+	});
+
 	it("marks other chats unread on fresh status updates", () => {
 		const cachedChat = makeChat("chat-1", {
 			has_unread: false,

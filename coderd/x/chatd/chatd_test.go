@@ -2637,7 +2637,7 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 		require.Equal(t, chat.ID, event.payload.Chat.ID)
 		require.Equal(t, codersdk.ChatStatusPending, event.payload.Chat.Status)
 		require.Equal(t, modelConfigB.ID, event.payload.Chat.LastModelConfigID)
-	case <-time.After(testutil.WaitLong):
+	case <-ctx.Done():
 		t.Fatal("timed out waiting for status change watch event")
 	}
 }
