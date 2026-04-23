@@ -75,6 +75,7 @@ type ToolUsageRecord struct {
 	InterceptionID  string
 	MsgID           string
 	Tool            string
+	ItemID          string
 	ToolCallID      string
 	ServerURL       *string
 	Args            ToolArgs
