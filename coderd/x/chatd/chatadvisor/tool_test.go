@@ -3,12 +3,12 @@ package chatadvisor_test
 import (
 	"context"
 	"encoding/json"
-	"iter"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -22,7 +22,7 @@ func TestAdvisorToolSuccess(t *testing.T) {
 			ProviderName: "test-provider",
 			ModelName:    "test-model",
 			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return streamResponseFromParts([]fantasy.StreamPart{
+				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use the smaller diff."},
 					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
@@ -85,7 +85,7 @@ func TestAdvisorToolRejectsLongQuestion(t *testing.T) {
 
 	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: strings.Repeat("x", 2001)})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, "2000 characters or fewer")
+	require.Contains(t, resp.Content, "2000 runes or fewer")
 }
 
 func TestAdvisorToolRejectsMissingRuntime(t *testing.T) {
@@ -112,6 +112,113 @@ func TestAdvisorToolRejectsMissingSnapshotFunc(t *testing.T) {
 	require.Contains(t, resp.Content, "conversation snapshot provider is not configured")
 }
 
+func TestAdvisorToolReportsNestedError(t *testing.T) {
+	t.Parallel()
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return nil, xerrors.New("boom")
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "why?"})
+	require.False(t, resp.IsError)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+	require.Contains(t, result.Error, "boom")
+	require.Empty(t, result.Advice)
+	require.Empty(t, result.AdvisorModel)
+	require.Equal(t, 0, result.RemainingUses)
+}
+
+func TestAdvisorToolReportsLimitReached(t *testing.T) {
+	t.Parallel()
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "first"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+	})
+
+	first := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "first?"})
+	require.False(t, first.IsError)
+
+	second := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "second?"})
+	require.False(t, second.IsError)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(second.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeLimitReached, result.Type)
+	require.Equal(t, 0, result.RemainingUses)
+	require.Empty(t, result.Advice)
+	require.Empty(t, result.Error)
+	require.Empty(t, result.AdvisorModel)
+}
+
+func TestAdvisorToolReportsEmptyModelOutput(t *testing.T) {
+	t.Parallel()
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "anything?"})
+	require.False(t, resp.IsError)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+	require.Contains(t, result.Error, "no text output")
+	require.Empty(t, result.Advice)
+}
+
 func mustAdvisorRuntime(t *testing.T) *chatadvisor.Runtime {
 	t.Helper()
 
@@ -120,7 +227,7 @@ func mustAdvisorRuntime(t *testing.T) *chatadvisor.Runtime {
 			ProviderName: "test-provider",
 			ModelName:    "test-model",
 			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				return streamResponseFromParts([]fantasy.StreamPart{
+				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "fallback advice"},
 					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
@@ -145,21 +252,11 @@ func runAdvisorTool(
 	data, err := json.Marshal(args)
 	require.NoError(t, err)
 
-	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+	resp, err := tool.Run(t.Context(), fantasy.ToolCall{
 		ID:    "call-1",
 		Name:  "advisor",
 		Input: string(data),
 	})
 	require.NoError(t, err)
 	return resp
-}
-
-func streamResponseFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
-	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
-		for _, part := range parts {
-			if !yield(part) {
-				return
-			}
-		}
-	})
 }

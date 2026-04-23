@@ -11,9 +11,19 @@ import (
 )
 
 const (
-	advisorRecentMessageLimit     = 20
-	advisorConversationCharBudget = 12000
-	defaultAdvisorQuestion        = "Provide concise strategic guidance for the parent agent."
+	// advisorRecentMessageLimit caps how many recent non-system messages
+	// from the parent conversation are forwarded to the advisor. The
+	// advisor only needs enough tail to ground its guidance, not the full
+	// history.
+	advisorRecentMessageLimit = 20
+	// advisorConversationJSONByteBudget caps the combined size of the
+	// forwarded recent messages, measured as JSON-serialized bytes (not
+	// raw text runes). The JSON wrapping inflates the count relative to
+	// user-visible text, so the effective text budget is smaller than the
+	// number suggests. The walk stops at the first message that would
+	// overflow, trading breadth for contiguity.
+	advisorConversationJSONByteBudget = 12000
+	defaultAdvisorQuestion            = "Provide concise strategic guidance for the parent agent."
 )
 
 // BuildAdvisorMessages prepares a nested advisor prompt using the recent chat
@@ -38,7 +48,7 @@ func BuildAdvisorMessages(
 	}
 
 	recent := make([]fantasy.Message, 0, min(len(conversationSnapshot), advisorRecentMessageLimit))
-	remainingChars := advisorConversationCharBudget
+	remainingBudget := advisorConversationJSONByteBudget
 	for i := len(conversationSnapshot) - 1; i >= 0; i-- {
 		msg := conversationSnapshot[i]
 		if msg.Role == fantasy.MessageRoleSystem {
@@ -48,13 +58,19 @@ func BuildAdvisorMessages(
 			break
 		}
 
-		messageChars := messageCharCount(msg)
-		if messageChars > remainingChars {
-			continue
+		messageBytes := messageJSONByteCount(msg)
+		if messageBytes > remainingBudget {
+			// Stop at the first message that doesn't fit so the
+			// advisor window stays contiguous from most recent
+			// backward. Skipping an oversized message would leave
+			// the advisor with an invisible hole in the history,
+			// where later messages reference context that is no
+			// longer present.
+			break
 		}
 
 		recent = append(recent, cloneMessage(msg))
-		remainingChars -= messageChars
+		remainingBudget -= messageBytes
 	}
 	slices.Reverse(recent)
 	messages = append(messages, recent...)
@@ -78,7 +94,12 @@ func cloneMessage(msg fantasy.Message) fantasy.Message {
 	return cloned
 }
 
-func messageCharCount(msg fantasy.Message) int {
+// messageJSONByteCount approximates the message's contribution to the
+// advisor prompt using the length of its JSON serialization. The JSON
+// wrapping ({"role":"...","content":[{"type":"text","text":"..."}]}) is
+// counted alongside the user-visible text; the measurement is intended
+// for budget accounting, not for reporting visible character counts.
+func messageJSONByteCount(msg fantasy.Message) int {
 	data, err := json.Marshal(msg)
 	if err == nil {
 		return utf8.RuneCount(data)

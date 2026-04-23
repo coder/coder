@@ -16,17 +16,10 @@ func (rt *Runtime) RunAdvisor(
 	question string,
 	conversationSnapshot []fantasy.Message,
 ) (AdvisorResult, error) {
-	if rt == nil {
-		return AdvisorResult{}, xerrors.New("advisor runtime is nil")
-	}
-	if rt.cfg.Model == nil {
-		return AdvisorResult{}, xerrors.New("advisor runtime model is nil")
-	}
-	if rt.cfg.MaxUsesPerRun <= 0 {
-		return AdvisorResult{}, xerrors.New("advisor runtime max uses per run is invalid")
-	}
-	if ctx == nil {
-		return AdvisorResult{}, xerrors.New("advisor context is nil")
+	// Model, MaxUsesPerRun, and MaxOutputTokens are validated by NewRuntime.
+	// Runtime fields are unexported so callers cannot bypass that.
+	if strings.TrimSpace(question) == "" {
+		return AdvisorResult{}, xerrors.New("advisor question is required")
 	}
 
 	if !rt.tryAcquire() {
@@ -36,18 +29,17 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	// Clone per invocation and strip chain-mode markers so chatloop cannot
+	// Clone per invocation and reset inherited state so chatloop cannot
 	// mutate the Runtime's stored options across calls, and so the nested
-	// call never runs as a chain-mode continuation against stale parent state.
+	// call never runs as a chain-mode continuation against stale parent
+	// state or persists an orphan stored response on the provider side.
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
-	clearChainOnlyProviderOptions(nestedProviderOptions)
+	resetProviderOptionsForNestedCall(nestedProviderOptions)
 
 	var persistedStep chatloop.PersistedStep
 	runOpts := chatloop.RunOptions{
 		Model:           rt.cfg.Model,
 		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
-		Tools:           nil,
-		ProviderTools:   nil,
 		MaxSteps:        1,
 		ModelConfig:     rt.cfg.ModelConfig,
 		ProviderOptions: nestedProviderOptions,
@@ -55,12 +47,6 @@ func (rt *Runtime) RunAdvisor(
 			persistedStep = step
 			return nil
 		},
-	}
-	if len(runOpts.Tools) != 0 {
-		panic("chatadvisor: nested advisor run must not include tools")
-	}
-	if len(runOpts.ProviderTools) != 0 {
-		panic("chatadvisor: nested advisor run must not include provider tools")
 	}
 
 	if err := chatloop.Run(ctx, runOpts); err != nil {

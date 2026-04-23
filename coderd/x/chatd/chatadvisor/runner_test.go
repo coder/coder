@@ -45,7 +45,7 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := runtime.RunAdvisor(context.Background(), question, []fantasy.Message{
+	result, err := runtime.RunAdvisor(t.Context(), question, []fantasy.Message{
 		textMessage(fantasy.MessageRoleSystem, "existing system"),
 		textMessage(fantasy.MessageRoleUser, "hello"),
 	})
@@ -86,11 +86,12 @@ func TestAdvisorRunLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	first, err := runtime.RunAdvisor(context.Background(), "first?", nil)
+	first, err := runtime.RunAdvisor(t.Context(), "first?", nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, first.Type)
+	require.Equal(t, 0, first.RemainingUses)
 
-	second, err := runtime.RunAdvisor(context.Background(), "second?", nil)
+	second, err := runtime.RunAdvisor(t.Context(), "second?", nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeLimitReached, second.Type)
 	require.Equal(t, 0, second.RemainingUses)
@@ -113,7 +114,7 @@ func TestAdvisorRunError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := runtime.RunAdvisor(context.Background(), "what failed?", nil)
+	result, err := runtime.RunAdvisor(t.Context(), "what failed?", nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
 	require.Contains(t, result.Error, "boom")
@@ -210,7 +211,7 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := runtime.RunAdvisor(context.Background(), "anything?", nil)
+	result, err := runtime.RunAdvisor(t.Context(), "anything?", nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 
@@ -263,7 +264,7 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range 2 {
-		result, err := runtime.RunAdvisor(context.Background(), fmt.Sprintf("q%d", i), nil)
+		result, err := runtime.RunAdvisor(t.Context(), fmt.Sprintf("q%d", i), nil)
 		require.NoError(t, err)
 		require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	}
@@ -280,23 +281,46 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
 }
 
-func TestBuildAdvisorMessagesPreservesSystemAndTruncatesConversation(t *testing.T) {
+func TestBuildAdvisorMessagesTruncatesToRecentMessageLimit(t *testing.T) {
 	t.Parallel()
 
 	snapshot := []fantasy.Message{textMessage(fantasy.MessageRoleSystem, "existing system")}
-	for i := range 21 {
+	for i := range 25 {
 		snapshot = append(snapshot, textMessage(fantasy.MessageRoleUser, fmt.Sprintf("msg-%02d", i)))
 	}
-	snapshot = append(snapshot, textMessage(fantasy.MessageRoleAssistant, strings.Repeat("x", 20000)))
 
 	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
-	require.GreaterOrEqual(t, len(messages), 4)
+	// advisor system + cloned existing system + 20 most recent user messages + question.
+	require.Len(t, messages, 23)
 	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
 	require.Contains(t, singleText(t, messages[0]), "parent agent")
 	require.Equal(t, "existing system", singleText(t, messages[1]))
-	require.Equal(t, "msg-01", singleText(t, messages[2]))
-	require.Equal(t, "msg-20", singleText(t, messages[len(messages)-2]))
+	require.Equal(t, "msg-05", singleText(t, messages[2]))
+	require.Equal(t, "msg-24", singleText(t, messages[len(messages)-2]))
 	require.Equal(t, "Need advice", singleText(t, messages[len(messages)-1]))
+}
+
+func TestBuildAdvisorMessagesStopsAtOversizedMessage(t *testing.T) {
+	t.Parallel()
+
+	// The walk is backward from the end of the snapshot. user-late fits,
+	// the oversized assistant message breaks the walk, and user-early is
+	// never reached. This preserves contiguity: the advisor never sees a
+	// message that references missing context.
+	snapshot := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "existing system"),
+		textMessage(fantasy.MessageRoleUser, "user-early"),
+		textMessage(fantasy.MessageRoleAssistant, strings.Repeat("x", 20000)),
+		textMessage(fantasy.MessageRoleUser, "user-late"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+	require.Len(t, messages, 4)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Contains(t, singleText(t, messages[0]), "parent agent")
+	require.Equal(t, "existing system", singleText(t, messages[1]))
+	require.Equal(t, "user-late", singleText(t, messages[2]))
+	require.Equal(t, "Need advice", singleText(t, messages[3]))
 
 	for _, msg := range messages {
 		require.NotContains(t, singleText(t, msg), strings.Repeat("x", 100))
