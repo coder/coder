@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -4324,4 +4325,308 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	require.NotErrorIs(t, err, errChatDialTimeout)
 	// The original dial error should propagate.
 	require.ErrorContains(t, err, "authentication failed")
+}
+
+// drainStreamStatusEvents reads status events from the merged events
+// channel until no more arrive. Uses the same timeout pattern as
+// requireNoStreamEvent. The subscriber goroutine processes events
+// at CPU speed with NewInMemory pubsub, so a short real-time window
+// is sufficient.
+func drainStreamStatusEvents(
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+) []codersdk.ChatStatus {
+	t.Helper()
+
+	var statuses []codersdk.ChatStatus
+	for {
+		select {
+		case event, ok := <-events:
+			require.True(t, ok, "events channel closed unexpectedly")
+			if event.Type == codersdk.ChatStreamEventTypeStatus {
+				statuses = append(statuses, event.Status.Status)
+			}
+		case <-time.After(200 * time.Millisecond):
+			return statuses
+		}
+	}
+}
+
+// TestSubscribeSuppressesDuplicatePubsubStatus verifies that when
+// publishStatus delivers a status via both the local stream and
+// pubsub, the subscriber goroutine forwards it exactly once.
+func TestSubscribeSuppressesDuplicatePubsubStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	// Production code path: publishStatus publishes to both
+	// local stream and pubsub in one call.
+	server.publishStatus(chatID, database.ChatStatusPending, uuid.NullUUID{})
+
+	// Drain all status events. Should be exactly 1 (from local).
+	// Before the counter-map dedup, this returned 2
+	// (the pubsub duplicate leaked through).
+	statuses := drainStreamStatusEvents(t, events)
+	require.Equal(t, []codersdk.ChatStatus{codersdk.ChatStatusPending}, statuses,
+		"expected exactly 1 pending status, got %d: %v", len(statuses), statuses)
+}
+
+// TestSubscribeSuppressesDuplicateAutoPromote verifies that the
+// counter-map dedup handles repeated status values correctly. The
+// auto-promote path publishes pending twice (SendMessage + cleanup)
+// without an intervening waiting. A plain boolean set would treat
+// the second pending as a no-op and leak one pubsub duplicate.
+// The counter map tracks both and suppresses both.
+func TestSubscribeSuppressesDuplicateAutoPromote(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	// Simulate: SendMessage -> pending, processChat -> running,
+	// processChat cleanup auto-promote -> pending.
+	server.publishStatus(chatID, database.ChatStatusPending, uuid.NullUUID{})
+	server.publishStatus(chatID, database.ChatStatusRunning, uuid.NullUUID{})
+	server.publishStatus(chatID, database.ChatStatusPending, uuid.NullUUID{})
+
+	// Expect exactly 3 status events (one per publishStatus call),
+	// not 6 (which would mean all pubsub duplicates leaked).
+	statuses := drainStreamStatusEvents(t, events)
+	require.Equal(t,
+		[]codersdk.ChatStatus{
+			codersdk.ChatStatusPending,
+			codersdk.ChatStatusRunning,
+			codersdk.ChatStatusPending,
+		},
+		statuses,
+		"expected exactly 3 statuses (pending, running, pending), got %d: %v",
+		len(statuses), statuses,
+	)
+}
+
+// TestSubscribeForwardsRemoteReplicaStatus verifies that a status
+// published only via pubsub (simulating a remote replica) is
+// forwarded to the subscriber. The counter-map should not suppress
+// it because no local counterpart was delivered.
+func TestSubscribeForwardsRemoteReplicaStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	// Publish directly to pubsub, bypassing the local stream.
+	// This simulates a status change from a remote replica where
+	// processChat runs on a different server.
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusRunning),
+	})
+
+	statuses := drainStreamStatusEvents(t, events)
+	require.Equal(t,
+		[]codersdk.ChatStatus{codersdk.ChatStatusRunning},
+		statuses,
+		"remote-replica status should be forwarded (counter == 0), got %d: %v",
+		len(statuses), statuses,
+	)
+}
+
+// TestSubscribeDedupPreventsStalePendingWipe reproduces the
+// full Race 1 production scenario: SendMessage publishes pending,
+// processChat publishes running and streams message_parts, and a
+// stale pubsub pending arrives after parts have been delivered.
+//
+// The harmful interleaving depends on Go's select scheduling and
+// may not trigger on every run. When it does trigger, it proves
+// that a consumer tracking status+stream state (like the frontend)
+// would have its in-progress stream wiped by the stale pending.
+//
+// After the fix (counter-map dedup), the stale pending is never
+// delivered, so the harmful pattern is impossible.
+func TestSubscribeDedupPreventsStalePendingWipe(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+
+	// Start buffering so publishMessagePart events are delivered
+	// to subscribers (processChat does this at chatd.go:3548-3553).
+	streamState := server.getOrCreateStreamState(chatID)
+	streamState.mu.Lock()
+	streamState.buffering = true
+	streamState.mu.Unlock()
+	defer func() {
+		streamState.mu.Lock()
+		streamState.buffering = false
+		server.cleanupStreamIfIdle(chatID, streamState)
+		streamState.mu.Unlock()
+	}()
+
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	// Full production scenario:
+	// 1. SendMessage publishes pending status.
+	server.publishStatus(chatID, database.ChatStatusPending, uuid.NullUUID{})
+	// 2. processChat publishes running status.
+	server.publishStatus(chatID, database.ChatStatusRunning, uuid.NullUUID{
+		UUID:  uuid.New(),
+		Valid: true,
+	})
+	// 3. LLM streams message parts.
+	for i := range 5 {
+		server.publishMessagePart(chatID, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
+			Type: "text",
+			Text: strings.Repeat("word ", i+1),
+		})
+	}
+
+	// Consume events as the frontend would: track status and
+	// whether stream content has been received.
+	var (
+		currentStatus        codersdk.ChatStatus
+		hasStreamContent     bool
+		streamWipedByPending bool
+	)
+
+	allEvents := drainAllEvents(t, events)
+	for _, event := range allEvents {
+		switch event.Type {
+		case codersdk.ChatStreamEventTypeStatus:
+			nextStatus := event.Status.Status
+			// Reproduce the frontend's destructive cleanup:
+			// when pending/waiting arrives, stream is wiped.
+			if nextStatus == codersdk.ChatStatusPending || nextStatus == codersdk.ChatStatusWaiting {
+				if currentStatus == codersdk.ChatStatusRunning && hasStreamContent {
+					// The harmful pattern: pending arrived while
+					// stream was active. This would wipe the
+					// frontend's in-progress stream.
+					streamWipedByPending = true
+				}
+				hasStreamContent = false
+			}
+			currentStatus = nextStatus
+		case codersdk.ChatStreamEventTypeMessagePart:
+			hasStreamContent = true
+		}
+	}
+
+	require.False(t, streamWipedByPending,
+		"stale pubsub pending arrived after running + message parts, wiping the active stream")
+}
+
+// drainAllEvents reads all events from the channel until no more
+// arrive within a short window. Returns them as a slice for
+// iteration.
+func drainAllEvents(
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+) []codersdk.ChatStreamEvent {
+	t.Helper()
+
+	var result []codersdk.ChatStreamEvent
+	for {
+		select {
+		case event, ok := <-events:
+			require.True(t, ok, "events channel closed unexpectedly")
+			result = append(result, event)
+		case <-time.After(200 * time.Millisecond):
+			return result
+		}
+	}
 }

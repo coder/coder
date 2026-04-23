@@ -4158,6 +4158,39 @@ func (p *Server) Subscribe(
 		if statusNotifications != nil {
 			defer close(statusNotifications)
 		}
+		// statusDedupCount pairs local-stream status events with
+		// their pubsub duplicates. Each publishStatus call writes
+		// to both paths; local increments the count, pubsub
+		// decrements and skips when positive. If pubsub publish
+		// fails (logged, not propagated), the unmatched entry
+		// persists until the goroutine exits. A subsequent
+		// cross-replica pubsub event with the same status value
+		// would be incorrectly suppressed in this window. The
+		// goroutine exits on pubsub disconnect
+		// (ErrDroppedMessages), so the window is bounded by
+		// connection lifetime.
+		statusDedupCount := make(map[codersdk.ChatStatus]int)
+
+		// forwardLocalEvent filters and forwards a local stream
+		// event when pubsub is active. Status events increment
+		// the dedup counter so their pubsub duplicate can be
+		// suppressed. Returns false if mergedCtx was canceled.
+		forwardLocalEvent := func(ev codersdk.ChatStreamEvent) bool {
+			if ev.Type == codersdk.ChatStreamEventTypeMessagePart ||
+				ev.Type == codersdk.ChatStreamEventTypeStatus ||
+				ev.Type == codersdk.ChatStreamEventTypeActionRequired {
+				if ev.Type == codersdk.ChatStreamEventTypeStatus && ev.Status != nil {
+					statusDedupCount[ev.Status.Status]++
+				}
+				select {
+				case <-mergedCtx.Done():
+					return false
+				case mergedEvents <- ev:
+				}
+			}
+			return true
+		}
+
 		for {
 			select {
 			case <-mergedCtx.Done():
@@ -4179,6 +4212,27 @@ func (p *Server) Subscribe(
 				}
 				return
 			case notify := <-notifications:
+				// Drain pending local events so the dedup
+				// counter is up to date. Go's select picks
+				// among ready cases at random; without this
+				// drain, a pubsub notification can be read
+				// before its local counterpart, bypassing
+				// the counter-map.
+			drainLocal:
+				for localParts != nil {
+					select {
+					case ev, ok := <-localParts:
+						if !ok {
+							localParts = nil
+							break drainLocal
+						}
+						if !forwardLocalEvent(ev) {
+							return
+						}
+					default:
+						break drainLocal
+					}
+				}
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					if notify.FullRefresh {
 						lastMessageID = 0
@@ -4221,15 +4275,28 @@ func (p *Server) Subscribe(
 					}
 				}
 				if notify.Status != "" {
-					status := database.ChatStatus(notify.Status)
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeStatus,
-						ChatID: chatID,
-						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
-					}:
+					sdkStatus := codersdk.ChatStatus(notify.Status)
+					if statusDedupCount[sdkStatus] > 0 {
+						// This pubsub notification is the duplicate
+						// of a status event already forwarded from
+						// the local stream. Decrement and skip.
+						statusDedupCount[sdkStatus]--
+						if statusDedupCount[sdkStatus] == 0 {
+							delete(statusDedupCount, sdkStatus)
+						}
+					} else {
+						// No local counterpart: this status
+						// originated on a different replica.
+						// Forward it.
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:   codersdk.ChatStreamEventTypeStatus,
+							ChatID: chatID,
+							Status: &codersdk.ChatStreamStatus{Status: sdkStatus},
+						}:
+						}
 					}
 					// Notify enterprise relay manager if present.
 					if statusNotifications != nil {
@@ -4240,12 +4307,13 @@ func (p *Server) Subscribe(
 							}
 						}
 						select {
-						case statusNotifications <- StatusNotification{Status: status, WorkerID: workerID}:
+						case statusNotifications <- StatusNotification{Status: database.ChatStatus(notify.Status), WorkerID: workerID}:
 						case <-mergedCtx.Done():
 							return
 						}
 					}
 				}
+
 				if notify.Retry != nil {
 					select {
 					case <-mergedCtx.Done():
@@ -4311,29 +4379,8 @@ func (p *Server) Subscribe(
 					continue
 				}
 				if hasPubsub {
-					// Forward transient events from local.
-					// Durable events (messages, queue updates)
-					// come via pubsub + cache.  Status is
-					// included alongside message_part because
-					// both travel through the same ordered
-					// channel: publishStatus is called before
-					// the first message_part, so FIFO delivery
-					// guarantees the frontend sees
-					// status=running before any content.
-					// Pubsub will deliver a duplicate status
-					// later; the frontend deduplicates it
-					// (setChatStatus is idempotent).
-					// action_required is also transient and
-					// only published on the local stream, so
-					// it must be forwarded here.
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart ||
-						event.Type == codersdk.ChatStreamEventTypeStatus ||
-						event.Type == codersdk.ChatStreamEventTypeActionRequired {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
+					if !forwardLocalEvent(event) {
+						return
 					}
 				} else {
 					// No pubsub: forward all event types.
