@@ -5586,7 +5586,6 @@ func TestChatPinOrder(t *testing.T) {
 
 		parentChat := createChat(ctx, t, client, firstUser.OrganizationID, "parent chat")
 
-		// Insert a child chat directly via the database.
 		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
