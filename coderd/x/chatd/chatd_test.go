@@ -993,6 +993,90 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 		"root Explore chats should strip persisted external MCP tools at runtime")
 }
 
+func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	webSearchEnabled := true
+	storeEnabled := true
+	// OpenAI only serializes web_search through the Responses API.
+	// Store=true routes there only for supported Responses models.
+	webSearchModel := insertChatModelConfigWithCallConfig(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"openai",
+		"gpt-4o",
+		codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store:            &storeEnabled,
+					WebSearchEnabled: &webSearchEnabled,
+				},
+			},
+		},
+	)
+
+	server := newActiveTestServer(t, db, ps)
+
+	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "root-explore-no-provider-web-search",
+		ModelConfigID:  webSearchModel.ID,
+		ChatMode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Inspect the codebase."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, exploreChat.ID, server)
+
+	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	if storedChat.Status == database.ChatStatusError {
+		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+	}
+	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1)
+
+	tools := recorded[0].Tools
+	require.Contains(t, tools, "read_file")
+	require.Contains(t, tools, "execute")
+	require.NotContains(t, tools, "web_search",
+		"root Explore chats should stay builtin-only and must not inherit provider-native web_search at runtime")
+	require.NotContains(t, tools, "write_file")
+}
+
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
 

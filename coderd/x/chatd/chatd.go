@@ -6482,16 +6482,21 @@ func (p *Server) runChat(
 	}
 
 	// Build provider-native tools (e.g. web search) based on the
-	// current model configuration. Explore chats remain read-only, so only
-	// web_search can pass through and write-style provider tools stay
-	// blocked.
+	// current model configuration. Root Explore chats stay builtin-only per
+	// the accepted plan, so delegated Explore children are the only Explore
+	// chats that can inherit web_search. Write-style provider tools stay
+	// blocked for all Explore chats.
 	var providerTools []chatloop.ProviderTool
 	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 		if isExploreSubagent {
-			providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
-				return tool.Definition.GetName() != "web_search"
-			})
+			if !chat.ParentChatID.Valid {
+				providerTools = nil
+			} else {
+				providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
+					return tool.Definition.GetName() != "web_search"
+				})
+			}
 		}
 	}
 
