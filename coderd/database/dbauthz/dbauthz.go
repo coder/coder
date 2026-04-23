@@ -2737,6 +2737,13 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
+func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatGeneralModelOverride(ctx)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -7388,6 +7395,13 @@ func (q *querier) UpsertChatExploreModelOverride(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatExploreModelOverride(ctx, value)
+}
+
+func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatGeneralModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
