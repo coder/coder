@@ -1,10 +1,13 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
+import { ExternalLinkIcon } from "lucide-react";
 import {
 	previousTemplateVersion,
 	templateFiles,
 } from "#/api/queries/templates";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
@@ -14,6 +17,8 @@ const TemplateFilesPage: FC = () => {
 	const { organization: organizationName = "default" } = useParams() as {
 		organization?: string;
 	};
+	const location = useLocation();
+	const justCreated = location.state?.justCreated === true;
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const { data: currentFiles } = useQuery(
 		templateFiles(activeVersion.job.file_id),
@@ -38,6 +43,42 @@ const TemplateFilesPage: FC = () => {
 	return (
 		<>
 			<title>{getTemplatePageTitle("Source Code", template)}</title>
+
+			{justCreated && (
+				<Alert severity="info" dismissible className="mb-6">
+					<AlertTitle className="font-semibold">
+						Awesome, you just created a new template!
+					</AlertTitle>
+					<AlertDescription>
+						To customize it further you can edit the Terraform or Coder Template directly. You can
+						use our template agent skill to help you.
+					</AlertDescription>
+					<div className="flex items-center gap-2 mt-4">
+						<Button asChild size="sm" variant="default">
+							<a
+								href="https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								View agent skill
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+						<Button asChild size="sm" variant="outline">
+							<a
+								href="https://coder.com/docs/admin/templates/creating-templates"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								View docs
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+					</div>
+				</Alert>
+			)}
 
 			{shouldDisplayFiles ? (
 				<TemplateFiles

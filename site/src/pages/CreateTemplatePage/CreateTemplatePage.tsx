@@ -31,6 +31,7 @@ const CreateTemplatePage: FC = () => {
 			});
 			navigate(
 				`${getLink(linkToTemplate(options.organization, template.name))}/files`,
+				{ state: { justCreated: true } },
 			);
 		},
 		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
