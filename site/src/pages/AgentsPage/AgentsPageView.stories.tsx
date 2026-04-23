@@ -701,10 +701,15 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings" },
+			routing: agentsRouting,
+		}),
 	},
-	play: async ({ canvasElement }) => {
-		await openSettingsView(canvasElement);
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage Agents" }),
+		);
 
 		await expect(
 			await screen.findByRole("link", { name: "Providers" }),

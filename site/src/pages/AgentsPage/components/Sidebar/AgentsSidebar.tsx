@@ -20,11 +20,11 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	ArrowLeftIcon,
 	BotIcon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	CoinsIcon,
 	EllipsisIcon,
@@ -598,7 +598,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							isChildNode &&
@@ -991,7 +991,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
-				className="[&_[role=menuitem]]:text-[13px]"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
 			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
@@ -1127,147 +1127,157 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						disabled={isCreating}
 					/>
 				</div>
-				<ScrollArea
-					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-						{loadError ? (
-							<div className="space-y-3 px-1">
-								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
-							</div>
-						) : isLoading ? (
-							<>
-								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
-									{Array.from({ length: 6 }, (_, i) => (
-										<div
-											key={i}
-											className="flex items-start gap-2 rounded-md px-2 py-1"
-										>
-											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-											<div className="min-w-0 flex-1 space-y-1.5">
-												<Skeleton
-													className="h-3.5"
-													style={{ width: `${55 + ((i * 17) % 35)}%` }}
-												/>
-												<Skeleton className="h-3 w-20" />
-											</div>
-										</div>
-									))}
+				<div className="relative min-h-0 flex-1">
+					<ScrollArea
+						className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+						scrollBarClassName="w-1.5"
+						viewportClassName={cn(
+							"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"md:[mask-image:none] md:[-webkit-mask-image:none]",
+						)}
+					>
+						<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+							{loadError ? (
+								<div className="space-y-3 px-1">
+									<ErrorAlert error={loadError} />
+									{onRetryLoad && (
+										<Button size="sm" variant="outline" onClick={onRetryLoad}>
+											Retry
+										</Button>
+									)}
 								</div>
-							</>
-						) : (
-							<ChatTreeContext value={chatTreeCtx}>
-								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										<button
-											type="button"
-											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-											onClick={() =>
-												onArchivedFilterChange?.(
-													archivedFilter === "archived" ? "active" : "archived",
-												)
-											}
-										>
-											{archivedFilter === "archived"
-												? "← Back to active"
-												: "View archived →"}
-										</button>
+							) : isLoading ? (
+								<>
+									<Skeleton className="ml-2.5 h-3.5 w-16" />
+									<div className="flex flex-col gap-0.5">
+										{Array.from({ length: 6 }, (_, i) => (
+											<div
+												key={i}
+												className="flex items-start gap-2 rounded-md px-2 py-1"
+											>
+												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+												<div className="min-w-0 flex-1 space-y-1.5">
+													<Skeleton
+														className="h-3.5"
+														style={{ width: `${55 + ((i * 17) % 35)}%` }}
+													/>
+													<Skeleton className="h-3 w-20" />
+												</div>
+											</div>
+										))}
 									</div>
-								) : (
-									<div>
-										{visibleRootIDs.length > 0 && (
-											<div className="pb-2">
-												{/* ── Pinned section ── */}
-												{pinnedChats.length > 0 && (
-													<div className="[&:not(:first-child)]:mt-3">
-														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>Pinned</span>
-															{showFilterOnPinned && filterDropdown}
-														</div>
-														<DndContext
-															sensors={sensors}
-															collisionDetection={closestCenter}
-															onDragEnd={handleDragEnd}
-														>
-															<SortableContext
-																items={pinnedChatIds}
-																strategy={verticalListSortingStrategy}
+								</>
+							) : (
+								<ChatTreeContext value={chatTreeCtx}>
+									{visibleRootIDs.length === 0 ? (
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() =>
+													onArchivedFilterChange?.(
+														archivedFilter === "archived"
+															? "active"
+															: "archived",
+													)
+												}
+											>
+												{archivedFilter === "archived"
+													? "← Back to active"
+													: "View archived →"}
+											</button>
+										</div>
+									) : (
+										<div>
+											{visibleRootIDs.length > 0 && (
+												<div className="pb-2">
+													{/* ── Pinned section ── */}
+													{pinnedChats.length > 0 && (
+														<div className="[&:not(:first-child)]:mt-3">
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>Pinned</span>
+																{showFilterOnPinned && filterDropdown}
+															</div>
+															<DndContext
+																sensors={sensors}
+																collisionDetection={closestCenter}
+																onDragEnd={handleDragEnd}
 															>
-																<div
-																	ref={pinnedContainerRef}
-																	className="flex flex-col gap-0.5"
+																<SortableContext
+																	items={pinnedChatIds}
+																	strategy={verticalListSortingStrategy}
 																>
-																	{sortedPinnedChats.map((chat) => (
-																		<SortableChatTreeNode
+																	<div
+																		ref={pinnedContainerRef}
+																		className="flex flex-col gap-0.5"
+																	>
+																		{sortedPinnedChats.map((chat) => (
+																			<SortableChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																			/>
+																		))}
+																	</div>
+																</SortableContext>
+															</DndContext>
+														</div>
+													)}
+													{/* ── Time-grouped sections ── */}
+													{TIME_GROUPS.map((group) => {
+														const groupChats = visibleRootIDs
+															.map((id) => chatById.get(id))
+															.filter(
+																(chat): chat is Chat =>
+																	chat !== undefined &&
+																	getTimeGroup(chat.updated_at) === group &&
+																	chat.pin_order === 0,
+															);
+														if (groupChats.length === 0) return null;
+														return (
+															<div
+																key={group}
+																className="[&:not(:first-child)]:mt-3"
+															>
+																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																	<span>{group}</span>
+																	{group === firstNonEmptyGroup &&
+																		filterDropdown}
+																</div>
+																<div className="flex flex-col gap-0.5">
+																	{groupChats.map((chat) => (
+																		<ChatTreeNode
 																			key={chat.id}
 																			chat={chat}
+																			isChildNode={false}
 																		/>
 																	))}
 																</div>
-															</SortableContext>
-														</DndContext>
-													</div>
-												)}
-												{/* ── Time-grouped sections ── */}
-												{TIME_GROUPS.map((group) => {
-													const groupChats = visibleRootIDs
-														.map((id) => chatById.get(id))
-														.filter(
-															(chat): chat is Chat =>
-																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group &&
-																chat.pin_order === 0,
+															</div>
 														);
-													if (groupChats.length === 0) return null;
-													return (
-														<div
-															key={group}
-															className="[&:not(:first-child)]:mt-3"
-														>
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>{group}</span>
-																{group === firstNonEmptyGroup && filterDropdown}
-															</div>
-															<div className="flex flex-col gap-0.5">
-																{groupChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
-															</div>
-														</div>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								)}
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
-								)}
-							</ChatTreeContext>
-						)}
-					</div>
-				</ScrollArea>
+													})}
+												</div>
+											)}
+										</div>
+									)}
+									{(hasNextPage || isFetchingNextPage) && (
+										<LoadMoreSentinel
+											onLoadMore={onLoadMore}
+											isFetchingNextPage={isFetchingNextPage}
+										/>
+									)}
+								</ChatTreeContext>
+							)}
+						</div>
+					</ScrollArea>
+				</div>
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
@@ -1338,13 +1348,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									state={location.state}
 									aria-label="Back to Settings"
 								>
-									<ChevronLeftIcon />
+									<ArrowLeftIcon />
 								</Link>
 							) : (
 								<Link
 									to={(location.state as { from?: string })?.from || "/agents"}
 								>
-									<ChevronLeftIcon />
+									<ArrowLeftIcon />
 								</Link>
 							)}
 						</Button>

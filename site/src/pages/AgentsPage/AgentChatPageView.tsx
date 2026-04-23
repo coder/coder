@@ -127,6 +127,7 @@ interface AgentChatPageViewProps {
 	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+		everDirty: ReadonlySet<string>;
 		refresh: () => boolean;
 	};
 
@@ -343,6 +344,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
 						}
 						repositories={gitWatcher.repositories}
+						everDirty={gitWatcher.everDirty}
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
@@ -467,7 +469,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								/>
 							</div>
 						</ChatScrollContainer>
-						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
 								store={store}
@@ -612,7 +614,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
 						initialValue=""

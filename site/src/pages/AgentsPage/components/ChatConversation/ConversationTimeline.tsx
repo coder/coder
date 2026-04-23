@@ -821,6 +821,28 @@ const StickyUserMessage = memo<{
 	},
 );
 
+function computeLastInChainFlags(
+	parsedMessages: readonly ParsedMessageEntry[],
+): boolean[] {
+	const flags = new Array<boolean>(parsedMessages.length).fill(false);
+	let nextVisibleIsUser = true; // no next visible => treat as chain end
+	for (let i = parsedMessages.length - 1; i >= 0; i--) {
+		const entry = parsedMessages[i];
+		const { shouldHide } = deriveMessageDisplayState({
+			message: entry.message,
+			parsed: entry.parsed,
+			hideActions: false,
+		});
+		if (entry.message.role !== "user") {
+			flags[i] = nextVisibleIsUser;
+		}
+		if (!shouldHide) {
+			nextVisibleIsUser = entry.message.role === "user";
+		}
+	}
+	return flags;
+}
+
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
@@ -854,6 +876,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		mcpServers,
 		showDesktopPreviews,
 	}) => {
+		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
+
 		if (parsedMessages.length === 0) {
 			return null;
 		}
@@ -929,10 +953,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								/>
 							);
 						}
-						// Hide actions on assistant messages that are not
-						// the last in a consecutive assistant chain.
-						const next = parsedMessages[msgIdx + 1];
-						const isLastInChain = !next || next.message.role === "user";
+						// Hide actions on assistant messages that are not the
+						// last in a consecutive assistant chain. Flags are
+						// precomputed in a single reverse pass above.
+						const isLastInChain = lastInChainFlags[msgIdx];
 						return (
 							<ChatMessageItem
 								key={message.id}

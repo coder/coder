@@ -1607,3 +1607,65 @@ export const NoRenderableContentFallbackSpacing: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+/**
+ * Regression: action bar must appear on the last *visible* assistant
+ * message even when invisible assistant messages (provider-executed
+ * tool-result-only) follow it before the next user turn.
+ */
+export const AssistantActionBarAfterHiddenMessages: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Help me refactor" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here is the **refactored** version." },
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "provider-tool-1",
+						result: { output: "done" },
+						provider_executed: true,
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "user",
+				content: [{ type: "text", text: "Thanks!" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Force the hover-reveal action bars visible using stable test IDs.
+		for (const el of canvasElement.querySelectorAll(
+			'[data-testid="message-actions"]',
+		)) {
+			if (el instanceof HTMLElement) {
+				el.style.opacity = "1";
+			}
+		}
+		// 2 user messages + 1 visible assistant = 3 action bars.
+		// The invisible provider-executed tool-result message (id=3)
+		// must not prevent the assistant (id=2) from showing its bar.
+		const actions = canvas.getAllByTestId("message-actions");
+		expect(actions).toHaveLength(3);
+	},
+};

@@ -280,6 +280,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListInterceptions returns AI Bridge interceptions with the given
 // filter.
+//
+// Deprecated: Use AIBridgeListSessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {

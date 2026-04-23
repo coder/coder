@@ -69,6 +69,13 @@ jobs:
             // Use the org membership API as the source of truth.
             // See: https://github.com/actions/github-script/issues/643
             const author = context.payload.pull_request.user.login
+
+            // Dependabot is not a community contributor.
+            if (author === 'dependabot[bot]') {
+              console.log('Author "%s" is a bot, skipping.', author)
+              return
+            }
+
             try {
               await orgClient.rest.orgs.checkMembershipForUser({
                 org: context.repo.owner,

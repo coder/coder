@@ -1,4 +1,5 @@
 import {
+	ArrowLeftIcon,
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
@@ -49,7 +50,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { isMobileViewport } from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -170,6 +171,26 @@ type ToolBadgeData =
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
+// Small `X` button rendered inside pill-style badges (attached
+// workspace, MCP server, planning indicator) to dismiss or disable
+// the badge without opening the `+` menu. Callers pass the action
+// handler and a descriptive aria-label.
+const BadgeDismissButton: FC<{
+	onClick: () => void;
+	ariaLabel: string;
+	isDisabled?: boolean;
+}> = ({ onClick, ariaLabel, isDisabled = false }) => (
+	<button
+		type="button"
+		onClick={onClick}
+		disabled={isDisabled}
+		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-content-secondary"
+		aria-label={ariaLabel}
+	>
+		<XIcon className="!size-2.5" />
+	</button>
+);
+
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
@@ -209,14 +230,10 @@ const ToolBadge: FC<{
 				<MonitorIcon className="size-3" />
 				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
-					<button
-						type="button"
+					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
-						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-						aria-label={`Remove workspace ${badge.name}`}
-					>
-						<XIcon className="!size-2.5" />
-					</button>
+						ariaLabel={`Remove workspace ${badge.name}`}
+					/>
 				)}
 			</span>
 		);
@@ -236,14 +253,10 @@ const ToolBadge: FC<{
 			)}
 			{badge.server.display_name}
 			{!isForceOn && onRemoveMcp && (
-				<button
-					type="button"
+				<BadgeDismissButton
 					onClick={() => onRemoveMcp(badge.server.id)}
-					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-					aria-label={`Remove ${badge.server.display_name}`}
-				>
-					<XIcon className="!size-2.5" />
-				</button>
+					ariaLabel={`Remove ${badge.server.display_name}`}
+				/>
 			)}
 		</span>
 	);
@@ -310,6 +323,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		null,
 	);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
+		"main",
+	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
 	const mcpPopupRef = useRef<Window | null>(null);
@@ -441,7 +457,38 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPlusMenuOpen(false);
 	};
 
+	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+	useEffect(() => {
+		if (!composerElement) return;
+		const update = () => {
+			const rect = composerElement.getBoundingClientRect();
+			const bottom = Math.max(0, window.innerHeight - rect.bottom);
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-bottom",
+				`${bottom}px`,
+			);
+		};
+		update();
+		const ro = new ResizeObserver(update);
+		ro.observe(composerElement);
+		window.addEventListener("resize", update);
+		const viewport = window.visualViewport;
+		viewport?.addEventListener("resize", update);
+		viewport?.addEventListener("scroll", update);
+		return () => {
+			ro.disconnect();
+			window.removeEventListener("resize", update);
+			viewport?.removeEventListener("resize", update);
+			viewport?.removeEventListener("scroll", update);
+			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+		};
+	}, [composerElement]);
+
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
 			onAttach(Array.from(e.target.files));
@@ -668,8 +715,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			<div
+				ref={setComposerElement}
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -776,7 +824,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-1">
 						{/* Plus menu */}
-						<Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+						<Popover
+							modal={false}
+							open={plusMenuOpen}
+							onOpenChange={(open) => {
+								setPlusMenuOpen(open);
+								if (!open) setPlusMenuView("main");
+							}}
+						>
+							{" "}
 							<PopoverTrigger asChild>
 								<Button
 									type="button"
@@ -792,152 +848,214 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<PopoverContent
 								side="bottom"
 								align="start"
-								className="w-auto min-w-[200px] p-1"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{onAttach && (
-									<button
-										type="button"
-										onClick={() => {
-											setPlusMenuOpen(false);
-											fileInputRef.current?.click();
-										}}
-										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-									>
-										<ImageIcon className="size-3.5 shrink-0" />
-										Attach image
-									</button>
-								)}
-								{onPlanModeToggle && (
-									<button
-										type="button"
-										role="menuitemcheckbox"
-										aria-checked={planModeEnabled}
-										onClick={handlePlanModeToggle}
-										disabled={isDisabled}
-										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-									>
-										<PencilIcon className="size-3.5 shrink-0" />
-										<span>Plan first</span>
-										{planModeEnabled && (
-											<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-										)}
-									</button>
-								)}
-								{workspaceOptions && onWorkspaceChange && (
-									<Popover
-										open={workspacePickerOpen}
-										onOpenChange={setWorkspacePickerOpen}
-									>
-										<PopoverTrigger asChild>
+								{plusMenuView === "workspace" ? (
+									<div className="p-0">
+										<button
+											type="button"
+											onClick={() => setPlusMenuView("main")}
+											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+										>
+											<ArrowLeftIcon className="size-3.5 shrink-0" />
+											<span>Back</span>
+										</button>
+										<Separator className="my-1" />
+										<Command loop>
+											<CommandInput
+												placeholder="Search workspaces..."
+												className="text-xs"
+											/>
+											<CommandList>
+												<CommandEmpty className="text-xs">
+													No workspaces found
+												</CommandEmpty>
+												<CommandGroup>
+													{workspaceOptions?.map((workspace) => (
+														<CommandItem
+															className="text-xs font-normal"
+															key={workspace.id}
+															value={workspace.name}
+															onSelect={() => {
+																onWorkspaceChange?.(workspace.id);
+																setPlusMenuOpen(false);
+															}}
+														>
+															{workspace.name}
+															{selectedWorkspaceId === workspace.id && (
+																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+															)}
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</div>
+								) : (
+									<>
+										{onAttach && (
 											<button
 												type="button"
-												disabled={isDisabled || isWorkspaceLoading}
+												onClick={() => {
+													setPlusMenuOpen(false);
+													fileInputRef.current?.click();
+												}}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+											>
+												<ImageIcon className="size-3.5 shrink-0" />
+												Attach image
+											</button>
+										)}
+										{onPlanModeToggle && (
+											<button
+												type="button"
+												role="menuitemcheckbox"
+												aria-checked={planModeEnabled}
+												onClick={handlePlanModeToggle}
+												disabled={isDisabled}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="size-3.5 shrink-0" />
-												<span>Attach workspace</span>
-												<ChevronRightIcon
-													className={cn(
-														"ml-auto size-icon-sm transition-transform",
-														workspacePickerOpen && "rotate-180",
-													)}
-												/>
+												<PencilIcon className="size-3.5 shrink-0" />
+												<span>Plan first</span>
+												{planModeEnabled && (
+													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+												)}
 											</button>
-										</PopoverTrigger>
-										<PopoverContent
-											side="right"
-											align="start"
-											sideOffset={8}
-											className="w-64 p-0"
-										>
-											<Command loop>
-												<CommandInput
-													placeholder="Search workspaces..."
-													className="text-xs"
-												/>
-												<CommandList>
-													<CommandEmpty className="text-xs">
-														No workspaces found
-													</CommandEmpty>
-													<CommandGroup>
-														{workspaceOptions.map((workspace) => (
-															<CommandItem
-																className="text-xs font-normal"
-																key={workspace.id}
-																value={workspace.name}
-																onSelect={() => {
-																	onWorkspaceChange(workspace.id);
-																	setWorkspacePickerOpen(false);
-																	setPlusMenuOpen(false);
-																}}
-															>
-																{workspace.name}
-																{selectedWorkspaceId === workspace.id && (
-																	<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-																)}
-															</CommandItem>
-														))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
-								)}
-								{enabledMcpServers.length > 0 && (
-									<>
-										<Separator className="my-1" />
-										{enabledMcpServers.map((server) => {
-											const isForceOn = server.availability === "force_on";
-											const isSelected =
-												isForceOn ||
-												(selectedMCPServerIds?.includes(server.id) ?? false);
-											const needsAuth =
-												server.auth_type === "oauth2" && !server.auth_connected;
-											const isConnecting = mcpConnectingId === server.id;
-											return (
-												<div
-													key={server.id}
-													className="flex items-center gap-1.5 px-1 py-1.5"
+										)}
+										{workspaceOptions &&
+											onWorkspaceChange &&
+											(isBelowMdViewport() ? (
+												<button
+													type="button"
+													disabled={isDisabled || isWorkspaceLoading}
+													onClick={() => setPlusMenuView("workspace")}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
-													{server.icon_url ? (
-														<ExternalImage
-															src={server.icon_url}
-															alt=""
-															className="size-3.5 shrink-0 rounded-sm"
-														/>
-													) : (
-														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-													)}
-													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-														{server.display_name}
-													</span>
-													{needsAuth ? (
-														<Button
-															variant="outline"
-															size="sm"
-															className="h-6 shrink-0 px-2 text-[10px] leading-none"
-															onClick={() => handleMcpConnect(server)}
-															disabled={isDisabled || mcpConnectingId !== null}
+													<MonitorIcon className="size-3.5 shrink-0" />
+													<span>Attach workspace</span>
+													<ChevronRightIcon className="ml-auto size-icon-sm" />
+												</button>
+											) : (
+												<Popover
+													open={workspacePickerOpen}
+													onOpenChange={setWorkspacePickerOpen}
+												>
+													<PopoverTrigger asChild>
+														<button
+															type="button"
+															disabled={isDisabled || isWorkspaceLoading}
+															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 														>
-															{isConnecting ? (
-																<Spinner loading className="size-2.5" />
-															) : null}
-															Auth
-														</Button>
-													) : (
-														<Switch
-															size="sm"
-															checked={isSelected}
-															onCheckedChange={(checked) =>
-																handleMcpToggle(server.id, checked)
-															}
-															disabled={isDisabled || isForceOn}
-															aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-														/>
-													)}
-												</div>
-											);
-										})}
+															<MonitorIcon className="size-3.5 shrink-0" />
+															<span>Attach workspace</span>
+															<ChevronRightIcon
+																className={cn(
+																	"ml-auto size-icon-sm transition-transform",
+																	workspacePickerOpen && "rotate-180",
+																)}
+															/>
+														</button>
+													</PopoverTrigger>
+													<PopoverContent
+														side="right"
+														align="start"
+														sideOffset={8}
+														className="w-64 p-0"
+													>
+														<Command loop>
+															<CommandInput
+																placeholder="Search workspaces..."
+																className="text-xs"
+															/>
+															<CommandList>
+																<CommandEmpty className="text-xs">
+																	No workspaces found
+																</CommandEmpty>
+																<CommandGroup>
+																	{workspaceOptions.map((workspace) => (
+																		<CommandItem
+																			className="text-xs font-normal"
+																			key={workspace.id}
+																			value={workspace.name}
+																			onSelect={() => {
+																				onWorkspaceChange(workspace.id);
+																				setWorkspacePickerOpen(false);
+																				setPlusMenuOpen(false);
+																			}}
+																		>
+																			{workspace.name}
+																			{selectedWorkspaceId === workspace.id && (
+																				<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+																			)}
+																		</CommandItem>
+																	))}
+																</CommandGroup>
+															</CommandList>
+														</Command>
+													</PopoverContent>
+												</Popover>
+											))}
+										{enabledMcpServers.length > 0 && (
+											<>
+												<Separator className="my-1" />
+												{enabledMcpServers.map((server) => {
+													const isForceOn = server.availability === "force_on";
+													const isSelected =
+														isForceOn ||
+														(selectedMCPServerIds?.includes(server.id) ??
+															false);
+													const needsAuth =
+														server.auth_type === "oauth2" &&
+														!server.auth_connected;
+													const isConnecting = mcpConnectingId === server.id;
+													return (
+														<div
+															key={server.id}
+															className="flex items-center gap-1.5 px-1 py-1.5"
+														>
+															{server.icon_url ? (
+																<ExternalImage
+																	src={server.icon_url}
+																	alt=""
+																	className="size-3.5 shrink-0 rounded-sm"
+																/>
+															) : (
+																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+															)}
+															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+																{server.display_name}
+															</span>
+															{needsAuth ? (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																	onClick={() => handleMcpConnect(server)}
+																	disabled={
+																		isDisabled || mcpConnectingId !== null
+																	}
+																>
+																	{isConnecting ? (
+																		<Spinner loading className="size-2.5" />
+																	) : null}
+																	Auth
+																</Button>
+															) : (
+																<Switch
+																	size="sm"
+																	checked={isSelected}
+																	onCheckedChange={(checked) =>
+																		handleMcpToggle(server.id, checked)
+																	}
+																	disabled={isDisabled || isForceOn}
+																	aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																/>
+															)}
+														</div>
+													);
+												})}
+											</>
+										)}
 									</>
 								)}
 							</PopoverContent>
@@ -954,14 +1072,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
 								dropdownAlign="center"
+								enableMobileFullWidthDropdown
 							/>
 						)}
 						{planModeEnabled && (
-							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary md:inline-flex">
 								<PencilIcon className="size-3" />
 								Planning
+								{onPlanModeToggle && (
+									<BadgeDismissButton
+										onClick={handleDisablePlanMode}
+										ariaLabel="Disable plan mode"
+										isDisabled={isDisabled}
+									/>
+								)}
 							</span>
-						)}
+						)}{" "}
 						{/* Badge row — all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
@@ -969,13 +1095,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<WorkspacePill
-								workspace={workspace}
-								agent={workspaceAgent}
-								chatId={chatId}
-								sshCommand={sshCommand}
-								folder={folder}
-							/>
+							<span className="ml-1 md:ml-0">
+								<WorkspacePill
+									workspace={workspace}
+									agent={workspaceAgent}
+									chatId={chatId}
+									sshCommand={sshCommand}
+									folder={folder}
+								/>
+							</span>
 						)}
 						<div
 							ref={badgeContainerRef}
@@ -1017,7 +1145,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								<PopoverContent
 									side="top"
 									align="start"
-									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
 									{overflowBadges.map((badge) => (
 										<ToolBadge

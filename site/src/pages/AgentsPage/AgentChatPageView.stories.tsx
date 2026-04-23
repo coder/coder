@@ -14,6 +14,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import {
 	AgentChatPageLoadingView,
@@ -85,6 +86,7 @@ const buildGitWatcher = (): ComponentProps<
 	typeof AgentChatPageView
 >["gitWatcher"] => ({
 	repositories: new Map(),
+	everDirty: new Set(),
 	refresh: fn().mockReturnValue(true),
 });
 
@@ -1144,5 +1146,125 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
+	},
+};
+
+const editSubmitScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/**
+ * Verifies that the scroll position settles at the bottom of the
+ * conversation after an optimistic edit truncation removes messages.
+ * The actual scroll-ordering regression (scrollToBottom must fire
+ * after editMessage resolves) is covered by the submitEditAndScroll
+ * unit tests in AgentChatPage.test.ts.
+ */
+export const ScrollStableAfterEditTruncation: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={editSubmitScrollStore} />,
+	play: async ({ canvasElement }) => {
+		// Reset the module-scoped store so interactive re-runs in
+		// Storybook start from the full 30-message conversation.
+		editSubmitScrollStore.replaceMessages(buildLongConversation(30));
+		editSubmitScrollStore.setChatStatus("completed");
+
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		const existing = getStoreMessages(editSubmitScrollStore);
+		const editIndex = 10;
+		const truncated = existing.slice(0, editIndex);
+		truncated.push(
+			buildMessage(existing[editIndex].id, "user", "Edited question"),
+		);
+		editSubmitScrollStore.replaceMessages(truncated);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};
+
+/**
+ * Selecting the Terminal tab in the sidebar must move keyboard focus into
+ * the terminal so typing goes there, not the chat input.
+ */
+export const TerminalFocusOnTabSwitch: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+	},
+	decorators: [withWebSocket],
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The sidebar should open on the Git tab by default.
+		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
+
+		// 1. Click the Terminal tab.
+		await userEvent.click(terminalTab);
+
+		// Wait for the terminal container to appear.
+		const terminalContainer = await waitFor(() => {
+			const el = canvas.getByTestId("agents-sidebar-terminal");
+			expect(el).toBeVisible();
+			return el;
+		});
+
+		// The xterm focus target is a textarea inside the terminal container.
+		await waitFor(
+			() => {
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
+			},
+			{ timeout: 3000 },
+		);
+
+		// 2. Switch to Git, then back to Terminal.
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
+		await userEvent.click(terminalTab);
+
+		// Focus should return to the terminal textarea.
+		await waitFor(
+			() => {
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
+			},
+			{ timeout: 3000 },
+		);
 	},
 };

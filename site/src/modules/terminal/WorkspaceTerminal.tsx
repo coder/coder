@@ -276,14 +276,25 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
+		if (!terminal || !isVisible || !autoFocus) {
+			return;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			terminal.focus();
+		});
+
+		return () => {
+			cancelAnimationFrame(frame);
+		};
+	}, [terminal, isVisible, autoFocus]);
+
+	useEffect(() => {
 		if (!terminal || !hasBeenVisible) {
 			return;
 		}
 
 		terminal.clear();
-		if (autoFocus) {
-			terminal.focus();
-		}
 		terminal.options.disableStdin = true;
 
 		if (loading) {
@@ -454,7 +465,6 @@ export const WorkspaceTerminal = ({
 	}, [
 		hasBeenVisible,
 		agentId,
-		autoFocus,
 		baseUrl,
 		containerName,
 		containerUser,

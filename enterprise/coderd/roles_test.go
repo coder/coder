@@ -493,7 +493,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
-				{Name: codersdk.RoleAgentsAccess}:  false,
 			}),
 		},
 		{
@@ -507,6 +506,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        false,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     false,
 			}),
 		},
 		{
@@ -527,7 +527,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
-				{Name: codersdk.RoleAgentsAccess}:  false,
 			}),
 		},
 		{
@@ -541,6 +540,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 		{
@@ -561,7 +561,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       true,
 				{Name: codersdk.RoleTemplateAdmin}: true,
 				{Name: codersdk.RoleUserAdmin}:     true,
-				{Name: codersdk.RoleAgentsAccess}:  true,
 			}),
 		},
 		{
@@ -575,6 +574,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 	}

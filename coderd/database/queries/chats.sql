@@ -695,6 +695,7 @@ WHERE
             chats
         WHERE
             status = 'pending'::chat_status
+            AND archived = false
         ORDER BY
             updated_at ASC
         FOR UPDATE
