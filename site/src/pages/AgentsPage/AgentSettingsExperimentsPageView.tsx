@@ -43,6 +43,7 @@ export interface AgentSettingsExperimentsPageViewProps {
 	) => void;
 	isSavingAdvisorConfig: boolean;
 	isSaveAdvisorConfigError: boolean;
+	saveAdvisorConfigError: unknown;
 }
 
 export const AgentSettingsExperimentsPageView: FC<
@@ -66,6 +67,7 @@ export const AgentSettingsExperimentsPageView: FC<
 	onSaveAdvisorConfig,
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
+	saveAdvisorConfigError,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -90,6 +92,7 @@ export const AgentSettingsExperimentsPageView: FC<
 				onSaveAdvisorConfig={onSaveAdvisorConfig}
 				isSavingAdvisorConfig={isSavingAdvisorConfig}
 				isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+				saveAdvisorConfigError={saveAdvisorConfigError}
 			/>
 			<AdminChatDebugLoggingSettings
 				adminSettings={debugLoggingData}

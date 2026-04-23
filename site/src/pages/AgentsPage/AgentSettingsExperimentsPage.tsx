@@ -63,6 +63,7 @@ const AgentSettingsExperimentsPage: FC = () => {
 				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
 				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
+				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
 			/>
 		</RequirePermission>
 	);

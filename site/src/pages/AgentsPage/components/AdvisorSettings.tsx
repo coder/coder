@@ -1,6 +1,7 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
 import { type FC, useId } from "react";
+import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
 	ChatModelConfig,
@@ -45,6 +46,7 @@ interface AdvisorSettingsProps {
 	) => void;
 	isSavingAdvisorConfig: boolean;
 	isSaveAdvisorConfigError: boolean;
+	saveAdvisorConfigError: unknown;
 }
 
 type AdvisorSettingsFormValues = {
@@ -171,6 +173,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	onSaveAdvisorConfig,
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
+	saveAdvisorConfigError,
 }) => {
 	const maxUsesId = useId();
 	const maxOutputTokensId = useId();
@@ -183,7 +186,13 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		initialValues: normalizeAdvisorConfig(advisorConfigData),
 		validate: validateAdvisorConfig,
 		onSubmit: (values, { resetForm }) => {
-			const request = toAdvisorConfigRequest(values);
+			// When disabling, preserve the stored values for the hidden fields
+			// so potentially invalid in-flight edits (empty strings, fractional
+			// numbers) cannot silently overwrite previously configured limits.
+			const source: AdvisorSettingsFormValues = values.enabled
+				? values
+				: { ...normalizeAdvisorConfig(advisorConfigData), enabled: false };
+			const request = toAdvisorConfigRequest(source);
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
 					resetForm({ values: normalizeAdvisorConfig(request) });
@@ -411,7 +420,10 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 
 			{isSaveAdvisorConfigError && (
 				<p className="m-0 text-xs text-content-destructive">
-					Failed to save advisor settings.
+					{getErrorMessage(
+						saveAdvisorConfigError,
+						"Failed to save advisor settings.",
+					)}
 				</p>
 			)}
 			{isAdvisorConfigLoadError && (

@@ -33,6 +33,7 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	onSaveAdvisorConfig: fn(),
 	isSavingAdvisorConfig: false,
 	isSaveAdvisorConfigError: false,
+	saveAdvisorConfigError: undefined,
 };
 
 const meta = {

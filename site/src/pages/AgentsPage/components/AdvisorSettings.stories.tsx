@@ -68,6 +68,7 @@ const meta = {
 		}),
 		isSavingAdvisorConfig: false,
 		isSaveAdvisorConfigError: false,
+		saveAdvisorConfigError: undefined,
 	},
 	decorators: [
 		(Story) => (
@@ -436,5 +437,83 @@ export const SaveError: Story = {
 		expect(
 			canvas.getByText(/Failed to save advisor settings\./i),
 		).toBeInTheDocument();
+	},
+};
+
+export const SaveErrorWithDetail: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+		},
+		isSaveAdvisorConfigError: true,
+		saveAdvisorConfigError: new Error(
+			"reasoning_effort must be one of: low, medium, high.",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText(/reasoning_effort must be one of: low, medium, high\./i),
+		).toBeInTheDocument();
+	},
+};
+
+export const DisableThenSave: Story = {
+	args: {
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: "model-2",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const enableAdvisorSwitch = await canvas.findByRole("switch", {
+			name: /Enable advisor/i,
+		});
+
+		expect(
+			canvas.getByRole("spinbutton", { name: /Max uses per run/i }),
+		).toBeVisible();
+
+		// Clear a numeric field to an invalid value before disabling. After
+		// disabling the field is hidden, and saving must not silently overwrite
+		// the stored limit with a coerced value.
+		const maxUsesInput = canvas.getByRole("spinbutton", {
+			name: /Max uses per run/i,
+		});
+		await userEvent.clear(maxUsesInput);
+
+		await userEvent.click(enableAdvisorSwitch);
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("spinbutton", { name: /Max uses per run/i }),
+			).not.toBeInTheDocument();
+		});
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request).toEqual({
+			enabled: false,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: "model-2",
+		});
 	},
 };
