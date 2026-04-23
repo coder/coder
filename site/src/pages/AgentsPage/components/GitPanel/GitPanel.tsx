@@ -29,7 +29,6 @@ import {
 } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
-import { LastCheckedLabel } from "./LastCheckedLabel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
@@ -63,11 +62,6 @@ interface GitPanelProps {
 	 * then reverts it.
 	 */
 	everDirty?: ReadonlySet<string>;
-	/**
-	 * Timestamp of the last scan received from the server. Rendered as a
-	 * live-updating "checked Ns ago" label next to the refresh button.
-	 */
-	lastCheckedAt?: Date | undefined;
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -84,7 +78,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 	remoteDiffStats,
 	chatInputRef,
 	everDirty,
-	lastCheckedAt,
 }) => {
 	const hasRemoteStats =
 		(remoteDiffStats?.additions ?? 0) > 0 ||
@@ -258,10 +251,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 				</ScrollArea>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1 py-1.5">
-					<LastCheckedLabel
-						at={lastCheckedAt}
-						className="mr-1 whitespace-nowrap text-[11px] text-content-secondary"
-					/>
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"
