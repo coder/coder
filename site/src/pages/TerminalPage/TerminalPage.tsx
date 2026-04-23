@@ -8,7 +8,6 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useProxy } from "#/contexts/ProxyContext";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
@@ -23,11 +22,12 @@ import themes from "#/theme";
 import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
+import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
-	// is notably a pain because of assumptions certain programs might make about your
-	// background color.
+	// is notably a pain because of assumptions certain programs might make about
+	// your background color.
 	const theme = themes.dark;
 	const navigate = useNavigate();
 	const { proxy, proxyLatencies } = useProxy();
@@ -180,41 +180,19 @@ const TerminalPage: FC = () => {
 				</span>
 			)}
 
-			<ConfirmDialog
-				type="delete"
-				title="Run command?"
-				description={
-					<>
-						<p>
-							A link is requesting to run the following command in your
-							terminal:
-						</p>
-						<code
-							css={{
-								display: "block",
-								marginTop: 16,
-								padding: "8px 12px",
-								background: theme.palette.background.default,
-								borderRadius: 4,
-								fontFamily: "monospace",
-								wordBreak: "break-all",
-							}}
-						>
-							{command}
-						</code>
-					</>
-				}
-				open={Boolean(command) && !commandConfirmed}
-				confirmText="Run command"
-				cancelText="Cancel"
-				onConfirm={() => {
-					setCommandConfirmed(true);
-				}}
-				onClose={() => {
-					searchParams.delete("command");
-					navigate({ search: searchParams.toString() }, { replace: true });
-				}}
-			/>
+			{command && (
+				<TerminalCommandConsentDialog
+					open={!commandConfirmed}
+					command={command}
+					onConfirm={() => {
+						setCommandConfirmed(true);
+					}}
+					onDeny={() => {
+						searchParams.delete("command");
+						navigate({ search: searchParams.toString() }, { replace: true });
+					}}
+				/>
+			)}
 		</ThemeOverride>
 	);
 };
