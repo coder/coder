@@ -5,6 +5,13 @@ import {
 	updatePreferenceSettings,
 } from "#/api/queries/users";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 
 const options: { value: ThinkingDisplayMode; label: string }[] = [
 	{ value: "auto", label: "Auto" },
@@ -32,25 +39,30 @@ export const ThinkingDisplaySettings: FC = () => {
 					auto-expands with a height constraint during streaming. 'Always
 					Expanded' shows full content. 'Always Collapsed' keeps them collapsed.
 				</p>
-				<select
+				<Select
 					value={mode}
-					onChange={(e) =>
+					onValueChange={(value: string) =>
 						mutation.mutate({
-							...query.data,
-							thinking_display_mode: e.target.value as ThinkingDisplayMode,
+							thinking_display_mode: value as ThinkingDisplayMode,
 							task_notification_alert_dismissed:
 								query.data?.task_notification_alert_dismissed ?? false,
 						})
 					}
-					aria-label="Thinking display mode"
-					className="rounded-md border border-border bg-surface-primary px-2 py-1 text-xs text-content-primary"
 				>
-					{options.map((opt) => (
-						<option key={opt.value} value={opt.value}>
-							{opt.label}
-						</option>
-					))}
-				</select>
+					<SelectTrigger
+						className="w-44 shrink-0"
+						aria-label="Thinking display mode"
+					>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{options.map((opt) => (
+							<SelectItem key={opt.value} value={opt.value}>
+								{opt.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 		</div>
 	);
