@@ -1037,29 +1037,6 @@ func TestConfigCache_AdvisorConfig_TTLExpiry(t *testing.T) {
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
 }
 
-func TestConfigCache_AdvisorConfig_Invalidation(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	store := &stubChatConfigStore{}
-	store.getChatAdvisorConfig = func(context.Context) (string, error) {
-		call := store.advisorConfigCalls.Load()
-		return fmt.Sprintf(`{"max_uses_per_run":%d}`, call), nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.AdvisorConfig(ctx)
-	require.NoError(t, err)
-	cache.InvalidateAdvisorConfig()
-	second, err := cache.AdvisorConfig(ctx)
-	require.NoError(t, err)
-
-	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
-		"invalidation must bypass the cache")
-	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
-}
-
 func TestConfigCache_AdvisorConfig_DBErrorNotCached(t *testing.T) {
 	t.Parallel()
 

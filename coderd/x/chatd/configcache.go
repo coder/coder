@@ -92,9 +92,8 @@ type chatConfigCache struct {
 	userPromptFetches singleflight.Group[string, string]
 
 	// Advisor configuration (singleton).
-	advisorConfig           *cachedAdvisorConfig
-	advisorConfigGeneration uint64
-	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
+	advisorConfig        *cachedAdvisorConfig
+	advisorConfigFetches singleflight.Group[string, codersdk.AdvisorConfig]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
@@ -434,11 +433,10 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 		return config, nil
 	}
 
-	generation := c.advisorConfigGenerationSnapshot()
 	config, err := singleflightDoChan(
 		ctx,
 		&c.advisorConfigFetches,
-		fmt.Sprintf("%d:advisor", generation),
+		"advisor",
 		func() (codersdk.AdvisorConfig, error) {
 			if cached, ok := c.cachedAdvisorConfig(); ok {
 				return cached, nil
@@ -452,7 +450,7 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 				return codersdk.AdvisorConfig{}, err
 			}
-			c.storeAdvisorConfig(generation, cfg)
+			c.storeAdvisorConfig(cfg)
 			return cfg, nil
 		},
 	)
@@ -482,34 +480,12 @@ func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
 	return codersdk.AdvisorConfig{}, false
 }
 
-func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
-	c.mu.RLock()
-	generation := c.advisorConfigGeneration
-	c.mu.RUnlock()
-	return generation
-}
-
-func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.AdvisorConfig) {
+func (c *chatConfigCache) storeAdvisorConfig(config codersdk.AdvisorConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if c.advisorConfigGeneration != generation {
-		return
-	}
 
 	c.advisorConfig = &cachedAdvisorConfig{
 		config:    config,
 		expiresAt: c.clock.Now().Add(chatConfigAdvisorConfigTTL),
 	}
-}
-
-// InvalidateAdvisorConfig drops the cached advisor configuration so the
-// next reader refetches from the database. Callers dispatch this from the
-// pubsub subscriber when a future event announces an advisor-config write;
-// without such an event today the 10-second TTL still bounds staleness.
-func (c *chatConfigCache) InvalidateAdvisorConfig() {
-	c.mu.Lock()
-	c.advisorConfig = nil
-	c.advisorConfigGeneration++
-	c.mu.Unlock()
 }

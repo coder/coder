@@ -9366,6 +9366,280 @@ func TestAdvisorGating_PlanMode(t *testing.T) {
 	}
 }
 
+// TestAdvisorGating_ExploreSubagent guards the fourth dimension of the
+// advisor eligibility condition: Explore chats (root or subagent) run
+// under allowedExploreToolNames, whose policy does not include advisor,
+// so the runtime must not register the advisor tool or inject the
+// parent guidance block there. Without this test, deleting the
+// !isExploreSubagent guard would leave the other gating tests green
+// while leaking advisor into explore chats.
+func TestAdvisorGating_ExploreSubagent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+	var capturedMessages []chattest.OpenAIMessage
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		capturedTools = names
+		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+		toolsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("explore reply")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 16384,
+	})
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-explore",
+		ModelConfigID:  model.ID,
+		ChatMode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("inspect the codebase"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, messages, "expected a streamed LLM request")
+	require.NotContains(t, tools, chatadvisor.ToolName,
+		"explore chats must not register the advisor tool even when enabled")
+	for _, msg := range messages {
+		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
+			"explore chats must not inject advisor guidance")
+	}
+}
+
+// TestAdvisorChainMode_SnapshotKeepsFullHistory exercises the advisor
+// runtime together with chain mode and asserts the snapshot captured for
+// the nested advisor call retains the full pre-chain prompt. Chain mode
+// otherwise strips assistant and tool turns from the prompt the outer
+// loop sees, so a regression that moves setAdvisorPromptSnapshot behind
+// filterPromptForChainMode, or drops the !chainModeActive guards in
+// PrepareMessages, would leak the filtered view into the advisor's
+// nested call. The advisor would then only see the trailing user
+// message, losing the context the outer model had been building on.
+func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		turn1User    = "help me refactor this module"
+		turn1Reply   = "happy to help, tell me more"
+		turn1RespID  = "resp_turn1_advisor_chain"
+		turn2User    = "follow up question"
+		advisorReply = "narrow the scope to one module"
+		finalReply   = "acknowledged"
+	)
+
+	var (
+		requestsMu      sync.Mutex
+		requests        []recordedOpenAIRequest
+		advisorMessages []chattest.OpenAIMessage
+		advisorCallSeen atomic.Bool
+	)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		// The advisor's nested call runs with no tools (MaxSteps=1,
+		// empty tool set). Parent calls always carry the chat's tool
+		// set, which includes the advisor tool.
+		isAdvisorNested := len(req.Tools) == 0
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		if isAdvisorNested {
+			advisorMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			advisorCallSeen.Store(true)
+		}
+		requestsMu.Unlock()
+
+		if isAdvisorNested {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks(advisorReply)...,
+			)
+		}
+
+		// Turn 1 parent request: no previous_response_id yet, so chain
+		// mode cannot activate. Respond with a plain text reply and
+		// tag the stored response id so turn 2 can chain off it.
+		if req.PreviousResponseID == nil {
+			resp := chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks(turn1Reply)...,
+			)
+			resp.ResponseID = turn1RespID
+			return resp
+		}
+
+		// Turn 2 parent: chain mode is active. On the first pass call
+		// advisor; on the continuation after the tool result arrives,
+		// close out with a final text reply.
+		var hasAdvisorResult bool
+		for _, m := range req.Messages {
+			if m.Role == "tool" && strings.Contains(m.Content, advisorReply) {
+				hasAdvisorResult = true
+				break
+			}
+		}
+		if !hasAdvisorResult {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
+				"advisor",
+				`{"question":"should I keep going?"}`,
+			))
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks(finalReply)...,
+		)
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	storeEnabled := true
+	// The OpenAI Responses API is the only provider code path where
+	// chain mode activates. Store=true is the switch that routes this
+	// provider/model through the Responses API and lets
+	// IsResponsesStoreEnabled return true.
+	responsesModel := insertChatModelConfigWithCallConfig(
+		ctx, t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store: &storeEnabled,
+				},
+			},
+		},
+	)
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 16384,
+	})
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-chain-mode",
+		ModelConfigID:  responsesModel.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(turn1User),
+		},
+	})
+	require.NoError(t, err)
+
+	// Turn 1 must settle before turn 2 starts so the assistant row
+	// with ProviderResponseID is visible to resolveChainMode.
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	turn1Chat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, turn1Chat.Status,
+		"turn 1 must complete before turn 2 can be sent; last_error=%q", turn1Chat.LastError.String)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(turn2User),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		if !advisorCallSeen.Load() {
+			return false
+		}
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	requestsMu.Lock()
+	gotAdvisorMessages := append([]chattest.OpenAIMessage(nil), advisorMessages...)
+	gotRequests := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+
+	// Chain mode must have actually fired on turn 2, otherwise this
+	// test degenerates to TestAdvisorHappyPath_RootChat.
+	var chainModeActivated bool
+	for _, r := range gotRequests {
+		if r.PreviousResponseID != nil && *r.PreviousResponseID == turn1RespID {
+			chainModeActivated = true
+			break
+		}
+	}
+	require.True(t, chainModeActivated,
+		"turn 2 parent request must carry previous_response_id; without it this test does not exercise chain mode")
+
+	require.True(t, advisorCallSeen.Load(),
+		"the nested advisor call must execute under chain mode")
+	require.NotEmpty(t, gotAdvisorMessages,
+		"advisor call must receive the nested prompt messages")
+
+	// The core assertion: the advisor snapshot must retain turn 1
+	// context. Chain mode filtering strips assistant and tool turns
+	// from the prompt the outer loop sees, so if that filtered view
+	// leaked into the snapshot the advisor would only see turn 2's
+	// trailing user message.
+	var sawTurn1User, sawTurn1Assistant bool
+	for _, msg := range gotAdvisorMessages {
+		if msg.Role == "user" && strings.Contains(msg.Content, turn1User) {
+			sawTurn1User = true
+		}
+		if msg.Role == "assistant" && strings.Contains(msg.Content, turn1Reply) {
+			sawTurn1Assistant = true
+		}
+	}
+	require.True(t, sawTurn1User,
+		"advisor snapshot must retain the turn 1 user message even when chain mode is active")
+	require.True(t, sawTurn1Assistant,
+		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
+}
+
 func seedAdvisorConfig(
 	ctx context.Context,
 	t *testing.T,

@@ -242,9 +242,9 @@ func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) code
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
-// exactly matches chatadvisor.ParentGuidanceBlock. The block is meant for
-// the parent agent (it advertises the advisor tool) and would waste context
-// tokens if forwarded to the advisor's nested run.
+// matches chatadvisor.ParentGuidanceBlock after whitespace normalization.
+// The block is meant for the parent agent (it advertises the advisor tool)
+// and would waste context tokens if forwarded to the advisor's nested run.
 func stripAdvisorGuidanceBlock(msgs []fantasy.Message) []fantasy.Message {
 	filtered := msgs[:0]
 	for _, msg := range msgs {
