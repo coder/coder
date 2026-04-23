@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+import type { FriendlyDiagnostic } from "#/api/typesGenerated";
 import { MockPreviewParameter } from "#/testHelpers/entities";
-import { DynamicParameter } from "./DynamicParameter";
+import { Diagnostics, DynamicParameter } from "./DynamicParameter";
 
 const meta: Meta<typeof DynamicParameter> = {
 	title: "modules/workspaces/DynamicParameter",
@@ -277,5 +279,37 @@ export const MaskedTextArea: Story = {
 				mask_input: true,
 			},
 		},
+	},
+};
+
+// Covers the top-level Diagnostics specialization for missing_secret.
+// The <Diagnostics> component is rendered directly here because missing
+// secret diagnostics surface at the page level, not on individual
+// parameters (see CreateWorkspacePageView).
+const missingSecretDiagnostic: FriendlyDiagnostic = {
+	severity: "error",
+	summary: "Missing required secret",
+	detail: "Add an SSH deploy key with file=~/.ssh/id_deploy",
+	extra: { code: "missing_secret" },
+};
+
+export const MissingSecretDiagnostic: StoryObj<typeof Diagnostics> = {
+	render: () => <Diagnostics diagnostics={[missingSecretDiagnostic]} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Add an SSH deploy key with file=~/.ssh/id_deploy"),
+		).toBeVisible();
+		const link = canvas.getByRole("link", {
+			name: /coder secret create/i,
+		});
+		// The link target goes through the docs() helper, which resolves to
+		// the coder.com docs URL at runtime. Assert on the path suffix to
+		// stay stable across versioned builds (`/@vX.Y.Z/`).
+		await expect(link).toHaveAttribute(
+			"href",
+			expect.stringContaining("/reference/cli/secret-create"),
+		);
+		await expect(link).toHaveAttribute("target", "_blank");
 	},
 };

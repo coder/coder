@@ -386,6 +386,27 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		coderdtest.AssertParameter(t, "variable_values", preview.Parameters).
 			Exists().Value("austin")
 	})
+
+	t.Run("MissingSecret", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/secret_required/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		previews := setup.stream.Chan()
+
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, "missing_secret", preview.Diagnostics[0].Extra.Code)
+		require.Contains(t, preview.Diagnostics[0].Detail, "GITHUB_TOKEN")
+	})
 }
 
 type setupDynamicParamsTestParams struct {

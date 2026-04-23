@@ -356,3 +356,36 @@ export const WithPresets: Story = {
 		parameters: [parameterInput, parameterDropdown],
 	},
 };
+
+export const MissingSecretRequirement: Story = {
+	args: {
+		...WithParameters.args,
+		diagnostics: [
+			{
+				severity: "error",
+				summary: "Missing required secret",
+				detail: "Add an SSH deploy key with file=~/.ssh/id_deploy",
+				extra: { code: "missing_secret" },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createBtn = canvas.getByRole("button", {
+			name: /create workspace/i,
+		});
+		await expect(createBtn).toBeDisabled();
+		await expect(
+			canvas.getByText("Add an SSH deploy key with file=~/.ssh/id_deploy"),
+		).toBeVisible();
+		const link = canvas.getByRole("link", { name: /coder secret create/i });
+		// The link goes through docs(), which resolves to the coder.com docs
+		// URL at runtime. Match on the path suffix so versioned builds
+		// (`/@vX.Y.Z/`) don't break the assertion.
+		await expect(link).toHaveAttribute(
+			"href",
+			expect.stringContaining("/reference/cli/secret-create"),
+		);
+		await expect(link).toHaveAttribute("target", "_blank");
+	},
+};

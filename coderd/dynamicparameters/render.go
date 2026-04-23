@@ -203,12 +203,13 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 	closeFiles = false // Caller will have to call close
 	return &dynamicRenderer{
-		data:        r,
-		templateFS:  templateFS,
-		db:          db,
-		ownerErrors: make(map[uuid.UUID]error),
-		close:       cache.Close,
-		tfvarValues: tfVarValues,
+		data:            r,
+		templateFS:      templateFS,
+		db:              db,
+		ownerErrors:     make(map[uuid.UUID]error),
+		ownerSecretsErr: make(map[uuid.UUID]error),
+		close:           cache.Close,
+		tfvarValues:     tfVarValues,
 	}, nil
 }
 
@@ -219,7 +220,12 @@ type dynamicRenderer struct {
 
 	ownerErrors  map[uuid.UUID]error
 	currentOwner *previewtypes.WorkspaceOwner
-	tfvarValues  map[string]cty.Value
+
+	// ownerSecretsErr caches NotAuthorized denials per owner. Successes
+	// and transient errors are not cached; see getOwnerSecrets.
+	ownerSecretsErr map[uuid.UUID]error
+
+	tfvarValues map[string]cty.Value
 
 	once  sync.Once
 	close func()
@@ -257,7 +263,89 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		Logger: slog.New(slog.DiscardHandler),
 	}
 
-	return preview.Preview(ctx, input, r.templateFS)
+	output, diags := preview.Preview(ctx, input, r.templateFS)
+	if output == nil {
+		return nil, diags
+	}
+
+	// Secret requirements may change across renders because coder_secret
+	// blocks can be conditional on parameter values (e.g.
+	// count = var.x ? 1 : 0), so this check has to run every render.
+	if len(output.SecretRequirements) > 0 {
+		diags = diags.Extend(r.checkSecretRequirements(ctx, ownerID, output.SecretRequirements))
+	}
+
+	return output, diags
+}
+
+// checkSecretRequirements emits missing_secret diagnostics for unmet
+// SecretRequirements. Callers without user_secret:read on the owner get
+// a single secret_validation_forbidden warning, preventing enumeration
+// of the target's secret names via diagnostic presence.
+//
+// TODO: wsbuilder reuses this renderer under the caller's context, so
+// cross-user builds pass the warning through. Authoritative build-time
+// enforcement is tracked as a follow-up.
+func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID uuid.UUID, reqs []previewtypes.SecretRequirement) hcl.Diagnostics {
+	secrets, err := r.getOwnerSecrets(ctx, ownerID)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			// Warning, not error: the caller can still create the workspace;
+			// the build will simply fail later if required secrets are not
+			// set. Using warning severity also keeps the Create Workspace
+			// button enabled (which checks for error-severity diagnostics).
+			return hcl.Diagnostics{{
+				Severity: hcl.DiagWarning,
+				Summary:  "Cannot validate secret requirements",
+				Detail:   "You are not permitted to read secret metadata for this user. The workspace may fail to build if required secrets are not set.",
+				Extra: previewtypes.DiagnosticExtra{
+					Code: "secret_validation_forbidden",
+				},
+			}}
+		}
+		return hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Failed to fetch owner secrets",
+			Detail:   "The create workspace page cannot validate template secret requirements. Please try again.",
+			Extra: previewtypes.DiagnosticExtra{
+				Code: "owner_secrets_fetch_failed",
+			},
+		}}
+	}
+
+	envSet := make(map[string]struct{}, len(secrets))
+	fileSet := make(map[string]struct{}, len(secrets))
+	for _, s := range secrets {
+		if s.EnvName != "" {
+			envSet[s.EnvName] = struct{}{}
+		}
+		if s.FilePath != "" {
+			fileSet[s.FilePath] = struct{}{}
+		}
+	}
+
+	var diags hcl.Diagnostics
+	for _, req := range reqs {
+		satisfied := false
+		switch {
+		case req.Env != "":
+			_, satisfied = envSet[req.Env]
+		case req.File != "":
+			_, satisfied = fileSet[req.File]
+		}
+		if satisfied {
+			continue
+		}
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Missing required secret",
+			Detail:   req.HelpMessage,
+			Extra: previewtypes.DiagnosticExtra{
+				Code: "missing_secret",
+			},
+		})
+	}
+	return diags
 }
 
 func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {
@@ -272,6 +360,25 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 
 	r.currentOwner = owner
 	return nil
+}
+
+// getOwnerSecrets returns the owner's user-secret metadata under the
+// caller's auth context. Non-owners get NotAuthorizedError (only the
+// owner holds user_secret:read). Only NotAuthorized denials are cached;
+// successes and transient errors re-fetch so `coder secret create`
+// guidance is picked up without a page reload.
+func (r *dynamicRenderer) getOwnerSecrets(ctx context.Context, ownerID uuid.UUID) ([]database.ListUserSecretsRow, error) {
+	if err, cached := r.ownerSecretsErr[ownerID]; cached {
+		return nil, err
+	}
+	rows, err := r.db.ListUserSecrets(ctx, ownerID)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			r.ownerSecretsErr[ownerID] = err
+		}
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (r *dynamicRenderer) Close() {

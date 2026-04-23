@@ -22,6 +22,7 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import {
 	MultiSelectCombobox,
@@ -47,6 +48,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 interface DynamicParameterProps {
@@ -948,6 +950,26 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 						<div className="flex flex-col gap-3">
 							<p className="m-0">{diagnostic.summary}</p>
 							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
+							{diagnostic.extra?.code === "missing_secret" && (
+								// TODO(PLAT-100): when the user-secrets settings page
+								// lands, swap this external CLI-docs link for a
+								// <RouterLink to="/settings/secrets"> so recovery is a
+								// single click without leaving the app. Opening in a
+								// new tab here because the create-workspace form has
+								// pending parameter state that same-tab navigation
+								// would discard.
+								<p className="m-0">
+									Create this secret with the{" "}
+									<Link
+										href={docs("/reference/cli/secret-create")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										coder secret create
+									</Link>{" "}
+									CLI command.
+								</p>
+							)}
 						</div>
 					</div>
 				</div>
