@@ -819,7 +819,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		LastModelConfigID: webSearchModel.ID,
 		Title:             "root",
 		Status:            database.ChatStatusWaiting,
-		MCPServerIDs:      []uuid.UUID{mcpConfig.ID},
 		ClientType:        database.ChatClientTypeApi,
 	})
 	require.NoError(t, err)
@@ -1037,7 +1036,7 @@ func TestExploreChatReFiltersLegacyMCPSnapshotForPlanModeParent(t *testing.T) {
 		"legacy Explore runtime should re-apply the parent plan-mode MCP filter")
 }
 
-func TestExploreChatBoundsMutatedMCPSnapshotToParentCurrentSet(t *testing.T) {
+func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1072,6 +1071,20 @@ func TestExploreChatBoundsMutatedMCPSnapshotToParentCurrentSet(t *testing.T) {
 		requestsMu sync.Mutex
 		requests   []recordedOpenAIRequest
 	)
+	childRequests := func() []recordedOpenAIRequest {
+		requestsMu.Lock()
+		defer requestsMu.Unlock()
+
+		filtered := make([]recordedOpenAIRequest, 0, len(requests))
+		for _, req := range requests {
+			if requestHasSystemSubstring(req, "You are in Explore Mode as a delegated sub-agent.") {
+				filtered = append(filtered, req)
+			}
+		}
+		return filtered
+	}
+
+	var streamCallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("ok")
@@ -1081,6 +1094,12 @@ func TestExploreChatBoundsMutatedMCPSnapshotToParentCurrentSet(t *testing.T) {
 		requests = append(requests, recordOpenAIRequest(req))
 		requestsMu.Unlock()
 
+		if streamCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"explore","prompt":"inspect the codebase","title":"sub"}`),
+			)
+		}
+
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("done")...,
 		)
@@ -1088,98 +1107,106 @@ func TestExploreChatBoundsMutatedMCPSnapshotToParentCurrentSet(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 	parentConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:     "Runtime Parent MCP",
-		Slug:            "runtime-parent-mcp",
-		Url:             parentTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
-		AllowInPlanMode: true,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		DisplayName:   "Runtime Parent MCP",
+		Slug:          "runtime-parent-mcp",
+		Url:           parentTS.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
 	})
 	require.NoError(t, err)
 	injectedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:     "Runtime Injected MCP",
-		Slug:            "runtime-injected-mcp",
-		Url:             injectedTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
-		AllowInPlanMode: true,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		DisplayName:   "Runtime Injected MCP",
+		Slug:          "runtime-injected-mcp",
+		Url:           injectedTS.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
 	})
 	require.NoError(t, err)
 
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	parentChat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "runtime-parent",
-		Status:            database.ChatStatusWaiting,
-		MCPServerIDs:      []uuid.UUID{parentConfig.ID},
-		ClientType:        database.ChatClientTypeApi,
-	})
-	require.NoError(t, err)
-	exploreChat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "runtime-explore",
-		Mode: database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
+	server := newActiveTestServer(t, db, ps)
+
+	rootChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "runtime-parent",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{parentConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Spawn an Explore subagent to inspect the codebase."),
 		},
-		Status:       database.ChatStatusWaiting,
-		MCPServerIDs: []uuid.UUID{parentConfig.ID},
-		ClientType:   database.ChatClientTypeApi,
 	})
 	require.NoError(t, err)
 
-	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "")
-	_ = server
-
-	updatedMCPServerIDs := []uuid.UUID{parentConfig.ID, injectedConfig.ID}
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       exploreChat.ID,
-		CreatedBy:    user.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase")},
-		MCPServerIDs: &updatedMCPServerIDs,
-	})
-	require.NoError(t, err)
-
-	storedExploreChat, err := db.GetChatByID(ctx, exploreChat.ID)
-	require.NoError(t, err)
-	require.Equal(t, updatedMCPServerIDs, storedExploreChat.MCPServerIDs)
+	var exploreChat database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{rootChat.ID},
+		})
+		if err != nil {
+			return false
+		}
+		for _, candidate := range childRows {
+			if candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
+				exploreChat = candidate.Chat
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
 
 	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
 		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
 	}
 
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 1)
+	exploreChat, err = db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{parentConfig.ID}, exploreChat.MCPServerIDs)
 
-	tools := recorded[0].Tools
+	initialChildRequestCount := len(childRequests())
+	require.GreaterOrEqual(t, initialChildRequestCount, 1)
+
+	updatedMCPServerIDs := []uuid.UUID{injectedConfig.ID}
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       exploreChat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase again")},
+		MCPServerIDs: &updatedMCPServerIDs,
+	})
+	require.NoError(t, err)
+
+	storedExploreChat, err := db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{parentConfig.ID}, storedExploreChat.MCPServerIDs)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return len(childRequests()) > initialChildRequestCount
+	}, testutil.IntervalFast)
+
+	chatResult = waitForTerminalChat(ctx, t, db, exploreChat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	recordedChildRequests := childRequests()
+	require.GreaterOrEqual(t, len(recordedChildRequests), initialChildRequestCount+1)
+
+	tools := recordedChildRequests[len(recordedChildRequests)-1].Tools
 	require.Contains(t, tools, "runtime-parent-mcp__echo")
 	require.NotContains(t, tools, "runtime-injected-mcp__echo",
-		"Explore runtime should bound mutated MCPServerIDs to the parent's current MCP set")
+		"Explore child runtime should keep the spawn-time MCP snapshot after SendMessage")
 }
 
 func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {

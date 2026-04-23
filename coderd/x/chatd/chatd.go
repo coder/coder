@@ -1222,13 +1222,21 @@ func (p *Server) SendMessage(
 		}
 
 		// Update MCP server IDs on the chat when explicitly provided.
+		// Explore child chats keep the spawn-time snapshot immutable.
 		if opts.MCPServerIDs != nil {
-			lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
-				ID:           opts.ChatID,
-				MCPServerIDs: *opts.MCPServerIDs,
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat mcp server ids: %w", err)
+			if isExploreSubagentMode(lockedChat.Mode) {
+				p.logger.Warn(ctx,
+					"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
+					slog.F("chat_id", opts.ChatID),
+				)
+			} else {
+				lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+					ID:           opts.ChatID,
+					MCPServerIDs: *opts.MCPServerIDs,
+				})
+				if err != nil {
+					return xerrors.Errorf("update chat mcp server ids: %w", err)
+				}
 			}
 		}
 
@@ -5713,59 +5721,28 @@ func (p *Server) runChat(
 	var mcpConnectConfigs []database.MCPServerConfig
 	var approvedPlanMCPConfigIDs map[uuid.UUID]struct{}
 	if isExploreSubagent && chat.ParentChatID.Valid {
-		// Explore children snapshot the parent's filtered external MCP set
-		// at spawn time. Re-check the child's persisted MCPServerIDs
-		// against the parent's current effective set here to defend
-		// against post-spawn mutation paths, including SendMessage MCP
-		// server ID updates. Spawn-time filtering remains the primary
+		// Defense-in-depth for legacy Explore rows whose persisted
+		// MCPServerIDs snapshot predates spawn-time filtering. New rows
+		// are already snapshotted at spawn and SendMessage is blocked
+		// from mutating them, so for new rows this is a no-op in the
+		// common case. Spawn-time snapshotting remains the primary
 		// boundary.
-		failClosed := func(message string, err error) {
+		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
+		if err != nil {
 			logger.Warn(ctx,
-				message,
+				"failed to load Explore parent chat for MCP snapshot filter",
 				slog.F("chat_id", chat.ID),
 				slog.F("parent_chat_id", chat.ParentChatID.UUID),
 				slog.Error(err),
 			)
 			mcpConnectConfigs = nil
 			approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
-		}
-		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
-		if err != nil {
-			failClosed("failed to load Explore parent chat for MCP snapshot filter", err)
 		} else {
-			var parentMCPConfigs []database.MCPServerConfig
-			if len(parentChat.MCPServerIDs) > 0 {
-				parentMCPConfigs, err = p.db.GetMCPServerConfigsByIDs(
-					ctx, parentChat.MCPServerIDs,
-				)
-			}
-			if err != nil {
-				failClosed(
-					"failed to load Explore parent MCP server configs for MCP snapshot filter",
-					err,
-				)
-			} else {
-				parentMCPConfigs, _ = filterExternalMCPConfigsForTurn(
-					parentMCPConfigs,
-					parentChat.PlanMode,
-					parentChat.ParentChatID,
-				)
-				parentEffectiveMCPConfigIDs := make(map[uuid.UUID]struct{}, len(parentMCPConfigs))
-				for _, cfg := range parentMCPConfigs {
-					parentEffectiveMCPConfigIDs[cfg.ID] = struct{}{}
-				}
-				boundedMCPConfigs := make([]database.MCPServerConfig, 0, len(mcpConfigs))
-				for _, cfg := range mcpConfigs {
-					if _, ok := parentEffectiveMCPConfigIDs[cfg.ID]; ok {
-						boundedMCPConfigs = append(boundedMCPConfigs, cfg)
-					}
-				}
-				mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
-					boundedMCPConfigs,
-					parentChat.PlanMode,
-					parentChat.ParentChatID,
-				)
-			}
+			mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+				mcpConfigs,
+				parentChat.PlanMode,
+				parentChat.ParentChatID,
+			)
 		}
 	} else {
 		mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
