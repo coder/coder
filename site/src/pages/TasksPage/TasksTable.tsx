@@ -96,9 +96,7 @@ export const TasksTable: FC<TasksTableProps> = ({
 							<Checkbox
 								disabled={!tasks || tasks.length === 0}
 								checked={
-									tasks &&
-									tasks.length > 0 &&
-									checkedTaskIds.size === tasks.length
+									Boolean(tasks) && checkedTaskIds.size === tasks?.length
 								}
 								onCheckedChange={(checked) => {
 									if (!tasks || !onCheckChange) {

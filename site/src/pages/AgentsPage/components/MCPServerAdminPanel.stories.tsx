@@ -33,6 +33,7 @@ const createServerConfig = (
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -80,8 +81,14 @@ export const EmptyState: Story = {
 		await expect(
 			await body.findByText(/No MCP servers configured yet/i),
 		).toBeInTheDocument();
-		await expect(
-			body.getByRole("button", { name: /Add Server/i }),
+
+		// Both the section header and the empty state render a distinct
+		// Add button, and the empty-state one is the primary CTA.
+		expect(
+			body.getByRole("button", { name: "Add server" }),
+		).toBeInTheDocument();
+		expect(
+			body.getByRole("button", { name: "Add your first server" }),
 		).toBeInTheDocument();
 	},
 };
@@ -136,6 +143,9 @@ export const ServerList: Story = {
 		).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /Linear/ })).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /GitHub/ })).toBeInTheDocument();
+
+		// Disabled servers surface a warning badge next to the name.
+		expect(body.getByText(/^disabled$/i)).toBeInTheDocument();
 	},
 };
 
@@ -149,14 +159,26 @@ export const CreateServer: Story = {
 
 		// Click Add Server.
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		// Fill in the display name via the inline header input.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Slug should auto-populate.
+		// Required fields (slug, server URL) are always visible. Optional
+		// sections start collapsed and the Enabled switch is edit-only.
+		// PencilIcon sits next to the editable name.
+		expect(body.getByLabelText(/^Slug/i)).toBeInTheDocument();
+		expect(body.getByLabelText(/Server URL/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Description/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("switch", { name: /Enabled/i }),
+		).not.toBeInTheDocument();
+		const nameRow = nameInput.closest("div")?.parentElement;
+		expect(nameRow?.querySelector("svg.lucide-pencil")).toBeTruthy();
+
+		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 
 		await userEvent.type(
@@ -191,7 +213,7 @@ export const CreateServerOAuth2: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "GitHub");
@@ -200,6 +222,9 @@ export const CreateServerOAuth2: Story = {
 			"https://api.githubcopilot.com/mcp/",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select OAuth2 from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(await body.findByRole("option", { name: /OAuth2/i }));
@@ -240,7 +265,7 @@ export const CreateServerAPIKey: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "Linear");
@@ -249,6 +274,9 @@ export const CreateServerAPIKey: Story = {
 			"https://mcp.linear.app/v1",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select API Key from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(
@@ -305,10 +333,15 @@ export const EditServer: Story = {
 		// The inline name input should be pre-populated.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		expect(nameInput).toHaveValue("Sentry");
+
+		// Slug and Server URL are always visible.
 		expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 		expect(body.getByLabelText(/Server URL/i)).toHaveValue(
 			"https://mcp.sentry.io/sse",
 		);
+
+		// Expand Details to reach the description field.
+		await userEvent.click(body.getByRole("button", { name: /Details/i }));
 
 		// Update the description.
 		const descField = body.getByLabelText(/Description/i);
@@ -354,6 +387,11 @@ export const EditServerWithOAuth2Secret: Story = {
 
 		await userEvent.click(await body.findByRole("button", { name: /GitHub/ }));
 
+		// Authentication section is collapsed by default.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+
 		// The OAuth2 fields should be visible.
 		const secretField = await body.findByLabelText(/Client Secret/i);
 		expect(secretField).toHaveValue("••••••••••••••••");
@@ -382,6 +420,11 @@ export const EditServerWithCustomHeaders: Story = {
 
 		await userEvent.click(
 			await body.findByRole("button", { name: /Custom API/ }),
+		);
+
+		// Authentication section is collapsed by default.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 
 		// Should show message about existing headers.
@@ -476,6 +519,31 @@ export const DeleteServerCancelled: Story = {
 };
 
 /** Confirm delete in dialog calls the API. */
+export const DirectEditWhileLoading: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/settings/mcp-servers",
+				searchParams: { server: "mcp-sentry" },
+			},
+			routing: { path: "/agents/settings/mcp-servers" },
+		}),
+	},
+	args: {
+		serversData: undefined,
+		isLoadingServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(await body.findByText(/^Loading$/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Display Name/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: /Save changes/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const DeleteServerConfirmed: Story = {
 	args: {
 		serversData: [
@@ -518,7 +586,7 @@ export const BackToList: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /^Add server$/i }),
 		);
 
 		// Click Back.
@@ -542,7 +610,7 @@ export const CreateServerWithToolGovernance: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(
@@ -554,6 +622,7 @@ export const CreateServerWithToolGovernance: Story = {
 			"https://mcp.example.com/v1",
 		);
 
+		await userEvent.click(body.getByRole("button", { name: /Behavior/i }));
 		await userEvent.type(
 			body.getByLabelText(/Tool Allow List/i),
 			"search, read_file",
@@ -586,7 +655,7 @@ export const CustomHeadersAuthType: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(
@@ -598,6 +667,9 @@ export const CustomHeadersAuthType: Story = {
 			"https://mcp.example.com/v1",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select Custom Headers auth type.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(

@@ -5,7 +5,7 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
-export type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
@@ -58,11 +58,17 @@ export const deriveMessageDisplayState = ({
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
 	const hasCopyableContent = Boolean(parsed.markdown.trim());
+	const hasRenderableContent =
+		parsed.blocks.length > 0 ||
+		parsed.tools.length > 0 ||
+		parsed.sources.length > 0;
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!isUser &&
 		!hasCopyableContent &&
-		(Boolean(parsed.reasoning) || parsed.sources.length > 0);
+		(Boolean(parsed.reasoning) ||
+			parsed.sources.length > 0 ||
+			!hasRenderableContent);
 	const hasToolResultsOnly =
 		parsed.toolResults.length > 0 &&
 		parsed.toolCalls.length === 0 &&

@@ -12,6 +12,7 @@ func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
 	}
 	return &codersdk.ChatStreamError{
 		Message:    classified.Message,
+		Detail:     classified.Detail,
 		Kind:       classified.Kind,
 		Provider:   classified.Provider,
 		Retryable:  classified.Retryable,

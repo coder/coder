@@ -7,7 +7,18 @@
 		"./test/**/*.ts",
 		"./e2e/**/*.ts"
 	],
-	"ignore": ["**/*Generated.ts", "src/api/chatModelOptions.ts"],
+	"ignore": [
+		"**/*Generated.ts",
+		"src/api/chatModelOptions.ts",
+		// TODO(devtools): debugPanelUtils.ts is staged in PR 7; its exports are
+		// consumed by the Debug panel components in PRs 8 and 9. Remove this
+		// exclusion once the panel components land.
+		"src/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils.ts",
+		// TODO(devtools): chatDebugLogging.ts queries are staged in PR 7;
+		// they are consumed by the Debug settings UI in PR 8. Remove this
+		// exclusion once the settings page lands.
+		"src/api/queries/chatDebugLogging.ts"
+	],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",

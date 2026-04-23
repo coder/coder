@@ -813,6 +813,158 @@ export const ProviderInvalidCredentialState: Story = {
 	},
 };
 
+export const ProviderFormBedrockAmbientCredentials: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: nilProviderConfigID,
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				source: "supported",
+				enabled: false,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("button", { name: /AWS Bedrock/i }),
+		);
+
+		const apiKeyInput = await body.findByLabelText(/^API Key$/i);
+		const createButton = body.getByRole("button", {
+			name: "Create provider config",
+		});
+
+		await expect(apiKeyInput).not.toBeRequired();
+		await expect(apiKeyInput).toHaveAttribute(
+			"placeholder",
+			"Enter bearer token",
+		);
+		await expect(
+			body.findByText(
+				"Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials.",
+			),
+		).resolves.toBeInTheDocument();
+		await expect(
+			body.findByText(
+				/Overrides the Bedrock runtime endpoint\.\s+Set AWS_REGION on\s+the Coder server to select the target region\./i,
+			),
+		).resolves.toBeInTheDocument();
+		await expect(createButton).toBeEnabled();
+
+		await userEvent.click(createButton);
+		await waitFor(() => {
+			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
+		});
+		const createProviderMock = args.onCreateProvider as ReturnType<typeof fn>;
+		const createRequest = createProviderMock.mock.calls[0][0] as Record<
+			string,
+			unknown
+		>;
+		expect(createRequest).toMatchObject({
+			provider: "bedrock",
+			central_api_key_enabled: true,
+			allow_user_api_key: false,
+			allow_central_api_key_fallback: false,
+		});
+		expect(createRequest).not.toHaveProperty("api_key");
+	},
+};
+
+export const ProviderFormBedrockBearerToken: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-bedrock-bearer",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				has_api_key: true,
+				central_api_key_enabled: true,
+				allow_user_api_key: false,
+				allow_central_api_key_fallback: false,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("button", { name: /AWS Bedrock/i }),
+		);
+
+		const apiKeyInput = await body.findByLabelText(/^API Key$/i);
+		const saveButton = body.getByRole("button", { name: "Save changes" });
+
+		await expect(apiKeyInput).not.toBeRequired();
+		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
+
+		await userEvent.click(apiKeyInput);
+		await userEvent.type(apiKeyInput, "bedrock-bearer-token");
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onUpdateProvider).toHaveBeenCalledWith(
+			"provider-bedrock-bearer",
+			expect.objectContaining({ api_key: "bedrock-bearer-token" }),
+		);
+	},
+};
+
+export const ProviderFormBedrockClearBearerToken: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-bedrock-clear",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				has_api_key: true,
+				central_api_key_enabled: true,
+				allow_user_api_key: false,
+				allow_central_api_key_fallback: false,
+			}),
+		],
+		modelCatalogData: { providers: [] },
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("button", { name: /AWS Bedrock/i }),
+		);
+
+		const apiKeyInput = await body.findByLabelText(/^API Key$/i);
+		const clearStoredTokenButton = body.getByRole("button", {
+			name: /Clear stored token/i,
+		});
+		const saveButton = body.getByRole("button", { name: "Save changes" });
+
+		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
+		await userEvent.click(clearStoredTokenButton);
+		await waitFor(() => {
+			expect(apiKeyInput).toHaveValue("");
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onUpdateProvider).toHaveBeenCalledWith(
+			"provider-bedrock-clear",
+			expect.objectContaining({ api_key: "" }),
+		);
+	},
+};
+
 const openAddModelForm = async (
 	body: ReturnType<typeof within>,
 	providerLabel: string,

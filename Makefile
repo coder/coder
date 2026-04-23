@@ -151,7 +151,7 @@ _gen/bin/metricsdocgen-scanner: $(wildcard scripts/metricsdocgen/scanner/*.go) |
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen/scanner
 
-_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) | _gen
+_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
 
@@ -699,11 +699,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
 .PHONY: lint-light
 
 lint/site-icons:
@@ -737,6 +737,10 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 lint/bootstrap:
 	bash scripts/check_bootstrap_quotes.sh
 .PHONY: lint/bootstrap
+
+lint/emdash:
+	bash scripts/check_emdash.sh
+.PHONY: lint/emdash
 
 
 lint/helm:

@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { AdminBadge } from "./AdminBadge";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -68,7 +67,6 @@ export const PlanModeInstructionsSettings: FC<
 				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 					Plan mode instructions
 				</h3>
-				<AdminBadge />
 			</div>
 			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 				Custom instructions applied when the agent enters planning mode. These
