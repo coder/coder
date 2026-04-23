@@ -318,7 +318,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "string"
     ],
     "healthcheck": {
-      "api_key": "string",
       "refresh": 0,
       "threshold_database": 0
     },

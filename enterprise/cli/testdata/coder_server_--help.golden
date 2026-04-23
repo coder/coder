@@ -302,11 +302,6 @@ Configure TLS for your SMTP server target.
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
 INTROSPECTION / HEALTH CHECK OPTIONS: 
-      --health-check-api-key string, $CODER_HEALTH_CHECK_API_KEY
-          An API key to use for authenticating the background healthcheck.
-          Without this, the websocket healthcheck will report errors since it
-          requires authentication to access the /debug/ws endpoint.
-
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
 

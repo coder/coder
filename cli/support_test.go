@@ -60,7 +60,7 @@ func TestSupportBundle(t *testing.T) {
 	// sufficient.
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: dc.Values,
-		HealthcheckFunc: func(_ context.Context, _ string, _ *http.Client, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+		HealthcheckFunc: func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			return &healthsdk.HealthcheckReport{
 				Time:     time.Now(),
 				Healthy:  true,

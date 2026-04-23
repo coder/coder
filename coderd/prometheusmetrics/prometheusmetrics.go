@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -661,7 +660,7 @@ func Healthcheck(
 	ctx context.Context,
 	logger slog.Logger,
 	registerer prometheus.Registerer,
-	healthcheckFunc func(ctx context.Context, apiKey string, client *http.Client, progress *healthcheck.Progress) *healthsdk.HealthcheckReport,
+	healthcheckFunc func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport,
 	healthCheckCache *atomic.Pointer[healthsdk.HealthcheckReport],
 	apiKey string,
 	duration time.Duration,
@@ -687,25 +686,12 @@ func Healthcheck(
 	})
 	var registerOnce sync.Once
 
-	// Use a dedicated transport so that healthcheck HTTP connections
-	// are not pooled in http.DefaultTransport. Each connection's
-	// readLoop/writeLoop goroutines only exit once the connection
-	// closes; without this, they outlive the healthcheck runner and
-	// trigger goleak failures in tests.
-	transport := &http.Transport{
-		DisableKeepAlives: true,
-	}
-	client := &http.Client{
-		Transport: transport,
-	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	ticker := time.NewTicker(duration)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
-		defer transport.CloseIdleConnections()
 		for {
 			select {
 			case <-ctx.Done():
@@ -714,11 +700,8 @@ func Healthcheck(
 			}
 
 			checkCtx, checkCancel := context.WithTimeout(ctx, 30*time.Second)
-			report := healthcheckFunc(checkCtx, apiKey, client, nil)
+			report := healthcheckFunc(checkCtx, apiKey, nil)
 			checkCancel()
-			// Force-close connections that just finished so their
-			// transport goroutines exit promptly.
-			transport.CloseIdleConnections()
 
 			if report == nil {
 				logger.Warn(ctx, "healthcheck returned nil report")

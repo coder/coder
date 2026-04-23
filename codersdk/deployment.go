@@ -1043,7 +1043,6 @@ type UserQuietHoursScheduleConfig struct {
 type HealthcheckConfig struct {
 	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
-	APIKey            serpent.String   `json:"api_key"`
 }
 
 // RetentionConfig contains configuration for data retention policies.
@@ -3268,17 +3267,6 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "thresholdDatabase",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-		},
-		{
-			Name: "Health Check API Key",
-			Description: "An API key to use for authenticating the background healthcheck. " +
-				"Without this, the websocket healthcheck will report errors since it " +
-				"requires authentication to access the /debug/ws endpoint.",
-			Flag:        "health-check-api-key",
-			Env:         "CODER_HEALTH_CHECK_API_KEY",
-			Value:       &c.Healthcheck.APIKey,
-			Group:       &deploymentGroupIntrospectionHealthcheck,
-			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// Email options
 		emailFrom,

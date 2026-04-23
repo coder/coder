@@ -213,7 +213,7 @@ type Options struct {
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string, client *http.Client, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -700,7 +700,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string, client *http.Client, progress *healthcheck.Progress) *healthsdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -709,13 +709,11 @@ func New(options *Options) *API {
 					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
-					AccessURL:  options.AccessURL,
-					APIKey:     apiKey,
-					HTTPClient: client,
+					AccessURL: options.AccessURL,
+					APIKey:    apiKey,
 				},
 				AccessURL: healthcheck.AccessURLReportOptions{
 					AccessURL: options.AccessURL,
-					Client:    client,
 				},
 				DerpHealth: derphealth.ReportOptions{
 					DERPMap: api.DERPMap(),

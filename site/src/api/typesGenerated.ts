@@ -3966,7 +3966,6 @@ export interface Healthcheck {
 export interface HealthcheckConfig {
 	readonly refresh: number;
 	readonly threshold_database: number;
-	readonly api_key: string;
 }
 
 // From healthsdk/healthsdk.go
