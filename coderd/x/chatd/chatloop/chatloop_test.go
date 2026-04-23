@@ -2109,6 +2109,126 @@ func TestRun_ExclusiveToolAloneSucceeds(t *testing.T) {
 		"solo exclusive-tool call must produce a real tool result, not a policy error: %+v", result.Result)
 }
 
+// TestRun_ExclusiveToolWithProviderExecutedSucceeds guards the
+// interaction between the ProviderExecuted filter and the
+// exclusive-tool policy. executeToolsForStep builds localCandidates
+// by dropping ProviderExecuted calls before passing them to
+// applyExclusiveToolPolicy. That filter is the sole mechanism
+// preventing a false policy violation when a solo exclusive tool
+// appears in a batch where the provider also server-executed a tool
+// (for example Anthropic web_search).
+//
+// If the filter is removed, localCandidates would contain both the
+// provider-executed call and the exclusive call. firstExclusiveToolName
+// would then see len > 1, find advisor, and return a violation. The
+// advisor would never run and the retry loop would burn steps until
+// MaxSteps.
+//
+// This test emits an advisor call alongside a provider-executed
+// web_search call (with its provider-emitted result) and asserts the
+// advisor runner actually fires.
+func TestRun_ExclusiveToolWithProviderExecutedSucceeds(t *testing.T) {
+	t.Parallel()
+
+	var advisorRuns atomic.Int32
+	advisorTool := fantasy.NewAgentTool(
+		"advisor",
+		"returns strategic guidance",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			advisorRuns.Add(1)
+			return fantasy.NewTextResponse(`{"status":"ok"}`), nil
+		},
+	)
+
+	var mu sync.Mutex
+	var streamCalls int
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step == 0 {
+				// Step 0: provider server-executed web_search and
+				// returned its result inline, plus the model
+				// emitted an exclusive advisor call for local
+				// execution. The ProviderExecuted filter must
+				// drop web_search from the policy check so the
+				// advisor is treated as a solo exclusive call.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+					{
+						Type:             fantasy.StreamPartTypeToolCall,
+						ID:               "ws-1",
+						ToolCallName:     "web_search",
+						ToolCallInput:    `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+					{
+						Type:             fantasy.StreamPartTypeToolResult,
+						ID:               "ws-1",
+						ToolCallName:     "web_search",
+						ProviderExecuted: true,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "advisor-1", ToolCallName: "advisor"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "advisor-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "advisor-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "advisor-1",
+						ToolCallName:  "advisor",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			// Step 1: end the run after the advisor result is
+			// fed back.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search and then advise"),
+		},
+		Tools:              []fantasy.AgentTool{advisorTool},
+		ExclusiveToolNames: map[string]bool{"advisor": true},
+		MaxSteps:           5,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// The advisor must execute exactly once: the ProviderExecuted
+	// filter removes web_search from the exclusivity check, so the
+	// advisor is treated as a solo exclusive call.
+	require.Equal(t, int32(1), advisorRuns.Load(),
+		"advisor must execute when the only other call in the batch was provider-executed")
+
+	// The advisor result must be a real tool result, not a
+	// synthesized policy error.
+	require.GreaterOrEqual(t, len(persistedSteps), 1)
+	advisorResult, ok := findToolResultByID(persistedSteps[0].Content, "advisor-1")
+	require.True(t, ok, "persisted step must contain the advisor tool result")
+	_, isErr := advisorResult.Result.(fantasy.ToolResultOutputContentError)
+	require.Falsef(t, isErr,
+		"advisor must produce a real tool result, not a policy error: %+v", advisorResult.Result)
+}
+
 func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	t.Parallel()
 
