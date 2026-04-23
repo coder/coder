@@ -30,6 +30,7 @@ const (
 	ToolNameListWorkspaces              = "coder_list_workspaces"
 	ToolNameListTemplates               = "coder_list_templates"
 	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
+	ToolNameListTemplateVersionPresets  = "coder_template_version_presets"
 	ToolNameGetAuthenticatedUser        = "coder_get_authenticated_user"
 	ToolNameCreateWorkspaceBuild        = "coder_create_workspace_build"
 	ToolNameCreateTemplateVersion       = "coder_create_template_version"
@@ -310,6 +311,7 @@ var All = []GenericTool{
 	DeleteTemplate.Generic(),
 	ListTemplates.Generic(),
 	ListTemplateVersionParameters.Generic(),
+	ListTemplateVersionPresets.Generic(),
 	ListWorkspaces.Generic(),
 	GetAuthenticatedUser.Generic(),
 	GetTemplateVersionLogs.Generic(),
@@ -441,10 +443,11 @@ This returns more data than list_workspaces to reduce token usage.`,
 }
 
 type CreateWorkspaceArgs struct {
-	Name              string            `json:"name"`
-	RichParameters    map[string]string `json:"rich_parameters"`
-	TemplateVersionID string            `json:"template_version_id"`
-	User              string            `json:"user"`
+	Name                    string            `json:"name"`
+	RichParameters          map[string]string `json:"rich_parameters"`
+	TemplateVersionID       string            `json:"template_version_id"`
+	TemplateVersionPresetID string            `json:"template_version_preset_id"`
+	User                    string            `json:"user"`
 }
 
 var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
@@ -478,6 +481,10 @@ be ready before trying to use or connect to the workspace.
 					"type":        "string",
 					"description": "ID of the template version to create the workspace from.",
 				},
+				"template_version_preset_id": map[string]any{
+					"type":        "string",
+					"description": "Optional ID of the template version preset to create the workspace from.",
+				},
 				"name": map[string]any{
 					"type":        "string",
 					"description": "Name of the workspace to create.",
@@ -496,6 +503,14 @@ be ready before trying to use or connect to the workspace.
 		if err != nil {
 			return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
 		}
+
+		var tvPresetID uuid.UUID
+		if args.TemplateVersionPresetID != "" {
+			tvPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
+			if err != nil {
+				return codersdk.Workspace{}, xerrors.New("template_version_preset_id must be a valid UUID")
+			}
+		}
 		if args.User == "" {
 			args.User = codersdk.Me
 		}
@@ -506,11 +521,15 @@ be ready before trying to use or connect to the workspace.
 				Value: v,
 			})
 		}
-		workspace, err := deps.coderClient.CreateUserWorkspace(ctx, args.User, codersdk.CreateWorkspaceRequest{
+		req := codersdk.CreateWorkspaceRequest{
 			TemplateVersionID:   tvID,
 			Name:                args.Name,
 			RichParameterValues: buildParams,
-		})
+		}
+		if tvPresetID != uuid.Nil {
+			req.TemplateVersionPresetID = tvPresetID
+		}
+		workspace, err := deps.coderClient.CreateUserWorkspace(ctx, args.User, req)
 		if err != nil {
 			return codersdk.Workspace{}, err
 		}
@@ -623,6 +642,33 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 			return nil, err
 		}
 		return parameters, nil
+	},
+}
+
+var ListTemplateVersionPresets = Tool[ListTemplateVersionParametersArgs, []codersdk.Preset]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameListTemplateVersionPresets,
+		Description: "Get the presets for a template version. Use these to choose a template_version_preset_id for task or workspace creation.",
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"template_version_id": map[string]any{
+					"type": "string",
+				},
+			},
+			Required: []string{"template_version_id"},
+		},
+	},
+	MCPAnnotations: mcpReadOnlyAnnotations,
+	Handler: func(ctx context.Context, deps Deps, args ListTemplateVersionParametersArgs) ([]codersdk.Preset, error) {
+		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
+		}
+		presets, err := deps.coderClient.TemplateVersionPresets(ctx, templateVersionID)
+		if err != nil {
+			return nil, err
+		}
+		return presets, nil
 	},
 }
 

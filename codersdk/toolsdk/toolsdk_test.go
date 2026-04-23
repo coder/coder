@@ -170,6 +170,12 @@ func TestTools(t *testing.T) {
 		}
 		return agents
 	}).Do()
+	preset := dbgen.Preset(t, store, database.InsertPresetParams{
+		TemplateVersionID: r.TemplateVersion.ID,
+		Name:              testutil.GetRandomNameHyphenated(t),
+		CreatedAt:         r.TemplateVersion.CreatedAt,
+		Description:       "Preset for agent tool tests.",
+	})
 
 	// Given: a client configured with the agent token.
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
@@ -384,6 +390,20 @@ func TestTools(t *testing.T) {
 		require.Empty(t, params)
 	})
 
+	t.Run("ListTemplateVersionPresets", func(t *testing.T) {
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		presets, err := testTool(t, toolsdk.ListTemplateVersionPresets, tb, toolsdk.ListTemplateVersionParametersArgs{
+			TemplateVersionID: r.TemplateVersion.ID.String(),
+		})
+
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		require.Equal(t, preset.ID, presets[0].ID)
+		require.Equal(t, preset.Name, presets[0].Name)
+		require.Equal(t, preset.Description, presets[0].Description)
+	})
+
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
@@ -500,18 +520,34 @@ func TestTools(t *testing.T) {
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
-		// We need a template version ID to create a workspace
-		res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
-			User:              "me",
-			TemplateVersionID: r.TemplateVersion.ID.String(),
-			Name:              testutil.GetRandomNameHyphenated(t),
-			RichParameters:    map[string]string{},
+		t.Run("WithoutPreset", func(t *testing.T) {
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateVersionID: r.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
 		})
 
-		// The creation might fail for various reasons, but the important thing is
-		// to mark it as tested
-		require.NoError(t, err)
-		require.NotEmpty(t, res.ID, "expected a workspace ID")
+		t.Run("WithPreset", func(t *testing.T) {
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				TemplateVersionID:       r.TemplateVersion.ID.String(),
+				TemplateVersionPresetID: preset.ID.String(),
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				RichParameters:          map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, res.LatestBuild.ID)
+			require.NotNil(t, build.TemplateVersionPresetID)
+			require.Equal(t, preset.ID, *build.TemplateVersionPresetID)
+		})
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
@@ -1072,11 +1108,10 @@ func TestTools(t *testing.T) {
 			{
 				name: "WithPreset",
 				args: toolsdk.CreateTaskArgs{
-					TemplateVersionID:       r.TemplateVersion.ID.String(),
+					TemplateVersionID:       aiTV.TemplateVersion.ID.String(),
 					TemplateVersionPresetID: presetID.String(),
 					Input:                   "not enough barrel rolls",
 				},
-				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 		}
 
