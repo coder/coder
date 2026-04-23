@@ -73,6 +73,20 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 				), nil
 			}
 
+			presets, err := db.GetPresetsByTemplateVersionID(ctx, template.ActiveVersionID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("failed to get template presets: %w", err).Error(),
+				), nil
+			}
+
+			presetParams, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("failed to get preset parameters: %w", err).Error(),
+				), nil
+			}
+
 			templateInfo := map[string]any{
 				"id":                template.ID.String(),
 				"name":              template.Name,
@@ -129,10 +143,51 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 				paramList = append(paramList, param)
 			}
 
-			return toolResponse(map[string]any{
+			result := map[string]any{
 				"template":   templateInfo,
 				"parameters": paramList,
-			}), nil
+			}
+
+			// Include presets only when the template has them
+			// to avoid cluttering responses.
+			if len(presets) > 0 {
+				// Index preset parameters by preset ID for
+				// efficient lookup.
+				paramsByPreset := make(map[uuid.UUID][]map[string]any)
+				for _, pp := range presetParams {
+					paramsByPreset[pp.TemplateVersionPresetID] = append(
+						paramsByPreset[pp.TemplateVersionPresetID],
+						map[string]any{
+							"name":  pp.Name,
+							"value": pp.Value,
+						},
+					)
+				}
+
+				presetList := make([]map[string]any, 0, len(presets))
+				for _, pr := range presets {
+					preset := map[string]any{
+						"id":      pr.ID.String(),
+						"name":    pr.Name,
+						"default": pr.IsDefault,
+					}
+					if desc := strings.TrimSpace(pr.Description); desc != "" {
+						preset["description"] = desc
+					}
+					if icon := strings.TrimSpace(pr.Icon); icon != "" {
+						preset["icon"] = icon
+					}
+					if pp, ok := paramsByPreset[pr.ID]; ok {
+						preset["parameters"] = pp
+					} else {
+						preset["parameters"] = []map[string]any{}
+					}
+					presetList = append(presetList, preset)
+				}
+				result["presets"] = presetList
+			}
+
+			return toolResponse(result), nil
 		},
 	)
 }

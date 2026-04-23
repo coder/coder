@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -989,6 +990,122 @@ func TestStartWorkspace(t *testing.T) {
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "workspace was deleted")
+	})
+
+	t.Run("WithPresetID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-with-preset-id",
+		})
+		require.NoError(t, err)
+
+		presetID := uuid.New()
+		var capturedReq codersdk.CreateWorkspaceBuildRequest
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			capturedReq = req
+			require.Equal(t, ws.ID, wsID)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
+		}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		input := fmt.Sprintf(`{"preset_id":%q}`, presetID.String())
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: input})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		started, ok := result["started"].(bool)
+		require.True(t, ok)
+		require.True(t, started)
+
+		require.Equal(t, codersdk.WorkspaceTransitionStart, capturedReq.Transition)
+		require.Equal(t, presetID, capturedReq.TemplateVersionPresetID)
+	})
+
+	t.Run("InvalidPresetID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-invalid-preset-id",
+		})
+		require.NoError(t, err)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn should not be called with invalid preset_id")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: `{"preset_id":"not-a-uuid"}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "invalid preset_id")
 	})
 }
 
