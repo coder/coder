@@ -1150,13 +1150,13 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 const editSubmitScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /**
- * Regression: when submitting an edited message, the optimistic cache
- * truncation removes messages after the edit point. The scroll position
- * must settle at the bottom of the now-shorter conversation without the
- * sticky user message cycling through prior messages. Previously,
- * scrollToBottom fired before the truncation, creating a scroll/content
- * mismatch that caused IntersectionObserver cascades.
+ * Verifies that the scroll position settles at the bottom of the
+ * conversation after an optimistic edit truncation removes messages.
+ * The actual scroll-ordering regression (scrollToBottom must fire
+ * after editMessage resolves) is covered by the submitEditAndScroll
+ * unit tests in AgentChatPage.test.ts.
  */
+
 export const ScrollStableAfterEditTruncation: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
