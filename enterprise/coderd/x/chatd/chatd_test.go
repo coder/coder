@@ -1552,6 +1552,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// trapped call must be released so the production goroutine
 	// is unblocked, and the clock must be advanced past the
 	// 200ms drain timeout to fire the timer.
+	var drainsFired atomic.Int32
 	go func() {
 		for {
 			call, err := trapDrain.Wait(ctx)
@@ -1562,11 +1563,18 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 				return
 			}
 			subscriberClock.Advance(200 * time.Millisecond)
+			drainsFired.Add(1)
 		}
 	}()
 
+	// Wait for DB status=waiting AND at least one drain timer to
+	// have fired. Checking drainsFired proves the relay was torn
+	// down by the drain path, not by context cancellation.
 	evCtx2 := testutil.Context(t, testutil.WaitLong)
 	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
+		if drainsFired.Load() == 0 {
+			return false
+		}
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
