@@ -878,6 +878,10 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+	// ErrChatArchived indicates the chat is archived and cannot
+	// accept modifications (messages, edits, promotions, or
+	// tool-result submissions).
+	ErrChatArchived = xerrors.New("chat is archived")
 
 	// errChatTakenByOtherWorker is a sentinel used inside the
 	// processChat cleanup transaction to signal that another
@@ -1194,6 +1198,10 @@ func (p *Server) SendMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+
 		// Enforce usage limits before queueing or inserting.
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
@@ -1382,6 +1390,10 @@ func (p *Server) EditMessage(
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		if lockedChat.Archived {
+			return ErrChatArchived
 		}
 
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
@@ -1743,6 +1755,11 @@ func (p *Server) PromoteQueued(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
+
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+
 		modelConfigID := lockedChat.LastModelConfigID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
@@ -1880,6 +1897,9 @@ func (p *Server) SubmitToolResults(
 		locked, lockErr := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if lockErr != nil {
 			return xerrors.Errorf("lock chat for update: %w", lockErr)
+		}
+		if locked.Archived {
+			return ErrChatArchived
 		}
 		if locked.Status != database.ChatStatusRequiresAction {
 			statusConflict = &ToolResultStatusConflictError{

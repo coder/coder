@@ -524,11 +524,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	// Cap the raw request body to prevent excessive memory use
 	// from large dynamic tool schemas.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -566,6 +561,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not a member of the specified organization.",
 		})
+		return
+	}
+	// NOTE: This authorize check is intentionally placed after request
+	// parsing because we need req.OrganizationID to scope the RBAC check
+	// to the correct org. The request body is bounded by MaxBytesReader
+	// above, limiting the cost of parsing before rejection.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -2344,15 +2347,17 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	// Gate message sending behind the same agents-access check
-	// used by postChats. Sending a message triggers AI/LLM
-	// inference, so it should require the same authorization as
-	// chat creation. This is a handler-level band-aid; the
-	// structural fix is to make agents-access org-aware so
-	// dbauthz enforces this at the RBAC layer.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// Sending a message triggers LLM inference, requiring update
+	// permission on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot send messages to an archived chat.",
+		})
 		return
 	}
 
@@ -2453,6 +2458,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
 			return
 		}
+		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot send messages to an archived chat.",
+			})
+			return
+		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
 			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 				Message: "Message queue is full.",
@@ -2495,6 +2506,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot edit messages in an archived chat.",
+		})
+		return
+	}
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2540,6 +2558,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		switch {
+		case xerrors.Is(editErr, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot edit messages in an archived chat.",
+			})
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Chat message not found.",
@@ -2616,12 +2638,17 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	// Gate queued-message promotion behind agents-access.
-	// Promoting a queued message triggers AI/LLM inference,
-	// same as sending a new message.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// Promoting a queued message triggers LLM inference,
+	// requiring update permission on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot promote queued messages in an archived chat.",
+		})
 		return
 	}
 
@@ -2651,6 +2678,12 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	if txErr != nil {
 		if maybeWriteLimitErr(ctx, rw, txErr) {
+			return
+		}
+		if xerrors.Is(txErr, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot promote queued messages in an archived chat.",
+			})
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4530,11 +4563,6 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	orgIDStr := r.URL.Query().Get("organization")
 	if orgIDStr == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -4547,6 +4575,13 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid organization ID.",
 		})
+		return
+	}
+	// NOTE: This authorize check is intentionally placed after query
+	// parameter parsing because we need orgID to scope the RBAC check
+	// to the correct org.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(orgID)) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -6717,12 +6752,17 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
 
-	// Gate tool-result submission behind agents-access.
-	// Submitting tool results resumes AI/LLM inference on
-	// a chat in requires_action state.
-	// See: https://github.com/coder/coder/issues/24250
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+	// Submitting tool results resumes LLM inference,
+	// requiring update permission on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot submit tool results to an archived chat.",
+		})
 		return
 	}
 
@@ -6767,6 +6807,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		var validationErr *chatd.ToolResultValidationError
 		var conflictErr *chatd.ToolResultStatusConflictError
 		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot submit tool results to an archived chat.",
+			})
 		case errors.As(err, &conflictErr):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat is not waiting for tool results.",

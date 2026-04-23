@@ -92,7 +92,10 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 }
 
 // aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
-// Optional filters with query params
+// Optional filters with query params.
+//
+// Deprecated: Use /aibridge/sessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 //
 // @Summary List AI Bridge interceptions
 // @ID list-ai-bridge-interceptions
@@ -105,6 +108,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
 // @Router /aibridge/interceptions [get]
+// @Deprecated Use /aibridge/sessions instead.
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

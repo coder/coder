@@ -29,6 +29,12 @@ interface UseGitWatcherOptions {
 interface UseGitWatcherResult {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	/**
+	 * Repo roots seen with a non-empty unified_diff during this chat.
+	 * Survives reconnects; evicted on `removed: true`, cleared on
+	 * chatId change. Consumers should intersect with `repositories`.
+	 */
+	everDirty: ReadonlySet<string>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
@@ -42,9 +48,20 @@ export function useGitWatcher({
 	const [repositories, setRepositories] = useState<
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
 	>(new Map());
+	const [everDirty, setEverDirty] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
 	const [isConnected, setIsConnected] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
+	// Chat-scoped state (everDirty) resets on chatId change but
+	// must survive agentStatus flaps on the same chat.
+	// https://react.dev/reference/react/useState#storing-information-from-previous-renders
+	const [lastChatId, setLastChatId] = useState<string | undefined>(chatId);
+	if (lastChatId !== chatId) {
+		setLastChatId(chatId);
+		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
+	}
 
 	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
 		const socket = socketRef.current;
@@ -86,31 +103,48 @@ export function useGitWatcher({
 						return;
 					}
 
-					if (data.type === "changes" && data.repositories) {
-						setRepositories((prev) => {
-							let changed = false;
-							const next = new Map(prev);
-							for (const repo of data.repositories!) {
-								if (repo.removed) {
-									if (next.has(repo.repo_root)) {
-										next.delete(repo.repo_root);
-										changed = true;
+					if (data.type === "changes") {
+						if (data.repositories) {
+							setRepositories((prev) => {
+								let changed = false;
+								const next = new Map(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.has(repo.repo_root)) {
+											next.delete(repo.repo_root);
+											changed = true;
+										}
+									} else {
+										const existing = next.get(repo.repo_root);
+										if (
+											!existing ||
+											existing.branch !== repo.branch ||
+											existing.remote_origin !== repo.remote_origin ||
+											existing.unified_diff !== repo.unified_diff
+										) {
+											next.set(repo.repo_root, repo);
+											changed = true;
+										}
 									}
-								} else {
-									const existing = next.get(repo.repo_root);
-									if (
-										!existing ||
-										existing.branch !== repo.branch ||
-										existing.remote_origin !== repo.remote_origin ||
-										existing.unified_diff !== repo.unified_diff
-									) {
-										next.set(repo.repo_root, repo);
+								}
+								return changed ? next : prev;
+							});
+							setEverDirty((prev) => {
+								let changed = false;
+								const next = new Set(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.delete(repo.repo_root)) {
+											changed = true;
+										}
+									} else if (repo.unified_diff && !next.has(repo.repo_root)) {
+										next.add(repo.repo_root);
 										changed = true;
 									}
 								}
-							}
-							return changed ? next : prev;
-						});
+								return changed ? next : prev;
+							});
+						}
 					} else if (data.type === "error") {
 						console.warn("[useGitWatcher] server error:", data.message);
 					}
@@ -134,8 +168,8 @@ export function useGitWatcher({
 		});
 
 		return () => {
-			// dispose() suppresses onDisconnect, so reset state
-			// explicitly.
+			// Reset connection-scoped state only. `everDirty` is
+			// chat-scoped and persists across reconnects.
 			dispose();
 			setIsConnected(false);
 			setRepositories(new Map());
@@ -143,5 +177,5 @@ export function useGitWatcher({
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, isConnected, refresh };
+	return { repositories, everDirty, isConnected, refresh };
 }

@@ -1,6 +1,8 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
@@ -9,6 +11,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	AgentCreateForm,
@@ -17,6 +20,7 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -33,6 +37,8 @@ const AgentCreatePage: FC = () => {
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
+	const webPush = useWebpushNotifications();
+	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
@@ -77,11 +83,35 @@ const AgentCreatePage: FC = () => {
 		navigate(buildAgentChatPath({ chatId: createdChat.id }));
 	};
 
+	const handleChimeToggle = () => {
+		const next = !chimeEnabled;
+		setChimeEnabledState(next);
+		setChimeEnabled(next);
+	};
+
+	const handleNotificationToggle = async () => {
+		try {
+			if (webPush.subscribed) {
+				await webPush.unsubscribe();
+			} else {
+				await webPush.subscribe();
+			}
+		} catch (error) {
+			const action = webPush.subscribed ? "disable" : "enable";
+			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
+		}
+	};
+
 	return (
 		<>
-			<AgentPageHeader>
-				<ChimeButton />
-				<WebPushButton />
+			<AgentPageHeader
+				chimeEnabled={chimeEnabled}
+				onToggleChime={handleChimeToggle}
+				webPush={webPush}
+				onToggleNotifications={handleNotificationToggle}
+			>
+				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
+				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}

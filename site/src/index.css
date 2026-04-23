@@ -156,6 +156,81 @@
 	}
 }
 
+@layer components {
+	/* Map each stripe variant to a color token so the
+	   pseudo-element rules can stay DRY. */
+	.navbar-stripe-devel {
+		--stripe-color: var(--content-warning);
+	}
+
+	.navbar-stripe-rc {
+		--stripe-color: var(--border-sky);
+	}
+
+	/* Thin stripe bars at the top and bottom edges of the
+	   navbar. Using pseudo-elements keeps the stripes out of
+	   the content area so nav links stay readable. */
+	.navbar-stripe-devel::before,
+	.navbar-stripe-devel::after,
+	.navbar-stripe-rc::before,
+	.navbar-stripe-rc::after {
+		content: "";
+		position: absolute;
+		left: 0;
+		right: 0;
+		height: 4px;
+		background: repeating-linear-gradient(
+			-45deg,
+			transparent,
+			transparent 4px,
+			hsl(var(--stripe-color) / 0.5) 4px,
+			hsl(var(--stripe-color) / 0.5) 8px
+		);
+		pointer-events: none;
+	}
+
+	.navbar-stripe-devel::before,
+	.navbar-stripe-rc::before {
+		top: 0;
+	}
+
+	.navbar-stripe-devel::after,
+	.navbar-stripe-rc::after {
+		bottom: 0;
+	}
+
+	@media (max-width: 767px) {
+		/*
+			 * Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
+			 * custom property on the chat input container so the dropdown
+			 * position tracks the actual input box, not a hardcoded offset.
+			 */
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+			position: fixed !important;
+			left: 1rem !important;
+			width: calc(100vw - 2rem) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-top-below-header
+			) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+		.mobile-full-width-dropdown {
+			width: 100% !important;
+			min-width: 0 !important;
+			max-width: none !important;
+		}
+	}
+}
 @layer base {
 	* {
 		@apply border-border;

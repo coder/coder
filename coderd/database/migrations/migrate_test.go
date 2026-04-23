@@ -1023,3 +1023,165 @@ func TestMigration000457ChatAccessRole(t *testing.T) {
 	require.Contains(t, roles, "template-admin",
 		"existing roles should be preserved")
 }
+
+func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 475
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before 000475.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Seed: a user with site-level agents-access who is a member of
+	// two orgs, plus a second user who is a member of one org and
+	// does not have the role.
+	userWithRole := uuid.New()
+	userWithoutRole := uuid.New()
+	org1ID := uuid.New()
+	org2ID := uuid.New()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithRole, "user-with-role", "withrole@test.com", []byte{}, now, now, "active", pq.StringArray{"agents-access"}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithoutRole, "user-without-role", "withoutrole@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{org1ID, "org-1", "Org 1", "", "", now, now, false},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{org2ID, "org-2", "Org 2", "", "", now, now, false},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org1ID, userWithRole, now, now, pq.StringArray{}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org2ID, userWithRole, now, now, pq.StringArray{}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org1ID, userWithoutRole, now, now, pq.StringArray{}},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run migration 000475.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Verify: userWithRole no longer has agents-access at site level.
+	var siteRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT rbac_roles FROM users WHERE id = $1", userWithRole,
+	).Scan(&siteRoles)
+	require.NoError(t, err)
+	require.NotContains(t, siteRoles, "agents-access",
+		"agents-access should be removed from users.rbac_roles")
+
+	// Verify: userWithRole has agents-access in both orgs.
+	for _, orgID := range []uuid.UUID{org1ID, org2ID} {
+		var orgRoles pq.StringArray
+		err = sqlDB.QueryRowContext(ctx,
+			"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+			userWithRole, orgID,
+		).Scan(&orgRoles)
+		require.NoError(t, err)
+		require.Contains(t, orgRoles, "agents-access",
+			"agents-access should be granted in org %s", orgID)
+	}
+
+	// Verify: userWithoutRole did not gain agents-access.
+	var orgRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+		userWithoutRole, org1ID,
+	).Scan(&orgRoles)
+	require.NoError(t, err)
+	require.NotContains(t, orgRoles, "agents-access",
+		"agents-access should not be granted to a user who didn't have it")
+
+	// Verify: no DB row exists for agents-access as a custom_role.
+	// The role is now a builtin, resolved in Go via RoleByName.
+	var customRoleCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM custom_roles WHERE name = 'agents-access'",
+	).Scan(&customRoleCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, customRoleCount,
+		"no custom_roles row should exist for agents-access")
+
+	// Verify: creating a new organization does NOT insert an
+	// agents-access custom_role via the trigger. It should only
+	// insert organization-member and organization-service-account.
+	newOrgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		newOrgID, "new-org", "New Org", "", "", now, now, false,
+	)
+	require.NoError(t, err)
+
+	rows, err := sqlDB.QueryContext(ctx,
+		"SELECT name FROM custom_roles WHERE organization_id = $1 AND is_system = true ORDER BY name",
+		newOrgID,
+	)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var gotRoleNames []string
+	for rows.Next() {
+		var name string
+		require.NoError(t, rows.Scan(&name))
+		gotRoleNames = append(gotRoleNames, name)
+	}
+	require.NoError(t, rows.Err())
+	require.ElementsMatch(t,
+		[]string{"organization-member", "organization-service-account"},
+		gotRoleNames,
+		"trigger should only create org-member and org-service-account system roles",
+	)
+}
