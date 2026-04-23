@@ -674,6 +674,48 @@ func TestSubscribeRelayReconnectDedupsAcrossThreeCycles(t *testing.T) {
 	requireNoRelayTexts(t, events)
 }
 
+func TestSubscribeRelayReconnectClearsDedupWhenChatStopsRemote(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"stale-one", "stale-two"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"stale-one", "stale-two", "new-run"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-clear-on-idle")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "stale-one", "stale-two")
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	requireNoRelayTexts(t, events)
+
+	setChatRunningAndPublish(ctx, t, db, ps, chat.ID, workerID)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "stale-one", "stale-two", "new-run")
+}
+
 func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	t.Parallel()
 
