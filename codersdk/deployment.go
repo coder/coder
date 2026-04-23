@@ -4609,6 +4609,7 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureHealthcheck        CryptoKeyFeature = "healthcheck"
 )
 
 type CryptoKey struct {

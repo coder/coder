@@ -2934,12 +2934,14 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "healthcheck"
 	| "oidc_convert"
 	| "tailnet_resume"
 	| "workspace_apps_api_key"
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"healthcheck",
 	"oidc_convert",
 	"tailnet_resume",
 	"workspace_apps_api_key",

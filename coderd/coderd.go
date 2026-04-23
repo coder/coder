@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -743,24 +742,25 @@ func New(options *Options) *API {
 		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
-	// Generate an in-memory signing key for healthcheck JWTs.
-	// The background healthcheck runner uses this token to
-	// authenticate with /debug/ws without needing a real API key.
-	healthcheckKeyBytes := make([]byte, 64)
-	if _, err = rand.Read(healthcheckKeyBytes); err != nil {
-		panic(xerrors.Errorf("generate healthcheck signing key: %w", err))
-	}
-	healthcheckKey := jwtutils.StaticKey{
-		ID:  uuid.New().String(),
-		Key: healthcheckKeyBytes,
+	// Create a DB-backed signing cache for healthcheck JWTs.
+	// All replicas share the same keys so that a JWT signed by
+	// one replica can be verified by any other replica behind
+	// the access URL load balancer.
+	healthcheckKeycache, err := cryptokeys.NewSigningCache(ctx,
+		options.Logger,
+		&cryptokeys.DBFetcher{DB: options.Database},
+		codersdk.CryptoKeyFeatureHealthcheck,
+	)
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to instantiate healthcheck signing cache", slog.Error(err))
 	}
 	healthcheckClaims := jwtutils.RegisteredClaims{
 		Subject: "healthcheck",
-		Expiry:  jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+		Expiry:  jwt.NewNumericDate(time.Now().Add(cryptokeys.HealthcheckTokenDuration)),
 	}
-	healthcheckToken, err := jwtutils.Sign(ctx, healthcheckKey, healthcheckClaims)
+	healthcheckToken, err := jwtutils.Sign(ctx, healthcheckKeycache, healthcheckClaims)
 	if err != nil {
-		panic(xerrors.Errorf("sign healthcheck token: %w", err))
+		options.Logger.Fatal(ctx, "failed to sign healthcheck token", slog.Error(err))
 	}
 
 	var oidcAuthURLParams map[string]string
@@ -768,7 +768,7 @@ func New(options *Options) *API {
 		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
 	}
 
-	api.healthcheckKey = healthcheckKey
+	api.healthcheckKey = healthcheckKeycache
 	api.healthcheckToken = healthcheckToken
 	api.Auditor.Store(&options.Auditor)
 	api.ConnectionLogger.Store(&options.ConnectionLogger)
@@ -2154,10 +2154,11 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	// healthcheckKey is an in-memory signing key used to mint JWTs
-	// for the background healthcheck runner. The /debug/ws endpoint
-	// accepts these tokens as an alternative to session auth.
-	healthcheckKey jwtutils.SigningKeyManager
+	// healthcheckKey is a DB-backed signing cache used to verify
+	// healthcheck JWTs. All replicas share the same keys via the
+	// database, so a JWT signed by one replica can be verified
+	// by any other replica behind the access URL load balancer.
+	healthcheckKey cryptokeys.SigningKeycache
 	// healthcheckToken is a signed JWT minted at startup for the
 	// background healthcheck runner to authenticate with /debug/ws.
 	healthcheckToken string
@@ -2225,6 +2226,9 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 	}
 	api.metricsCache.Close()
+	if api.healthcheckKey != nil {
+		_ = api.healthcheckKey.Close()
+	}
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
 	}
