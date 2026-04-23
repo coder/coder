@@ -1316,6 +1316,10 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		if extracted := extractErrorString(part.Result); extracted != "" {
 			message = extracted
 		}
+		// Sanitize before wrapping in an error so that invalid
+		// byte sequences from tool output do not propagate into
+		// the LLM message stream.
+		message = strings.ToValidUTF8(message, "\uFFFD")
 		return fantasy.ToolResultPart{
 			ToolCallID:       toolCallID,
 			ProviderExecuted: part.ProviderExecuted,
