@@ -196,7 +196,9 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const modelHelperText = isLoadingModelConfigs
 		? "Loading chat model overrides."
 		: modelConfigsError
-			? "Model overrides are unavailable. Saving will keep using the chat model."
+			? isUnsetModelConfigId(form.values.model_config_id)
+				? "Model overrides are unavailable. Saving will keep using the chat model."
+				: "Model overrides are unavailable. Your current advisor model will be preserved on save."
 			: "Choose a dedicated advisor model, or leave this unset to reuse the chat model.";
 
 	return (
