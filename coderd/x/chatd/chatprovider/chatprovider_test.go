@@ -2,6 +2,7 @@ package chatprovider_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -923,6 +924,81 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 		require.Equal(t, "/model/"+modelID+"/invoke", got.Path)
 		require.Equal(t, "Bearer test-key", got.Authorization)
 		require.Equal(t, chatprovider.UserAgent(), got.UserAgent)
+	})
+
+	t.Run("CapturesSystemFieldShape", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		type requestCapture struct {
+			Body          string
+			BodyReadError error
+		}
+
+		requests := make(chan requestCapture, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+
+			body, err := io.ReadAll(r.Body)
+			requests <- requestCapture{
+				Body:          string(body),
+				BodyReadError: err,
+			}
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+		}))
+		defer server.Close()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasybedrock.Name: "test-key",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasybedrock.Name: server.URL,
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		_, err = model.Generate(ctx, fantasy.Call{
+			Prompt: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "you are helpful"},
+					},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "hello"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		got := testutil.TryReceive(ctx, t, requests)
+		require.NoError(t, got.BodyReadError)
+
+		var payload map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal([]byte(got.Body), &payload))
+
+		systemField, ok := payload["system"]
+		require.True(t, ok, "expected top-level system field in request body: %s", got.Body)
+		t.Logf("Bedrock system field JSON: %s", systemField)
 	})
 
 	t.Run("NonBedrockStillRequiresAPIKey", func(t *testing.T) {
