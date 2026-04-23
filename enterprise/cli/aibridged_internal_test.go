@@ -43,8 +43,8 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Key: "sk-zdr"},
-				{Type: aibridge.ProviderOpenAI, Name: "openai-azure", Key: "sk-azure", BaseURL: "https://azure.openai.com"},
+				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Keys: []string{"sk-zdr"}},
+				{Type: aibridge.ProviderOpenAI, Name: "openai-azure", Keys: []string{"sk-azure"}, BaseURL: "https://azure.openai.com"},
 			},
 		}
 
@@ -59,7 +59,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Key: "sk-indexed"},
+				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-indexed"}},
 			},
 		}
 		cfg.LegacyOpenAI.Key = serpent.String("sk-legacy")
@@ -73,7 +73,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Key: "sk-indexed"},
+				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Keys: []string{"sk-indexed"}},
 			},
 		}
 		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
@@ -87,7 +87,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Key: "sk-zdr"},
+				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Keys: []string{"sk-zdr"}},
 			},
 		}
 		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
@@ -206,9 +206,9 @@ func TestDomainsFromProviders(t *testing.T) {
 
 		providers, err := buildProviders(codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "openai", Key: "k"},
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic", Key: "k"},
-				{Type: aibridge.ProviderOpenAI, Name: "custom", Key: "k", BaseURL: "https://custom-llm.example.com:8443/api"},
+				{Type: aibridge.ProviderOpenAI, Name: "openai", Keys: []string{"k"}},
+				{Type: aibridge.ProviderAnthropic, Name: "anthropic", Keys: []string{"k"}},
+				{Type: aibridge.ProviderOpenAI, Name: "custom", Keys: []string{"k"}, BaseURL: "https://custom-llm.example.com:8443/api"},
 			},
 		})
 		require.NoError(t, err)
@@ -230,8 +230,8 @@ func TestDomainsFromProviders(t *testing.T) {
 
 		providers, err := buildProviders(codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "first", Key: "k", BaseURL: "https://api.example.com/v1"},
-				{Type: aibridge.ProviderOpenAI, Name: "second", Key: "k", BaseURL: "https://api.example.com/v2"},
+				{Type: aibridge.ProviderOpenAI, Name: "first", Keys: []string{"k"}, BaseURL: "https://api.example.com/v1"},
+				{Type: aibridge.ProviderOpenAI, Name: "second", Keys: []string{"k"}, BaseURL: "https://api.example.com/v2"},
 			},
 		})
 		require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestDomainsFromProviders(t *testing.T) {
 
 		providers, err := buildProviders(codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "provider", Key: "k", BaseURL: "https://API.Example.COM/v1"},
+				{Type: aibridge.ProviderOpenAI, Name: "provider", Keys: []string{"k"}, BaseURL: "https://API.Example.COM/v1"},
 			},
 		})
 		require.NoError(t, err)

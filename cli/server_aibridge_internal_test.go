@@ -39,7 +39,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				{
 					Type:    aibridge.ProviderAnthropic,
 					Name:    "anthropic-zdr",
-					Key:     "sk-ant-xxx",
+					Keys:    []string{"sk-ant-xxx"},
 					BaseURL: "https://api.anthropic.com/",
 				},
 			},
@@ -97,14 +97,14 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			},
 			expected: []codersdk.AIBridgeProviderConfig{
 				{
-					Type:                   aibridge.ProviderAnthropic,
-					Name:                   "anthropic-bedrock",
-					BedrockRegion:          "us-west-2",
-					BedrockAccessKey:       "AKID",
-					BedrockAccessKeySecret: "secret",
-					BedrockModel:           "anthropic.claude-3-sonnet",
-					BedrockSmallFastModel:  "anthropic.claude-3-haiku",
-					BedrockBaseURL:         "https://bedrock.us-west-2.amazonaws.com",
+					Type:                    aibridge.ProviderAnthropic,
+					Name:                    "anthropic-bedrock",
+					BedrockRegion:           "us-west-2",
+					BedrockAccessKeys:       []string{"AKID"},
+					BedrockAccessKeySecrets: []string{"secret"},
+					BedrockModel:            "anthropic.claude-3-sonnet",
+					BedrockSmallFastModel:   "anthropic.claude-3-haiku",
+					BedrockBaseURL:          "https://bedrock.us-west-2.amazonaws.com",
 				},
 			},
 		},
@@ -171,7 +171,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"SOME_OTHER_VAR=hello",
 			},
 			expected: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Key: "sk-xxx"},
+				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-xxx"}},
 			},
 		},
 		{
@@ -186,11 +186,11 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			},
 			expected: []codersdk.AIBridgeProviderConfig{
 				{
-					Type:                   aibridge.ProviderAnthropic,
-					Name:                   aibridge.ProviderAnthropic,
-					Key:                    "sk-ant-xxx",
-					BedrockAccessKey:       "AKID",
-					BedrockAccessKeySecret: "secret",
+					Type:                    aibridge.ProviderAnthropic,
+					Name:                    aibridge.ProviderAnthropic,
+					Keys:                    []string{"sk-ant-xxx"},
+					BedrockAccessKeys:       []string{"AKID"},
+					BedrockAccessKeySecrets: []string{"secret"},
 				},
 			},
 		},
@@ -220,6 +220,93 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=s2",
 			},
 			errContains: "BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive",
+		},
+		{
+			name: "CopilotRejectsKey",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
+			},
+			errContains: "KEY/KEYS are not supported for TYPE",
+		},
+		{
+			name: "CopilotRejectsKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-a,sk-b",
+			},
+			errContains: "KEY/KEYS are not supported for TYPE",
+		},
+		{
+			name: "MultipleKeysCommaSeparated",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-a,sk-b,sk-c",
+			},
+			expected: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-a", "sk-b", "sk-c"}},
+			},
+		},
+		{
+			name: "KeysWhitespaceTrimmed",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS= sk-a , sk-b ",
+			},
+			expected: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-a", "sk-b"}},
+			},
+		},
+		{
+			name: "KeysEmptyAfterTrim",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-a,,sk-b",
+			},
+			errContains: "key at index 1 is empty",
+		},
+		{
+			name: "KeysDuplicate",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-a,sk-b,sk-a",
+			},
+			errContains: "duplicate key at index 2",
+		},
+		{
+			name: "KeysTooMany",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-1,sk-2,sk-3,sk-4,sk-5,sk-6",
+			},
+			errContains: "too many keys (6), maximum is 5",
+		},
+		{
+			name: "BedrockMultipleKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-west-2",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID1,AKID2",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret1,secret2",
+			},
+			expected: []codersdk.AIBridgeProviderConfig{
+				{
+					Type:                    aibridge.ProviderAnthropic,
+					Name:                    aibridge.ProviderAnthropic,
+					BedrockRegion:           "us-west-2",
+					BedrockAccessKeys:       []string{"AKID1", "AKID2"},
+					BedrockAccessKeySecrets: []string{"secret1", "secret2"},
+				},
+			},
+		},
+		{
+			name: "BedrockKeyCountMismatch",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID1,AKID2",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=secret1",
+			},
+			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
 	}
 
@@ -254,7 +341,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			expected = append(expected, codersdk.AIBridgeProviderConfig{
 				Type: aibridge.ProviderOpenAI,
 				Name: fmt.Sprintf("p%d", i),
-				Key:  fmt.Sprintf("sk-%d", i),
+				Keys: []string{fmt.Sprintf("sk-%d", i)},
 			})
 		}
 		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), env)
