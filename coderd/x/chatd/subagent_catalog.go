@@ -35,7 +35,7 @@ type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -43,17 +43,17 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "delegated work that may inspect or modify workspace files",
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				return childSubagentChatOptions{}, nil
 			},
 		},
 		{
 			id:          subagentTypeExplore,
 			description: "read-only discovery, code tracing, and system understanding",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
 					ctx,
-					parent.OwnerID,
+					turnParent.OwnerID,
 					currentModelConfigID,
 				)
 				if err != nil {
@@ -61,7 +61,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
 					ctx,
-					parent,
+					turnParent,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
@@ -92,7 +92,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,

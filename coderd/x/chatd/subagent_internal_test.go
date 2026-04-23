@@ -835,6 +835,87 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
 }
 
+func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	turnStartConfig := insertInternalMCPServerConfig(
+		ctx, t, db, user.ID, "turn-start-"+uuid.NewString(), false,
+	)
+	mutatedConfig := insertInternalMCPServerConfig(
+		ctx, t, db, user.ID, "mutated-"+uuid.NewString(), true,
+	)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "parent-turn-state-snapshot",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{turnStartConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("inspect the codebase"),
+		},
+	})
+	require.NoError(t, err)
+
+	turnParent, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(
+		ctx,
+		func() database.Chat { return turnParent },
+		turnParent.LastModelConfigID,
+	)
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+
+	_, err = server.db.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
+		ID: turnParent.ID,
+		PlanMode: database.NullChatPlanMode{
+			ChatPlanMode: database.ChatPlanModePlan,
+			Valid:        true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.db.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+		ID:           turnParent.ID,
+		MCPServerIDs: []uuid.UUID{mutatedConfig.ID},
+	})
+	require.NoError(t, err)
+
+	reloadedParent, err := db.GetChatByID(ctx, turnParent.ID)
+	require.NoError(t, err)
+	require.True(t, reloadedParent.PlanMode.Valid)
+	require.Equal(t, database.ChatPlanModePlan, reloadedParent.PlanMode.ChatPlanMode)
+	require.ElementsMatch(t, []uuid.UUID{mutatedConfig.ID}, reloadedParent.MCPServerIDs)
+
+	input, err := json.Marshal(spawnAgentArgs{
+		Type:   subagentTypeExplore,
+		Prompt: "inspect the codebase",
+		Title:  "sub",
+	})
+	require.NoError(t, err)
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    uuid.NewString(),
+		Name:  spawnAgentToolName,
+		Input: string(input),
+	})
+	require.NoError(t, err)
+
+	childID := requireSpawnAgentChildChatID(t, resp)
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.True(t, childChat.Mode.Valid)
+	require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
+	require.ElementsMatch(t, []uuid.UUID{turnStartConfig.ID}, childChat.MCPServerIDs,
+		"Explore child should keep the turn-start MCP snapshot after parent mutations")
+}
+
 func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 	t.Parallel()
 

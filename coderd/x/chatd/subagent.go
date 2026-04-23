@@ -190,10 +190,16 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
+				turnParent := currentChatSnapshot
+				if turnParent.ID == uuid.Nil {
+					turnParent = parent
+				}
+
 				options, err := definition.buildOptions(
 					ctx,
 					p,
 					parent,
+					turnParent,
 					currentModelConfigID,
 					args.Prompt,
 				)
