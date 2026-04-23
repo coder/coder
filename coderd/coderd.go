@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -68,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -740,11 +743,33 @@ func New(options *Options) *API {
 		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
+	// Generate an in-memory signing key for healthcheck JWTs.
+	// The background healthcheck runner uses this token to
+	// authenticate with /debug/ws without needing a real API key.
+	healthcheckKeyBytes := make([]byte, 64)
+	if _, err = rand.Read(healthcheckKeyBytes); err != nil {
+		panic(xerrors.Errorf("generate healthcheck signing key: %w", err))
+	}
+	healthcheckKey := jwtutils.StaticKey{
+		ID:  uuid.New().String(),
+		Key: healthcheckKeyBytes,
+	}
+	healthcheckClaims := jwtutils.RegisteredClaims{
+		Subject: "healthcheck",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+	}
+	healthcheckToken, err := jwtutils.Sign(ctx, healthcheckKey, healthcheckClaims)
+	if err != nil {
+		panic(xerrors.Errorf("sign healthcheck token: %w", err))
+	}
+
 	var oidcAuthURLParams map[string]string
 	if options.OIDCConfig != nil {
 		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
 	}
 
+	api.healthcheckKey = healthcheckKey
+	api.healthcheckToken = healthcheckToken
 	api.Auditor.Store(&options.Auditor)
 	api.ConnectionLogger.Store(&options.ConnectionLogger)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
@@ -2114,6 +2139,14 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
+	// healthcheckKey is an in-memory signing key used to mint JWTs
+	// for the background healthcheck runner. The /debug/ws endpoint
+	// accepts these tokens as an alternative to session auth.
+	healthcheckKey jwtutils.SigningKeyManager
+	// healthcheckToken is a signed JWT minted at startup for the
+	// background healthcheck runner to authenticate with /debug/ws.
+	healthcheckToken string
+
 	statsReporter    *workspacestats.Reporter
 	metadataBatcher  *metadatabatcher.Batcher
 	lifecycleMetrics *agentapi.LifecycleMetrics
@@ -2401,6 +2434,12 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 // share the same cached report as the API handler.
 func (api *API) HealthCheckCache() *atomic.Pointer[healthsdk.HealthcheckReport] {
 	return &api.healthCheckCache
+}
+
+// HealthcheckToken returns the signed JWT that the background
+// healthcheck runner uses to authenticate with /debug/ws.
+func (api *API) HealthcheckToken() string {
+	return api.healthcheckToken
 }
 
 // nolint:revive

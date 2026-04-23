@@ -1020,7 +1020,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
 
-				closeHealthcheckFunc, err := prometheusmetrics.Healthcheck(ctx, logger, options.PrometheusRegistry, coderAPI.HealthcheckFunc, coderAPI.HealthCheckCache(), "", time.Second*15)
+				closeHealthcheckFunc, err := prometheusmetrics.Healthcheck(ctx, logger, options.PrometheusRegistry, coderAPI.HealthcheckFunc, coderAPI.HealthCheckCache(), coderAPI.HealthcheckToken(), time.Second*15)
 				if err != nil {
 					return xerrors.Errorf("register healthcheck prometheus metric: %w", err)
 				}
