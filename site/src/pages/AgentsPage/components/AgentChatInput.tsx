@@ -170,6 +170,24 @@ type ToolBadgeData =
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
+// Small `X` button rendered inside pill-style badges (attached
+// workspace, MCP server, planning indicator) to dismiss or disable
+// the badge without opening the `+` menu. Callers pass the action
+// handler and a descriptive aria-label.
+const BadgeDismissButton: FC<{
+	onClick: () => void;
+	ariaLabel: string;
+}> = ({ onClick, ariaLabel }) => (
+	<button
+		type="button"
+		onClick={onClick}
+		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+		aria-label={ariaLabel}
+	>
+		<XIcon className="!size-2.5" />
+	</button>
+);
+
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
@@ -209,14 +227,10 @@ const ToolBadge: FC<{
 				<MonitorIcon className="size-3" />
 				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
-					<button
-						type="button"
+					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
-						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-						aria-label={`Remove workspace ${badge.name}`}
-					>
-						<XIcon className="!size-2.5" />
-					</button>
+						ariaLabel={`Remove workspace ${badge.name}`}
+					/>
 				)}
 			</span>
 		);
@@ -236,14 +250,10 @@ const ToolBadge: FC<{
 			)}
 			{badge.server.display_name}
 			{!isForceOn && onRemoveMcp && (
-				<button
-					type="button"
+				<BadgeDismissButton
 					onClick={() => onRemoveMcp(badge.server.id)}
-					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-					aria-label={`Remove ${badge.server.display_name}`}
-				>
-					<XIcon className="!size-2.5" />
-				</button>
+					ariaLabel={`Remove ${badge.server.display_name}`}
+				/>
 			)}
 		</span>
 	);
@@ -960,6 +970,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
 								<PencilIcon className="size-3" />
 								Planning
+								{onPlanModeToggle && (
+									<BadgeDismissButton
+										onClick={handlePlanModeToggle}
+										ariaLabel="Disable plan mode"
+									/>
+								)}
 							</span>
 						)}
 						{/* Badge row — all badges and the pill always
