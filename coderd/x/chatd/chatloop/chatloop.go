@@ -1216,10 +1216,11 @@ func executeSingleTool(
 		// ToolResponse.Data should contain decoded binary
 		// bytes per contract. Re-encode to base64 for the
 		// string field that ToolResultOutputContentMedia
-		// expects. As a defense-in-depth measure, detect data
-		// that is already valid base64 to avoid double-encoding
-		// if a producer breaks the contract.
-		mediaData := base64.StdEncoding.EncodeToString(resp.Data)
+		// expects. As a defense-in-depth measure, try
+		// decoding first: if the data is already valid
+		// base64, use it as-is to avoid double-encoding
+		// (but log an error so we catch the bad producer).
+		var mediaData string
 		if s := string(resp.Data); isASCII(s) {
 			if _, err := base64.StdEncoding.DecodeString(s); err == nil {
 				logger.Error(ctx, "tool response Data already contains base64; expected decoded binary",
@@ -1229,11 +1230,15 @@ func executeSingleTool(
 				mediaData = s
 			}
 		}
+		if mediaData == "" {
+			mediaData = base64.StdEncoding.EncodeToString(resp.Data)
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      mediaData,
 			MediaType: resp.MediaType,
 			Text:      resp.Content,
 		}
+
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: resp.Content,
