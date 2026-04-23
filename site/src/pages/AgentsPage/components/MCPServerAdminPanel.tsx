@@ -502,8 +502,15 @@ const ServerForm: FC<ServerFormProps> = ({
 							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 							placeholder="Server display name"
 							aria-label="Display Name"
+							aria-required="true"
 						/>
 					</div>
+					<span
+						className="text-xs font-bold text-content-destructive"
+						aria-hidden="true"
+					>
+						*
+					</span>
 					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 				</div>
 				{isEditing && (
