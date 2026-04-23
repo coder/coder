@@ -6258,7 +6258,11 @@ func (p *Server) runChat(
 	advisorCfg := p.loadAdvisorConfig(ctx, logger)
 
 	var advisorRuntime *chatadvisor.Runtime
-	if advisorCfg.Enabled && !chat.ParentChatID.Valid {
+	// Plan mode filters the advisor tool out of the turn's tool set via
+	// filterToolsForTurn, so enabling the runtime there would inject
+	// guidance and enforce advisor exclusivity for a tool the model
+	// cannot actually call.
+	if advisorCfg.Enabled && !chat.ParentChatID.Valid && !isPlanModeTurn {
 		advisorRuntime = p.newAdvisorRuntime(
 			ctx,
 			chat,
