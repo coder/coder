@@ -1010,6 +1010,13 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		if (context?.previousData) {
 			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
 		}
+		// Invalidate messages as a safety net: the restored snapshot
+		// may be missing WebSocket-delivered messages that arrived
+		// during the mutation's flight time.
+		void queryClient.invalidateQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
 	},
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
@@ -1026,18 +1033,16 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		);
 	},
 	onSettled: () => {
-		// Always reconcile with the server regardless of whether
-		// the mutation succeeded or failed. On success this picks
-		// up the replacement message; on failure it confirms the
-		// restore from onError matches the server state. Use exact
-		// matching to avoid cascading to unrelated queries
-		// (diff-status, diff-contents, cost summaries, etc.).
+		// Refresh chat metadata (status, title, etc.). The messages
+		// query is intentionally NOT invalidated here. The per-chat
+		// WebSocket handles post-edit message delivery via
+		// FullRefresh, making REST invalidation unnecessary.
+		// Invalidating chatMessagesKey would trigger a redundant
+		// refetch that causes extra store mutations while the
+		// sticky user message is settling after the optimistic
+		// truncation.
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
-			exact: true,
-		});
-		void queryClient.invalidateQueries({
-			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
 		void invalidateChatDebugRuns(queryClient, chatId);

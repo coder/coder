@@ -1146,3 +1146,63 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 		).toBeNull();
 	},
 };
+
+const editSubmitScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/**
+ * Verifies that the scroll position settles at the bottom of the
+ * conversation after an optimistic edit truncation removes messages.
+ * The actual scroll-ordering regression (scrollToBottom must fire
+ * after editMessage resolves) is covered by the submitEditAndScroll
+ * unit tests in AgentChatPage.test.ts.
+ */
+export const ScrollStableAfterEditTruncation: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={editSubmitScrollStore} />,
+	play: async ({ canvasElement }) => {
+		// Reset the module-scoped store so interactive re-runs in
+		// Storybook start from the full 30-message conversation.
+		editSubmitScrollStore.replaceMessages(buildLongConversation(30));
+		editSubmitScrollStore.setChatStatus("completed");
+
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		const existing = getStoreMessages(editSubmitScrollStore);
+		const editIndex = 10;
+		const truncated = existing.slice(0, editIndex);
+		truncated.push(
+			buildMessage(existing[editIndex].id, "user", "Edited question"),
+		);
+		editSubmitScrollStore.replaceMessages(truncated);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};

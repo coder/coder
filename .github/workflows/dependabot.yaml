@@ -26,6 +26,24 @@ jobs:
         uses: dependabot/fetch-metadata@ffa630c65fa7e0ecfa0625b5ceda64399aea1b36 # v3.0.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+          alert-lookup: true
+
+      - name: Add backport label to security updates
+        id: security_backport
+        if: >-
+          ${{
+            steps.metadata.outputs.alert-state != '' &&
+            !contains(github.event.pull_request.labels.*.name, 'backport')
+          }}
+        run: |
+          set -euo pipefail
+
+          echo "Adding backport label to security update PR $PR_URL"
+          gh pr edit "$PR_URL" --add-label backport
+          echo "added=true" >> "$GITHUB_OUTPUT"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve the PR
         if: steps.metadata.outputs.package-ecosystem != 'github-actions'
@@ -47,7 +65,11 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+          if [ "$SECURITY_BACKPORT" = "true" ] && [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+            STATUS_TEXT=":rotating_light: Dependabot opened security PR #${PR_NUMBER} and added the backport label (GitHub Actions changes are not auto-merged)"
+          elif [ "$SECURITY_BACKPORT" = "true" ]; then
+            STATUS_TEXT=":rotating_light: Auto merge enabled for Dependabot security PR #${PR_NUMBER}; backport label added"
+          elif [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
             STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
           else
             STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"
@@ -92,6 +114,7 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          SECURITY_BACKPORT: ${{ steps.security_backport.outputs.added || 'false' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
