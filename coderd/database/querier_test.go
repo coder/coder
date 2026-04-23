@@ -9180,6 +9180,31 @@ func TestUpdateTaskWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestInsertAIBridgeToolUsageProviderItemID(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: user.ID,
+	}, nil)
+
+	tool := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+		InterceptionID: intc.ID,
+		ProviderItemID: sql.NullString{String: "ws_abc123", Valid: true},
+		ProviderToolCallID: sql.NullString{String: "call_xyz", Valid: true},
+	})
+	require.Equal(t, "ws_abc123", tool.ProviderItemID.String)
+	require.Equal(t, "call_xyz", tool.ProviderToolCallID.String)
+
+	tools, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, intc.ID)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	require.Equal(t, "ws_abc123", tools[0].ProviderItemID.String)
+	require.Equal(t, "call_xyz", tools[0].ProviderToolCallID.String)
+}
+
 func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
