@@ -9017,6 +9017,13 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 	secondMessages := append([]chattest.OpenAIMessage(nil), secondCallMessages...)
 	streamedCallsMu.Unlock()
 
+	// Exactly two streamed LLM calls are expected: the first that
+	// returned the mixed advisor + read_file batch, and the second
+	// that received the exclusive-policy rejection. A third call
+	// would indicate that either tool had slipped past the exclusive
+	// policy; the >= 2 wait would have missed that regression.
+	require.Equal(t, int32(2), streamedCallCount.Load(),
+		"exclusive policy must block execution of both tools; no third call expected")
 	require.NotEmpty(t, messages, "expected a first streamed LLM request")
 	require.NotEmpty(t, secondMessages, "expected a second streamed LLM request")
 	require.Contains(t, tools, "advisor",
@@ -9046,6 +9053,139 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 		"mixed advisor batches should surface the exclusive advisor error")
 	require.True(t, hasSkippedToolError,
 		"mixed advisor batches should skip sibling tools with an explanatory error")
+}
+
+// TestAdvisorHappyPath_RootChat walks the advisor tool end-to-end:
+// parent calls advisor alone, the nested advisor call produces text, and
+// the structured result flows back into the parent conversation. The
+// exclusive-policy test above only proves the rejection path; this test
+// covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
+// nested model call -> structured result back to the outer model.
+func TestAdvisorHappyPath_RootChat(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const advisorReply = "break the problem into smaller pieces first"
+
+	var (
+		streamedCallCount atomic.Int32
+		streamedCallsMu   sync.Mutex
+		advisorCallSeen   atomic.Bool
+		advisorMessages   []chattest.OpenAIMessage
+		finalCallMessages []chattest.OpenAIMessage
+	)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		switch streamedCallCount.Add(1) {
+		case 1:
+			// Parent turn 1: call advisor solo.
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
+				"advisor",
+				`{"question":"how should I approach this refactor?"}`,
+			))
+		case 2:
+			// Nested advisor turn. The nested call has no tools because
+			// chatadvisor.RunAdvisor runs with MaxSteps=1 and no tool
+			// set.
+			require.Empty(t, req.Tools,
+				"advisor's nested call must run without tools")
+			streamedCallsMu.Lock()
+			advisorMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			streamedCallsMu.Unlock()
+			advisorCallSeen.Store(true)
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks(advisorReply)...,
+			)
+		default:
+			// Parent turn 2: observe the advisor tool result and close
+			// out with a final text reply.
+			streamedCallsMu.Lock()
+			finalCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			streamedCallsMu.Unlock()
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("acknowledged")...,
+			)
+		}
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 16384,
+	})
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-happy-path",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("help me refactor this module"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		if got.Status != database.ChatStatusWaiting &&
+			got.Status != database.ChatStatusError {
+			return false
+		}
+		return streamedCallCount.Load() >= 3
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	streamedCallsMu.Lock()
+	gotAdvisorMessages := append([]chattest.OpenAIMessage(nil), advisorMessages...)
+	gotFinalMessages := append([]chattest.OpenAIMessage(nil), finalCallMessages...)
+	streamedCallsMu.Unlock()
+
+	require.True(t, advisorCallSeen.Load(),
+		"the nested advisor call must execute; missing it means the tool never ran")
+	require.NotEmpty(t, gotAdvisorMessages,
+		"advisor call must receive the nested prompt messages")
+	require.NotEmpty(t, gotFinalMessages,
+		"parent must make a follow-up call after the advisor result")
+
+	var advisorSawQuestion bool
+	var advisorSawUserTurn bool
+	for _, msg := range gotAdvisorMessages {
+		if strings.Contains(msg.Content, "how should I approach this refactor?") {
+			advisorSawQuestion = true
+		}
+		if msg.Role == "user" && strings.Contains(msg.Content, "help me refactor this module") {
+			advisorSawUserTurn = true
+		}
+	}
+	require.True(t, advisorSawQuestion,
+		"advisor must receive the parent's question verbatim")
+	require.True(t, advisorSawUserTurn,
+		"advisor must receive the parent's conversation snapshot as nested context")
+
+	for _, msg := range gotAdvisorMessages {
+		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
+			"ParentGuidanceBlock must be stripped before reaching the advisor")
+	}
+
+	var parentSawAdvisorResult bool
+	for _, msg := range gotFinalMessages {
+		if msg.Role == "tool" && strings.Contains(msg.Content, advisorReply) {
+			parentSawAdvisorResult = true
+			break
+		}
+	}
+	require.True(t, parentSawAdvisorResult,
+		"parent must see the advisor reply in its continuation call")
 }
 
 func TestAdvisorGating_ChildChat(t *testing.T) {
@@ -9170,6 +9310,83 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 	for _, msg := range childMessages[0] {
 		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
 			"child chat should not contain advisor guidance")
+	}
+}
+
+// TestAdvisorGating_PlanMode guards the third dimension of the advisor
+// eligibility condition: plan-mode turns must not register the advisor tool
+// or inject the parent guidance block. Without this test, deleting the
+// !isPlanModeTurn guard would still leave the other two gating tests green
+// even though advisor would now leak into plan mode.
+func TestAdvisorGating_PlanMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var toolsMu sync.Mutex
+	var capturedTools []string
+	var capturedMessages []chattest.OpenAIMessage
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		capturedTools = names
+		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+		toolsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("plan mode reply")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 16384,
+	})
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-plan-mode",
+		ModelConfigID:  model.ID,
+		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("draft a plan"),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	toolsMu.Lock()
+	tools := append([]string(nil), capturedTools...)
+	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
+	toolsMu.Unlock()
+
+	require.NotEmpty(t, messages, "expected a streamed LLM request")
+	require.NotContains(t, tools, "advisor",
+		"plan-mode turns must not register the advisor tool even when enabled")
+	for _, msg := range messages {
+		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
+			"plan-mode turns must not inject advisor guidance")
 	}
 }
 

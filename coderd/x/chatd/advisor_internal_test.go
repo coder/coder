@@ -18,7 +18,9 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -178,34 +180,13 @@ func newAdvisorTestServer(
 	return &Server{configCache: newChatConfigCache(ctx, store, clock)}
 }
 
-type stubLanguageModel struct{}
-
-func (stubLanguageModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
-	return nil, xerrors.New("stub")
-}
-
-func (stubLanguageModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-	return nil, xerrors.New("stub")
-}
-
-func (stubLanguageModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-	return nil, xerrors.New("stub")
-}
-
-func (stubLanguageModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-	return nil, xerrors.New("stub")
-}
-
-func (stubLanguageModel) Provider() string { return "stub" }
-func (stubLanguageModel) Model() string    { return "stub" }
-
 // TestResolveAdvisorModelOverride covers the early-return, each fallback
 // branch, and the success path. Prior tests only hit the ModelConfigID ==
 // uuid.Nil early return, so the override body never executed.
 func TestResolveAdvisorModelOverride(t *testing.T) {
 	t.Parallel()
 
-	fallbackModel := stubLanguageModel{}
+	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
 	fallbackCallConfig := codersdk.ChatModelCallConfig{}
 	logger := slog.Make()
 
@@ -356,5 +337,270 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.Equal(t, "openai", gotModel.Provider())
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
+	})
+}
+
+// TestStripAdvisorGuidanceBlock exercises the filter that keeps the advisor
+// from receiving the parent-facing advisor-guidance instruction in its nested
+// context. The block references a tool the advisor cannot use, so forwarding
+// it wastes context tokens and risks steering the advisor's reply.
+func TestStripAdvisorGuidanceBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RemovesGuidanceSystemMessage", func(t *testing.T) {
+		t.Parallel()
+		msgs := []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "You are a helpful assistant."},
+				},
+			},
+			{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: chatadvisor.ParentGuidanceBlock},
+				},
+			},
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "Help me plan."},
+				},
+			},
+		}
+
+		filtered := stripAdvisorGuidanceBlock(msgs)
+		require.Len(t, filtered, 2)
+		for _, msg := range filtered {
+			for _, part := range msg.Content {
+				if text, ok := part.(fantasy.TextPart); ok {
+					require.NotEqual(t, chatadvisor.ParentGuidanceBlock, text.Text,
+						"guidance block must not survive the filter")
+				}
+			}
+		}
+	})
+
+	t.Run("LeavesOtherSystemMessagesIntact", func(t *testing.T) {
+		t.Parallel()
+		msgs := []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "instruction file"},
+				},
+			},
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "hi"},
+				},
+			},
+		}
+
+		filtered := stripAdvisorGuidanceBlock(msgs)
+		require.Len(t, filtered, 2)
+	})
+
+	t.Run("IgnoresNonSystemRoleWithMatchingText", func(t *testing.T) {
+		t.Parallel()
+		// A user message echoing the guidance block must not be stripped:
+		// the filter only targets the system-role injection.
+		msgs := []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: chatadvisor.ParentGuidanceBlock},
+				},
+			},
+		}
+
+		filtered := stripAdvisorGuidanceBlock(msgs)
+		require.Len(t, filtered, 1)
+	})
+}
+
+// TestEnsureAdvisorProviderOptions covers the seeding path that prevents
+// admin-configured reasoning_effort from being silently dropped when a
+// model config carries no provider_options block.
+func TestEnsureAdvisorProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyEffortReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := ensureAdvisorProviderOptions(nil, model, "")
+		require.Nil(t, got)
+	})
+
+	t.Run("NilModelReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		got := ensureAdvisorProviderOptions(nil, nil, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("UnknownProviderReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: "unknown", ModelName: "x"}
+		got := ensureAdvisorProviderOptions(nil, model, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("SeedsOpenAICompletionsProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		// A model name absent from the Responses allowlist must seed
+		// the completions options struct.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
+		got := ensureAdvisorProviderOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		raw, ok := got[fantasyopenai.Name]
+		require.True(t, ok)
+		_, ok = raw.(*fantasyopenai.ProviderOptions)
+		require.True(t, ok, "expected *ProviderOptions for non-Responses model, got %T", raw)
+	})
+
+	t.Run("SeedsOpenAIResponsesProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		// A model name in the Responses allowlist must seed the
+		// Responses-specific options struct so the OpenAI provider
+		// routes to the Responses endpoint.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := ensureAdvisorProviderOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		raw, ok := got[fantasyopenai.Name]
+		require.True(t, ok)
+		_, ok = raw.(*fantasyopenai.ResponsesProviderOptions)
+		require.True(t, ok, "expected *ResponsesProviderOptions for Responses model, got %T", raw)
+	})
+
+	t.Run("SeedsAnthropicProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-3-5"}
+		got := ensureAdvisorProviderOptions(nil, model, "high")
+		require.NotNil(t, got)
+		raw, ok := got[fantasyanthropic.Name]
+		require.True(t, ok)
+		_, ok = raw.(*fantasyanthropic.ProviderOptions)
+		require.True(t, ok)
+	})
+
+	t.Run("SeedsOpenRouterProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenrouter.Name, ModelName: "openrouter-x"}
+		got := ensureAdvisorProviderOptions(nil, model, "low")
+		require.NotNil(t, got)
+		raw, ok := got[fantasyopenrouter.Name]
+		require.True(t, ok)
+		_, ok = raw.(*fantasyopenrouter.ProviderOptions)
+		require.True(t, ok)
+	})
+
+	t.Run("PreservesExistingProviderEntry", func(t *testing.T) {
+		t.Parallel()
+		existing := &fantasyopenai.ProviderOptions{}
+		existingEffort := fantasyopenai.ReasoningEffortLow
+		existing.ReasoningEffort = &existingEffort
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: existing}
+
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := ensureAdvisorProviderOptions(providerOptions, model, "medium")
+		require.Same(t, existing, got[fantasyopenai.Name],
+			"existing provider entry must not be replaced")
+	})
+
+	t.Run("SeedSurvivesApplyReasoningEffort", func(t *testing.T) {
+		t.Parallel()
+		// Integration-style check: seed + apply together must produce
+		// a populated effort field even when the input is nil.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
+		providerOptions := ensureAdvisorProviderOptions(nil, model, "medium")
+		applyAdvisorReasoningEffort(providerOptions, "medium")
+
+		opts, ok := providerOptions[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+}
+
+// TestNewAdvisorRuntime covers the three defensive branches in
+// newAdvisorRuntime that gate whether the runtime is created and with what
+// bounds. Without this coverage a regression in any branch ships silently.
+func TestNewAdvisorRuntime(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.Make()
+	fallbackModel := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+	fallbackCallConfig := codersdk.ChatModelCallConfig{}
+
+	t.Run("ZeroMaxUsesDefaultsToMaxChatSteps", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		rt := p.newAdvisorRuntime(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   0,
+				MaxOutputTokens: 16384,
+			},
+			fallbackModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.NotNil(t, rt, "zero max uses must default rather than bail out")
+		require.Equal(t, maxChatSteps, rt.RemainingUses(),
+			"zero max uses must be replaced with maxChatSteps")
+	})
+
+	t.Run("NegativeMaxUsesReturnsNil", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		rt := p.newAdvisorRuntime(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   -1,
+				MaxOutputTokens: 16384,
+			},
+			fallbackModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.Nil(t, rt, "negative max uses must disable the advisor")
+	})
+
+	t.Run("ZeroMaxOutputTokensDefaults", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		rt := p.newAdvisorRuntime(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   3,
+				MaxOutputTokens: 0,
+			},
+			fallbackModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.NotNil(t, rt,
+			"zero max output tokens must default to defaultAdvisorMaxOutputTokens, not disable the advisor")
+		require.Equal(t, 3, rt.RemainingUses())
 	})
 }

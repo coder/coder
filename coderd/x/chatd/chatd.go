@@ -123,6 +123,12 @@ const (
 	DefaultMaxChatsPerAcquire int32 = 10
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
+
+	// defaultAdvisorMaxOutputTokens caps the nested advisor response
+	// when the admin config omits the field (or sets it to <= 0).
+	// It is intentionally generous relative to the advisor's concise
+	// guidance remit so short plans are not truncated mid-reasoning.
+	defaultAdvisorMaxOutputTokens = 16384
 )
 
 var (
@@ -245,6 +251,55 @@ func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) code
 	return cfg
 }
 
+// ensureAdvisorProviderOptions returns a provider options map that is
+// ready to receive a reasoning-effort mutation for the advisor model's
+// provider. When the advisor model config omits a provider_options block
+// ProviderOptionsFromChatModelConfig returns nil, so applyAdvisorReasoningEffort
+// would otherwise silently drop the admin-configured effort. For providers
+// that understand reasoning_effort we seed a minimal options struct so the
+// mutation lands on something, otherwise we return the input unchanged.
+func ensureAdvisorProviderOptions(
+	providerOptions fantasy.ProviderOptions,
+	advisorModel fantasy.LanguageModel,
+	reasoningEffort string,
+) fantasy.ProviderOptions {
+	if strings.TrimSpace(reasoningEffort) == "" {
+		return providerOptions
+	}
+	if advisorModel == nil {
+		return providerOptions
+	}
+
+	provider := advisorModel.Provider()
+	var seed fantasy.ProviderOptionsData
+	switch provider {
+	case fantasyopenai.Name:
+		if fantasyopenai.IsResponsesModel(advisorModel.Model()) {
+			seed = &fantasyopenai.ResponsesProviderOptions{}
+		} else {
+			seed = &fantasyopenai.ProviderOptions{}
+		}
+	case anthropic.Name:
+		seed = &anthropic.ProviderOptions{}
+	case fantasyopenaicompat.Name:
+		seed = &fantasyopenaicompat.ProviderOptions{}
+	case fantasyopenrouter.Name:
+		seed = &fantasyopenrouter.ProviderOptions{}
+	case fantasyvercel.Name:
+		seed = &fantasyvercel.ProviderOptions{}
+	default:
+		return providerOptions
+	}
+
+	if providerOptions == nil {
+		providerOptions = fantasy.ProviderOptions{}
+	}
+	if _, ok := providerOptions[provider]; !ok {
+		providerOptions[provider] = seed
+	}
+	return providerOptions
+}
+
 func applyAdvisorReasoningEffort(
 	providerOptions fantasy.ProviderOptions,
 	reasoningEffort string,
@@ -318,6 +373,32 @@ func applyAdvisorReasoningEffort(
 			}
 		}
 	}
+}
+
+// stripAdvisorGuidanceBlock removes any system message whose text content
+// exactly matches chatadvisor.ParentGuidanceBlock. The block is meant for
+// the parent agent (it advertises the advisor tool) and would waste context
+// tokens if forwarded to the advisor's nested run.
+func stripAdvisorGuidanceBlock(msgs []fantasy.Message) []fantasy.Message {
+	filtered := msgs[:0]
+	for _, msg := range msgs {
+		if msg.Role == fantasy.MessageRoleSystem && isAdvisorGuidanceMessage(msg) {
+			continue
+		}
+		filtered = append(filtered, msg)
+	}
+	return filtered
+}
+
+func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
+	if len(msg.Content) != 1 {
+		return false
+	}
+	text, ok := msg.Content[0].(fantasy.TextPart)
+	if !ok {
+		return false
+	}
+	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
 func (p *Server) resolveAdvisorModelOverride(
@@ -419,7 +500,7 @@ func (p *Server) newAdvisorRuntime(
 
 	maxOutputTokens := advisorCfg.MaxOutputTokens
 	if maxOutputTokens <= 0 {
-		maxOutputTokens = 16384
+		maxOutputTokens = defaultAdvisorMaxOutputTokens
 	}
 
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
@@ -427,6 +508,11 @@ func (p *Server) newAdvisorRuntime(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
 	)
+	// ProviderOptionsFromChatModelConfig returns nil when the model
+	// config has no provider_options block. Seed a minimal entry for
+	// the advisor model's provider so the admin-configured reasoning
+	// effort is still applied rather than silently dropped.
+	providerOptions = ensureAdvisorProviderOptions(providerOptions, advisorModel, advisorCfg.ReasoningEffort)
 	applyAdvisorReasoningEffort(providerOptions, advisorCfg.ReasoningEffort)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -6263,7 +6349,7 @@ func (p *Server) runChat(
 	// filterToolsForTurn, so enabling the runtime there would inject
 	// guidance and enforce advisor exclusivity for a tool the model
 	// cannot actually call.
-	if advisorCfg.Enabled && !chat.ParentChatID.Valid && !isPlanModeTurn {
+	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn {
 		advisorRuntime = p.newAdvisorRuntime(
 			ctx,
 			chat,
@@ -6276,6 +6362,14 @@ func (p *Server) runChat(
 	}
 
 	var advisorPromptSnapshot []fantasy.Message
+	// setAdvisorPromptSnapshot captures the final prompt state the outer
+	// model sees so the advisor tool can forward it as nested context.
+	// It is invoked at four lifecycle points (after initial system-prompt
+	// assembly, inside PrepareMessages before and after instruction
+	// injection, and after ReloadMessages rebuilds the prompt) because
+	// the prompt mutates at each of them and the advisor must snapshot
+	// the post-mutation state. Removing any of those calls would leave
+	// the advisor with a stale view of the conversation.
 	setAdvisorPromptSnapshot := func(msgs []fantasy.Message) {
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
@@ -6997,7 +7091,12 @@ func (p *Server) runChat(
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
 			GetConversationSnapshot: func() []fantasy.Message {
-				return slices.Clone(advisorPromptSnapshot)
+				// The outer prompt contains ParentGuidanceBlock, which
+				// tells the parent when to call the advisor tool. That
+				// instruction is meaningless (and slightly confusing)
+				// when forwarded to the advisor, whose nested run has
+				// no tools. Strip it before handing the snapshot over.
+				return stripAdvisorGuidanceBlock(slices.Clone(advisorPromptSnapshot))
 			},
 		}))
 	}
