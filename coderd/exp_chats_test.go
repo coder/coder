@@ -11325,6 +11325,38 @@ func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {
 	require.Equal(t, want, resp)
 }
 
+// TestChatAdvisorConfig_OverwriteClearsPreviousValues pins PUT to
+// full-replace semantics. A second write with zero-valued fields must
+// clear every field set by a prior non-zero write, so nothing leaks if
+// someone later introduces merge/patch semantics.
+func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	modelConfig := createChatModelConfig(t, adminClient)
+
+	rich := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   5,
+		MaxOutputTokens: 1024,
+		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: "high",
+	}
+	err := adminClient.UpdateChatAdvisorConfig(ctx, rich)
+	require.NoError(t, err)
+
+	sparse := codersdk.AdvisorConfig{Enabled: true}
+	err = adminClient.UpdateChatAdvisorConfig(ctx, sparse)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, sparse, resp)
+}
+
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
 	t.Parallel()
 
