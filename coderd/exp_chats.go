@@ -2208,6 +2208,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if pinOrder > 0 && chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin a child chat.",
+			})
+			return
+		}
+
 		// The behavior depends on current pin state:
 		// - pinOrder == 0: unpin.
 		// - pinOrder > 0 && already pinned: reorder (shift
