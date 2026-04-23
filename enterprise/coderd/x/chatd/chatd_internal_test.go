@@ -174,6 +174,17 @@ func TestRelayMessagePartEqual(t *testing.T) {
 			want:  true,
 		},
 		{
+			name: "different roles compare not equal",
+			left: &codersdk.ChatStreamMessagePart{
+				Role: "user",
+				Part: codersdk.ChatMessageText("same"),
+			},
+			right: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessageText("same"),
+			},
+		},
+		{
 			name:  "different payloads compare not equal",
 			left:  testRelayMessagePart("left"),
 			right: testRelayMessagePart("right"),

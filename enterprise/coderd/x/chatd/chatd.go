@@ -240,7 +240,10 @@ func NewMultiReplicaSubscribeFn(
 		var drainTimerCh <-chan time.Time
 
 		// Helper to close relay and stop any pending reconnect
-		// timer.
+		// timer. clearRecentHistory controls whether the
+		// per-subscription relay history used to dedupe replayed
+		// message parts is reset, or preserved across
+		// same-worker transient reconnects.
 		closeRelay := func(clearRecentHistory bool) {
 			// Cancel any in-flight dial goroutine first.
 			if dialCancel != nil {
