@@ -104,7 +104,7 @@ export const useKebabMenu = <T extends TabValue>({
 			return;
 		}
 
-		recalculateOverflow(container.clientWidth);
+		recalculateOverflow(getContentBoxWidth(container));
 
 		// Recompute whenever ResizeObserver reports a container width change.
 		const observer = new ResizeObserver(([entry]) => {
@@ -206,6 +206,13 @@ const measureTabWidths = <T extends TabValue>({
 		}
 	}
 	return nextTabWidthByValue;
+};
+
+const getContentBoxWidth = (container: HTMLElement): number => {
+	const styles = window.getComputedStyle(container);
+	const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
+	const paddingRight = Number.parseFloat(styles.paddingRight) || 0;
+	return container.clientWidth - paddingLeft - paddingRight;
 };
 
 const getTabGap = (container: HTMLElement): number => {
