@@ -1897,6 +1897,218 @@ func TestExclusiveToolPolicy_MultipleExclusive(t *testing.T) {
 	)
 }
 
+// TestRun_ExclusiveToolPolicyBlocksMixedWithDynamicTool guards the
+// exclusive-over-dynamic bypass: the policy must run before the
+// built-in vs dynamic partition. If a future refactor moves the
+// policy check beneath the partition (so only built-in calls are
+// inspected), an exclusive builtin mixed with a dynamic tool would
+// still execute locally while the dynamic call is handed off via
+// ErrDynamicToolCall, breaking the planning-only contract.
+//
+// This test has the model emit an exclusive builtin (advisor)
+// alongside a dynamic tool (mcp_tool) in the same batch and asserts
+// that Run does NOT exit with ErrDynamicToolCall, the advisor
+// runner never fires, and both calls receive a synthesized policy
+// error.
+func TestRun_ExclusiveToolPolicyBlocksMixedWithDynamicTool(t *testing.T) {
+	t.Parallel()
+
+	var advisorRuns atomic.Int32
+	advisorTool := fantasy.NewAgentTool(
+		"advisor",
+		"returns strategic guidance",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			advisorRuns.Add(1)
+			return fantasy.NewTextResponse(`{"status":"ok"}`), nil
+		},
+	)
+
+	var mu sync.Mutex
+	var streamCalls int
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step == 0 {
+				// Step 0: model emits an illegal mixed batch
+				// combining an exclusive builtin with a
+				// dynamic tool.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "advisor-1", ToolCallName: "advisor"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "advisor-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "advisor-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "advisor-1",
+						ToolCallName:  "advisor",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "mcp-1", ToolCallName: "mcp_tool"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "mcp-1", Delta: `{"q":"docs"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "mcp-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "mcp-1",
+						ToolCallName:  "mcp_tool",
+						ToolCallInput: `{"q":"docs"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			// Step 1: after the policy error is fed back,
+			// terminate the run so the test assertions have a
+			// deterministic exit.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "retrying"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "please advise and fetch"),
+		},
+		Tools:              []fantasy.AgentTool{advisorTool},
+		DynamicToolNames:   map[string]bool{"mcp_tool": true},
+		ExclusiveToolNames: map[string]bool{"advisor": true},
+		MaxSteps:           5,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	// Run must NOT exit with ErrDynamicToolCall: the policy
+	// short-circuits before the dynamic partition so the dynamic
+	// call is never handed off for external execution.
+	require.NoError(t, err)
+
+	// The advisor runner must not fire on mixed batches; the
+	// policy blocks the whole batch including the exclusive tool
+	// itself.
+	require.Equal(t, int32(0), advisorRuns.Load(),
+		"advisor runner must not fire on mixed batches")
+
+	// Two steps: the mixed-batch step with synthesized policy
+	// errors plus the follow-up stream that ends the run.
+	require.Len(t, persistedSteps, 2)
+	firstStep := persistedSteps[0]
+
+	// The persisted step must not record the dynamic tool as
+	// pending: the policy-error path returns before
+	// persistPendingDynamicStep runs.
+	require.Empty(t, firstStep.PendingDynamicToolCalls,
+		"policy-rejected batches must not leak dynamic tool calls to the caller")
+
+	advisorErr, ok := findToolResultByID(firstStep.Content, "advisor-1")
+	require.True(t, ok, "persisted step must contain the advisor policy result")
+	requireToolResultErrorMessage(t, advisorErr,
+		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.")
+
+	mcpErr, ok := findToolResultByID(firstStep.Content, "mcp-1")
+	require.True(t, ok, "persisted step must contain the mcp_tool policy result")
+	requireToolResultErrorMessage(t, mcpErr,
+		"this tool was skipped because advisor must run alone in its batch. Retry your tool calls without advisor, or call advisor separately first.")
+}
+
+// TestRun_ExclusiveToolAloneSucceeds is the happy-path counterpart
+// to TestRun_ExclusiveToolPolicyViolation: a single exclusive tool
+// emitted alone must actually execute. The `len(toolCalls) <= 1`
+// guard in firstExclusiveToolName is the sole mechanism that lets
+// solo exclusive-tool calls proceed. If that guard regresses to
+// `< 1`, every solo exclusive-tool call would enter an infinite
+// policy-error/retry loop, and every unit test on the policy
+// function in isolation would still pass. Only this Run()-level
+// test catches that regression.
+func TestRun_ExclusiveToolAloneSucceeds(t *testing.T) {
+	t.Parallel()
+
+	var advisorRuns atomic.Int32
+	advisorTool := fantasy.NewAgentTool(
+		"advisor",
+		"returns strategic guidance",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			advisorRuns.Add(1)
+			return fantasy.NewTextResponse(`{"status":"ok"}`), nil
+		},
+	)
+
+	var mu sync.Mutex
+	var streamCalls int
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step == 0 {
+				// Step 0: model emits exactly one
+				// exclusive-tool call in isolation.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "advisor-1", ToolCallName: "advisor"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "advisor-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "advisor-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "advisor-1",
+						ToolCallName:  "advisor",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			// Step 1: the loop re-streams after the tool
+			// result; end the run.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "please advise"),
+		},
+		Tools:              []fantasy.AgentTool{advisorTool},
+		ExclusiveToolNames: map[string]bool{"advisor": true},
+		MaxSteps:           5,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// The solo exclusive tool must actually execute exactly once.
+	require.Equal(t, int32(1), advisorRuns.Load(),
+		"solo exclusive-tool call must execute")
+
+	// The first persisted step must contain a non-error tool
+	// result for the advisor call, proving the policy did not
+	// synthesize an error and the real runner fired.
+	require.GreaterOrEqual(t, len(persistedSteps), 1)
+	result, ok := findToolResultByID(persistedSteps[0].Content, "advisor-1")
+	require.True(t, ok, "persisted step must contain the advisor tool result")
+	_, isErr := result.Result.(fantasy.ToolResultOutputContentError)
+	require.Falsef(t, isErr,
+		"solo exclusive-tool call must produce a real tool result, not a policy error: %+v", result.Result)
+}
+
 func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	t.Parallel()
 
