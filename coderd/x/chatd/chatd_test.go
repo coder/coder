@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -2556,6 +2557,91 @@ func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
 	require.Equal(t, database.ChatStatusPending, storedChat.Status)
 }
 
+func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
+	modelConfigB := insertChatModelConfigWithCallConfig(
+		ctx,
+		t,
+		db,
+		user.ID,
+		"openai",
+		"gpt-4o-mini-promote-pending-"+uuid.NewString(),
+		codersdk.ChatModelCallConfig{},
+	)
+
+	watchEvents := make(chan struct {
+		payload codersdk.ChatWatchEvent
+		err     error
+	}, 1)
+	cancelWatch, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(user.ID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+			select {
+			case watchEvents <- struct {
+				payload codersdk.ChatWatchEvent
+				err     error
+			}{payload: payload, err: err}:
+			default:
+			}
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelWatch()
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfigA.ID,
+		Title:             "promote queued reloads pending chat",
+	})
+	require.NoError(t, err)
+
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with new model")})
+	require.NoError(t, err)
+	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  chat.ID,
+		Content: queuedContent,
+		ModelConfigID: uuid.NullUUID{
+			UUID:  modelConfigB.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, result.PromotedMessage.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, storedChat.Status)
+	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
+
+	select {
+	case event := <-watchEvents:
+		require.NoError(t, event.err)
+		require.Equal(t, codersdk.ChatWatchEventKindStatusChange, event.payload.Kind)
+		require.Equal(t, chat.ID, event.payload.Chat.ID)
+		require.Equal(t, codersdk.ChatStatusPending, event.payload.Chat.Status)
+		require.Equal(t, modelConfigB.ID, event.payload.Chat.LastModelConfigID)
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("timed out waiting for status change watch event")
+	}
+}
+
 func TestPromoteQueuedMessageIgnoresInternalModelOverride(t *testing.T) {
 	t.Parallel()
 
@@ -2609,7 +2695,10 @@ func TestPromoteQueuedMessageIgnoresInternalModelOverride(t *testing.T) {
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedMessage.ID,
 		CreatedBy:       user.ID,
-		ModelConfigID:   &modelConfigC.ID,
+		ModelConfigID: uuid.NullUUID{
+			UUID:  modelConfigC.ID,
+			Valid: true,
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
@@ -2620,7 +2709,7 @@ func TestPromoteQueuedMessageIgnoresInternalModelOverride(t *testing.T) {
 	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
 }
 
-func TestAutoPromoteQueuedMessagesPreservePerTurnModelOrder(t *testing.T) {
+func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -2785,7 +2874,10 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedMessage.ID,
 		CreatedBy:       user.ID,
-		ModelConfigID:   &modelConfigB.ID,
+		ModelConfigID: uuid.NullUUID{
+			UUID:  modelConfigB.ID,
+			Valid: true,
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, result.PromotedMessage.ModelConfigID.Valid)

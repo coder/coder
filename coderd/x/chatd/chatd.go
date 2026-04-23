@@ -983,8 +983,11 @@ type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
 	QueuedMessageID int64
-	// ModelConfigID is ignored. Promotion uses the queued row's stored model config.
-	ModelConfigID *uuid.UUID
+	// Deprecated: ModelConfigID is no longer used. Promotion reads
+	// model_config_id from the queued row, falling back to
+	// chats.last_model_config_id for legacy NULL rows. Remove this field
+	// once all callers are updated.
+	ModelConfigID uuid.NullUUID
 }
 
 // PromoteQueuedResult contains post-promotion message metadata.
@@ -1779,15 +1782,15 @@ func (p *Server) PromoteQueued(
 		}
 
 		var (
-			targetContent       json.RawMessage
-			targetModelConfigID = lockedChat.LastModelConfigID
-			found               bool
+			targetContent          json.RawMessage
+			effectiveModelConfigID = lockedChat.LastModelConfigID
+			found                  bool
 		)
 		for _, qm := range queuedMessages {
 			if qm.ID == opts.QueuedMessageID {
 				targetContent = qm.Content
 				if qm.ModelConfigID.Valid {
-					targetModelConfigID = qm.ModelConfigID.UUID
+					effectiveModelConfigID = qm.ModelConfigID.UUID
 				}
 				found = true
 				break
@@ -1809,7 +1812,7 @@ func (p *Server) PromoteQueued(
 			ctx,
 			tx,
 			lockedChat,
-			targetModelConfigID,
+			effectiveModelConfigID,
 			pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
@@ -3317,6 +3320,8 @@ func BuildSingleChatMessageInsertParams(
 	return params
 }
 
+// insertUserMessageAndSetPending inserts a user message, transitions the
+// chat to pending when needed, and returns the refreshed chat row.
 func insertUserMessageAndSetPending(
 	ctx context.Context,
 	store database.Store,
@@ -3345,9 +3350,11 @@ func insertUserMessageAndSetPending(
 		if modelConfigID == uuid.Nil || lockedChat.LastModelConfigID == modelConfigID {
 			return message, lockedChat, nil
 		}
+		// The InsertChatMessages CTE updates chats.last_model_config_id when
+		// the message's model config differs. Reload to surface that change.
 		updatedChat, err := store.GetChatByID(ctx, lockedChat.ID)
 		if err != nil {
-			return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("reload chat after message insert: %w", err)
+			return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("get chat after model config update: %w", err)
 		}
 		return message, updatedChat, nil
 	}
@@ -4771,9 +4778,9 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
 	}
 
-	queuedModelConfigID := chat.LastModelConfigID
+	effectiveModelConfigID := chat.LastModelConfigID
 	if nextQueued.ModelConfigID.Valid {
-		queuedModelConfigID = nextQueued.ModelConfigID.UUID
+		effectiveModelConfigID = nextQueued.ModelConfigID.UUID
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
@@ -4786,7 +4793,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 			Valid:      len(nextQueued.Content) > 0,
 		},
 		database.ChatMessageVisibilityBoth,
-		queuedModelConfigID,
+		effectiveModelConfigID,
 		chatprompt.CurrentContentVersion,
 	).withCreatedBy(chat.OwnerID))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
