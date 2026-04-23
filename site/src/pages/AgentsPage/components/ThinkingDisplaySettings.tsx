@@ -41,13 +41,14 @@ export const ThinkingDisplaySettings: FC = () => {
 				</p>
 				<Select
 					value={mode}
-					onValueChange={(value: string) =>
+					disabled={query.isLoading || !query.data}
+					onValueChange={(value: string) => {
+						if (!query.data) return;
 						mutation.mutate({
+							...query.data,
 							thinking_display_mode: value as ThinkingDisplayMode,
-							task_notification_alert_dismissed:
-								query.data?.task_notification_alert_dismissed ?? false,
-						})
-					}
+						});
+					}}
 				>
 					<SelectTrigger
 						className="w-44 shrink-0"

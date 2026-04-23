@@ -78,110 +78,122 @@ const ReasoningDisclosure = memo<{
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}>(({ id, text, isStreaming = false, urlTransform }) => {
-	const prefQuery = useQuery(preferenceSettings());
-	const mode: ThinkingDisplayMode =
-		prefQuery.data?.thinking_display_mode || "auto";
+	thinkingDisplayMode?: ThinkingDisplayMode;
+}>(
+	({
+		id,
+		text,
+		isStreaming = false,
+		urlTransform,
+		thinkingDisplayMode = "auto",
+	}) => {
+		const mode = thinkingDisplayMode;
 
-	const prevStreamingRef = useRef(isStreaming);
-	const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+		const prevStreamingRef = useRef(isStreaming);
+		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-	const autoExpanded = (() => {
-		switch (mode) {
-			case "always_expanded":
-				return true;
-			case "always_collapsed":
-				return false;
-			case "auto":
-			case "preview":
-				return isStreaming;
-		}
-	})();
+		const autoExpanded = (() => {
+			switch (mode) {
+				case "always_expanded":
+					return true;
+				case "always_collapsed":
+					return false;
+				case "auto":
+				case "preview":
+					return isStreaming;
+			}
+		})();
 
-	const expanded = manualToggle ?? autoExpanded;
+		const expanded = manualToggle ?? autoExpanded;
 
-	// Reset manual override on streaming transitions so
-	// auto/preview modes collapse when streaming stops.
-	useEffect(() => {
-		if (prevStreamingRef.current !== isStreaming) {
-			setManualToggle(null);
-			prevStreamingRef.current = isStreaming;
-		}
-	}, [isStreaming]);
+		// Reset manual override on streaming transitions so
+		// auto/preview modes collapse when streaming stops.
+		useEffect(() => {
+			if (prevStreamingRef.current !== isStreaming) {
+				setManualToggle(null);
+				prevStreamingRef.current = isStreaming;
+			}
+		}, [isStreaming]);
 
-	const isPreviewConstrained =
-		mode === "preview" && isStreaming && manualToggle === null;
+		const isPreviewConstrained =
+			mode === "preview" && isStreaming && manualToggle === null;
 
-	const previewScrollRef = useRef<HTMLDivElement>(null);
+		const previewScrollRef = useRef<HTMLDivElement>(null);
 
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming,
-		bypassSmoothing: !isStreaming,
-		streamKey: id,
-	});
-	const displayText = isStreaming ? visibleText : text;
-	const hasText = displayText.trim().length > 0;
+		const { visibleText } = useSmoothStreamingText({
+			fullText: text,
+			isStreaming,
+			bypassSmoothing: !isStreaming,
+			streamKey: id,
+		});
+		const displayText = isStreaming ? visibleText : text;
+		const hasText = displayText.trim().length > 0;
 
-	// Auto-scroll the preview container to the bottom as new
-	// thinking content streams in.
-	const displayTextLength = displayText.length;
-	useEffect(() => {
-		if (displayTextLength && isPreviewConstrained && previewScrollRef.current) {
-			previewScrollRef.current.scrollTop =
-				previewScrollRef.current.scrollHeight;
-		}
-	}, [displayTextLength, isPreviewConstrained]);
+		// Auto-scroll the preview container to the bottom as new
+		// thinking content streams in. useLayoutEffect avoids a
+		// visible frame where content has grown but not scrolled.
+		const displayTextLength = displayText.length;
+		useLayoutEffect(() => {
+			if (
+				displayTextLength &&
+				isPreviewConstrained &&
+				previewScrollRef.current
+			) {
+				previewScrollRef.current.scrollTop =
+					previewScrollRef.current.scrollHeight;
+			}
+		}, [displayTextLength, isPreviewConstrained]);
 
-	return (
-		<Collapsible
-			open={expanded}
-			onOpenChange={(open) => setManualToggle(open)}
-			className="w-full"
-		>
-			<CollapsibleTrigger
-				className={cn(
-					"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
-					"flex w-full items-center gap-1.5 cursor-pointer",
-					"text-content-secondary transition-colors hover:text-content-primary",
-				)}
+		return (
+			<Collapsible
+				open={expanded}
+				onOpenChange={(open) => setManualToggle(open)}
+				className="w-full"
 			>
-				<ChevronDownIcon
+				<CollapsibleTrigger
 					className={cn(
-						"size-icon-sm shrink-0 transition-transform",
-						expanded ? "rotate-0" : "-rotate-90",
+						"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
+						"flex w-full items-center gap-1.5 cursor-pointer",
+						"text-content-secondary transition-colors hover:text-content-primary",
 					)}
-				/>
-				{isStreaming ? (
-					<Shimmer as="span" className="text-xs">
-						Thinking
-					</Shimmer>
-				) : (
-					<span className="text-xs">Thinking</span>
-				)}
-			</CollapsibleTrigger>
-			{hasText && (
-				<CollapsibleContent>
-					<div
-						ref={previewScrollRef}
+				>
+					<ChevronDownIcon
 						className={cn(
-							"mt-1 pl-5",
-							isPreviewConstrained && "max-h-24 overflow-y-auto",
+							"size-icon-sm shrink-0 transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
 						)}
-					>
-						<Response
-							className="text-[11px] text-content-secondary"
-							urlTransform={urlTransform}
-							streaming={isStreaming}
+					/>
+					{isStreaming ? (
+						<Shimmer as="span" className="text-xs">
+							Thinking
+						</Shimmer>
+					) : (
+						<span className="text-xs">Thinking</span>
+					)}
+				</CollapsibleTrigger>
+				{hasText && (
+					<CollapsibleContent>
+						<div
+							ref={previewScrollRef}
+							className={cn(
+								"mt-1 pl-5",
+								isPreviewConstrained && "max-h-24 overflow-y-auto",
+							)}
 						>
-							{displayText}
-						</Response>
-					</div>
-				</CollapsibleContent>
-			)}
-		</Collapsible>
-	);
-});
+							<Response
+								className="text-[11px] text-content-secondary"
+								urlTransform={urlTransform}
+								streaming={isStreaming}
+							>
+								{displayText}
+							</Response>
+						</div>
+					</CollapsibleContent>
+				)}
+			</Collapsible>
+		);
+	},
+);
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
@@ -248,6 +260,10 @@ export const BlockList: FC<{
 	hasUserResponseAfterAskQuestion = false,
 	urlTransform,
 }) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const thinkingDisplayMode: ThinkingDisplayMode =
+		prefQuery.data?.thinking_display_mode || "auto";
+
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
 	// Pre-compute which tool IDs have a corresponding block so
@@ -307,6 +323,7 @@ export const BlockList: FC<{
 									index === blocks.length - 1
 								}
 								urlTransform={urlTransform}
+								thinkingDisplayMode={thinkingDisplayMode}
 							/>
 						);
 					case "file-reference":

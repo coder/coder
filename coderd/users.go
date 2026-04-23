@@ -1300,25 +1300,43 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	thinkingMode := params.ThinkingDisplayMode
-	if thinkingMode == "" {
-		thinkingMode = codersdk.ThinkingDisplayModeAuto
-	}
-	updatedThinkingMode, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
-		UserID:              user.ID,
-		ThinkingDisplayMode: string(thinkingMode),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating thinking display mode.",
-			Detail:  err.Error(),
+	// Only update thinking display mode when the caller explicitly
+	// provides a value. Omitting the field (zero value "") preserves
+	// the stored preference so older clients that don't know about
+	// this field won't silently reset it.
+	var resolvedThinkingMode codersdk.ThinkingDisplayMode
+	if params.ThinkingDisplayMode != "" {
+		updated, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+			UserID:              user.ID,
+			ThinkingDisplayMode: string(params.ThinkingDisplayMode),
 		})
-		return
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedThinkingMode = codersdk.ThinkingDisplayMode(updated)
+	} else {
+		stored, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if stored != "" {
+			resolvedThinkingMode = codersdk.ThinkingDisplayMode(stored)
+		} else {
+			resolvedThinkingMode = codersdk.ThinkingDisplayModeAuto
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
-		ThinkingDisplayMode:            codersdk.ThinkingDisplayMode(updatedThinkingMode),
+		ThinkingDisplayMode:            resolvedThinkingMode,
 	})
 }
 

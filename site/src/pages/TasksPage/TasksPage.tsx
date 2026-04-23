@@ -146,8 +146,8 @@ const TasksPage: FC = () => {
 							severity="warning"
 							dismissible
 							onDismiss={() => {
+								if (!preferencesQuery.data) return;
 								updatePreferencesMutation.mutate({
-									thinking_display_mode: "auto",
 									...preferencesQuery.data,
 									task_notification_alert_dismissed: true,
 								});
