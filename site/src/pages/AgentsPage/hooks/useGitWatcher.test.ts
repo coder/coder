@@ -828,6 +828,7 @@ describe("useGitWatcher", () => {
 		act(() => {
 			socket1.simulateMessage({
 				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
 				repositories: [
 					{
 						repo_root: "/repo",
@@ -841,14 +842,17 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.everDirty.has("/repo")).toBe(true);
 		});
+		expect(result.current.lastCheckedAt).toBeInstanceOf(Date);
 
 		// Switch to a different chat. The hook tears down and recreates
-		// the socket; state must reset.
+		// the socket; everDirty, repositories, and lastCheckedAt must
+		// all reset so chat-B starts with a clean slate.
 		createMockSocket();
 		rerender({ chatId: "chat-B" });
 
 		expect(result.current.repositories.size).toBe(0);
 		expect(result.current.everDirty.size).toBe(0);
+		expect(result.current.lastCheckedAt).toBeUndefined();
 	});
 
 	it("tracks lastCheckedAt from scanned_at", async () => {
@@ -875,6 +879,103 @@ describe("useGitWatcher", () => {
 		expect(result.current.lastCheckedAt?.toISOString()).toBe(
 			"2024-01-02T03:04:05.000Z",
 		);
+	});
+
+	it("heartbeat message (no repositories) advances lastCheckedAt without touching repos", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		// Prime a known-dirty repo via a delta message.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.repositories.size).toBe(1);
+			expect(result.current.everDirty.has("/repo")).toBe(true);
+		});
+		const repoStateBeforeHeartbeat = result.current.repositories;
+		const everDirtyBeforeHeartbeat = result.current.everDirty;
+
+		// Heartbeat: scanned_at advances, but repositories is absent.
+		// The server sends this shape when Scan() observed no deltas
+		// (idle clean-staying-clean or no-change-since-last-emit).
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:10Z",
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.lastCheckedAt?.toISOString()).toBe(
+				"2024-01-02T03:04:10.000Z",
+			);
+		});
+		// Heartbeat must not mutate repo state.
+		expect(result.current.repositories).toBe(repoStateBeforeHeartbeat);
+		expect(result.current.everDirty).toBe(everDirtyBeforeHeartbeat);
+	});
+
+	it("heartbeat with explicit empty repositories array is also a no-op for repos", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.repositories.size).toBe(1);
+		});
+
+		// Some JSON encoders may preserve an empty array rather than
+		// omitting the field. Either shape must be treated as a pure
+		// heartbeat on the client.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:15Z",
+				repositories: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.lastCheckedAt?.toISOString()).toBe(
+				"2024-01-02T03:04:15.000Z",
+			);
+		});
+		// Repo entry survives an empty-array heartbeat.
+		expect(result.current.repositories.has("/repo")).toBe(true);
+		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
 
 	it("ignores malformed scanned_at without clearing existing value", async () => {

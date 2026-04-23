@@ -49,12 +49,17 @@ const (
 	// seconds; long enough that an idle clean repo does not poll hot.
 	// scanCooldown still caps the actual scan frequency.
 	//
-	// Cost sketch: each idle tick forks ~3 git subprocesses per
-	// subscribed repo (rev-parse, symbolic-ref, diff HEAD), plus one
-	// diff --no-index per untracked file. At 5s cadence that is ~36
-	// subprocesses/minute per repo per open chat connection. Tune
-	// this constant if that proves too expensive on workspaces with
-	// many subscribed repos.
+	// Cost sketch: each idle tick forks 6 git subprocesses per
+	// subscribed repo (rev-parse --git-dir, symbolic-ref HEAD,
+	// config remote.origin.url, rev-parse HEAD, diff HEAD,
+	// ls-files --others --exclude-standard), plus one
+	// diff --no-index per untracked file. At 5s cadence that is
+	// ~72 subprocesses/minute per repo per open chat connection.
+	// An outer guard in RunLoop skips the tick when a trigger-
+	// driven scan already ran within the last interval, so a busy
+	// chat pays near-zero fallback cost.
+	// Tune this constant if the floor proves too expensive on
+	// workspaces with many subscribed repos.
 	fallbackPollInterval = 5 * time.Second
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.
@@ -234,10 +239,15 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 	h.lastScanAt = now
 
-	if len(repos) == 0 {
-		return nil
-	}
-
+	// Always emit a message when there are subscribed roots, even
+	// if no repo had a delta. The message carries a fresh
+	// ScannedAt so clients can render an honest "checked Ns ago"
+	// indicator on a stable idle repo, where the agent is still
+	// actively polling every fallbackPollInterval but no deltas
+	// are found. The Repositories slice marshals as absent via
+	// omitempty when empty, which keeps the heartbeat message tiny
+	// and wire-compatible with consumers that only look at
+	// Repositories.
 	return &codersdk.WorkspaceAgentGitServerMessage{
 		Type:         codersdk.WorkspaceAgentGitServerMessageTypeChanges,
 		ScannedAt:    &now,

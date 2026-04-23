@@ -396,7 +396,11 @@ export const CleanRepoFromStart: Story = {
 export const ShowsLastCheckedLabel: Story = {
 	args: {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
-		lastCheckedAt: new Date(Date.now() - 12_000),
+		// Fixed past date keeps the rendered "ago" text deterministic
+		// for pixel snapshots. dayjs formats "X months ago" or "X
+		// years ago" at this scale, and those buckets do not flip
+		// between story collection and story render.
+		lastCheckedAt: new Date("2024-01-01T00:00:00Z"),
 	},
 	play: async ({ canvasElement }) => {
 		const label = canvasElement.querySelector(

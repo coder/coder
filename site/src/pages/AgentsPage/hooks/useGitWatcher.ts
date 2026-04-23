@@ -134,47 +134,47 @@ export function useGitWatcher({
 								setLastCheckedAt(parsed);
 							}
 						}
-					}
-					if (data.type === "changes" && data.repositories) {
-						setRepositories((prev) => {
-							let changed = false;
-							const next = new Map(prev);
-							for (const repo of data.repositories!) {
-								if (repo.removed) {
-									if (next.has(repo.repo_root)) {
-										next.delete(repo.repo_root);
-										changed = true;
+						if (data.repositories) {
+							setRepositories((prev) => {
+								let changed = false;
+								const next = new Map(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.has(repo.repo_root)) {
+											next.delete(repo.repo_root);
+											changed = true;
+										}
+									} else {
+										const existing = next.get(repo.repo_root);
+										if (
+											!existing ||
+											existing.branch !== repo.branch ||
+											existing.remote_origin !== repo.remote_origin ||
+											existing.unified_diff !== repo.unified_diff
+										) {
+											next.set(repo.repo_root, repo);
+											changed = true;
+										}
 									}
-								} else {
-									const existing = next.get(repo.repo_root);
-									if (
-										!existing ||
-										existing.branch !== repo.branch ||
-										existing.remote_origin !== repo.remote_origin ||
-										existing.unified_diff !== repo.unified_diff
-									) {
-										next.set(repo.repo_root, repo);
+								}
+								return changed ? next : prev;
+							});
+							setEverDirty((prev) => {
+								let changed = false;
+								const next = new Set(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.delete(repo.repo_root)) {
+											changed = true;
+										}
+									} else if (repo.unified_diff && !next.has(repo.repo_root)) {
+										next.add(repo.repo_root);
 										changed = true;
 									}
 								}
-							}
-							return changed ? next : prev;
-						});
-						setEverDirty((prev) => {
-							let changed = false;
-							const next = new Set(prev);
-							for (const repo of data.repositories!) {
-								if (repo.removed) {
-									if (next.delete(repo.repo_root)) {
-										changed = true;
-									}
-								} else if (repo.unified_diff && !next.has(repo.repo_root)) {
-									next.add(repo.repo_root);
-									changed = true;
-								}
-							}
-							return changed ? next : prev;
-						});
+								return changed ? next : prev;
+							});
+						}
 					} else if (data.type === "error") {
 						console.warn("[useGitWatcher] server error:", data.message);
 					}
@@ -201,8 +201,8 @@ export function useGitWatcher({
 			// dispose() suppresses onDisconnect, so reset state
 			// explicitly. `everDirty` is intentionally preserved
 			// across reconnects and brief agentStatus flaps; it is
-			// cleared only when chatId changes (see the
-			// lastChatIdRef reset above).
+			// cleared only when chatId changes (via the `lastChatId`
+			// mirror-state check during render, above).
 			dispose();
 			setIsConnected(false);
 			setRepositories(new Map());

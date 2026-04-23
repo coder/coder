@@ -253,9 +253,13 @@ func TestScanDeltaEmission(t *testing.T) {
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes. Should emit a heartbeat with a
+	// fresh ScannedAt but no repositories. This lets the UI's
+	// "checked Ns ago" label stay honest on an idle clean repo.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes since last scan should return nil")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.NotNil(t, msg2.ScannedAt)
+	require.Empty(t, msg2.Repositories, "heartbeat must not report per-repo changes")
 
 	// Revert the dirty file (make repo clean).
 	require.NoError(t, os.Remove(dirtyFile))
@@ -267,6 +271,59 @@ func TestScanDeltaEmission(t *testing.T) {
 
 	// The file was reverted, so it should no longer appear in the diff.
 	require.NotContains(t, msg3.Repositories[0].UnifiedDiff, "dirty.go")
+}
+
+// TestScanHeartbeatOnCleanRepo pins the heartbeat contract: while any
+// repo is subscribed, every scan emits a non-nil message with a fresh
+// ScannedAt, even when no repo produced a delta. The UI's
+// "checked Ns ago" label depends on this so an idle clean repo does
+// not drift while the agent is still polling.
+func TestScanHeartbeatOnCleanRepo(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+
+	h := agentgit.NewHandler(logger)
+	require.True(t, h.Subscribe([]string{repoDir}))
+	ctx := context.Background()
+
+	// First scan on a clean repo captures branch/remote/empty-diff.
+	msg1 := h.Scan(ctx)
+	require.NotNil(t, msg1)
+	require.NotNil(t, msg1.ScannedAt)
+	require.Len(t, msg1.Repositories, 1)
+	require.Empty(t, msg1.Repositories[0].UnifiedDiff)
+	firstScanAt := *msg1.ScannedAt
+
+	// Second scan: no delta, but heartbeat must still advance
+	// ScannedAt so clients can render an honest "checked Ns ago".
+	msg2 := h.Scan(ctx)
+	require.NotNil(t, msg2, "heartbeat should fire on a no-delta scan")
+	require.NotNil(t, msg2.ScannedAt)
+	require.Empty(t, msg2.Repositories, "heartbeat carries no per-repo changes")
+	require.False(t, msg2.ScannedAt.Before(firstScanAt),
+		"heartbeat ScannedAt must not go backwards")
+
+	// Third scan: also a heartbeat. Still non-nil, still empty.
+	msg3 := h.Scan(ctx)
+	require.NotNil(t, msg3)
+	require.Empty(t, msg3.Repositories)
+}
+
+// TestScanNoHeartbeatWithoutSubscribedRoots pins that the heartbeat
+// only fires when there is at least one subscribed repo. Before any
+// subscribe call, Scan() must still short-circuit to nil so the
+// WebSocket handler does not spam empty messages to a client that
+// has not registered any paths yet.
+func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	h := agentgit.NewHandler(logger)
+
+	msg := h.Scan(context.Background())
+	require.Nil(t, msg, "no subscribed roots should mean no heartbeat")
 }
 
 func TestScanDeltaDetectsContentChanges(t *testing.T) {
@@ -291,9 +348,10 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg1.Repositories[0].UnifiedDiff, "README.md")
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes: heartbeat, no repositories.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes since last scan should return nil")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.Empty(t, msg2.Repositories)
 
 	// Now modify the SAME file further (still "Modified" status, but
 	// different content).
@@ -318,9 +376,10 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg4.Repositories[0].UnifiedDiff, "untracked.go")
 
-	// No changes — should return nil.
+	// No changes: heartbeat, no repositories.
 	msg5 := h.Scan(ctx)
-	require.Nil(t, msg5, "no changes since last scan should return nil")
+	require.NotNil(t, msg5, "heartbeat should fire even with no delta")
+	require.Empty(t, msg5.Repositories)
 
 	// Modify the untracked file further.
 	require.NoError(t, os.WriteFile(untrackedPath, []byte("package main\n\nfunc init() {}\n"), 0o600))
@@ -1002,9 +1061,10 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes: heartbeat, no repositories.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes should mean no delta")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.Empty(t, msg2.Repositories, "no delta means no repo entries")
 
 	// Remove the large file — should emit a clean delta.
 	require.NoError(t, os.Remove(largeFile))
@@ -1438,15 +1498,23 @@ func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	// Trap NewTicker so the test can synchronize on RunLoop's
+	// ticker creation rather than racing against it with a
+	// best-effort Advance.
+	tickerTrap := mClock.Trap().NewTicker()
+	defer tickerTrap.Close()
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		h.RunLoop(ctx, func() {})
 	}()
 
-	// Wait for the RunLoop to register its ticker so cancellation
-	// happens against a live select rather than a pre-start one.
-	mClock.Advance(10 * time.Millisecond).MustWait(context.Background())
+	// Wait until RunLoop has actually called clock.NewTicker, then
+	// release the trap so the ticker is installed. At this point
+	// RunLoop is deterministically inside its select, blocked on
+	// <-ticker.C / <-scanTrigger / <-ctx.Done().
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	cancel()
 
@@ -1478,6 +1546,14 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	// Trap NewTicker (for RunLoop) and NewTimer (for the cooldown
+	// wait inside rateLimitedScan) so the test synchronizes on each
+	// wait point instead of racing against goroutine scheduling.
+	tickerTrap := mClock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	timerTrap := mClock.Trap().NewTimer()
+	defer timerTrap.Close()
+
 	scanStarted := make(chan struct{}, 1)
 	blocked := make(chan struct{})
 	scanFn := func() {
@@ -1499,6 +1575,9 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 		h.RunLoop(ctx, scanFn)
 	}()
 
+	// Release the fallback ticker so RunLoop enters its select.
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
 	// First trigger: consumed immediately (lastScanAt is zero).
 	// scanFn runs Scan() (which sets lastScanAt), signals
 	// scanStarted, then blocks on <-blocked.
@@ -1510,15 +1589,21 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 
 	// Fire a second trigger. Because lastScanAt is fresh (set by
 	// the real Scan above), rateLimitedScan enters its cooldown
-	// wait on this trigger.
+	// wait and calls clock.NewTimer. The trap blocks the goroutine
+	// inside that call until we release it, so we know exactly
+	// when it is sitting on the cooldown select.
 	h.RequestScan()
+	timerCall := timerTrap.MustWait(ctx)
 
-	// Give the goroutine a tick to enter the cooldown select.
-	mClock.Advance(10 * time.Millisecond).MustWait(context.Background())
-
-	// Cancel while the cooldown timer is pending. The select in
-	// rateLimitedScan must pick ctx.Done().
+	// Cancel while the goroutine is still paused inside NewTimer.
+	// Release the trap; rateLimitedScan then enters the select on
+	// the cooldown timer vs. ctx.Done(), and ctx.Done() is already
+	// ready so it wins. MustRelease uses Background because the
+	// test ctx is the one we just cancelled.
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer releaseCancel()
 	cancel()
+	timerCall.MustRelease(releaseCtx)
 
 	select {
 	case <-done:
