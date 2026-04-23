@@ -20,3 +20,8 @@ site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
+
+# aibridge integration tests embed these fixtures and byte-compare them.
+# Pin line enddings to LF so Windows checkouts with core.autocrlf=true
+# don't rewrite them to CRLF and break the tests.
+aibridge/fixtures/**/*.txtar text eol=lf
