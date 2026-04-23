@@ -886,6 +886,7 @@ describe("mutation invalidation scope", () => {
 			"chatMessagesKey should be invalidated on error",
 		).toBe(true);
 	});
+
 	// Shared type for the infinite messages cache shape used by
 	// editChatMessage tests below.
 	type InfMessages = {
@@ -1135,6 +1136,7 @@ describe("mutation invalidation scope", () => {
 			"chatMessagesKey should be invalidated even without context",
 		).toBe(true);
 	});
+
 	it("editChatMessage onMutate updates the first page and preserves older pages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

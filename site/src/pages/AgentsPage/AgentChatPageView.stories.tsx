@@ -1156,7 +1156,6 @@ const editSubmitScrollStore = buildStoreWithMessages(buildLongConversation(30));
  * after editMessage resolves) is covered by the submitEditAndScroll
  * unit tests in AgentChatPage.test.ts.
  */
-
 export const ScrollStableAfterEditTruncation: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
