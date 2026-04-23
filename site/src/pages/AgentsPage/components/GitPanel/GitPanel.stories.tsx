@@ -339,3 +339,94 @@ export const LargeDiff: Story = {
 		]),
 	},
 };
+
+/**
+ * Regression: when a repo was dirty during this session and then went
+ * clean (empty unified_diff), the tab must remain visible. Before the
+ * ever-dirty fix, the tab vanished the moment the diff became empty,
+ * which is what users saw as "diff disappears between edit_files".
+ */
+export const EverDirtyRepoGoneClean: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(["/home/coder/coder"]),
+	},
+	play: async ({ canvasElement }) => {
+		// The repo tab is still present (identified by the 'Working'
+		// prefix used by GitPanel's tab-strip button) even though the
+		// current diff is empty, because it was dirty earlier in the
+		// session.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(1);
+
+		// The content pane shows the diff viewer's empty-diff state.
+		expect(canvasElement.textContent ?? "").toContain("No file changes");
+	},
+};
+
+/**
+ * Baseline: a repo reported clean from the start (never dirty in
+ * this session) has no tab. Ensures the ever-dirty fix did not
+ * regress the "nothing to show" case.
+ */
+export const CleanRepoFromStart: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(),
+	},
+	play: async ({ canvasElement }) => {
+		// No local repo tab should appear in the tab strip. The
+		// 'Working' prefix is GitPanel's tab-strip label contract.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(0);
+	},
+};
+
+/**
+ * Renders the relative-time label once a scan has been observed.
+ */
+export const ShowsLastCheckedLabel: Story = {
+	args: {
+		repositories: new Map([["/home/coder/coder", makeRepo()]]),
+		// Fixed past date keeps the rendered "ago" text deterministic
+		// for pixel snapshots. dayjs formats "X months ago" or "X
+		// years ago" at this scale, and those buckets do not flip
+		// between story collection and story render.
+		lastCheckedAt: new Date("2024-01-01T00:00:00Z"),
+	},
+	play: async ({ canvasElement }) => {
+		const label = canvasElement.querySelector(
+			'[data-testid="git-last-checked"]',
+		);
+		expect(label).not.toBeNull();
+		// dayjs' relativeTime renders sub-45s as 'a few seconds ago'
+		// and longer spans as '<n> <unit> ago'. Accept either shape
+		// so the story is not coupled to dayjs' specific bucketing.
+		expect(label?.textContent ?? "").toMatch(/^checked .+ ago$/);
+	},
+};
+
+/**
+ * With no scan observed yet, the label renders nothing so the
+ * toolbar collapses cleanly.
+ */
+export const NoLastCheckedYet: Story = {
+	args: {
+		repositories: new Map([["/home/coder/coder", makeRepo()]]),
+		lastCheckedAt: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const label = canvasElement.querySelector(
+			'[data-testid="git-last-checked"]',
+		);
+		expect(label).toBeNull();
+	},
+};

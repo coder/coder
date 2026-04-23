@@ -1,10 +1,10 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Stack } from "#/components/Stack/Stack";
+import { cn } from "#/utils/cn";
 import { Section } from "../Section";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { useTokensData } from "./hooks";
@@ -34,7 +34,10 @@ const TokensPage: FC = () => {
 		<>
 			<Section
 				title="Tokens"
-				css={styles.section}
+				className={cn(
+					"[&_code]:bg-surface-secondary [&_code]:text-content-primary",
+					"[&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-sm",
+				)}
 				description={
 					<>
 						Tokens are used to authenticate with the Coder API. You can create a
@@ -74,17 +77,5 @@ const TokenActions: FC = () => (
 		</Button>
 	</Stack>
 );
-
-const styles = {
-	section: (theme) => css`
-		& code {
-			background: ${theme.palette.divider};
-			font-size: 12px;
-			padding: 2px 4px;
-			color: ${theme.palette.text.primary};
-			border-radius: 2px;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default TokensPage;

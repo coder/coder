@@ -1193,7 +1193,7 @@
 				},
 				{
 					"title": "MCP Server",
-					"description": "Connect to agents Coder with a MCP server",
+					"description": "Connect AI coding agents to Coder using the MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
 				},

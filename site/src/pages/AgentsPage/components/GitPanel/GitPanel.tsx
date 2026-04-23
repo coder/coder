@@ -29,6 +29,7 @@ import {
 } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
+import { LastCheckedLabel } from "./LastCheckedLabel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
@@ -55,6 +56,18 @@ interface GitPanelProps {
 	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	/**
+	 * Repo roots that have been dirty at some point during this session.
+	 * Used to keep a repo's tab visible after its diff goes empty, so the
+	 * tab strip does not visibly flip when the agent edits a file and
+	 * then reverts it.
+	 */
+	everDirty?: ReadonlySet<string>;
+	/**
+	 * Timestamp of the last scan received from the server. Rendered as a
+	 * live-updating "checked Ns ago" label next to the refresh button.
+	 */
+	lastCheckedAt?: Date | undefined;
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -70,6 +83,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 	isExpanded,
 	remoteDiffStats,
 	chatInputRef,
+	everDirty,
+	lastCheckedAt,
 }) => {
 	const hasRemoteStats =
 		(remoteDiffStats?.additions ?? 0) > 0 ||
@@ -102,9 +117,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return stats;
 	})();
 
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
-		a.localeCompare(b),
-	);
+	// Union of currently-dirty and ever-dirty repos (still known to
+	// the watcher) so a clean-revert does not hide the tab.
+	const localRepos = (() => {
+		const roots = new Set<string>(repoStats.keys());
+		if (everDirty) {
+			for (const root of everDirty) {
+				if (repositories.has(root)) {
+					roots.add(root);
+				}
+			}
+		}
+		return Array.from(roots).sort((a, b) => a.localeCompare(b));
+	})();
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.
@@ -122,7 +147,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 				setView({ type: "local", repoRoot: localRepos[0] });
 			}
 		} else if (view.type === "local") {
-			if (!repoStats.has(view.repoRoot)) {
+			// localRepos includes ever-dirty repos with empty diffs, so
+			// the active tab stays valid until its root leaves the set.
+			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
 					setView({ type: "remote" });
 				} else if (localRepos.length > 0) {
@@ -130,7 +157,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 				}
 			}
 		}
-	}, [view, showRemoteTab, localRepos, repoStats]);
+	}, [view, showRemoteTab, localRepos]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -231,6 +258,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 				</ScrollArea>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1 py-1.5">
+					<LastCheckedLabel
+						at={lastCheckedAt}
+						className="mr-1 whitespace-nowrap text-[11px] text-content-secondary"
+					/>
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"

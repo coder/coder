@@ -1545,15 +1545,36 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	// Wait for the drain timer to be armed by the relay manager,
-	// then release and advance the subscriber clock past the drain
-	// timeout. This deterministically fires the drain without
-	// relying on wall-clock timing.
-	trapDrain.MustWait(ctx).MustRelease(ctx)
-	subscriberClock.Advance(200 * time.Millisecond).MustWait(ctx)
+	// Drain all NewTimer("drain") calls in a background goroutine.
+	// The merge loop may create one or two drain timers depending
+	// on the relative ordering of the status=WAITING pubsub
+	// notification and the async relay dial completion. Each
+	// trapped call must be released so the production goroutine
+	// is unblocked, and the clock must be advanced past the
+	// 200ms drain timeout to fire the timer.
+	var drainsFired atomic.Int32
+	go func() {
+		for {
+			call, err := trapDrain.Wait(ctx)
+			if err != nil {
+				return
+			}
+			if err := call.Release(ctx); err != nil {
+				return
+			}
+			subscriberClock.Advance(200 * time.Millisecond)
+			drainsFired.Add(1)
+		}
+	}()
 
+	// Wait for DB status=waiting AND at least one drain timer to
+	// have fired. Checking drainsFired proves the relay was torn
+	// down by the drain path, not by context cancellation.
 	evCtx2 := testutil.Context(t, testutil.WaitLong)
 	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
+		if drainsFired.Load() == 0 {
+			return false
+		}
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false

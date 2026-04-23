@@ -11,22 +11,36 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
-export const WebPushButton: FC = () => {
-	const webPush = useWebpushNotifications();
+interface WebPushButtonProps {
+	webPush?: ReturnType<typeof useWebpushNotifications>;
+	onToggle?: () => Promise<void> | void;
+}
 
-	if (!webPush.enabled) {
+export const WebPushButton: FC<WebPushButtonProps> = ({
+	webPush,
+	onToggle,
+}) => {
+	const internalWebPush = useWebpushNotifications();
+	const webPushState = webPush ?? internalWebPush;
+
+	if (!webPushState.enabled) {
 		return null;
 	}
 
 	const handleClick = async () => {
+		if (onToggle) {
+			await onToggle();
+			return;
+		}
+
 		try {
-			if (webPush.subscribed) {
-				await webPush.unsubscribe();
+			if (webPushState.subscribed) {
+				await webPushState.unsubscribe();
 			} else {
-				await webPush.subscribe();
+				await webPushState.subscribe();
 			}
 		} catch (error) {
-			const action = webPush.subscribed ? "disable" : "enable";
+			const action = webPushState.subscribed ? "disable" : "enable";
 			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
 		}
 	};
@@ -37,18 +51,18 @@ export const WebPushButton: FC = () => {
 				<Button
 					variant="subtle"
 					size="icon"
-					disabled={webPush.loading}
+					disabled={webPushState.loading}
 					onClick={handleClick}
 					aria-label={
-						webPush.subscribed
+						webPushState.subscribed
 							? "Disable notifications"
 							: "Enable notifications"
 					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
-					{webPush.loading ? (
+					{webPushState.loading ? (
 						<Spinner size="sm" loading />
-					) : webPush.subscribed ? (
+					) : webPushState.subscribed ? (
 						<BellIcon className="text-content-success" />
 					) : (
 						<BellOffIcon className="text-content-secondary" />
@@ -56,7 +70,9 @@ export const WebPushButton: FC = () => {
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				{webPush.subscribed ? "Disable notifications" : "Enable notifications"}
+				{webPushState.subscribed
+					? "Disable notifications"
+					: "Enable notifications"}
 			</TooltipContent>
 		</Tooltip>
 	);
