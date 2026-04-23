@@ -999,6 +999,13 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 		systemField, ok := payload["system"]
 		require.True(t, ok, "expected top-level system field in request body: %s", got.Body)
 		t.Logf("Bedrock system field JSON: %s", systemField)
+
+		var systemValue any
+		require.NoError(t, json.Unmarshal(systemField, &systemValue))
+
+		systemText, ok := systemValue.(string)
+		require.True(t, ok, "expected system field to be a JSON string, got %T in request body: %s", systemValue, got.Body)
+		require.Equal(t, "you are helpful", systemText)
 	})
 
 	t.Run("NonBedrockStillRequiresAPIKey", func(t *testing.T) {
