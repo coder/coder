@@ -8,6 +8,7 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useProxy } from "#/contexts/ProxyContext";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
@@ -35,6 +36,7 @@ const TerminalPage: FC = () => {
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
+	const [commandConfirmed, setCommandConfirmed] = useState(false);
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -44,6 +46,11 @@ const TerminalPage: FC = () => {
 	const command = searchParams.get("command") || undefined;
 	const containerName = searchParams.get("container") || undefined;
 	const containerUser = searchParams.get("container_user") || undefined;
+
+	// Only pass the command to the terminal once the user has
+	// confirmed it via the dialog.
+	const approvedCommand = command && commandConfirmed ? command : undefined;
+
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
 	const workspaceNameParts = params.workspace?.split(".");
@@ -139,7 +146,7 @@ const TerminalPage: FC = () => {
 					ref={terminalRef}
 					agentId={workspaceAgent?.id}
 					operatingSystem={workspaceAgent?.operating_system}
-					initialCommand={command}
+					initialCommand={approvedCommand}
 					containerName={containerName}
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
@@ -172,6 +179,42 @@ const TerminalPage: FC = () => {
 					Latency: {latency.latencyMS.toFixed(0)}ms
 				</span>
 			)}
+
+			<ConfirmDialog
+				type="delete"
+				title="Run command?"
+				description={
+					<>
+						<p>
+							A link is requesting to run the following command in your
+							terminal:
+						</p>
+						<code
+							css={{
+								display: "block",
+								marginTop: 16,
+								padding: "8px 12px",
+								background: theme.palette.background.default,
+								borderRadius: 4,
+								fontFamily: "monospace",
+								wordBreak: "break-all",
+							}}
+						>
+							{command}
+						</code>
+					</>
+				}
+				open={Boolean(command) && !commandConfirmed}
+				confirmText="Run command"
+				cancelText="Cancel"
+				onConfirm={() => {
+					setCommandConfirmed(true);
+				}}
+				onClose={() => {
+					searchParams.delete("command");
+					navigate({ search: searchParams.toString() }, { replace: true });
+				}}
+			/>
 		</ThemeOverride>
 	);
 };

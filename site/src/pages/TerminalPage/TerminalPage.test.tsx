@@ -1,4 +1,4 @@
-import { waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -180,5 +180,54 @@ describe("TerminalPage", () => {
 		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
+	});
+
+	it("shows confirmation dialog when command param is present", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
+		);
+		const dialog = screen.getByRole("dialog");
+		expect(dialog).toHaveTextContent("echo hello");
+		expect(
+			screen.getByRole("button", { name: "Run command" }),
+		).toBeInTheDocument();
+	});
+
+	it("does not show confirmation dialog when no command param", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+	});
+
+	it("executes command after confirmation", async () => {
+		const websocketProtocol =
+			window.location.protocol === "https:" ? "wss" : "ws";
+		const ws = new WS(
+			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&command=echo+hello&height=24&width=80`,
+		);
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
+		);
+		await userEvent.click(screen.getByRole("button", { name: "Run command" }));
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		// Verify the websocket connected and received a resize message.
+		const msg = await ws.nextMessage;
+		const resizeReq = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
+		expect(resizeReq.height).toBeGreaterThan(0);
+		expect(resizeReq.width).toBeGreaterThan(0);
+	});
+
+	it("removes command param on cancel", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
+		);
+		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 	});
 });
