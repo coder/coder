@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/object"
@@ -29,13 +30,41 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const titleGenerationPrompt = "Write a short title for the user's message. " +
-	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
-	"Do not answer the user or describe the title-writing task. " +
-	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
-	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
-	"Sentence case. No quotes, emoji, markdown, or trailing punctuation."
+// titleGenerationPrompt instructs the model to emit a keyword bag,
+// not a sentence. The first ~6 words of a chat title carry all the
+// visual scanability in the sidebar, so identifiers and domain
+// keywords must come first and generic framing verbs must be
+// dropped. renderManualTitlePrompt mirrors these rules for the
+// multi-turn manual-regeneration path; keep the two in sync when
+// editing either.
+const titleGenerationPrompt = "Write a short chat title as a bag of " +
+	"context-rich keywords, not a sentence. Populate the title field " +
+	"with the result.\n\n" +
+	"Rules:\n" +
+	"- 2-6 words. Fewer is better.\n" +
+	"- Lead with identifiers verbatim (issue keys, PR numbers, repo " +
+	"names, file paths, function names, error codes). Preserve their " +
+	"exact casing and punctuation.\n" +
+	"- After identifiers, add 1-3 keywords describing the subject or " +
+	"action. Prefer nouns and domain terms.\n" +
+	"- No filler: drop articles (a, an, the), conjunctions (and, or, " +
+	"but), and generic verbs (read, review, look, check, identify, " +
+	"find, fix, help, make, do, get, see, understand).\n" +
+	"- Not a sentence. No sentence case capitalization, no trailing " +
+	"punctuation, no quotes, no emoji, no markdown.\n" +
+	"- If the message is short or vague, stay close to the user's " +
+	"wording instead of inventing context.\n" +
+	"- Do not answer the user or describe the title-writing task.\n\n" +
+	"Examples:\n" +
+	"- User: \"Can you read FOOBAR-123 and identify a fix?\"\n" +
+	"  Title: FOOBAR-123 fix investigation\n" +
+	"- User: \"The frobulator in pkg/foo/bar.go keeps panicking on nil " +
+	"inputs\"\n" +
+	"  Title: pkg/foo/bar.go frobulator nil panic\n" +
+	"- User: \"help me understand how useEffect works in React\"\n" +
+	"  Title: React useEffect semantics\n" +
+	"- User: \"PR #4821 is failing CI on the windows runner\"\n" +
+	"  Title: PR #4821 windows CI failure"
 
 const (
 	// maxConversationContextRunes caps the conversation sample in manual
@@ -454,8 +483,14 @@ func validateGeneratedTitle(title string) error {
 	if title == "" {
 		return xerrors.New("generated title was empty")
 	}
-	if len(strings.Fields(title)) > 8 {
-		return xerrors.New("generated title exceeded 8 words")
+	// Rune count, not word count: the concept of a "word" is fuzzy
+	// across scripts (CJK has no spaces, agglutinative languages pack
+	// multiple tokens per "word"). 60 runes sits below the 80-rune
+	// truncation in normalizeTitleOutput so validation can actually
+	// fire and trigger the fallback-model retry cascade; truncation
+	// remains a last-resort safety net.
+	if utf8.RuneCountInString(title) > 60 {
+		return xerrors.New("generated title exceeded 60 runes")
 	}
 	return nil
 }
@@ -676,7 +711,8 @@ func renderManualTitlePrompt(
 		_, _ = prompt.WriteString(value)
 	}
 
-	write("Write a short title for this AI coding conversation.\n")
+	write("Write a short chat title as a bag of context-rich keywords, ")
+	write("not a sentence.\n")
 	write("Populate the title field with the result.\n\n")
 	write("Primary user objective:\n<primary_objective>\n")
 	write(firstUserText)
@@ -696,12 +732,21 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Return only the title text in 2-8 words.\n")
+	write("- 2-6 words. Fewer is better.\n")
 	write("- Populate the title field only.\n")
+	write("- Lead with identifiers verbatim (issue keys, PR numbers, ")
+	write("repo names, file paths, function names, error codes). ")
+	write("Preserve their exact casing and punctuation.\n")
+	write("- After identifiers, add 1-3 keywords describing the ")
+	write("subject or action. Prefer nouns and domain terms.\n")
+	write("- No filler: drop articles (a, an, the), conjunctions (and, ")
+	write("or, but), and generic verbs (read, review, look, check, ")
+	write("identify, find, fix, help, make, do, get, see, understand).\n")
+	write("- Not a sentence. No sentence case capitalization, no ")
+	write("trailing punctuation, no quotes, no emoji, no markdown.\n")
+	write("- If the conversation is short or vague, stay close to the ")
+	write("user's wording.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
-	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
-	write("- If the conversation is short or vague, stay close to the user's wording.\n")
-	write("- Sentence case. No quotes, emoji, markdown, or trailing punctuation.\n")
 	return prompt.String()
 }
 

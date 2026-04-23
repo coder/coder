@@ -331,7 +331,9 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "- 2-6 words. Fewer is better.")
+			require.Contains(t, prompt, "bag of context-rich keywords")
+			require.NotContains(t, prompt, "2-8 words")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 
@@ -357,10 +359,83 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
-	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
+	// Keyword-bag framing and filler-word ban.
+	require.Contains(t, titleGenerationPrompt, "bag of context-rich keywords")
+	require.Contains(t, titleGenerationPrompt, "No filler")
+
+	// Tightened word cap (soft guidance to the model; validator
+	// enforces a rune cap separately).
+	require.Contains(t, titleGenerationPrompt, "2-6 words")
+	require.NotContains(t, titleGenerationPrompt, "2-8 words")
+
+	// At least one few-shot example that mirrors the user's
+	// reference transformation, pinning the expected output shape.
+	require.Contains(t, titleGenerationPrompt, "FOOBAR-123")
+
+	// Preserved guidance.
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
+}
+
+func Test_validateGeneratedTitle(t *testing.T) {
+	t.Parallel()
+
+	// 60 runes exactly. Use ASCII so len == rune count.
+	sixtyRunes := strings.Repeat("a", 60)
+	sixtyOneRunes := strings.Repeat("a", 61)
+
+	tests := []struct {
+		name      string
+		title     string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "empty rejected",
+			title:     "",
+			wantErr:   true,
+			errSubstr: "empty",
+		},
+		{
+			name:    "short title accepted",
+			title:   "FOOBAR-123 fix investigation",
+			wantErr: false,
+		},
+		{
+			name:    "sixty runes accepted",
+			title:   sixtyRunes,
+			wantErr: false,
+		},
+		{
+			name:      "sixty one runes rejected",
+			title:     sixtyOneRunes,
+			wantErr:   true,
+			errSubstr: "60",
+		},
+		{
+			// Rune counting is script-agnostic: a short CJK title with
+			// no whitespace is fine even though strings.Fields would
+			// have treated it as a single word.
+			name:    "short CJK title accepted",
+			title:   "修复FOOBAR-123崩溃问题",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateGeneratedTitle(tt.title)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errSubstr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
