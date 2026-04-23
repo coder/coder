@@ -25,6 +25,8 @@ import {
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	mergeWatchedChatIntoCaches,
+	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
 	pinChat,
 	promoteChatQueuedMessage,
@@ -1889,6 +1891,158 @@ describe("updateChildInParentCache", () => {
 
 		expect(found).toBe(false);
 		expect(after).toBe(before);
+	});
+});
+
+describe("mergeWatchedChatSummary", () => {
+	it("merges fresh status updates without clobbering a newer title snapshot", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			title: "Fresh title",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Stale title",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+});
+
+describe("mergeWatchedChatIntoCaches", () => {
+	it("merges last_model_config_id into the root list cache and per-chat cache", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat(chatId, {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [cachedChat]);
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChat, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("merges last_model_config_id into the parent-embedded child snapshot and child cache", () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		const cachedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const parent = makeChat("parent-1", { children: [cachedChild] });
+		const watchedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [parent]);
+		queryClient.setQueryData(chatKey(childId), cachedChild);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChild, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0].children?.[0]).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(childId)),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("does not let an older watch payload clobber newer cached metadata", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const staleWatchChat = makeChat(chatId, {
+			status: "running",
+			title: "Stale title",
+			last_model_config_id: "model-old",
+			workspace_id: "workspace-old",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [cachedChat]);
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, staleWatchChat, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
 	});
 });
 

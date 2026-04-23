@@ -187,6 +187,132 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+type MergeWatchedChatOptions = {
+	readonly eventKind: TypesGen.ChatWatchEventKind;
+	readonly activeChatId?: string;
+};
+
+const diffStatusEqual = (
+	a: TypesGen.ChatDiffStatus | undefined,
+	b: TypesGen.ChatDiffStatus | undefined,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.url === b.url &&
+		a.pull_request_state === b.pull_request_state &&
+		a.pull_request_title === b.pull_request_title &&
+		a.pull_request_draft === b.pull_request_draft &&
+		a.changes_requested === b.changes_requested &&
+		a.additions === b.additions &&
+		a.deletions === b.deletions &&
+		a.changed_files === b.changed_files &&
+		a.pr_number === b.pr_number &&
+		a.approved === b.approved &&
+		a.commits === b.commits
+	);
+};
+
+export const mergeWatchedChatSummary = (
+	cachedChat: TypesGen.Chat,
+	watchedChat: TypesGen.Chat,
+	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+): TypesGen.Chat => {
+	const isTitleEvent = eventKind === "title_change";
+	const isStatusEvent = eventKind === "status_change";
+	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const isFreshEnough = cachedChat.updated_at <= watchedChat.updated_at;
+	const nextStatus =
+		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+	const nextTitle =
+		isFreshEnough && isTitleEvent ? watchedChat.title : cachedChat.title;
+	const nextDiffStatus =
+		isFreshEnough && isDiffStatusEvent
+			? watchedChat.diff_status
+			: cachedChat.diff_status;
+	const nextWorkspaceId = isFreshEnough
+		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
+		: cachedChat.workspace_id;
+	const nextBuildId = isFreshEnough
+		? (watchedChat.build_id ?? cachedChat.build_id)
+		: cachedChat.build_id;
+	const nextLastModelConfigId = isFreshEnough
+		? watchedChat.last_model_config_id
+		: cachedChat.last_model_config_id;
+	const nextHasUnread =
+		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+			? true
+			: cachedChat.has_unread;
+	const nextUpdatedAt =
+		cachedChat.updated_at > watchedChat.updated_at
+			? cachedChat.updated_at
+			: watchedChat.updated_at;
+
+	if (
+		nextStatus === cachedChat.status &&
+		nextTitle === cachedChat.title &&
+		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
+		nextWorkspaceId === cachedChat.workspace_id &&
+		nextBuildId === cachedChat.build_id &&
+		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextHasUnread === cachedChat.has_unread &&
+		nextUpdatedAt === cachedChat.updated_at
+	) {
+		return cachedChat;
+	}
+
+	return {
+		...cachedChat,
+		status: nextStatus,
+		title: nextTitle,
+		diff_status: nextDiffStatus,
+		workspace_id: nextWorkspaceId,
+		build_id: nextBuildId,
+		last_model_config_id: nextLastModelConfigId,
+		has_unread: nextHasUnread,
+		updated_at: nextUpdatedAt,
+	};
+};
+
+export const mergeWatchedChatIntoCaches = (
+	queryClient: QueryClient,
+	watchedChat: TypesGen.Chat,
+	options: MergeWatchedChatOptions,
+) => {
+	const mergeCachedChat = (cachedChat: TypesGen.Chat) =>
+		mergeWatchedChatSummary(cachedChat, watchedChat, options);
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let didUpdate = false;
+		const nextChats = chats.map((chat) => {
+			if (chat.id !== watchedChat.id) {
+				return chat;
+			}
+			const mergedChat = mergeCachedChat(chat);
+			if (mergedChat !== chat) {
+				didUpdate = true;
+			}
+			return mergedChat;
+		});
+		return didUpdate ? nextChats : chats;
+	});
+
+	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKey(watchedChat.id),
+		(cachedChat) => {
+			if (!cachedChat) {
+				return cachedChat;
+			}
+			return mergeCachedChat(cachedChat);
+		},
+	);
+};
+
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 	let maxPinOrder = 0;
 	const queries = queryClient.getQueriesData<
