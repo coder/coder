@@ -1,13 +1,12 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { TriangleAlertIcon } from "lucide-react";
+import { type FC, useId } from "react";
 import type {
 	AdvisorConfig,
 	ChatModelConfig,
 	UpdateAdvisorConfigRequest,
 } from "#/api/typesGenerated";
-
-type AdvisorReasoningEffort = "" | "low" | "medium" | "high";
-
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -20,6 +19,13 @@ import {
 } from "#/components/Select/Select";
 import { Switch } from "#/components/Switch/Switch";
 
+const nilUUID = "00000000-0000-0000-0000-000000000000";
+const advisorReasoningEfforts = ["", "low", "medium", "high"] as const;
+type AdvisorReasoningEffort = (typeof advisorReasoningEfforts)[number];
+const chatModelFallbackValue = "__use-chat-model__";
+const unavailableModelValue = "__unavailable-model__";
+const chatReasoningFallbackValue = "__use-chat-reasoning__";
+
 interface MutationCallbacks {
 	onSuccess?: () => void;
 	onError?: () => void;
@@ -28,6 +34,7 @@ interface MutationCallbacks {
 interface AdvisorSettingsProps {
 	advisorConfigData: AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
 	modelConfigs: readonly ChatModelConfig[];
 	modelConfigsError: unknown;
@@ -42,20 +49,14 @@ interface AdvisorSettingsProps {
 
 type AdvisorSettingsFormValues = {
 	enabled: boolean;
-	max_uses_per_run: number;
-	max_output_tokens: number;
+	max_uses_per_run: string;
+	max_output_tokens: string;
 	reasoning_effort: AdvisorReasoningEffort;
 	model_config_id: string;
 };
 
-const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
-const advisorReasoningEfforts = ["", "low", "medium", "high"] as const;
-const chatModelFallbackValue = "__use-chat-model__";
-const unavailableModelValue = "__unavailable-model__";
-const chatReasoningFallbackValue = "__use-chat-reasoning__";
-
 const isUnsetModelConfigId = (id: string): boolean =>
-	id === "" || id === ZERO_UUID;
+	id === "" || id === nilUUID;
 
 const isAdvisorReasoningEffort = (
 	value: string,
@@ -79,8 +80,12 @@ const normalizeAdvisorConfig = (
 	const reasoningEffort = config?.reasoning_effort ?? "";
 	return {
 		enabled: config?.enabled ?? false,
-		max_uses_per_run: normalizeNonNegativeInteger(config?.max_uses_per_run),
-		max_output_tokens: normalizeNonNegativeInteger(config?.max_output_tokens),
+		max_uses_per_run: String(
+			normalizeNonNegativeInteger(config?.max_uses_per_run),
+		),
+		max_output_tokens: String(
+			normalizeNonNegativeInteger(config?.max_output_tokens),
+		),
 		reasoning_effort: isAdvisorReasoningEffort(reasoningEffort)
 			? reasoningEffort
 			: "",
@@ -100,25 +105,27 @@ const toAdvisorConfigRequest = (
 	max_output_tokens: normalizeNonNegativeInteger(values.max_output_tokens),
 	reasoning_effort: values.reasoning_effort,
 	model_config_id: isUnsetModelConfigId(values.model_config_id)
-		? ZERO_UUID
+		? nilUUID
 		: values.model_config_id,
 });
+
+const isNonNegativeIntegerString = (value: string): boolean => {
+	if (value.trim() === "") {
+		return false;
+	}
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed >= 0 && Number.isInteger(parsed);
+};
 
 const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 	const errors: Partial<Record<keyof AdvisorSettingsFormValues, string>> = {};
 
-	if (
-		!Number.isInteger(values.max_uses_per_run) ||
-		values.max_uses_per_run < 0
-	) {
+	if (!isNonNegativeIntegerString(values.max_uses_per_run)) {
 		errors.max_uses_per_run =
 			"Max uses per run must be a non-negative integer.";
 	}
 
-	if (
-		!Number.isInteger(values.max_output_tokens) ||
-		values.max_output_tokens < 0
-	) {
+	if (!isNonNegativeIntegerString(values.max_output_tokens)) {
 		errors.max_output_tokens =
 			"Max output tokens must be a non-negative integer.";
 	}
@@ -146,6 +153,7 @@ const getReasoningEffortLabel = (value: AdvisorReasoningEffort): string => {
 export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	advisorConfigData,
 	isAdvisorConfigLoading,
+	isAdvisorConfigFetching,
 	isAdvisorConfigLoadError,
 	modelConfigs,
 	modelConfigsError,
@@ -154,6 +162,8 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
 }) => {
+	const maxUsesId = useId();
+	const maxOutputTokensId = useId();
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
 
@@ -173,10 +183,14 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	});
 
 	const isFormDisabled =
-		isSavingAdvisorConfig || isAdvisorConfigLoading || !hasLoadedAdvisorConfig;
+		isSavingAdvisorConfig ||
+		isAdvisorConfigLoading ||
+		isAdvisorConfigFetching ||
+		!hasLoadedAdvisorConfig;
 	const isModelSelectDisabled =
 		isFormDisabled || isLoadingModelConfigs || Boolean(modelConfigsError);
 	const hasUnavailableSelectedModel =
+		!isLoadingModelConfigs &&
 		!isUnsetModelConfigId(form.values.model_config_id) &&
 		!enabledModelConfigs.some(
 			(config) => config.id === form.values.model_config_id,
@@ -198,7 +212,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		: modelConfigsError
 			? isUnsetModelConfigId(form.values.model_config_id)
 				? "Model overrides are unavailable. Saving will keep using the chat model."
-				: "Model overrides are unavailable. Your current advisor model will be preserved on save."
+				: "Model overrides are unavailable. The current selection will be sent unchanged."
 			: "Choose a dedicated advisor model, or leave this unset to reuse the chat model.";
 
 	return (
@@ -207,6 +221,10 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				<h3 className="m-0 text-sm font-semibold text-content-primary">
 					Advisor
 				</h3>
+				<Badge size="sm" variant="warning" className="cursor-default">
+					<TriangleAlertIcon className="h-3 w-3" />
+					Experimental feature
+				</Badge>
 			</div>
 			<div className="flex items-center justify-between gap-4">
 				<div className="!mt-0.5 m-0 flex-1 space-y-2 text-xs text-content-secondary">
@@ -232,57 +250,46 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			{form.values.enabled && (
 				<div className="grid gap-4 rounded-lg border border-border bg-surface-secondary p-4 md:grid-cols-2">
 					<div className="space-y-1.5">
-						<Label
-							htmlFor="advisor-max-uses"
-							className="text-xs text-content-primary"
-						>
+						<Label htmlFor={maxUsesId} className="text-xs text-content-primary">
 							Max uses per run
 						</Label>
 						<Input
-							id="advisor-max-uses"
+							id={maxUsesId}
+							name="max_uses_per_run"
 							type="number"
 							min={0}
 							step={1}
 							inputMode="numeric"
 							aria-label="Max uses per run"
 							value={form.values.max_uses_per_run}
-							onChange={(event) =>
-								void form.setFieldValue(
-									"max_uses_per_run",
-									normalizeNonNegativeInteger(event.currentTarget.value),
-								)
-							}
+							onChange={form.handleChange}
 							onBlur={form.handleBlur}
 							aria-invalid={Boolean(form.errors.max_uses_per_run)}
 							disabled={isFormDisabled}
 							className="h-9 bg-surface-primary text-[13px]"
 						/>
 						<p className="m-0 text-xs text-content-secondary">
-							Set to 0 for unlimited advisor calls within a run.
+							Set to 0 to leave the per-run call count unlimited.
 						</p>
 					</div>
 
 					<div className="space-y-1.5">
 						<Label
-							htmlFor="advisor-max-output-tokens"
+							htmlFor={maxOutputTokensId}
 							className="text-xs text-content-primary"
 						>
 							Max output tokens
 						</Label>
 						<Input
-							id="advisor-max-output-tokens"
+							id={maxOutputTokensId}
+							name="max_output_tokens"
 							type="number"
 							min={0}
 							step={1}
 							inputMode="numeric"
 							aria-label="Max output tokens"
 							value={form.values.max_output_tokens}
-							onChange={(event) =>
-								void form.setFieldValue(
-									"max_output_tokens",
-									normalizeNonNegativeInteger(event.currentTarget.value),
-								)
-							}
+							onChange={form.handleChange}
 							onBlur={form.handleBlur}
 							aria-invalid={Boolean(form.errors.max_output_tokens)}
 							disabled={isFormDisabled}
@@ -325,7 +332,8 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 							</SelectContent>
 						</Select>
 						<p className="m-0 text-xs text-content-secondary">
-							Override the advisor's reasoning effort for nested runs.
+							Controls how hard the advisor model reasons before responding.
+							Leave unset to use the model's default.
 						</p>
 					</div>
 
@@ -335,12 +343,16 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 						</Label>
 						<Select
 							value={selectedModelValue}
-							onValueChange={(value) =>
-								void form.setFieldValue(
-									"model_config_id",
-									value === chatModelFallbackValue ? "" : value,
-								)
-							}
+							onValueChange={(value) => {
+								if (value === chatModelFallbackValue) {
+									void form.setFieldValue("model_config_id", "");
+									return;
+								}
+								if (value === unavailableModelValue) {
+									return;
+								}
+								void form.setFieldValue("model_config_id", value);
+							}}
 							disabled={isModelSelectDisabled}
 						>
 							<SelectTrigger

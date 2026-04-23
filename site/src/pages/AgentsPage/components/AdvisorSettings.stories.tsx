@@ -3,6 +3,8 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdvisorSettings } from "./AdvisorSettings";
 
+const nilUUID = "00000000-0000-0000-0000-000000000000";
+
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: "model-1",
@@ -56,6 +58,7 @@ const meta = {
 	args: {
 		advisorConfigData: defaultAdvisorConfig,
 		isAdvisorConfigLoading: false,
+		isAdvisorConfigFetching: false,
 		isAdvisorConfigLoadError: false,
 		modelConfigs: mockModelConfigs,
 		modelConfigsError: undefined,
@@ -173,6 +176,58 @@ export const Enabled: Story = {
 	},
 };
 
+export const SaveWithUseChatModel: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const maxUsesInput = await canvas.findByRole("spinbutton", {
+			name: /Max uses per run/i,
+		});
+
+		expect(
+			canvas.getByRole("combobox", { name: /Advisor model/i }),
+		).toHaveTextContent(/Use chat model/i);
+
+		await userEvent.clear(maxUsesInput);
+		await userEvent.type(maxUsesInput, "3");
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request.model_config_id).toBe(nilUUID);
+	},
+};
+
+export const NilUUIDInitialRoundTrip: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			model_config_id: nilUUID,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const advisorModelSelect = await canvas.findByRole("combobox", {
+			name: /Advisor model/i,
+		});
+
+		expect(advisorModelSelect).toHaveTextContent(/Use chat model/i);
+	},
+};
+
 export const CustomConfig: Story = {
 	args: {
 		advisorConfigData: {
@@ -200,6 +255,55 @@ export const CustomConfig: Story = {
 		expect(
 			canvas.getByRole("combobox", { name: /Advisor model/i }),
 		).toHaveTextContent(/Claude Sonnet 4/i);
+	},
+};
+
+export const UnavailableSelectedModel: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			model_config_id: "22222222-2222-2222-2222-222222222222",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const advisorModelSelect = await canvas.findByRole("combobox", {
+			name: /Advisor model/i,
+		});
+
+		expect(advisorModelSelect).toHaveTextContent(
+			/Unavailable model \(22222222-2222-2222-2222-222222222222\)/i,
+		);
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		advisorConfigData: undefined,
+		isAdvisorConfigLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByRole("switch", { name: /Enable advisor/i }),
+		).toBeDisabled();
+		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
+	},
+};
+
+export const LoadError: Story = {
+	args: {
+		advisorConfigData: undefined,
+		isAdvisorConfigLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText(/Failed to load advisor settings\./i),
+		).toBeInTheDocument();
 	},
 };
 

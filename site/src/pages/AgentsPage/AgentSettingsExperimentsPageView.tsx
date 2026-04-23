@@ -32,6 +32,7 @@ export interface AgentSettingsExperimentsPageViewProps {
 	isSaveDebugLoggingError: boolean;
 	advisorConfigData: TypesGen.AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
 	modelConfigsData: readonly TypesGen.ChatModelConfig[];
 	modelConfigsError: unknown;
@@ -57,6 +58,7 @@ export const AgentSettingsExperimentsPageView: FC<
 	isSaveDebugLoggingError,
 	advisorConfigData,
 	isAdvisorConfigLoading,
+	isAdvisorConfigFetching,
 	isAdvisorConfigLoadError,
 	modelConfigsData,
 	modelConfigsError,
@@ -80,6 +82,7 @@ export const AgentSettingsExperimentsPageView: FC<
 			<AdvisorSettings
 				advisorConfigData={advisorConfigData}
 				isAdvisorConfigLoading={isAdvisorConfigLoading}
+				isAdvisorConfigFetching={isAdvisorConfigFetching}
 				isAdvisorConfigLoadError={isAdvisorConfigLoadError}
 				modelConfigs={modelConfigsData}
 				modelConfigsError={modelConfigsError}

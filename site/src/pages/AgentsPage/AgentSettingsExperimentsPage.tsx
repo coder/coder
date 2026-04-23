@@ -1,7 +1,5 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatAdvisorConfig,
 	chatDebugLogging,
@@ -40,19 +38,9 @@ const AgentSettingsExperimentsPage: FC = () => {
 	const saveDebugLoggingMutation = useMutation(
 		updateChatDebugLogging(queryClient),
 	);
-	const advisorConfigMutationOptions = updateChatAdvisorConfig(queryClient);
-	const saveAdvisorConfigMutation = useMutation({
-		...advisorConfigMutationOptions,
-		onSuccess: async () => {
-			await advisorConfigMutationOptions.onSuccess?.();
-			toast.success("Advisor settings saved.");
-		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to save advisor settings."), {
-				description: getErrorDetail(error),
-			});
-		},
-	});
+	const saveAdvisorConfigMutation = useMutation(
+		updateChatAdvisorConfig(queryClient),
+	);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
@@ -67,6 +55,7 @@ const AgentSettingsExperimentsPage: FC = () => {
 				isSaveDebugLoggingError={saveDebugLoggingMutation.isError}
 				advisorConfigData={advisorConfigQuery.data}
 				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
+				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
 				isAdvisorConfigLoadError={advisorConfigQuery.isError}
 				modelConfigsData={modelConfigsQuery.data ?? []}
 				modelConfigsError={modelConfigsQuery.error}
