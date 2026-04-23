@@ -147,6 +147,8 @@ const TasksPage: FC = () => {
 							dismissible
 							onDismiss={() => {
 								updatePreferencesMutation.mutate({
+									thinking_display_mode: "auto",
+									...preferencesQuery.data,
 									task_notification_alert_dismissed: true,
 								});
 							}}

@@ -3,6 +3,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -17,6 +18,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { useThinkingDisplayMode } from "../../hooks/useThinkingDisplayMode";
 import {
 	ConversationItem,
 	Message,
@@ -25,7 +27,6 @@ import {
 	Shimmer,
 	Tool,
 } from "../ChatElements";
-
 import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
@@ -69,7 +70,37 @@ const ReasoningDisclosure = memo<{
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
 }>(({ id, text, isStreaming = false, urlTransform }) => {
-	const [expanded, setExpanded] = useState(false);
+	const { mode } = useThinkingDisplayMode();
+	const prevStreamingRef = useRef(isStreaming);
+	const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+
+	// Derive expanded state from mode and streaming status.
+	const autoExpanded = (() => {
+		switch (mode) {
+			case "always_expanded":
+				return true;
+			case "always_collapsed":
+				return false;
+			case "auto":
+			case "preview":
+				return isStreaming;
+		}
+	})();
+
+	const expanded = manualToggle ?? autoExpanded;
+
+	// Reset manual override when streaming state transitions, so
+	// auto/preview modes collapse when streaming stops.
+	useEffect(() => {
+		if (prevStreamingRef.current !== isStreaming) {
+			setManualToggle(null);
+			prevStreamingRef.current = isStreaming;
+		}
+	}, [isStreaming]);
+
+	const isPreviewConstrained =
+		mode === "preview" && isStreaming && manualToggle === null;
+
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -84,7 +115,7 @@ const ReasoningDisclosure = memo<{
 			<button
 				type="button"
 				aria-expanded={expanded}
-				onClick={() => setExpanded(!expanded)}
+				onClick={() => setManualToggle(!expanded)}
 				className={cn(
 					"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
 					"flex w-full items-center gap-1.5 cursor-pointer",
@@ -106,7 +137,12 @@ const ReasoningDisclosure = memo<{
 				)}
 			</button>
 			{expanded && hasText && (
-				<div className="mt-1 pl-5">
+				<div
+					className={cn(
+						"mt-1 pl-5",
+						isPreviewConstrained && "max-h-24 overflow-hidden",
+					)}
+				>
 					<Response
 						className="text-[11px] text-content-secondary"
 						urlTransform={urlTransform}

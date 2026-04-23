@@ -702,6 +702,7 @@ type sqlcQuerier interface {
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
@@ -1131,6 +1132,7 @@ type sqlcQuerier interface {
 	UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
+	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error

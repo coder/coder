@@ -7584,6 +7584,20 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/users.go
+export type ThinkingDisplayMode =
+	| "always_collapsed"
+	| "always_expanded"
+	| "auto"
+	| "preview";
+
+export const ThinkingDisplayModes: ThinkingDisplayMode[] = [
+	"always_collapsed",
+	"always_expanded",
+	"auto",
+	"preview",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -8017,6 +8031,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed: boolean;
+	readonly thinking_display_mode: ThinkingDisplayMode;
 }
 
 // From codersdk/users.go
@@ -8380,6 +8395,7 @@ export interface UserParameter {
 // From codersdk/users.go
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
+	readonly thinking_display_mode: ThinkingDisplayMode;
 }
 
 // From codersdk/deployment.go

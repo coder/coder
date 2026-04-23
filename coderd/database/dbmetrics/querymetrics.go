@@ -2864,6 +2864,14 @@ func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserThinkingDisplayMode(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserThinkingDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThinkingDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, arg)
@@ -5005,6 +5013,14 @@ func (m queryMetricsStore) UpdateUserThemePreference(ctx context.Context, arg da
 	r0, r1 := m.s.UpdateUserThemePreference(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserThemePreference").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThemePreference").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThinkingDisplayMode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThinkingDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThinkingDisplayMode").Inc()
 	return r0, r1
 }
 

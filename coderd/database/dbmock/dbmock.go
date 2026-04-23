@@ -5356,6 +5356,21 @@ func (mr *MockStoreMockRecorder) GetUserThemePreference(ctx, userID any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemePreference", reflect.TypeOf((*MockStore)(nil).GetUserThemePreference), ctx, userID)
 }
 
+// GetUserThinkingDisplayMode mocks base method.
+func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserThinkingDisplayMode", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserThinkingDisplayMode indicates an expected call of GetUserThinkingDisplayMode.
+func (mr *MockStoreMockRecorder) GetUserThinkingDisplayMode(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThinkingDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserThinkingDisplayMode), ctx, userID)
+}
+
 // GetUserWorkspaceBuildParameters mocks base method.
 func (m *MockStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	m.ctrl.T.Helper()
@@ -9433,6 +9448,21 @@ func (m *MockStore) UpdateUserThemePreference(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) UpdateUserThemePreference(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemePreference", reflect.TypeOf((*MockStore)(nil).UpdateUserThemePreference), ctx, arg)
+}
+
+// UpdateUserThinkingDisplayMode mocks base method.
+func (m *MockStore) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThinkingDisplayMode", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThinkingDisplayMode indicates an expected call of UpdateUserThinkingDisplayMode.
+func (mr *MockStoreMockRecorder) UpdateUserThinkingDisplayMode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThinkingDisplayMode", reflect.TypeOf((*MockStore)(nil).UpdateUserThinkingDisplayMode), ctx, arg)
 }
 
 // UpdateVolumeResourceMonitor mocks base method.

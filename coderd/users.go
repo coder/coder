@@ -1238,8 +1238,21 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user preference settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		thinkingMode = string(codersdk.ThinkingDisplayModeAuto)
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
+		ThinkingDisplayMode:            codersdk.ThinkingDisplayMode(thinkingMode),
 	})
 }
 
@@ -1264,6 +1277,17 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if params.ThinkingDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidThinkingDisplayModes, params.ThinkingDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid thinking display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "thinking_display_mode", Detail: "must be one of: auto, preview, always_expanded, always_collapsed"},
+			},
+		})
+		return
+	}
+
 	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
 		UserID:                         user.ID,
 		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
@@ -1276,8 +1300,25 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	thinkingMode := params.ThinkingDisplayMode
+	if thinkingMode == "" {
+		thinkingMode = codersdk.ThinkingDisplayModeAuto
+	}
+	updatedThinkingMode, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+		UserID:              user.ID,
+		ThinkingDisplayMode: string(thinkingMode),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating thinking display mode.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
+		ThinkingDisplayMode:            codersdk.ThinkingDisplayMode(updatedThinkingMode),
 	})
 }
 

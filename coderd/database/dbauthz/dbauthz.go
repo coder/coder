@@ -4396,6 +4396,17 @@ func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) 
 	return q.db.GetUserThemePreference(ctx, userID)
 }
 
+func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.GetUserThinkingDisplayMode(ctx, userID)
+}
+
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	u, err := q.db.GetUserByID(ctx, params.OwnerID)
 	if err != nil {
@@ -7009,6 +7020,17 @@ func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.Up
 		return database.UserConfig{}, err
 	}
 	return q.db.UpdateUserThemePreference(ctx, arg)
+}
+
+func (q *querier) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.UpdateUserThinkingDisplayMode(ctx, arg)
 }
 
 func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
