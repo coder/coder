@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -44,7 +45,20 @@ func testMsgV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) databas
 	}
 }
 
-func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
+func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) []fantasy.Message {
+	t.Helper()
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		messages,
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	return prompt
+}
+
+func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -98,7 +112,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+			prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 				{
 					Role:       database.ChatMessageRoleAssistant,
 					Visibility: database.ChatMessageVisibilityBoth,
@@ -110,7 +124,6 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 					Content:    toolContent,
 				},
 			})
-			require.NoError(t, err)
 			require.Len(t, prompt, 2)
 
 			require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
@@ -177,6 +190,171 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 	require.True(t, ok, "expected FilePart")
 	require.Equal(t, fileData, filePart.Data)
 	require.Equal(t, "image/png", filePart.MediaType)
+}
+
+func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mediaType    string
+		expectedText string
+	}{
+		{
+			name:      "missing image file",
+			mediaType: "image/png",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
+				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
+		},
+		{
+			name:         "generic mime omits mime sentence",
+			mediaType:    "application/octet-stream",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. If you need to inspect it, ask the user to re-upload.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fileID := uuid.New()
+			rawContent := mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "file",
+					"data": map[string]any{
+						"media_type": tt.mediaType,
+						"file_id":    fileID.String(),
+					},
+				}),
+			})
+			resolver := func(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+				return map[uuid.UUID]chatprompt.FileData{}, nil
+			}
+			prompt, err := chatprompt.ConvertMessagesWithFiles(
+				context.Background(),
+				[]database.ChatMessage{{
+					Role:       database.ChatMessageRoleUser,
+					Visibility: database.ChatMessageVisibilityBoth,
+					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+				}},
+				resolver,
+				slogtest.Make(t, nil),
+			)
+			require.NoError(t, err)
+			require.Len(t, prompt, 1)
+			require.Len(t, prompt[0].Content, 1)
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+			require.True(t, ok, "expected TextPart")
+			require.Equal(t, tt.expectedText, textPart.Text)
+		})
+	}
+}
+
+func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"file_id": fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      []byte{},
+					MediaType: "text/plain",
+					Name:      "empty.txt",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Empty(t, prompt)
+}
+
+func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
+	t.Parallel()
+
+	resolvedFileID := uuid.New()
+	missingFileID := uuid.New()
+	resolvedData := []byte("resolved-image-data")
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    resolvedFileID.String(),
+			},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "application/pdf",
+				"file_id":    missingFileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == resolvedFileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+					Name:      "resolved.png",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok, "expected missing second part to become a TextPart")
+	require.Equal(t,
+		"[missing-attachment] The user attached a file here, but the content has expired and is no longer available. "+
+			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
+		textPart.Text,
+	)
 }
 
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
@@ -286,7 +464,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_local",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"test"}`,
+			Input:      `{"type":"general","prompt":"test"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_websearch",
@@ -298,11 +476,11 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 
 	localResult := mustMarshalToolResult(t,
 		"toolu_local", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 
-	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 		{
 			Role:       database.ChatMessageRoleAssistant,
 			Visibility: database.ChatMessageVisibilityBoth,
@@ -314,7 +492,6 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 			Content:    localResult,
 		},
 	})
-	require.NoError(t, err)
 
 	// Expected: assistant + tool(local result). No synthetic error
 	// for the provider-executed tool call.
@@ -340,12 +517,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_agent x2 + web_search (PE).
+	// Step 1: assistant calls spawn_agent + legacy spawn_agent + web_search (PE).
 	step1Assistant := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_A",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"a"}`,
+			Input:      `{"type":"general","prompt":"a"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_B",
@@ -362,7 +539,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 
 	resultA := mustMarshalToolResult(t,
 		"toolu_A", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 	resultB := mustMarshalToolResult(t,
@@ -404,7 +581,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 		false, false, false,
 	)
 
-	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 		// Step 1
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: step1Assistant},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultA},
@@ -419,7 +596,6 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 			fantasy.TextContent{Text: "?"},
 		})},
 	})
-	require.NoError(t, err)
 
 	// Expected message sequence:
 	// [0] assistant [tool_use A, B, C(PE)]
@@ -492,13 +668,12 @@ func TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage(t *testing.T) {
 		false, false, true,
 	)
 
-	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: localResult},
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistant2Content},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
 	})
-	require.NoError(t, err)
 
 	// The PE-only tool message should be dropped entirely.
 	// Expected: assistant, tool(local), assistant(text)
@@ -537,13 +712,12 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 		fantasy.TextContent{Text: "Here is what I found."},
 	})
 
-	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
 		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
 			fantasy.TextContent{Text: "Thanks!"},
 		})},
 	})
-	require.NoError(t, err)
 
 	// Should be 2 messages: assistant + user.
 	require.Len(t, prompt, 2)
@@ -610,7 +784,7 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 		false, false, false,
 	)
 
-	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
 		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: execResult},
@@ -618,7 +792,6 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 			fantasy.TextContent{Text: "next"},
 		})},
 	})
-	require.NoError(t, err)
 
 	// The PE tool result should be dropped by injectMissingToolUses,
 	// leaving: assistant, tool(exec), user.
@@ -1144,6 +1317,55 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	require.Equal(t, "ephemeral", cc.Type)
 }
 
+func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"permission denied","detail":"nested payload"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "execute",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"error\":\"permission denied\",\"detail\":\"nested payload\"}"}`,
+		string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"message":"error"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"message\":\"error\"}"}`, string(sdkPart.Result))
+}
+
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles
 // handles a realistic post-deploy conversation where legacy and new
 // storage formats coexist.
@@ -1482,8 +1704,16 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             "nul-roundtrip-test",
@@ -1894,6 +2124,79 @@ func TestConvertMessagesWithFiles_IsSyntheticPaste(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T) {
+	t.Parallel()
+
+	userFileID := uuid.New()
+	assistantFileID := uuid.New()
+
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageFile(userFileID, "image/png", "user.png"),
+	})
+	require.NoError(t, err)
+
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("I attached logs above."),
+		codersdk.ChatMessageFile(assistantFileID, "text/plain", "agent.log"),
+	})
+	require.NoError(t, err)
+
+	var resolverCalls [][]uuid.UUID
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		resolverCalls = append(resolverCalls, append([]uuid.UUID(nil), ids...))
+		result := make(map[uuid.UUID]chatprompt.FileData, len(ids))
+		for _, id := range ids {
+			switch id {
+			case userFileID:
+				result[id] = chatprompt.FileData{
+					Name:      "user.png",
+					Data:      []byte("png-bytes"),
+					MediaType: "image/png",
+				}
+			case assistantFileID:
+				t.Fatalf("assistant attachment should not be resolved for prompt replay")
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{
+			{
+				Role:       database.ChatMessageRoleUser,
+				Visibility: database.ChatMessageVisibilityBoth,
+				Content:    userContent,
+			},
+			{
+				Role:       database.ChatMessageRoleAssistant,
+				Visibility: database.ChatMessageVisibilityBoth,
+				Content:    assistantContent,
+			},
+		},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, resolverCalls, 1)
+	require.Equal(t, []uuid.UUID{userFileID}, resolverCalls[0])
+	require.Len(t, prompt, 2)
+
+	userFilePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected resolved user file to stay in the prompt")
+	require.Equal(t, []byte("png-bytes"), userFilePart.Data)
+	require.Equal(t, "image/png", userFilePart.MediaType)
+
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[1].Role)
+	require.Len(t, prompt[1].Content, 1)
+	assistantText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[1].Content[0])
+	require.True(t, ok, "expected assistant text to remain after attachment omission")
+	require.Equal(t, "I attached logs above.", assistantText.Text)
+
+	_, hasAssistantFilePart := fantasy.AsMessagePart[fantasy.FilePart](prompt[1].Content[0])
+	require.False(t, hasAssistantFilePart, "assistant attachments should not be replayed into the prompt")
+}
+
 func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData chatprompt.FileData) []fantasy.Message {
 	t.Helper()
 
@@ -1942,6 +2245,11 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "anthropic",
@@ -1981,7 +2289,9 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		t.Helper()
 
 		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
 			Title:             "media-roundtrip-" + callID,
@@ -2073,6 +2383,103 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
 		require.Equal(t, imageData, mediaOutput.Data)
 		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+
+	t.Run("MediaResultCarriesPromotedAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-promoted"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-00Z.png"
+
+		attachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    attachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			Data             string `json:"data"`
+			MimeType         string `json:"mime_type"`
+			Text             string `json:"text"`
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, imageData, persisted.Data)
+		require.Equal(t, mimeType, persisted.MimeType)
+		require.Equal(t, attachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
+
+		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{sdkPart})
+
+		prompt := loadPrompt(t, chat)
+		require.Len(t, prompt, 2)
+
+		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		require.True(t, ok, "expected ToolResultPart")
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
+		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
+		require.Equal(t, imageData, mediaOutput.Data)
+		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+	t.Run("MediaResultUsesMatchingAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-matching-attachment"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-01Z.png"
+
+		mismatchedAttachmentID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+		matchingAttachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-ffffffffffff")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    mismatchedAttachmentID,
+				MediaType: "application/pdf",
+				Name:      "report.pdf",
+			},
+			chattool.AttachmentMetadata{
+				FileID:    matchingAttachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, matchingAttachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
 	})
 
 	t.Run("MediaResultWithText", func(t *testing.T) {

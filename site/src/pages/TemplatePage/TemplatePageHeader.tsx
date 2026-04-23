@@ -2,7 +2,7 @@ import {
 	CopyIcon,
 	DownloadIcon,
 	EditIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	PlusIcon,
 	SettingsIcon,
 	TrashIcon,
@@ -31,7 +31,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Margins } from "#/components/Margins/Margins";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -102,7 +102,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<ShadcnButton size="icon-lg" variant="subtle" aria-label="Open menu">
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Open menu</span>
 					</ShadcnButton>
 				</DropdownMenuTrigger>

@@ -4,6 +4,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -11,10 +12,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `document`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.AuthenticateResponse
 
@@ -34,6 +36,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -41,10 +44,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `encoding`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -90,15 +94,17 @@
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `json_web_token` | string | true     |              |             |
+| Name             | Type   | Required | Restrictions | Description                                                                                                                                      |
+|------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `json_web_token` | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.Log
 
@@ -431,6 +437,7 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
@@ -455,6 +462,16 @@
     "base_url": "string",
     "key": "string"
   },
+  "providers": [
+    {
+      "base_url": "string",
+      "bedrock_model": "string",
+      "bedrock_region": "string",
+      "bedrock_small_fast_model": "string",
+      "name": "string",
+      "type": "string"
+    }
+  ],
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
@@ -464,23 +481,25 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                          |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
+| Name                                | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                 |
+|-------------------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).                                                       |
+| `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_max_requests`      | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `circuit_breaker_timeout`           | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `enabled`                           | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `inject_coder_mcp_tools`            | boolean                                                                     | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
+| `max_concurrency`                   | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)              | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIBridgeProviderConfig](#codersdkaibridgeproviderconfig) | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `retention`                         | integer                                                                     | false    |              |                                                                                                                                                                             |
+| `send_actor_headers`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
+| `structured_logging`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
 
 ## codersdk.AIBridgeInterception
 
@@ -671,6 +690,7 @@
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
       "last_prompt": "string",
       "metadata": {
         "property1": null,
@@ -732,6 +752,30 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeProviderConfig
+
+```json
+{
+  "base_url": "string",
+  "bedrock_model": "string",
+  "bedrock_region": "string",
+  "bedrock_small_fast_model": "string",
+  "name": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type   | Required | Restrictions | Description                                                                                |
+|----------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                     |
+| `bedrock_model`            | string | false    |              |                                                                                            |
+| `bedrock_region`           | string | false    |              |                                                                                            |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                            |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
+| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
+
 ## codersdk.AIBridgeProxyConfig
 
 ```json
@@ -781,6 +825,7 @@
     "name": "string",
     "username": "string"
   },
+  "last_active_at": "2019-08-24T14:15:22Z",
   "last_prompt": "string",
   "metadata": {
     "property1": null,
@@ -811,6 +856,7 @@
 | `ended_at`            | string                                                                                 | false    |              |             |
 | `id`                  | string                                                                                 | false    |              |             |
 | `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_active_at`      | string                                                                                 | false    |              |             |
 | `last_prompt`         | string                                                                                 | false    |              |             |
 | `metadata`            | object                                                                                 | false    |              |             |
 | » `[any property]`    | any                                                                                    | false    |              |             |
@@ -1210,6 +1256,7 @@
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
@@ -1234,13 +1281,24 @@
       "base_url": "string",
       "key": "string"
     },
+    "providers": [
+      {
+        "base_url": "string",
+        "bedrock_model": "string",
+        "bedrock_region": "string",
+        "bedrock_small_fast_model": "string",
+        "name": "string",
+        "type": "string"
+      }
+    ],
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
     "structured_logging": true
   },
   "chat": {
-    "acquire_batch_size": 0
+    "acquire_batch_size": 0,
+    "debug_logging_enabled": true
   }
 }
 ```
@@ -2021,15 +2079,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "acquire_batch_size": 0
+  "acquire_batch_size": 0,
+  "debug_logging_enabled": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size` | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer | false    |              |             |
+| `debug_logging_enabled` | boolean | false    |              |             |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -3231,6 +3291,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -3255,13 +3316,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "providers": [
+          {
+            "base_url": "string",
+            "bedrock_model": "string",
+            "bedrock_region": "string",
+            "bedrock_small_fast_model": "string",
+            "name": "string",
+            "type": "string"
+          }
+        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
       },
       "chat": {
-        "acquire_batch_size": 0
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -3809,6 +3881,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"
@@ -3833,13 +3906,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "providers": [
+        {
+          "base_url": "string",
+          "bedrock_model": "string",
+          "bedrock_region": "string",
+          "bedrock_small_fast_model": "string",
+          "name": "string",
+          "type": "string"
+        }
+      ],
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
       "structured_logging": true
     },
     "chat": {
-      "acquire_batch_size": 0
+      "acquire_batch_size": 0,
+      "debug_logging_enabled": true
     }
   },
   "allow_workspace_renames": true,
@@ -4553,9 +4637,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                            |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                |
+|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7121,6 +7205,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -7787,6 +7872,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -7896,6 +7982,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
+  "workspace_build_transition": "start",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -7903,15 +7990,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                    | Type   | Required | Restrictions | Description |
-|-------------------------|--------|----------|--------------|-------------|
-| `template_display_name` | string | false    |              |             |
-| `template_icon`         | string | false    |              |             |
-| `template_id`           | string | false    |              |             |
-| `template_name`         | string | false    |              |             |
-| `template_version_name` | string | false    |              |             |
-| `workspace_id`          | string | false    |              |             |
-| `workspace_name`        | string | false    |              |             |
+| Name                         | Type                                                         | Required | Restrictions | Description |
+|------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `template_display_name`      | string                                                       | false    |              |             |
+| `template_icon`              | string                                                       | false    |              |             |
+| `template_id`                | string                                                       | false    |              |             |
+| `template_name`              | string                                                       | false    |              |             |
+| `template_version_name`      | string                                                       | false    |              |             |
+| `workspace_build_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition) | false    |              |             |
+| `workspace_id`               | string                                                       | false    |              |             |
+| `workspace_name`             | string                                                       | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -8402,9 +8490,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat`, `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -8467,6 +8555,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -10014,6 +10103,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -11404,6 +11494,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -12562,6 +12653,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -13394,6 +13486,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
+            "workspace_build_transition": "start",
             "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
             "workspace_name": "string"
           },

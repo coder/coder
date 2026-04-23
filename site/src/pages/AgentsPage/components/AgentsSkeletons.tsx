@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
+import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
 /** localStorage keys shared with the agents panel components. */
 const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -126,9 +127,11 @@ export const RightPanelSkeleton: FC = () => (
  * the real AgentChatInput so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
-const ChatInputSkeleton: FC = () => (
+const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 	<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-		<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
+		<div
+			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
+		>
 			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
@@ -147,6 +150,7 @@ const ChatInputSkeleton: FC = () => (
  */
 export const AgentChatPageSkeleton: FC = () => {
 	const rightPanel = getRightPanelState();
+	const [chatFullWidth] = useChatFullWidth();
 
 	return (
 		<div
@@ -165,12 +169,17 @@ export const AgentChatPageSkeleton: FC = () => {
 				</div>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="px-4">
-						<div className="mx-auto w-full max-w-3xl py-6">
+						<div
+							className={cn(
+								"mx-auto w-full py-6",
+								chatWidthClass(chatFullWidth),
+							)}
+						>
 							<ChatConversationSkeleton />
 						</div>
 					</div>
 				</div>
-				<ChatInputSkeleton />
+				<ChatInputSkeleton fullWidth={chatFullWidth} />
 			</div>
 			{rightPanel.open && (
 				<div

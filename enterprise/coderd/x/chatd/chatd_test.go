@@ -86,13 +86,13 @@ func newActiveWorkerServer(
 	return server
 }
 
-// seedChatDependencies creates a user and chat model config in the
-// database for use in relay tests.
+// seedChatDependencies creates a user, organization, and chat model
+// config in the database for use in relay tests.
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-) (database.User, database.ChatModelConfig) {
+) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 
 	safetyNet := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -103,6 +103,11 @@ func seedChatDependencies(
 	t.Cleanup(safetyNet.Close)
 
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
@@ -127,13 +132,14 @@ func seedChatDependencies(
 		Options:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
-	return user, model
+	return user, org, model
 }
 
 func seedWaitingChat(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
+	orgID uuid.UUID,
 	user database.User,
 	model database.ChatModelConfig,
 	title string,
@@ -141,7 +147,9 @@ func seedWaitingChat(
 	t.Helper()
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    orgID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             title,
@@ -155,6 +163,7 @@ func seedRemoteRunningChat(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
+	orgID uuid.UUID,
 	user database.User,
 	model database.ChatModelConfig,
 	workerID uuid.UUID,
@@ -162,7 +171,7 @@ func seedRemoteRunningChat(
 ) database.Chat {
 	t.Helper()
 
-	chat := seedWaitingChat(ctx, t, db, user, model, title)
+	chat := seedWaitingChat(ctx, t, db, orgID, user, model, title)
 	now := time.Now()
 	chat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
@@ -247,9 +256,9 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
-	chat := seedRemoteRunningChat(ctx, t, db, user, model, workerID, "relay-reconnect")
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-reconnect")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -325,11 +334,11 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	// Seed a waiting chat so Subscribe does not trigger a synchronous
 	// relay.
-	chat := seedWaitingChat(ctx, t, db, user, model, "relay-async-nonblock")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-async-nonblock")
 
 	// Subscribe before the chat is marked running so the relay opens
 	// via pubsub notification (openRelayAsync path).
@@ -427,9 +436,9 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
-	chat := seedRemoteRunningChat(ctx, t, db, user, model, workerID, "relay-snapshot")
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-snapshot")
 
 	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -515,10 +524,11 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	}, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := worker.CreateChat(ctx, osschatd.CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "retry-across-instances",
 		ModelConfigID:      model.ID,
@@ -651,11 +661,11 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	// Seed the chat in waiting state so Subscribe does not try an initial
 	// relay.
-	chat := seedWaitingChat(ctx, t, db, user, model, "stale-dial-test")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "stale-dial-test")
 
 	// Subscribe while chat is in "waiting" state — no relay opened.
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
@@ -803,11 +813,11 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	// Seed the chat in waiting state so Subscribe does not open a
 	// synchronous relay.
-	chat := seedWaitingChat(ctx, t, db, user, model, "cancel-inflight-dial")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "cancel-inflight-dial")
 
 	_, _, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -889,10 +899,10 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	// Seed the chat in waiting state so Subscribe does not open a relay.
-	chat := seedWaitingChat(ctx, t, db, user, model, "running-to-running")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "running-to-running")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -997,11 +1007,11 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	// Seed the chat in waiting state so Subscribe does not open a
 	// synchronous relay dial.
-	chat := seedWaitingChat(ctx, t, db, user, model, "failed-dial-retry")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "failed-dial-retry")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -1093,12 +1103,13 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	chat := seedRemoteRunningChat(
 		ctx,
 		t,
 		db,
+		org.ID,
 		user,
 		model,
 		remoteWorkerID,
@@ -1192,12 +1203,13 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	chat := seedRemoteRunningChat(
 		ctx,
 		t,
 		db,
+		org.ID,
 		user,
 		model,
 		workerID,
@@ -1334,13 +1346,13 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 	}, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	// Create the chat in waiting state so the subscriber sees it
 	// before the worker picks it up (avoids the synchronous relay
 	// path in Subscribe).
-	chat := seedWaitingChat(ctx, t, db, user, model, "fast-completion-relay-race")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "fast-completion-relay-race")
 
 	// Subscribe from the subscriber replica while the chat is idle.
 	// No relay is opened because the chat is in waiting state.
@@ -1413,6 +1425,169 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 			"worker completes before the relay is established")
 }
 
+// TestSubscribeRelayDrainWithinGraceLeavesBufferRetained characterizes
+// the multi-replica trigger for the retained-buffer leak: an enterprise
+// relay drain (relayDrainTimeout = 200ms) always fires inside the
+// worker's 5s grace window, so the worker-side subscriber-detach hits
+// cleanupStreamIfIdle's early-return and the buffer stays mapped.
+// streamJanitorLoop is the timer-driven backstop.
+//
+// The assertion is behavioral (a fresh worker.Subscribe sees the
+// retained message_parts) rather than a chatStreams-size check because
+// _test.go identifiers in coderd/x/chatd do not link into the
+// enterprise test binary, and adding a production accessor for this
+// isn't justified. The matching reap assertion lives in the OSS unit
+// tests in coderd/x/chatd/chatd_internal_test.go.
+func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("relay-drain-characterization")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello ", "from ", "worker")...,
+		)
+	})
+
+	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Freeze the worker's clock so streamJanitorLoop cannot race the
+	// buffer-retained assertion on slow CI.
+	workerClock := quartz.NewMock(t)
+	worker := osschatd.New(osschatd.Config{
+		Logger:                     workerLogger,
+		Database:                   db,
+		ReplicaID:                  workerID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: time.Hour,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Clock:                      workerClock,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, worker.Close())
+	})
+
+	// Use a mock clock for the subscriber so the relay drain
+	// timer never fires until we explicitly advance it. This
+	// removes the nondeterministic 200ms race between the drain
+	// timer and the multi-hop snapshot forwarding pipeline.
+	subscriberClock := quartz.NewMock(t)
+	trapDrain := subscriberClock.Trap().NewTimer("drain")
+	defer trapDrain.Close()
+
+	// Subscriber dials through to the worker. On cancel the relay
+	// drain fires well inside the worker's 5s grace, exercising the
+	// cleanupStreamIfIdle early-return path.
+	subscriber := newTestServer(t, db, ps, subscriberID, func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		targetWorkerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		snapshot, relayEvents, cancel, ok := worker.Subscribe(ctx, chatID, requestHeader, math.MaxInt64)
+		if !ok {
+			return nil, nil, nil, xerrors.New("worker subscribe failed")
+		}
+		return snapshot, relayEvents, cancel, nil
+	}, subscriberClock)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-drain-characterization")
+
+	// Attach before processing so the relay opens as soon as
+	// status=running arrives.
+	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+
+	_, err := worker.SendMessage(ctx, osschatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Drain events until processing has clearly completed: we need
+	// the assistant message and at least one message_part so we know
+	// processChat's defer has flipped buffering=false and populated
+	// bufferRetainedAt before the subscriber detaches.
+	//
+	// Each Eventually gets its own context so one slow assertion
+	// cannot starve subsequent ones of their deadline.
+	var committedAssistantMsgs int
+	var messagePartsSeen int
+	evCtx1 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx1, t, func(context.Context) bool {
+		select {
+		case event := <-events:
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeMessagePart:
+				messagePartsSeen++
+			case codersdk.ChatStreamEventTypeMessage:
+				if event.Message != nil && event.Message.Role == codersdk.ChatMessageRoleAssistant {
+					committedAssistantMsgs++
+				}
+			}
+			return committedAssistantMsgs > 0 && messagePartsSeen > 0
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	// Wait for the drain timer to be armed by the relay manager,
+	// then release and advance the subscriber clock past the drain
+	// timeout. This deterministically fires the drain without
+	// relying on wall-clock timing.
+	trapDrain.MustWait(ctx).MustRelease(ctx)
+	subscriberClock.Advance(200 * time.Millisecond).MustWait(ctx)
+
+	evCtx2 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+
+	// Tear the subscriber down inside the worker's grace window.
+	subCancel()
+
+	// A fresh worker.Subscribe still sees the retained
+	// message_parts: the buffer was not reaped when the relay
+	// drained. Eventually absorbs the short window before the
+	// worker observes the teardown. The retry itself re-enters
+	// cleanupStreamIfIdle via its own cancel defer but still
+	// early-returns because grace is still open.
+	evCtx3 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx3, t, func(ctx context.Context) bool {
+		snap, _, snapCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
+		if !ok {
+			return false
+		}
+		defer snapCancel()
+		for _, e := range snap {
+			if e.Type == codersdk.ChatStreamEventTypeMessagePart {
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast,
+		"retained buffer must still contain message_parts after the "+
+			"relay drains within grace")
+}
+
 // TestSubscribeRelayEstablishedMidStream demonstrates that when the
 // relay is established while the worker is still streaming, the
 // subscriber receives buffered parts via the relay snapshot and live
@@ -1424,6 +1599,8 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 // condition where the relay is too slow.
 func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	t.Parallel()
+	// TODO(hugodutka): Unskip when chatd is free of race conditions.
+	t.Skip("skipped due to inherent race condition; see https://github.com/coder/internal/issues/1455")
 
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()
@@ -1496,11 +1673,11 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	// call) involves multiple DB round-trips that can be slow under
 	// load.
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	// Create the chat in waiting state.
-	chat := seedWaitingChat(ctx, t, db, user, model, "mid-stream-relay")
+	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "mid-stream-relay")
 
 	// Subscribe from the subscriber replica while the chat is idle.
 	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)

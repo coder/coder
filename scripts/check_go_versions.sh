@@ -3,7 +3,8 @@
 # This script ensures that the same version of Go is referenced in all of the
 # following files:
 # - go.mod
-# - dogfood/coder/Dockerfile
+# - dogfood/coder/ubuntu-22.04/Dockerfile
+# - dogfood/coder/ubuntu-26.04/Dockerfile
 # - flake.nix
 # - .github/actions/setup-go/action.yml
 # The version of Go in go.mod is considered the source of truth.
@@ -18,18 +19,23 @@ cdroot
 IGNORE_NIX=${IGNORE_NIX:-false}
 
 GO_VERSION_GO_MOD=$(grep -Eo 'go [0-9]+\.[0-9]+\.[0-9]+' ./go.mod | cut -d' ' -f2)
-GO_VERSION_DOCKERFILE=$(grep -Eo 'ARG GO_VERSION=[0-9]+\.[0-9]+\.[0-9]+' ./dogfood/coder/Dockerfile | cut -d'=' -f2)
+GO_VERSION_DOCKERFILE_2204=$(grep -Eo 'ARG GO_VERSION=[0-9]+\.[0-9]+\.[0-9]+' ./dogfood/coder/ubuntu-22.04/Dockerfile | cut -d'=' -f2)
+GO_VERSION_DOCKERFILE_2604=$(grep -Eo 'ARG GO_VERSION=[0-9]+\.[0-9]+\.[0-9]+' ./dogfood/coder/ubuntu-26.04/Dockerfile | cut -d'=' -f2)
 GO_VERSION_SETUP_GO=$(yq '.inputs.version.default' .github/actions/setup-go/action.yaml)
 GO_VERSION_FLAKE_NIX=$(grep -Eo '\bgo_[0-9]+_[0-9]+\b' ./flake.nix)
 # Convert to major.minor format.
 GO_VERSION_FLAKE_NIX_MAJOR_MINOR=$(echo "$GO_VERSION_FLAKE_NIX" | cut -d '_' -f 2-3 | tr '_' '.')
 log "INFO : go.mod                   : $GO_VERSION_GO_MOD"
-log "INFO : dogfood/coder/Dockerfile : $GO_VERSION_DOCKERFILE"
+log "INFO : dogfood/coder/ubuntu-22.04/Dockerfile : $GO_VERSION_DOCKERFILE_2204"
+log "INFO : dogfood/coder/ubuntu-26.04/Dockerfile : $GO_VERSION_DOCKERFILE_2604"
 log "INFO : setup-go/action.yaml     : $GO_VERSION_SETUP_GO"
 log "INFO : flake.nix                : $GO_VERSION_FLAKE_NIX_MAJOR_MINOR"
 
-if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_DOCKERFILE" ]; then
-	error "Go version mismatch between go.mod and dogfood/coder/Dockerfile:"
+if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_DOCKERFILE_2204" ]; then
+	error "Go version mismatch between go.mod and dogfood/coder/ubuntu-22.04/Dockerfile:"
+fi
+if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_DOCKERFILE_2604" ]; then
+	error "Go version mismatch between go.mod and dogfood/coder/ubuntu-26.04/Dockerfile:"
 fi
 
 if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_SETUP_GO" ]; then

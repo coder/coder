@@ -21,6 +21,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatTokenCount } from "#/utils/analytics";
 import { formatCostMicros } from "#/utils/currency";
+import { paginateItems } from "#/utils/paginateItems";
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
@@ -95,25 +96,19 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	}
 
 	const modelPageSize = 10;
-	const modelMaxPage = Math.max(
-		1,
-		Math.ceil(summary.by_model.length / modelPageSize),
-	);
-	const clampedModelPage = Math.min(modelPage, modelMaxPage);
-	const pagedModels = summary.by_model.slice(
-		(clampedModelPage - 1) * modelPageSize,
-		clampedModelPage * modelPageSize,
-	);
+	const {
+		pagedItems: pagedModels,
+		clampedPage: clampedModelPage,
+		hasPreviousPage: hasModelPrev,
+		hasNextPage: hasModelNext,
+	} = paginateItems(summary.by_model, modelPageSize, modelPage);
 	const chatPageSize = 10;
-	const chatMaxPage = Math.max(
-		1,
-		Math.ceil(summary.by_chat.length / chatPageSize),
-	);
-	const clampedChatPage = Math.min(chatPage, chatMaxPage);
-	const pagedChats = summary.by_chat.slice(
-		(clampedChatPage - 1) * chatPageSize,
-		clampedChatPage * chatPageSize,
-	);
+	const {
+		pagedItems: pagedChats,
+		clampedPage: clampedChatPage,
+		hasPreviousPage: hasChatPrev,
+		hasNextPage: hasChatNext,
+	} = paginateItems(summary.by_chat, chatPageSize, chatPage);
 
 	const usageLimit = summary.usage_limit;
 	const showUsageLimitCard = usageLimit?.is_limited === true;
@@ -333,10 +328,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									currentPage={clampedModelPage}
 									pageSize={modelPageSize}
 									onPageChange={setModelPage}
-									hasPreviousPage={clampedModelPage > 1}
-									hasNextPage={
-										clampedModelPage * modelPageSize < summary.by_model.length
-									}
+									hasPreviousPage={hasModelPrev}
+									hasNextPage={hasModelNext}
 								/>
 							</div>
 						)}
@@ -403,10 +396,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									currentPage={clampedChatPage}
 									pageSize={chatPageSize}
 									onPageChange={setChatPage}
-									hasPreviousPage={clampedChatPage > 1}
-									hasNextPage={
-										clampedChatPage * chatPageSize < summary.by_chat.length
-									}
+									hasPreviousPage={hasChatPrev}
+									hasNextPage={hasChatNext}
 								/>
 							</div>
 						)}

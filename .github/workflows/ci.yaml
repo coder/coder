@@ -74,9 +74,13 @@ jobs:
               - "**.gotpl"
               - "Makefile"
               - "site/static/error.html"
+              # Icon and theme files tested by Go (scripts/gensite):
+              - "site/static/icon/**"
+              - "site/src/theme/**"
               # Main repo directories for completeness in case other files are
               # touched:
               - "agent/**"
+              - "aibridge/**"
               - "cli/**"
               - "cmd/**"
               - "coderd/**"
@@ -102,7 +106,7 @@ jobs:
               - "scripts/helm.sh"
             ci:
               - ".github/actions/**"
-              - ".github/workflows/ci.yaml"
+              - ".github/workflows/**"
             offlinedocs:
               - "offlinedocs/**"
             tailnet-integration:
@@ -175,7 +179,7 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
           ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"

@@ -17,6 +17,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -46,6 +47,11 @@ const OrganizationMembersPage: FC = () => {
 	const membersQuery = usePaginatedQuery(
 		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
+	const filterProps = useFilter({
+		searchParams: searchParamsResult[0],
+		onSearchParamsChange: searchParamsResult[1],
+		onUpdate: membersQuery.goToFirstPage,
+	});
 
 	const members = membersQuery.data?.members.map(
 		(member: OrganizationMemberWithUserData) => {
@@ -93,6 +99,7 @@ const OrganizationMembersPage: FC = () => {
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
 				canViewMembers={organizationPermissions.viewMembers}
+				filterProps={{ filter: filterProps }}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
@@ -101,14 +108,18 @@ const OrganizationMembersPage: FC = () => {
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
-				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
 				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
-				addMember={async (user: User) => {
-					await addMemberMutation.mutateAsync(user.id);
+				addMembers={async (users: User[]) => {
+					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
+					// to add all users in a single request instead of N individual calls.
+					// See branch jakehwll/devex-112-organizations-batch-endpoint.
+					await Promise.all(
+						users.map((user) => addMemberMutation.mutateAsync(user.id)),
+					);
 					void membersQuery.refetch();
 				}}
 				removeMember={setMemberToDelete}

@@ -91,6 +91,19 @@ define atomic_write
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 endef
 
+# CLI doc generation reflects over the assembled CLI tree. Track command
+# definitions plus the top-level SDK types they expose in help text and flag
+# values, without pulling in unrelated generated sources.
+CLIDOC_SRC_FILES := \
+	$(shell find ./cli ./enterprise/cli -type f -name '*.go' -not -name '*_test.go') \
+	$(wildcard codersdk/*.go) \
+	$(wildcard buildinfo/*.go)
+
+CLIDOCGEN_INPUTS := \
+	$(wildcard scripts/clidocgen/*.go) \
+	scripts/clidocgen/command.tpl \
+	$(CLIDOC_SRC_FILES)
+
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
 # target so parallel -j builds serialize correctly instead of
@@ -108,7 +121,9 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
-_gen/bin/clidocgen: $(wildcard scripts/clidocgen/*.go) | _gen
+# clidocgen reflects over the full CLI tree, so it must rebuild when its
+# command definitions, flag types, or embedded template change.
+_gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
@@ -136,7 +151,7 @@ _gen/bin/metricsdocgen-scanner: $(wildcard scripts/metricsdocgen/scanner/*.go) |
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen/scanner
 
-_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) | _gen
+_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
 
@@ -684,11 +699,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
 .PHONY: lint-light
 
 lint/site-icons:
@@ -703,9 +718,10 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
 lint/examples: | _gen/bin/examplegen
@@ -721,6 +737,10 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 lint/bootstrap:
 	bash scripts/check_bootstrap_quotes.sh
 .PHONY: lint/bootstrap
+
+lint/emdash:
+	bash scripts/check_emdash.sh
+.PHONY: lint/emdash
 
 
 lint/helm:
@@ -856,6 +876,7 @@ pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
 	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
 	echo "test + build site:"
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
@@ -1189,7 +1210,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | _gen _gen/bin/clidocgen
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \

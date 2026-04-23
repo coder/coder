@@ -164,7 +164,7 @@ export const TextAttachment: Story = {
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const textCard = await canvas.findByRole("button", {
-			name: "View text attachment",
+			name: "View clipboard.txt",
 		});
 		expect(textCard).toHaveTextContent(/This is the pasted text content\./i);
 		await userEvent.click(textCard);
@@ -207,7 +207,7 @@ export const ThreeTextAttachments: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findAllByRole("button", { name: "View text attachment" }),
+			await canvas.findAllByRole("button", { name: /View paste-[1-3]\.txt/ }),
 		).toHaveLength(3);
 		expect(
 			canvas.getByText(
@@ -269,7 +269,7 @@ export const MixedImageAndText: Story = {
 			await canvas.findByRole("img", { name: "photo.png" }),
 		).toBeInTheDocument();
 		expect(
-			canvas.getByRole("button", { name: "View text attachment" }),
+			canvas.getByRole("button", { name: "View clipboard.txt" }),
 		).toBeInTheDocument();
 	},
 };

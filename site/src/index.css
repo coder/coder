@@ -48,7 +48,7 @@
 		--border-magenta: 295, 68%, 46%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
-		--border-hover: 240 5% 34%;
+		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
@@ -80,12 +80,12 @@
 		  intentionally generic so they match shadcn conventions.
 		  Do NOT rename without updating every consumer.
 		*/
-		--background: 0 0% 98%;
-		--foreground: 240 10% 4%;
-		--muted: 240 5% 96%;
-		--muted-foreground: 240 5% 34%;
-		--primary: 221 83% 53%;
-		--primary-foreground: 0 0% 98%;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
@@ -121,7 +121,7 @@
 		--border-destructive: 0 91% 71%;
 		--border-sky: 194 90% 62%;
 		--border-green: 143 77% 87%;
-		--border-hover: 240, 5%, 34%;
+		--border-secondary: 240 5% 26%;
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;
@@ -147,56 +147,12 @@
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
 		/* shadcn-compatible aliases – see :root block for details. */
-		--background: 240 10% 4%;
-		--foreground: 0 0% 98%;
-		--muted: 240 6% 10%;
-		--muted-foreground: 240 5% 65%;
-		--primary: 213 94% 68%;
-		--primary-foreground: 240 10% 4%;
-	}
-}
-
-@layer components {
-	/* Map each stripe variant to a color token so the
-	   pseudo-element rules can stay DRY. */
-	.navbar-stripe-devel {
-		--stripe-color: var(--content-warning);
-	}
-
-	.navbar-stripe-rc {
-		--stripe-color: var(--border-sky);
-	}
-
-	/* Thin stripe bars at the top and bottom edges of the
-	   navbar. Using pseudo-elements keeps the stripes out of
-	   the content area so nav links stay readable. */
-	.navbar-stripe-devel::before,
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::before,
-	.navbar-stripe-rc::after {
-		content: "";
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: repeating-linear-gradient(
-			-45deg,
-			transparent,
-			transparent 4px,
-			hsl(var(--stripe-color) / 0.5) 4px,
-			hsl(var(--stripe-color) / 0.5) 8px
-		);
-		pointer-events: none;
-	}
-
-	.navbar-stripe-devel::before,
-	.navbar-stripe-rc::before {
-		top: 0;
-	}
-
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::after {
-		bottom: 0;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
 	}
 }
 

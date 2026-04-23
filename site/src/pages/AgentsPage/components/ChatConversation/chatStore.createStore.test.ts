@@ -191,6 +191,27 @@ describe("setChatStatus", () => {
 });
 
 // ---------------------------------------------------------------------------
+// setStreamState
+// ---------------------------------------------------------------------------
+
+describe("setStreamState", () => {
+	it("does not notify when setting the same stream state reference", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "hello" });
+		const streamState = store.getSnapshot().streamState;
+		expect(streamState).not.toBeNull();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+
+		store.setStreamState(streamState);
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // setStreamError / clearStreamError
 // ---------------------------------------------------------------------------
 
@@ -216,6 +237,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
 		});
 
 		let notified = false;
@@ -225,6 +247,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
 		});
 
 		expect(notified).toBe(false);

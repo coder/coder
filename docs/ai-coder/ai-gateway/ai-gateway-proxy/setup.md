@@ -80,8 +80,18 @@ See [Proxy TLS Configuration](#proxy-tls-configuration) for configuration steps.
 
 ### Restricting proxy access
 
-Requests to non-allowlisted domains are tunneled through the proxy without restriction.
+Requests to non-allowlisted domains are tunneled through the proxy, but connections to private and reserved IP ranges are blocked by default.
+The IP validation and TCP connect happen atomically, preventing DNS rebinding attacks where the resolved address could change between the check and the connection.
 To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
+
+In case the Coder access URL resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach its own deployment.
+If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server.md#--aibridge-proxy-allowed-private-cidrs)):
+
+```shell
+CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS=10.0.0.0/8,172.16.0.0/12
+# or via CLI flag:
+--aibridge-proxy-allowed-private-cidrs=10.0.0.0/8,172.16.0.0/12
+```
 
 ## CA Certificate
 
@@ -239,6 +249,11 @@ MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then co
 To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the Coder server process.
 
 <!-- TODO(ssncferreira): Add diagram showing how AI Gateway Proxy integrates with upstream proxies -->
+
+> [!NOTE]
+> When an upstream proxy is configured, AI Gateway Proxy validates the destination IP before forwarding the request.
+> However, the upstream proxy re-resolves DNS independently, so a small DNS rebinding window exists between the validation and the actual connection.
+> Ensure your upstream proxy enforces its own restrictions on private and reserved IP ranges.
 
 ### Configuration
 

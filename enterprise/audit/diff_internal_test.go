@@ -369,6 +369,29 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// Chat titles can contain sensitive content, so they must be
+			// masked in audit diffs via ActionSecret. This case guards
+			// against a regression where title is flipped back to
+			// ActionTrack in enterprise/audit/table.go.
+			name: "TitleMasked",
+			left: audit.Empty[database.Chat](),
+			right: database.Chat{
+				ID:          uuid.UUID{1},
+				OwnerID:     uuid.UUID{2},
+				WorkspaceID: uuid.NullUUID{UUID: uuid.UUID{3}, Valid: true},
+				Title:       "a very secret chat title",
+			},
+			exp: audit.Map{
+				"id":           audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"workspace_id": audit.OldNew{Old: "null", New: uuid.UUID{3}.String()},
+				"title":        audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "Create",
 			left: audit.Empty[database.WorkspaceTable](),
 			right: database.WorkspaceTable{

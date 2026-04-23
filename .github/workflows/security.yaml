@@ -63,3 +63,79 @@ jobs:
             --data "{\"content\": \"$msg\"}" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
+  osv-scanner:
+    permissions:
+      security-events: write
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.25.9"
+          cache: false
+
+      - name: Install OSV-Scanner
+        run: go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.5
+
+      - name: Pull released Coder image
+        env:
+          IMAGE_REF: ghcr.io/coder/coder:latest
+        run: docker pull "$IMAGE_REF"
+
+      - name: Run OSV-Scanner vulnerability scanner
+        id: scan
+        env:
+          IMAGE_REF: ghcr.io/coder/coder:latest
+        run: |
+          set +e
+          osv-scanner scan image "$IMAGE_REF" \
+            --format sarif \
+            --output-file osv-results.sarif
+          scan_exit_code=$?
+          set -e
+
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${scan_exit_code}" -eq 0 ]]; then
+            exit 0
+          fi
+
+          if [[ "${scan_exit_code}" -eq 1 ]]; then
+            echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
+            echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            exit 0
+          fi
+
+          echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
+          exit "${scan_exit_code}"
+
+      - name: Upload OSV-Scanner scan results to GitHub Security tab
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
+        with:
+          sarif_file: osv-results.sarif
+          category: "OSV-Scanner"
+
+      - name: Upload OSV-Scanner scan results as an artifact
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: osv-scanner
+          path: osv-results.sarif
+          retention-days: 7
+
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ OSV-Scanner Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"

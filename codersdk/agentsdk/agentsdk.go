@@ -101,6 +101,15 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
+// Manifest is the workspace agent's view of its own configuration.
+//
+// Secrets are intentionally not a field on this struct. The manifest
+// may be serialized (JSON, %+v, logger fields, debug endpoints) in
+// many places that do not and should not carry secret values.
+// Keeping Secrets off of the struct makes leaking them impossible
+// via any code path that only holds a *Manifest. Callers that need
+// secrets must load them explicitly via SecretsFromProto on the raw
+// proto.
 type Manifest struct {
 	ParentID  uuid.UUID `json:"parent_id"`
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -126,6 +135,16 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+}
+
+// WorkspaceSecret is a user secret for injection into a workspace.
+//
+// Value carries decrypted secret material and is omitted from JSON
+// serialization to protect against future leaking of the secret.
+type WorkspaceSecret struct {
+	EnvName  string
+	FilePath string
+	Value    []byte `json:"-"`
 }
 
 type LogSource struct {
@@ -463,6 +482,33 @@ type FixedSessionTokenProvider struct {
 
 func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
 	return nil
+}
+
+// InstanceIdentityConfig holds optional configuration for cloud
+// instance-identity authentication.
+type InstanceIdentityConfig struct {
+	AgentName string
+}
+
+// InstanceIdentityOption configures instance-identity authentication.
+type InstanceIdentityOption func(*InstanceIdentityConfig)
+
+// WithInstanceIdentityAgentName sets the agent name selector sent with
+// the instance-identity authentication request.
+func WithInstanceIdentityAgentName(name string) InstanceIdentityOption {
+	return func(c *InstanceIdentityConfig) {
+		c.AgentName = name
+	}
+}
+
+// applyInstanceIdentityOptions applies the given options and returns
+// the resulting configuration.
+func applyInstanceIdentityOptions(opts []InstanceIdentityOption) InstanceIdentityConfig {
+	var cfg InstanceIdentityConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return cfg
 }
 
 func WithFixedToken(token string) SessionTokenSetup {

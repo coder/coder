@@ -1,5 +1,4 @@
-import Skeleton from "@mui/material/Skeleton";
-import { Container, ExternalLinkIcon } from "lucide-react";
+import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -26,6 +25,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -184,7 +184,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				bg-surface-primary px-2
 				text-xs text-content-secondary"
 			>
-				<Container size={12} className="mr-1.5" />
+				<ContainerIcon size={12} className="mr-1.5" />
 				{devcontainer.subagent_id ? (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -374,18 +374,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showSubAgentAppsPlaceholders && (
 						<section className={appsClasses}>
-							<Skeleton
-								width={80}
-								height={32}
-								variant="rectangular"
-								className="rounded"
-							/>
-							<Skeleton
-								width={110}
-								height={32}
-								variant="rectangular"
-								className="rounded"
-							/>
+							<Skeleton width={80} height={32} className="rounded" />
+							<Skeleton width={110} height={32} className="rounded" />
 						</section>
 					)}
 				</div>

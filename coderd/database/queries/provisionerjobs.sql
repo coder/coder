@@ -195,7 +195,8 @@ SELECT
 	w.id AS workspace_id,
 	COALESCE(w.name, '') AS workspace_name,
 	-- Include the name of the provisioner_daemon associated to the job
-	COALESCE(pd.name, '') AS worker_name
+	COALESCE(pd.name, '') AS worker_name,
+	wb.transition as workspace_build_transition
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -240,7 +241,8 @@ GROUP BY
 	t.icon,
 	w.id,
 	w.name,
-	pd.name
+	pd.name,
+	wb.transition
 ORDER BY
 	pj.created_at DESC
 LIMIT

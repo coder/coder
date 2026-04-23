@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -70,6 +71,16 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 				if api.aibridgedHandler == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
+					})
+					return
+				}
+
+				// Reject BYOK requests when the deployment has not
+				// enabled bring-your-own-key mode.
+				if agplaibridge.IsBYOK(r.Header) && !bridgeCfg.AllowBYOK.Value() {
+					httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+						Message: "Bring Your Own Key (BYOK) mode is not enabled.",
+						Detail:  "Contact your administrator to enable it with --aibridge-allow-byok.",
 					})
 					return
 				}

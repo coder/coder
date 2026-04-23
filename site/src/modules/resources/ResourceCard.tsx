@@ -4,7 +4,7 @@ import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,

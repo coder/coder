@@ -50,7 +50,7 @@ interface TemplateEmbedPageViewProps {
 	templateParameters?: TemplateVersionParameter[];
 }
 
-const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+const deploymentUrl = `${location.protocol}//${location.host}`;
 
 function getClipboardCopyContent(
 	templateName: string,

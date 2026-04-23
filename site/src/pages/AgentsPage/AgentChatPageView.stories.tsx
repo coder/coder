@@ -5,7 +5,11 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -40,6 +44,7 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	id: AGENT_ID,
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",
@@ -51,7 +56,9 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
+	children: [],
 	...overrides,
 });
 
@@ -108,12 +115,12 @@ type StoryProps = Omit<
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const props = {
 		agentId: AGENT_ID,
+		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		store: createChatStore(),
-		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -131,13 +138,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		diffStatusData: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["diffStatusData"],
+		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		canOpenEditors: false,
-		canOpenWorkspace: false,
 		sshCommand: undefined as string | undefined,
-		handleOpenInEditor: fn(),
-		handleViewWorkspace: fn(),
-		handleOpenTerminal: fn(),
 		handleCommit: fn(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
@@ -214,7 +217,7 @@ export const WithError: Story = {
 		<StoryAgentChatPageView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded.",
+				message: "Anthropic is temporarily overloaded (HTTP 529).",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -227,11 +230,10 @@ export const WithError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is currently overloaded\./i),
+			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByText(/http 529/i)).toBeVisible();
 	},
 };
 
@@ -362,15 +364,82 @@ export const NoModelOptions: Story = {
 	),
 };
 
-/** Top bar has workspace action buttons visible. */
-export const WithWorkspaceActions: Story = {
+export const WithWorkspace: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canOpenEditors
-			canOpenWorkspace
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
 			sshCommand="ssh coder.workspace"
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Workspace status pill stories
+// ---------------------------------------------------------------------------
+
+export const WorkspaceAgentStarting: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "starting",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentCreated: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "created",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentReady: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "ready",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_error",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceAgentStartTimeout: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				lifecycle_state: "start_timeout",
+			}}
+		/>
+	),
+};
+
+export const WorkspaceNoAgent: Story = {
+	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
 };
 
 // ---------------------------------------------------------------------------
@@ -501,22 +570,6 @@ export const EditingMessage: Story = {
 				editingMessageId: 3,
 				editorInitialValue: "Now tell me a joke",
 			}}
-		/>
-	),
-};
-
-/** The saving state while an edit is in progress — shows the pending
- *  indicator on the message being saved. */
-export const EditingSaving: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a better joke",
-			}}
-			pendingEditMessageId={3}
-			isSubmissionPending
 		/>
 	),
 };

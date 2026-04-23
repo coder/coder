@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
@@ -6,7 +12,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { asNumber, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -17,50 +22,28 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
-	typeof data === "object" &&
-	data !== null &&
-	"type" in data &&
-	typeof (data as Record<string, unknown>).type === "string";
-
-const isChatStreamEventArray = (
-	data: unknown,
-): data is TypesGen.ChatStreamEvent[] =>
-	Array.isArray(data) && data.every(isChatStreamEvent);
-
-const toChatStreamEvents = (data: unknown): TypesGen.ChatStreamEvent[] => {
-	if (isChatStreamEvent(data)) {
-		return [data];
-	}
-	if (isChatStreamEventArray(data)) {
-		return data;
-	}
-	return [];
-};
-
 const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | Record<string, unknown> | undefined,
-): ChatDetailError => ({
-	message: asString(error?.message).trim() || "Chat processing failed.",
-	kind: asString(error?.kind).trim() || "generic",
-	provider: asString(error?.provider).trim() || undefined,
-	retryable:
-		typeof error?.retryable === "boolean" ? error.retryable : undefined,
-	statusCode: asNumber(error?.status_code),
-});
-
-const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => {
-	const delayMs = asNumber(retry.delay_ms);
-	const retryingAt = asString(retry.retrying_at).trim() || undefined;
+	error: TypesGen.ChatStreamError | undefined,
+): ChatDetailError => {
+	const detail = error?.detail?.trim();
 	return {
-		attempt: Math.max(1, asNumber(retry.attempt) ?? 1),
-		error: asString(retry.error).trim() || "Retrying request shortly.",
-		kind: asString(retry.kind).trim() || "generic",
-		provider: asString(retry.provider).trim() || undefined,
-		...(delayMs !== undefined ? { delayMs } : {}),
-		...(retryingAt ? { retryingAt } : {}),
+		message: error?.message.trim() || "Chat processing failed.",
+		kind: error?.kind?.trim() || "generic",
+		provider: error?.provider?.trim() || undefined,
+		retryable: error?.retryable,
+		statusCode: error?.status_code,
+		...(detail ? { detail } : {}),
 	};
 };
+
+const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
+	attempt: Math.max(1, retry.attempt),
+	error: retry.error.trim() || "Retrying request shortly.",
+	kind: retry.kind?.trim() || "generic",
+	provider: retry.provider?.trim() || undefined,
+	delayMs: retry.delay_ms,
+	retryingAt: retry.retrying_at.trim() || undefined,
+});
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	state.streamError === null &&
@@ -158,7 +141,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -199,6 +182,7 @@ export const useChatStore = (
 				};
 			});
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -233,10 +217,9 @@ export const useChatStore = (
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				// Only classify a store-held ID as stale if it was
 				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (by the WS
-				// handler or handleSend) are new, not stale, and
-				// must not trigger the destructive replaceMessages
-				// path.
+				// added to the store after the last sync (for example
+				// by the WS handler) are new, not stale, and must not
+				// trigger the destructive replaceMessages path.
 				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
@@ -419,7 +402,7 @@ export const useChatStore = (
 		};
 
 		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
+			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 		) => {
 			if (disposed) {
 				return;
@@ -431,11 +414,8 @@ export const useChatStore = (
 				});
 				return;
 			}
-			if (payload.parsedMessage.type !== "data") {
-				return;
-			}
 
-			const streamEvents = toChatStreamEvents(payload.parsedMessage.data);
+			const streamEvents = payload.parsedMessage;
 			if (streamEvents.length === 0) {
 				return;
 			}
@@ -657,7 +637,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {

@@ -516,6 +516,23 @@ func TestIsRetryableError(t *testing.T) {
 			assert.Equal(t, tt.retryable, isRetryableError(tt.err))
 		})
 	}
+
+	// net.Dialer.Timeout produces *net.OpError that matches both
+	// IsConnectionError and context.DeadlineExceeded. Verify it is retryable.
+	t.Run("DialTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now())
+		defer cancel()
+		<-ctx.Done() // ensure deadline has fired
+		_, err := (&net.Dialer{}).DialContext(ctx, "tcp", "127.0.0.1:1")
+		require.Error(t, err)
+		// Proves the ambiguity: this error matches BOTH checks.
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorAs(t, err, new(*net.OpError))
+		assert.True(t, isRetryableError(err))
+		// Also when wrapped, as runCoderConnectStdio does.
+		assert.True(t, isRetryableError(xerrors.Errorf("dial coder connect: %w", err)))
+	})
 }
 
 func TestRetryWithInterval(t *testing.T) {

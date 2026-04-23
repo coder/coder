@@ -121,6 +121,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const baseChatFields = {
+	organization_id: "test-org-id",
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
@@ -131,7 +132,9 @@ const baseChatFields = {
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
+	children: [],
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -198,14 +201,6 @@ const buildQueries = (
 	];
 };
 
-/**
- * Wrap a chat stream event payload in the JSON string format that
- * OneWayWebSocket expects when receiving a WebSocket message event.
- * The result is a `ServerSentEvent` of type `"data"` serialised to JSON.
- */
-const wrapSSE = (payload: unknown): string =>
-	JSON.stringify({ type: "data", data: payload });
-
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -236,6 +231,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
@@ -616,6 +612,45 @@ export const Loading: Story = {
 	},
 };
 
+export const PlanModeFromChatState: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Plan mode persists",
+				status: "completed",
+				plan_mode: "plan",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+
+		expect(await canvas.findByText("Planning")).toBeVisible();
+
+		await user.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1);
+		if (!toggle) {
+			throw new Error("Plan mode toggle did not render.");
+		}
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+		await user.click(toggle);
+
+		await waitFor(() => {
+			expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
+		});
+	},
+};
+
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
 	beforeEach: () => {
@@ -647,11 +682,13 @@ export const CompletedWithDiffPanel: Story = {
 		// Verify menu items are rendered.
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Open in Cursor")).toBeInTheDocument();
+			expect(body.getByText("Archive Agent")).toBeInTheDocument();
 		});
-		expect(body.getByText("Open in VS Code")).toBeInTheDocument();
-		expect(body.getByText("View Workspace")).toBeInTheDocument();
-		expect(body.getByText("Archive Agent")).toBeInTheDocument();
+		// Workspace items moved to the workspace pill popover.
+		expect(body.queryByText("Open in Cursor")).not.toBeInTheDocument();
+		expect(body.queryByText("Open in VS Code")).not.toBeInTheDocument();
+		expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
+		expect(body.queryByText("Copy SSH Command")).not.toBeInTheDocument();
 	},
 };
 
@@ -794,6 +831,130 @@ export const WithComputerUseAgent: Story = {
 	},
 };
 
+export const WithMixedSubagentTranscript: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Mixed subagent transcript",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								tool_call_id: "legacy-spawn",
+								tool_name: "spawn_agent",
+								args: { title: "Legacy helper" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "legacy-spawn",
+								tool_name: "spawn_agent",
+								result: {
+									chat_id: "legacy-child",
+									title: "Legacy helper",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "unified-spawn",
+								tool_name: "spawn_agent",
+								args: { type: "explore" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "unified-spawn",
+								tool_name: "spawn_agent",
+								result: {
+									chat_id: "explore-child",
+									type: "explore",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "unified-wait",
+								tool_name: "wait_agent",
+								args: { chat_id: "explore-child" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "unified-wait",
+								tool_name: "wait_agent",
+								result: {
+									chat_id: "explore-child",
+									type: "explore",
+									status: "completed",
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "legacy-close",
+								tool_name: "close_agent",
+								args: { chat_id: "legacy-child" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "legacy-close",
+								tool_name: "close_agent",
+								result: {
+									chat_id: "legacy-child",
+									type: "general",
+									status: "completed",
+								},
+							},
+						],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Legacy helper") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getAllByText(/Legacy helper/).length,
+			).toBeGreaterThanOrEqual(2);
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Spawned") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByText(
+					(_content, element) =>
+						element?.tagName === "SPAN" &&
+						element.textContent?.includes("Waited for") === true &&
+						element.textContent?.includes("Explore agent") === true,
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 /** Completed reasoning part renders inline. */
 export const WithReasoningInline: Story = {
 	parameters: {
@@ -856,17 +1017,20 @@ export const StreamedSubagentTitle: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						message_part: {
-							part: {
-								type: "tool-call",
-								tool_call_id: "tool-subagent-stream-1",
-								tool_name: "spawn_agent",
-								args_delta: '{"title":"Streamed Child"',
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "tool-subagent-stream-1",
+									tool_name: "spawn_agent",
+									args_delta: '{"title":"Streamed Child"',
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1150,15 +1314,18 @@ export const StreamedReasoning: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						message_part: {
-							part: {
-								type: "reasoning",
-								text: "Streaming reasoning body",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming reasoning body",
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},
@@ -1230,18 +1397,20 @@ export const WithWaitAgentComputerUseVNC: Story = {
 			"/chats/": [
 				{
 					event: "message",
-					data: wrapSSE({
-						type: "message_part",
-						chat_id: CHAT_ID,
-						message_part: {
-							part: {
-								type: "tool-call",
-								tool_call_id: "tool-wait-desktop",
-								tool_name: "wait_agent",
-								args_delta: '{"chat_id":"desktop-child-1"}',
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "tool-wait-desktop",
+									tool_name: "wait_agent",
+									args_delta: '{"chat_id":"desktop-child-1"}',
+								},
 							},
 						},
-					}),
+					] satisfies TypesGen.ChatStreamEvent[]),
 				},
 			],
 		},

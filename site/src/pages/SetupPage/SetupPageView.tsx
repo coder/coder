@@ -73,11 +73,14 @@ const validationSchema = Yup.object({
 	}),
 });
 
+// Keep in sync with cli/login.go (developerBuckets).
 const numberOfDevelopersOptions = [
-	"1-100",
-	"101-500",
-	"501-1000",
-	"1001-2500",
+	"1 - 50",
+	"51 - 100",
+	"101 - 200",
+	"201 - 500",
+	"501 - 1000",
+	"1001 - 2500",
 	"2500+",
 ];
 

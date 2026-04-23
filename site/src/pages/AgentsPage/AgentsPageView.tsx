@@ -6,6 +6,7 @@ import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
+	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -24,6 +25,7 @@ export interface AgentsOutletContext {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle?: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -61,7 +63,9 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRegenerateTitle: (chatId: string) => Promise<string>;
+	onProposeTitle: (chatId: string) => Promise<string>;
+	onRenameTitle: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
@@ -98,6 +102,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
 	onRegenerateTitle,
+	onProposeTitle,
+	onRenameTitle,
 	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
@@ -112,10 +118,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	// Mobile can't fit the sidebar nav and content side by side,
 	// so we show one or the other depending on the route depth.
-	const isSettingsIndex =
-		sidebarView.panel === "settings" && !sidebarView.section;
-	const isSettingsDetail =
-		sidebarView.panel === "settings" && Boolean(sidebarView.section);
+	const isSettingsPanel = isSettingsView(sidebarView);
+	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
+	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isAnalytics = sidebarView.panel === "analytics";
 
 	// The sidebar expects plain string error messages, but the outlet
@@ -139,7 +144,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		onRegenerateTitle,
+		onRegenerateTitle: (chatId: string) => {
+			onRegenerateTitle(chatId).catch(() => {});
+		},
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -174,7 +181,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onReorderPinnedAgent={requestReorderPinnedAgent}
-					onRegenerateTitle={onRegenerateTitle}
+					onRenameTitle={onRenameTitle}
+					onProposeTitle={onProposeTitle}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}

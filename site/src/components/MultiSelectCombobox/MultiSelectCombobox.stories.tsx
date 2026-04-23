@@ -31,11 +31,43 @@ export const Default: Story = {};
 export const OpenCombobox: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByPlaceholderText("Select organization"));
+		const input = canvas.getByPlaceholderText("Select organization");
+		await userEvent.click(input);
 
-		await waitFor(() =>
-			expect(canvas.getByText("My Organization")).toBeInTheDocument(),
-		);
+		// Both options should be visible initially.
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("option", { name: "My Organization" }),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByRole("option", { name: "My Organization 2" }),
+			).toBeInTheDocument();
+		});
+
+		// Type a display name to filter — this verifies cmdk filters
+		// by label rather than by the underlying UUID value.
+		await userEvent.type(input, "My Organization 2");
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("option", { name: "My Organization 2" }),
+			).toBeInTheDocument();
+			expect(
+				canvas.queryByRole("option", { name: /^My Organization$/ }),
+			).not.toBeInTheDocument();
+		});
+
+		// Clear the search and confirm both options reappear.
+		await userEvent.clear(input);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("option", { name: "My Organization" }),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByRole("option", { name: "My Organization 2" }),
+			).toBeInTheDocument();
+		});
 	},
 };
 

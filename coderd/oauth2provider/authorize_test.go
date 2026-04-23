@@ -1,6 +1,7 @@
 package oauth2provider_test
 
 import (
+	htmltemplate "html/template"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +21,7 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 
 	site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
 		AppName:     "Test OAuth App",
-		CancelURI:   "https://coder.com/cancel",
+		CancelURI:   htmltemplate.URL("https://coder.com/cancel"),
 		RedirectURI: "https://coder.com/oauth2/authorize?client_id=test",
 		CSRFToken:   csrfFieldValue,
 		Username:    "test-user",

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/aisdk-go"
@@ -59,6 +60,22 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	}).WithAgent().Do()
 
 	return userClient, r.Workspace, r.AgentToken
+}
+
+type recordingAgentConnFunc struct {
+	conn    workspacesdk.AgentConn
+	err     error
+	agentID uuid.UUID
+	calls   int
+}
+
+func (d *recordingAgentConnFunc) AgentConn(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	d.calls++
+	d.agentID = agentID
+	if d.err != nil {
+		return nil, nil, d.err
+	}
+	return d.conn, nil, nil
 }
 
 // These tests are dependent on the state of the coder server.
@@ -595,6 +612,115 @@ func TestTools(t *testing.T) {
 				IsDir: false,
 			},
 		}, res.Contents)
+	})
+
+	t.Run("WorkspaceToolsUseInjectedAgentConnFunc", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		ws, err := client.Workspace(t.Context(), workspace.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, ws.LatestBuild.Resources)
+		require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+		sentinelErr := xerrors.New("injected agent connection function used")
+
+		tests := []struct {
+			name string
+			run  func(t *testing.T, tb toolsdk.Deps) error
+		}{
+			{
+				name: "WorkspaceLS",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceReadFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceWriteFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Content:   []byte("hello from agent connection function"),
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Edits: []workspacesdk.FileEdit{{
+							Search:  "hello",
+							Replace: "goodbye",
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFiles",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+						Workspace: workspace.Name,
+						Files: []workspacesdk.FileEdits{{
+							Path: "/tmp/file",
+							Edits: []workspacesdk.FileEdit{{
+								Search:  "hello",
+								Replace: "goodbye",
+							}},
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceBash",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+						Workspace: workspace.Name,
+						Command:   "echo hello",
+					})
+					return err
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				agentConnFn := &recordingAgentConnFunc{err: sentinelErr}
+				tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentConnFunc(agentConnFn.AgentConn))
+				require.NoError(t, err)
+
+				err = tt.run(t, tb)
+				require.ErrorIs(t, err, sentinelErr)
+				require.ErrorContains(t, err, "failed to dial agent")
+				require.Equal(t, 1, agentConnFn.calls)
+				require.Equal(t, agentID, agentConnFn.agentID)
+			})
+		}
 	})
 
 	t.Run("WorkspaceReadFile", func(t *testing.T) {
