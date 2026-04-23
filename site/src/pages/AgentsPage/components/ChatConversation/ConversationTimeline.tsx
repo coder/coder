@@ -8,9 +8,18 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ThinkingDisplayMode } from "#/api/typesGenerated";
+
 import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
@@ -18,7 +27,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { useThinkingDisplayMode } from "../../hooks/useThinkingDisplayMode";
+
 import {
 	ConversationItem,
 	Message,
@@ -70,11 +79,13 @@ const ReasoningDisclosure = memo<{
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
 }>(({ id, text, isStreaming = false, urlTransform }) => {
-	const { mode } = useThinkingDisplayMode();
+	const prefQuery = useQuery(preferenceSettings());
+	const mode: ThinkingDisplayMode =
+		prefQuery.data?.thinking_display_mode || "auto";
+
 	const prevStreamingRef = useRef(isStreaming);
 	const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-	// Derive expanded state from mode and streaming status.
 	const autoExpanded = (() => {
 		switch (mode) {
 			case "always_expanded":
@@ -89,7 +100,7 @@ const ReasoningDisclosure = memo<{
 
 	const expanded = manualToggle ?? autoExpanded;
 
-	// Reset manual override when streaming state transitions, so
+	// Reset manual override on streaming transitions so
 	// auto/preview modes collapse when streaming stops.
 	useEffect(() => {
 		if (prevStreamingRef.current !== isStreaming) {
@@ -111,11 +122,12 @@ const ReasoningDisclosure = memo<{
 	const hasText = displayText.trim().length > 0;
 
 	return (
-		<div className="w-full">
-			<button
-				type="button"
-				aria-expanded={expanded}
-				onClick={() => setManualToggle(!expanded)}
+		<Collapsible
+			open={expanded}
+			onOpenChange={(open) => setManualToggle(open)}
+			className="w-full"
+		>
+			<CollapsibleTrigger
 				className={cn(
 					"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
 					"flex w-full items-center gap-1.5 cursor-pointer",
@@ -135,24 +147,26 @@ const ReasoningDisclosure = memo<{
 				) : (
 					<span className="text-xs">Thinking</span>
 				)}
-			</button>
-			{expanded && hasText && (
-				<div
-					className={cn(
-						"mt-1 pl-5",
-						isPreviewConstrained && "max-h-24 overflow-hidden",
-					)}
-				>
-					<Response
-						className="text-[11px] text-content-secondary"
-						urlTransform={urlTransform}
-						streaming={isStreaming}
+			</CollapsibleTrigger>
+			{hasText && (
+				<CollapsibleContent>
+					<div
+						className={cn(
+							"mt-1 pl-5",
+							isPreviewConstrained && "max-h-24 overflow-hidden",
+						)}
 					>
-						{displayText}
-					</Response>
-				</div>
+						<Response
+							className="text-[11px] text-content-secondary"
+							urlTransform={urlTransform}
+							streaming={isStreaming}
+						>
+							{displayText}
+						</Response>
+					</div>
+				</CollapsibleContent>
 			)}
-		</div>
+		</Collapsible>
 	);
 });
 
