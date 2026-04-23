@@ -1,10 +1,12 @@
 import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatAgentModelOverrideQuery,
-	chatModelConfigs,
-	updateChatAgentModelOverrideMutation,
-} from "#/api/queries/chats";
+	type QueryClient,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
+import { API } from "#/api/api";
+import { chatModelConfigs } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -14,6 +16,31 @@ const generalOverrideContext: TypesGen.ChatAgentModelOverrideContext =
 	"general";
 const exploreOverrideContext: TypesGen.ChatAgentModelOverrideContext =
 	"explore";
+
+const chatAgentModelOverrideKey = (
+	context: TypesGen.ChatAgentModelOverrideContext,
+) => ["chat-agent-model-override", context] as const;
+
+const chatAgentModelOverrideQuery = (
+	context: TypesGen.ChatAgentModelOverrideContext,
+) => ({
+	queryKey: chatAgentModelOverrideKey(context),
+	queryFn: () => API.experimental.getChatAgentModelOverride(context),
+});
+
+const updateChatAgentModelOverrideMutation = (
+	queryClient: QueryClient,
+	context: TypesGen.ChatAgentModelOverrideContext,
+) => ({
+	mutationFn: (req: TypesGen.UpdateChatAgentModelOverrideRequest) =>
+		API.experimental.updateChatAgentModelOverride(context, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAgentModelOverrideKey(context),
+			exact: true,
+		});
+	},
+});
 
 const AgentSettingsAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
