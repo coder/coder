@@ -9191,8 +9191,8 @@ func TestInsertAIBridgeToolUsageProviderItemID(t *testing.T) {
 	}, nil)
 
 	tool := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-		InterceptionID: intc.ID,
-		ProviderItemID: sql.NullString{String: "ws_abc123", Valid: true},
+		InterceptionID:     intc.ID,
+		ProviderItemID:     sql.NullString{String: "ws_abc123", Valid: true},
 		ProviderToolCallID: sql.NullString{String: "call_xyz", Valid: true},
 	})
 	require.Equal(t, "ws_abc123", tool.ProviderItemID.String)
