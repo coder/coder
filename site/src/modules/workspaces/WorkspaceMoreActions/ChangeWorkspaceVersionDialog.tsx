@@ -87,7 +87,8 @@ export const ChangeWorkspaceVersionDialog: FC<
 									value={selectedVersion?.id}
 									onValueChange={(id) => {
 										if (!id) {
-											setNewVersion(undefined);
+											// Ignore deselection; a version must
+											// always be selected.
 											return;
 										}
 										const next = validVersions.find((v) => v.id === id);

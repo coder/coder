@@ -2,7 +2,7 @@ import { cva } from "class-variance-authority";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "#/theme/roles";
 import { cn } from "#/utils/cn";
-import { Spinner, type SpinnerProps } from "../Spinner/Spinner";
+import { Spinner } from "../Spinner/Spinner";
 
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
@@ -16,8 +16,8 @@ const pillRoleVariants = cva("text-content-primary", {
 			error: "border-border-destructive bg-surface-red",
 			warning: "border-border-warning bg-surface-orange",
 			notice: "border-border-pending bg-surface-sky",
-			info: "border-border bg-surface-quaternary",
-			success: "border-border-green bg-surface-green",
+			info: "border-border bg-surface-secondary",
+			success: "border-border-success bg-surface-green",
 			active: "border-border-pending bg-surface-sky",
 			inactive: "border-border bg-surface-secondary",
 			danger: "border-border-warning bg-surface-orange",
@@ -30,12 +30,12 @@ const pillRoleVariants = cva("text-content-primary", {
 });
 
 const pillLayoutVariants = cva(
-	"inline-flex cursor-default items-center whitespace-nowrap border border-solid font-normal [&_svg]:size-[14px]",
+	"inline-flex cursor-default items-center whitespace-nowrap rounded-full border border-solid text-xs font-normal leading-none [&_svg]:size-[14px]",
 	{
 		variants: {
 			size: {
-				md: "h-6 rounded-full text-xs leading-none",
-				lg: "rounded-full py-3.5 pl-4 pr-4 text-sm leading-none",
+				md: "h-6",
+				lg: "",
 			},
 			withIcon: {
 				true: "",
@@ -56,12 +56,12 @@ const pillLayoutVariants = cva(
 			{
 				size: "lg",
 				withIcon: false,
-				class: "gap-2.5",
+				class: "gap-2.5 py-3.5 px-4",
 			},
 			{
 				size: "lg",
 				withIcon: true,
-				class: "gap-2.5 pl-2.5 pr-4",
+				class: "gap-2.5 py-3.5 pr-4 pl-2.5",
 			},
 		],
 		defaultVariants: {
@@ -71,10 +71,8 @@ const pillLayoutVariants = cva(
 	},
 );
 
-type PillSpinnerProps = SpinnerProps;
-
-export const PillSpinner: FC<PillSpinnerProps> = ({ size = "sm" }) => {
-	return <Spinner size={size} loading />;
+export const PillSpinner: FC = () => {
+	return <Spinner loading />;
 };
 
 export const Pill: FC<PillProps> = ({
