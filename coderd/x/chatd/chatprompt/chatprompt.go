@@ -704,7 +704,7 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 // PartFromContent converts fantasy content into a SDK chat message
 // part, preserving ProviderMetadata and ProviderExecuted fields.
 func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
-	return sdkPartFromContent(block, nil)
+	return sdkPartFromContent(slog.Logger{}, block, nil)
 }
 
 // PartFromContentWithLogger is for call sites that can surface malformed
@@ -714,7 +714,7 @@ func PartFromContentWithLogger(
 	logger slog.Logger,
 	block fantasy.Content,
 ) codersdk.ChatMessagePart {
-	return sdkPartFromContent(block, func(content fantasy.ToolResultContent, err error) {
+	return sdkPartFromContent(logger, block, func(content fantasy.ToolResultContent, err error) {
 		logger.Warn(ctx, "skipping malformed tool attachment metadata",
 			slog.F("tool_name", content.ToolName),
 			slog.F("tool_call_id", content.ToolCallID),
@@ -724,6 +724,7 @@ func PartFromContentWithLogger(
 }
 
 func sdkPartFromContent(
+	logger slog.Logger,
 	block fantasy.Content,
 	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
 ) codersdk.ChatMessagePart {
@@ -801,9 +802,9 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolResultContent:
-		return toolResultContentToPart(value, logMalformedAttachmentMetadata)
+		return toolResultContentToPart(logger, value, logMalformedAttachmentMetadata)
 	case *fantasy.ToolResultContent:
-		return toolResultContentToPart(*value, logMalformedAttachmentMetadata)
+		return toolResultContentToPart(logger, *value, logMalformedAttachmentMetadata)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
@@ -820,6 +821,7 @@ func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isErr
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
 func toolResultContentToPart(
+	logger slog.Logger,
 	content fantasy.ToolResultContent,
 	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
 ) codersdk.ChatMessagePart {
@@ -835,7 +837,16 @@ func toolResultContentToPart(
 			if isSubagentLifecycleToolName(content.ToolName) && hasErrorField(raw) {
 				result = raw
 			} else {
-				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+				var marshalErr error
+				result, marshalErr = json.Marshal(map[string]any{"error": output.Error.Error()})
+				if marshalErr != nil {
+					logger.Error(context.Background(), "failed to marshal error tool result",
+						slog.F("tool_name", content.ToolName),
+						slog.F("tool_call_id", content.ToolCallID),
+						slog.Error(marshalErr),
+					)
+					result = []byte(`{"error":"marshal failure"}`)
+				}
 			}
 		} else {
 			result = []byte(`{"error":""}`)
@@ -845,7 +856,16 @@ func toolResultContentToPart(
 		result = json.RawMessage(sanitized)
 		// Ensure valid JSON; wrap in an object if not.
 		if !json.Valid(result) {
-			result, _ = json.Marshal(map[string]any{"output": sanitized})
+			var marshalErr error
+			result, marshalErr = json.Marshal(map[string]any{"output": sanitized})
+			if marshalErr != nil {
+				logger.Error(context.Background(), "failed to marshal text tool result",
+					slog.F("tool_name", content.ToolName),
+					slog.F("tool_call_id", content.ToolCallID),
+					slog.Error(marshalErr),
+				)
+				result = []byte(`{}`)
+			}
 		}
 	case fantasy.ToolResultOutputContentMedia:
 		isMedia = true

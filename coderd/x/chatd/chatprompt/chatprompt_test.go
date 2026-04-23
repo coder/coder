@@ -2950,10 +2950,11 @@ func TestToolResultAntivenom(t *testing.T) {
 
 func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	t.Run("TextWithInvalidUTF8", func(t *testing.T) {
 		t.Parallel()
-		part := chatprompt.ToolResultContentToPartForTest(fantasy.ToolResultContent{
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
 			ToolCallID: "call-1",
 			ToolName:   "test",
 			Result: fantasy.ToolResultOutputContentText{
@@ -2968,7 +2969,7 @@ func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 	t.Run("MediaTextWithInvalidUTF8", func(t *testing.T) {
 		t.Parallel()
 		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
-		part := chatprompt.ToolResultContentToPartForTest(fantasy.ToolResultContent{
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
 			ToolCallID: "call-2",
 			ToolName:   "computer",
 			Result: fantasy.ToolResultOutputContentMedia{

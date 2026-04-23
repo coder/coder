@@ -3,6 +3,7 @@ package chatprompt
 import (
 	"charm.land/fantasy"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,6 +16,6 @@ var ToolResultPartToMessagePartForTest = toolResultPartToMessagePart
 
 // ToolResultContentToPartForTest exposes toolResultContentToPart
 // for external tests.
-var ToolResultContentToPartForTest = func(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
-	return toolResultContentToPart(content, nil)
+var ToolResultContentToPartForTest = func(logger slog.Logger, content fantasy.ToolResultContent) codersdk.ChatMessagePart {
+	return toolResultContentToPart(logger, content, nil)
 }
