@@ -5720,37 +5720,15 @@ func (p *Server) runChat(
 	isRootChat := !chat.ParentChatID.Valid
 	var mcpConnectConfigs []database.MCPServerConfig
 	var approvedPlanMCPConfigIDs map[uuid.UUID]struct{}
-	if isExploreSubagent && chat.ParentChatID.Valid {
-		// Defense-in-depth for legacy Explore rows whose persisted
-		// MCPServerIDs snapshot predates spawn-time filtering. New rows
-		// are already snapshotted at spawn and SendMessage is blocked
-		// from mutating them, so for new rows this is a no-op in the
-		// common case. Spawn-time snapshotting remains the primary
-		// boundary.
-		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
-		if err != nil {
-			logger.Warn(ctx,
-				"failed to load Explore parent chat for MCP snapshot filter",
-				slog.F("chat_id", chat.ID),
-				slog.F("parent_chat_id", chat.ParentChatID.UUID),
-				slog.Error(err),
-			)
-			mcpConnectConfigs = nil
-			approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
-		} else {
-			mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
-				mcpConfigs,
-				parentChat.PlanMode,
-				parentChat.ParentChatID,
-			)
-		}
-	} else {
-		mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
-			mcpConfigs,
-			currentPlanMode,
-			chat.ParentChatID,
-		)
-	}
+	// Explore subagents rely on the immutable spawn-time snapshot
+	// persisted in chat.MCPServerIDs. SendMessage cannot mutate that
+	// snapshot, so no runtime re-filter against parent state is needed.
+	// The child's persisted set is authoritative.
+	mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+		mcpConfigs,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
