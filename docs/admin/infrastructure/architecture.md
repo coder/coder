@@ -137,13 +137,12 @@ AI-powered development within Coder workspaces.
 
 ### AI Gateway
 
-AI Gateway is a centralized proxy between coding agents and LLM providers such
-as OpenAI and Anthropic. It handles authentication, authorization, and token
-management so that users authenticate through Coder instead of managing separate
-provider API keys. All prompts, completions, and tool invocations are recorded
+AI Gateway is a centralized gateway that sits between coding agents and LLM providers such
+as OpenAI and Anthropic. Users authenticate through Coder instead of managing separate
+provider API keys. All prompts, token usage, and tool invocations are recorded
 for compliance and cost tracking.
 
-Learn more: [AI Gateway Reference](../../ai-coder/ai-gateway/reference.md)
+Learn more: [AI Gateway](../../ai-coder/ai-gateway)
 
 ### Agent Firewall
 
