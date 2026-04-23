@@ -391,7 +391,7 @@ export const CleanRepoFromStart: Story = {
 };
 
 /**
- * Renders the "checked Ns ago" label once a scan has been observed.
+ * Renders the relative-time label once a scan has been observed.
  */
 export const ShowsLastCheckedLabel: Story = {
 	args: {
@@ -403,7 +403,10 @@ export const ShowsLastCheckedLabel: Story = {
 			'[data-testid="git-last-checked"]',
 		);
 		expect(label).not.toBeNull();
-		expect(label?.textContent ?? "").toMatch(/checked \d+s ago/);
+		// dayjs' relativeTime renders sub-45s as 'a few seconds ago'
+		// and longer spans as '<n> <unit> ago'. Accept either shape
+		// so the story is not coupled to dayjs' specific bucketing.
+		expect(label?.textContent ?? "").toMatch(/^checked .+ ago$/);
 	},
 };
 
