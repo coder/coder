@@ -220,6 +220,66 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
 }
 
+func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
+	t.Parallel()
+
+	parentPrevID := "resp_parent_xyz"
+	parentOpts := &fantasyopenai.ResponsesProviderOptions{
+		PreviousResponseID: &parentPrevID,
+	}
+	parentProviderOpts := fantasy.ProviderOptions{
+		fantasyopenai.Name: parentOpts,
+	}
+
+	// Snapshot PreviousResponseID at stream time, before chatloop has any
+	// chance to clear it on the shared map. Comparing across calls proves
+	// the advisor observes consistent (non-chained) options each invocation.
+	var observedPrevIDs []*string
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				openaiOpts, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+				switch {
+				case !ok, openaiOpts.PreviousResponseID == nil:
+					observedPrevIDs = append(observedPrevIDs, nil)
+				default:
+					copied := *openaiOpts.PreviousResponseID
+					observedPrevIDs = append(observedPrevIDs, &copied)
+				}
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		ProviderOptions: parentProviderOpts,
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	for i := range 2 {
+		result, err := runtime.RunAdvisor(context.Background(), fmt.Sprintf("q%d", i), nil)
+		require.NoError(t, err)
+		require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	}
+
+	require.Len(t, observedPrevIDs, 2)
+	for i, prevID := range observedPrevIDs {
+		// Each nested call must run without chain mode so prompts built
+		// from full history by BuildAdvisorMessages are accepted.
+		require.Nil(t, prevID, "call %d unexpectedly ran in chain mode", i)
+	}
+
+	// The parent's pointer must be untouched across repeated advisor runs.
+	require.NotNil(t, parentOpts.PreviousResponseID)
+	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
+}
+
 func TestBuildAdvisorMessagesPreservesSystemAndTruncatesConversation(t *testing.T) {
 	t.Parallel()
 

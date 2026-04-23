@@ -36,6 +36,12 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
+	// Clone per invocation and strip chain-mode markers so chatloop cannot
+	// mutate the Runtime's stored options across calls, and so the nested
+	// call never runs as a chain-mode continuation against stale parent state.
+	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
+	clearChainOnlyProviderOptions(nestedProviderOptions)
+
 	var persistedStep chatloop.PersistedStep
 	runOpts := chatloop.RunOptions{
 		Model:           rt.cfg.Model,
@@ -44,7 +50,7 @@ func (rt *Runtime) RunAdvisor(
 		ProviderTools:   nil,
 		MaxSteps:        1,
 		ModelConfig:     rt.cfg.ModelConfig,
-		ProviderOptions: rt.cfg.ProviderOptions,
+		ProviderOptions: nestedProviderOptions,
 		PersistStep: func(_ context.Context, step chatloop.PersistedStep) error {
 			persistedStep = step
 			return nil

@@ -81,6 +81,19 @@ func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions 
 	return cloned
 }
 
+// clearChainOnlyProviderOptions strips chain-mode markers from opts so the
+// nested advisor call is not sent as a chain-mode continuation. The advisor
+// passes a freshly built prompt (full history from BuildAdvisorMessages),
+// not an incremental turn, so PreviousResponseID would produce incorrect
+// results. Must be called on a cloned map to avoid mutating shared state.
+func clearChainOnlyProviderOptions(opts fantasy.ProviderOptions) {
+	for _, value := range opts {
+		if typed, ok := value.(*fantasyopenai.ResponsesProviderOptions); ok && typed != nil {
+			typed.PreviousResponseID = nil
+		}
+	}
+}
+
 // RemainingUses reports how many advisor calls are still available for the
 // current runtime.
 func (rt *Runtime) RemainingUses() int {
