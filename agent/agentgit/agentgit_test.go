@@ -1526,3 +1526,65 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 		t.Fatal("RunLoop did not return within WaitShort after ctx cancel during cooldown")
 	}
 }
+
+// TestFallbackPollSkipsWhenRecentlyScanned pins the RunLoop optimization
+// that swallows a fallback tick when a trigger-driven scan already
+// covered the last fallback interval. Without the skip, a busy chat
+// (agent editing + PathStore notifications) would pay the full fallback
+// scan cost on top of trigger-driven scans.
+func TestFallbackPollSkipsWhenRecentlyScanned(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	repoDir := initTestRepo(t)
+	mClock := quartz.NewMock(t)
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "a.go"), []byte("package a\n"), 0o600))
+	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "a.go")})
+
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	// Consume the initial scan from subscribe.
+	msg1 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg1.Type)
+
+	// A trigger-driven scan within the fallback interval should
+	// cause the next fallback tick to be skipped. Advance part-way
+	// to the 5s tick, fire a notification to trigger a scan, then
+	// advance the rest of the way to the tick. The tick should be
+	// swallowed because lastScanAt is recent.
+	mClock.Advance(4 * time.Second).MustWait(context.Background())
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "a.go"), []byte("package a\n// edit\n"), 0o600))
+	ps.Notify([]uuid.UUID{chatID})
+
+	// Consume the trigger-driven scan. lastScanAt is now ~t=4s.
+	msg2 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg2.Type)
+
+	// Dirty the tree further so the fallback tick would have
+	// something to emit if it were not skipped.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "b.go"), []byte("package b\n"), 0o600))
+
+	// Advance to the 5s ticker boundary. The tick fires but is
+	// skipped because Since(lastScanAt) = 1s < fallbackPollInterval.
+	mClock.Advance(1 * time.Second).MustWait(context.Background())
+
+	// Confirm no scan arrived for the skipped tick.
+	select {
+	case msg := <-ch:
+		t.Fatalf("unexpected scan after skipped fallback tick: %+v", msg)
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	// Advance to the next ticker boundary (t=10s). lastScanAt is
+	// ~4s, so Since = 6s >= fallbackPollInterval and the tick
+	// should no longer be skipped.
+	mClock.Advance(5 * time.Second).MustWait(context.Background())
+
+	msg3 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg3.Type)
+}

@@ -262,6 +262,20 @@ func (h *Handler) RunLoop(ctx context.Context, scanFn func()) {
 			h.rateLimitedScan(ctx, scanFn)
 
 		case <-fallbackTicker.C:
+			// Skip the fallback scan when another trigger already
+			// produced a scan within the fallback interval. Without
+			// this guard, a busy chat (agent edits firing PathStore
+			// notifications) would still pay the full fallback-tick
+			// scan cost on top of the trigger-driven scans. The skip
+			// is safe because the trigger's scan has already
+			// observed the current tree.
+			h.mu.Lock()
+			recent := !h.lastScanAt.IsZero() &&
+				h.clock.Since(h.lastScanAt) < fallbackPollInterval
+			h.mu.Unlock()
+			if recent {
+				continue
+			}
 			h.rateLimitedScan(ctx, scanFn)
 		}
 	}
