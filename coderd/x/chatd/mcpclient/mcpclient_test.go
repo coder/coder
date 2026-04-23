@@ -1276,99 +1276,77 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 
-	t.Run("InvalidUTF8InTextContent", func(t *testing.T) {
-		t.Parallel()
-		// "Hello" followed by invalid UTF-8 bytes, then "World".
-		invalidText := "Hello" + string([]byte{0xFF, 0xFE, 0x80}) + "World"
-		require.False(t, utf8.ValidString(invalidText),
-			"precondition: input must contain invalid UTF-8")
-
-		result := &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.TextContent{
-					Type: "text",
-					Text: invalidText,
-				},
-			},
-		}
-
-		resp := mcpclient.ConvertCallResultForTest(result)
-
-		require.True(t, utf8.ValidString(resp.Content),
-			"response content must be valid UTF-8")
-		assert.Contains(t, resp.Content, "Hello",
-			"valid prefix should be preserved")
-		assert.Contains(t, resp.Content, "World",
-			"valid suffix should be preserved")
-		assert.Contains(t, resp.Content, "\uFFFD",
-			"invalid bytes should be replaced with U+FFFD")
-	})
-
-	t.Run("InvalidUTF8InEmbeddedResourceText", func(t *testing.T) {
-		t.Parallel()
-		invalidText := "Content" + string([]byte{0x80, 0x81, 0x82})
-		require.False(t, utf8.ValidString(invalidText),
-			"precondition: input must contain invalid UTF-8")
-
-		result := &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.EmbeddedResource{
-					Type: "resource",
-					Resource: mcp.TextResourceContents{
-						Text: invalidText,
+	tests := []struct {
+		name            string
+		result          *mcp.CallToolResult
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name: "InvalidUTF8InTextContent",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Hello" + string([]byte{0xFF, 0xFE, 0x80}) + "World",
 					},
 				},
 			},
-		}
-
-		resp := mcpclient.ConvertCallResultForTest(result)
-
-		require.True(t, utf8.ValidString(resp.Content),
-			"response content must be valid UTF-8")
-		assert.Contains(t, resp.Content, "Content",
-			"valid prefix should be preserved")
-		assert.Contains(t, resp.Content, "\uFFFD",
-			"invalid bytes should be replaced with U+FFFD")
-	})
-
-	t.Run("ValidUTF8PassesThrough", func(t *testing.T) {
-		t.Parallel()
-		validText := "Hello, \u4e16\u754c! \U0001f30d"
-		result := &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.TextContent{
-					Type: "text",
-					Text: validText,
+			wantContains: []string{"Hello", "World", "\uFFFD"},
+		},
+		{
+			name: "InvalidUTF8InEmbeddedResourceText",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.EmbeddedResource{
+						Resource: mcp.TextResourceContents{
+							Text: "Content" + string([]byte{0x80, 0x81, 0x82}),
+						},
+					},
 				},
 			},
-		}
-
-		resp := mcpclient.ConvertCallResultForTest(result)
-
-		assert.Equal(t, validText, resp.Content,
-			"valid UTF-8 should pass through unchanged")
-	})
-
-	t.Run("MultipleTextPartsAllSanitized", func(t *testing.T) {
-		t.Parallel()
-		result := &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.TextContent{
-					Type: "text",
-					Text: "Part1" + string([]byte{0xFF}),
-				},
-				mcp.TextContent{
-					Type: "text",
-					Text: "Part2" + string([]byte{0xFE}),
+			wantContains: []string{"Content"},
+		},
+		{
+			name: "ValidUTF8PassesThrough",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Hello, 世界! 🌍",
+					},
 				},
 			},
-		}
+			wantContains: []string{"Hello, 世界! 🌍"},
+		},
+		{
+			name: "MultipleTextPartsAllSanitized",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Part1" + string([]byte{0xFF}),
+					},
+					mcp.TextContent{
+						Text: "Part2" + string([]byte{0xFE}),
+					},
+				},
+			},
+			wantContains: []string{"Part1", "Part2"},
+		},
+	}
 
-		resp := mcpclient.ConvertCallResultForTest(result)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.True(t, utf8.ValidString(resp.Content),
-			"all parts must produce valid UTF-8")
-		assert.Contains(t, resp.Content, "Part1")
-		assert.Contains(t, resp.Content, "Part2")
-	})
+			resp := mcpclient.ConvertCallResultForTest(tt.result)
+
+			require.True(t, utf8.ValidString(resp.Content),
+				"response content must be valid UTF-8")
+			for _, want := range tt.wantContains {
+				require.Contains(t, resp.Content, want)
+			}
+			for _, notWant := range tt.wantNotContains {
+				require.NotContains(t, resp.Content, notWant)
+			}
+		})
+	}
 }

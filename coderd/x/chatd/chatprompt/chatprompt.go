@@ -1355,7 +1355,7 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 				}
 			}
 			logger.Warn(context.Background(),
-				"corrupted media data in tool result, falling through to text",
+				"tool result not valid base64, falling through to text",
 				slog.F("tool_call_id", toolCallID),
 				slog.F("mime_type", media.MimeType),
 				slog.Error(decErr),
