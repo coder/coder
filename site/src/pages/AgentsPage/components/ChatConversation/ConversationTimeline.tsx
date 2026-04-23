@@ -85,10 +85,8 @@ const ReasoningDisclosure = memo<{
 		text,
 		isStreaming = false,
 		urlTransform,
-		thinkingDisplayMode = "auto",
+		thinkingDisplayMode: mode = "auto",
 	}) => {
-		const mode = thinkingDisplayMode;
-
 		const prevStreamingRef = useRef(isStreaming);
 		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
