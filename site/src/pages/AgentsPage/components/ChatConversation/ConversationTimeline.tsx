@@ -3,11 +3,11 @@ import {
 	type FC,
 	Fragment,
 	memo,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
+
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -87,8 +87,17 @@ const ReasoningDisclosure = memo<{
 		urlTransform,
 		thinkingDisplayMode: mode = "auto",
 	}) => {
-		const prevStreamingRef = useRef(isStreaming);
 		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+
+		// Reset manual override on streaming transitions so
+		// auto/preview modes collapse when streaming stops.
+		const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+		if (prevStreaming !== isStreaming) {
+			setPrevStreaming(isStreaming);
+			if (mode === "auto" || mode === "preview") {
+				setManualToggle(null);
+			}
+		}
 
 		const autoExpanded = (() => {
 			switch (mode) {
@@ -99,19 +108,14 @@ const ReasoningDisclosure = memo<{
 				case "auto":
 				case "preview":
 					return isStreaming;
+				default: {
+					const _exhaustive: never = mode;
+					return _exhaustive;
+				}
 			}
 		})();
 
 		const expanded = manualToggle ?? autoExpanded;
-
-		// Reset manual override on streaming transitions so
-		// auto/preview modes collapse when streaming stops.
-		useEffect(() => {
-			if (prevStreamingRef.current !== isStreaming) {
-				setManualToggle(null);
-				prevStreamingRef.current = isStreaming;
-			}
-		}, [isStreaming]);
 
 		const isPreviewConstrained =
 			mode === "preview" && isStreaming && manualToggle === null;

@@ -65,6 +65,11 @@ export const ThinkingDisplaySettings: FC = () => {
 					</SelectContent>
 				</Select>
 			</div>
+			{mutation.isError && (
+				<p className="m-0 text-xs text-content-destructive">
+					Failed to save your thinking display preference.
+				</p>
+			)}
 		</div>
 	);
 };

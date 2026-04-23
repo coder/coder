@@ -1767,3 +1767,105 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 		});
 	},
 };
+
+/**
+ * A completed thinking block with auto mode should be collapsed
+ * (non-streaming state means auto collapses).
+ */
+export const ThinkingBlockAutoMode: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.queryByText(/Let me think about this step by step/),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+	},
+};
+
+/**
+ * A completed thinking block with preview mode should be collapsed
+ * (non-streaming state means preview collapses).
+ */
+export const ThinkingBlockPreviewMode: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "preview" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.queryByText(/Let me think about this step by step/),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+	},
+};
