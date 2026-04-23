@@ -33049,11 +33049,16 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.status
+SELECT
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
+	workspace_agent_script_timings.exit_code,
+	workspace_agent_script_timings.status
 	FROM workspace_agent_scripts
 	LEFT JOIN workspace_agent_script_timings
 		ON workspace_agent_script_timings.script_id = workspace_agent_scripts.id
 	WHERE workspace_agent_scripts.workspace_agent_id = ANY($1 :: uuid [ ])
+	ORDER BY workspace_agent_scripts.id, workspace_agent_script_timings.started_at
+	DESC NULLS LAST
 `
 
 type GetWorkspaceAgentScriptsByAgentIDsRow struct {
