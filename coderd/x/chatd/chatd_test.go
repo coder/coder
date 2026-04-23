@@ -819,6 +819,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		LastModelConfigID: webSearchModel.ID,
 		Title:             "root",
 		Status:            database.ChatStatusWaiting,
+		MCPServerIDs:      []uuid.UUID{mcpConfig.ID},
 		ClientType:        database.ChatClientTypeApi,
 	})
 	require.NoError(t, err)
@@ -1034,6 +1035,151 @@ func TestExploreChatReFiltersLegacyMCPSnapshotForPlanModeParent(t *testing.T) {
 	require.Contains(t, tools, "legacy-approved-mcp__echo")
 	require.NotContains(t, tools, "legacy-blocked-mcp__echo",
 		"legacy Explore runtime should re-apply the parent plan-mode MCP filter")
+}
+
+func TestExploreChatBoundsMutatedMCPSnapshotToParentCurrentSet(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	newEchoMCPServer := func(name string) *httptest.Server {
+		t.Helper()
+
+		mcpSrv := mcpserver.NewMCPServer(name, "1.0.0")
+		mcpSrv.AddTools(mcpserver.ServerTool{
+			Tool: mcpgo.NewTool("echo",
+				mcpgo.WithDescription("Echoes the input"),
+				mcpgo.WithString("input",
+					mcpgo.Description("The input string"),
+					mcpgo.Required(),
+				),
+			),
+			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+				input, _ := req.GetArguments()["input"].(string)
+				return mcpgo.NewToolResultText("echo: " + input), nil
+			},
+		})
+		mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+		return mcpTS
+	}
+
+	parentTS := newEchoMCPServer("runtime-parent-mcp")
+	injectedTS := newEchoMCPServer("runtime-injected-mcp")
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	parentConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Runtime Parent MCP",
+		Slug:            "runtime-parent-mcp",
+		Url:             parentTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	injectedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "Runtime Injected MCP",
+		Slug:            "runtime-injected-mcp",
+		Url:             injectedTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		AllowInPlanMode: true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	parentChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "runtime-parent",
+		Status:            database.ChatStatusWaiting,
+		MCPServerIDs:      []uuid.UUID{parentConfig.ID},
+		ClientType:        database.ChatClientTypeApi,
+	})
+	require.NoError(t, err)
+	exploreChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "runtime-explore",
+		Mode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		Status:       database.ChatStatusWaiting,
+		MCPServerIDs: []uuid.UUID{parentConfig.ID},
+		ClientType:   database.ChatClientTypeApi,
+	})
+	require.NoError(t, err)
+
+	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "")
+	_ = server
+
+	updatedMCPServerIDs := []uuid.UUID{parentConfig.ID, injectedConfig.ID}
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       exploreChat.ID,
+		CreatedBy:    user.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase")},
+		MCPServerIDs: &updatedMCPServerIDs,
+	})
+	require.NoError(t, err)
+
+	storedExploreChat, err := db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, updatedMCPServerIDs, storedExploreChat.MCPServerIDs)
+
+	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1)
+
+	tools := recorded[0].Tools
+	require.Contains(t, tools, "runtime-parent-mcp__echo")
+	require.NotContains(t, tools, "runtime-injected-mcp__echo",
+		"Explore runtime should bound mutated MCPServerIDs to the parent's current MCP set")
 }
 
 func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {

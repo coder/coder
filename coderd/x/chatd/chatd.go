@@ -5713,26 +5713,59 @@ func (p *Server) runChat(
 	var mcpConnectConfigs []database.MCPServerConfig
 	var approvedPlanMCPConfigIDs map[uuid.UUID]struct{}
 	if isExploreSubagent && chat.ParentChatID.Valid {
-		// Explore chats clear their own plan mode. Re-apply the spawning
-		// parent's plan-mode MCP policy here as defense in depth for
-		// legacy rows whose MCPServerIDs snapshot predates spawn-time
-		// filtering. Spawn-time filtering remains the primary boundary.
-		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
-		if err != nil {
+		// Explore children snapshot the parent's filtered external MCP set
+		// at spawn time. Re-check the child's persisted MCPServerIDs
+		// against the parent's current effective set here to defend
+		// against post-spawn mutation paths, including SendMessage MCP
+		// server ID updates. Spawn-time filtering remains the primary
+		// boundary.
+		failClosed := func(message string, err error) {
 			logger.Warn(ctx,
-				"failed to load Explore parent chat for MCP snapshot filter",
+				message,
 				slog.F("chat_id", chat.ID),
 				slog.F("parent_chat_id", chat.ParentChatID.UUID),
 				slog.Error(err),
 			)
 			mcpConnectConfigs = nil
 			approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
+		}
+		parentChat, err := p.db.GetChatByID(ctx, chat.ParentChatID.UUID)
+		if err != nil {
+			failClosed("failed to load Explore parent chat for MCP snapshot filter", err)
 		} else {
-			mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
-				mcpConfigs,
-				parentChat.PlanMode,
-				parentChat.ParentChatID,
-			)
+			var parentMCPConfigs []database.MCPServerConfig
+			if len(parentChat.MCPServerIDs) > 0 {
+				parentMCPConfigs, err = p.db.GetMCPServerConfigsByIDs(
+					ctx, parentChat.MCPServerIDs,
+				)
+			}
+			if err != nil {
+				failClosed(
+					"failed to load Explore parent MCP server configs for MCP snapshot filter",
+					err,
+				)
+			} else {
+				parentMCPConfigs, _ = filterExternalMCPConfigsForTurn(
+					parentMCPConfigs,
+					parentChat.PlanMode,
+					parentChat.ParentChatID,
+				)
+				parentEffectiveMCPConfigIDs := make(map[uuid.UUID]struct{}, len(parentMCPConfigs))
+				for _, cfg := range parentMCPConfigs {
+					parentEffectiveMCPConfigIDs[cfg.ID] = struct{}{}
+				}
+				boundedMCPConfigs := make([]database.MCPServerConfig, 0, len(mcpConfigs))
+				for _, cfg := range mcpConfigs {
+					if _, ok := parentEffectiveMCPConfigIDs[cfg.ID]; ok {
+						boundedMCPConfigs = append(boundedMCPConfigs, cfg)
+					}
+				}
+				mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+					boundedMCPConfigs,
+					parentChat.PlanMode,
+					parentChat.ParentChatID,
+				)
+			}
 		}
 	} else {
 		mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
