@@ -80,8 +80,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		(remoteDiffStats?.deletions ?? 0) > 0;
 
 	const showRemoteTab = Boolean(prTab) || hasRemoteStats;
-	const isGitActive =
-		repositories.size > 0 || showRemoteTab || remoteDiffStats !== undefined;
+	const isGitActive = repositories.size > 0 || showRemoteTab;
 
 	const prTitle = remoteDiffStats?.pull_request_title;
 	const prState = remoteDiffStats?.pull_request_state;
