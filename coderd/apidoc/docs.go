@@ -122,6 +122,7 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Bridge interceptions",
                 "operationId": "list-ai-bridge-interceptions",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
