@@ -177,11 +177,13 @@ type ToolBadgeData =
 const BadgeDismissButton: FC<{
 	onClick: () => void;
 	ariaLabel: string;
-}> = ({ onClick, ariaLabel }) => (
+	isDisabled?: boolean;
+}> = ({ onClick, ariaLabel, isDisabled = false }) => (
 	<button
 		type="button"
 		onClick={onClick}
-		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+		disabled={isDisabled}
+		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-content-secondary"
 		aria-label={ariaLabel}
 	>
 		<XIcon className="!size-2.5" />
@@ -451,11 +453,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPlusMenuOpen(false);
 	};
 
-	// The badge-pill dismiss button is only rendered while plan mode is on,
-	// so it should always disable, not toggle. Using `handlePlanModeToggle`
-	// here would work today only because of the enclosing `planModeEnabled`
-	// render gate; a dedicated disable handler decouples the semantics from
-	// that gate.
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -981,6 +978,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<BadgeDismissButton
 										onClick={handleDisablePlanMode}
 										ariaLabel="Disable plan mode"
+										isDisabled={isDisabled}
 									/>
 								)}
 							</span>
