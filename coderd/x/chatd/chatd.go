@@ -6218,8 +6218,11 @@ func (p *Server) runChat(
 	// Plan mode filters the advisor tool out of the turn's tool set via
 	// filterToolsForTurn, so enabling the runtime there would inject
 	// guidance and enforce advisor exclusivity for a tool the model
-	// cannot actually call.
-	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn {
+	// cannot actually call. Explore chats (root or subagent) run under
+	// allowedExploreToolNames, whose policy does not include advisor, so
+	// registering the runtime there would inject guidance for a tool
+	// that is never exposed to the model.
+	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorRuntime = p.newAdvisorRuntime(
 			ctx,
 			chat,
@@ -7229,20 +7232,32 @@ func (p *Server) runChat(
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, chatadvisor.ParentGuidanceBlock)
 			}
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
+			// Snapshot the full reloaded prompt before chain-mode
+			// filtering so the advisor runs with complete
+			// assistant/tool context. The nested advisor call
+			// clears previous_response_id, so provider-side
+			// history is unavailable.
+			setAdvisorPromptSnapshot(reloadedPrompt)
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
 					chainInfo,
 				)
 			}
-			setAdvisorPromptSnapshot(reloadedPrompt)
 			return reloadedPrompt, nil
 		},
 		DisableChainMode: func() {
 			chainModeActive = false
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
-			setAdvisorPromptSnapshot(msgs)
+			// Skip the snapshot update when chain mode is active;
+			// the chatloop passes in the chain-filtered prompt
+			// (system plus trailing user messages) and the advisor
+			// needs the full pre-chain history captured at the
+			// initial-prompt and ReloadMessages sites.
+			if !chainModeActive {
+				setAdvisorPromptSnapshot(msgs)
+			}
 			if instructionInjected || instruction == "" {
 				return nil
 			}
@@ -7251,7 +7266,9 @@ func (p *Server) runChat(
 			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
 				result = chatprompt.InsertSystem(result, skillIndex)
 			}
-			setAdvisorPromptSnapshot(result)
+			if !chainModeActive {
+				setAdvisorPromptSnapshot(result)
+			}
 			return result
 		},
 		OnRetry: func(

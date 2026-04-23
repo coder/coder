@@ -744,7 +744,7 @@ func ApplyReasoningEffortToOptions(
 		providerOptions = seedProviderOptionsForModel(providerOptions, model)
 	}
 	if providerOptions == nil {
-		return providerOptions
+		return nil
 	}
 
 	applyReasoningEffortDispatch(providerOptions, reasoningEffort)
