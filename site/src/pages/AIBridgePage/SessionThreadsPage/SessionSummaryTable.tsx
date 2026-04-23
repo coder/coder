@@ -36,6 +36,8 @@ export const SessionSummaryTable = ({
 	toolCallCount,
 	tokenUsageMetadata,
 }: SessionSummaryTableProps) => {
+	const initiatorDisplayName = initiator.name || initiator.username;
+
 	const durationInMs =
 		endTime !== undefined
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
@@ -88,10 +90,10 @@ export const SessionSummaryTable = ({
 					<Avatar
 						size="sm"
 						src={initiator.avatar_url}
-						fallback={initiator.name}
+						fallback={initiatorDisplayName}
 					/>
-					<span className="truncate min-w-0" title={initiator.name}>
-						{initiator.name}
+					<span className="truncate min-w-0" title={initiatorDisplayName}>
+						{initiatorDisplayName}
 					</span>
 				</dd>
 			</div>

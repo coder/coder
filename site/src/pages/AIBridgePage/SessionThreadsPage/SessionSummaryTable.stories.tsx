@@ -56,3 +56,13 @@ export const LargeTokenCounts: Story = {
 		outputTokens: 32_000,
 	},
 };
+
+export const EmptyInitiatorName: Story = {
+	args: {
+		...Default.args,
+		initiator: {
+			...MockSession.initiator,
+			name: "",
+		},
+	},
+};

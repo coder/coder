@@ -288,7 +288,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				<div className="flex flex-row items-center gap-1">
 					<Avatar
 						src={initiator.avatar_url}
-						fallback={initiator.name ?? initiator.username}
+						fallback={initiator.name || initiator.username}
 						size="sm"
 						className="flex-shrink-0"
 					/>

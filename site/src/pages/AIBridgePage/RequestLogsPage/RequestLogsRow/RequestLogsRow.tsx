@@ -160,7 +160,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								className="flex-shrink-0"
 							/>
 							<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
-								{interception.initiator.name ?? interception.initiator.username}
+								{interception.initiator.name || interception.initiator.username}
 							</div>
 						</div>
 					</div>
@@ -270,7 +270,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										className="flex-shrink-0"
 									/>
 									<span className="truncate min-w-0 w-full">
-										{interception.initiator.name ??
+										{interception.initiator.name ||
 											interception.initiator.username}
 									</span>
 								</dd>
