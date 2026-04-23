@@ -129,6 +129,12 @@ func TestAppendRecentRelayPart(t *testing.T) {
 			want:   []string{"a", "b", "c"},
 		},
 		{
+			name:   "non-message-part event is ignored",
+			recent: testRelayTextEvents("a", "b"),
+			event:  codersdk.ChatStreamEvent{Type: codersdk.ChatStreamEventTypeStatus},
+			want:   []string{"a", "b"},
+		},
+		{
 			name:   "append at cap keeps most recent entries",
 			recent: recentAtCap,
 			event:  testRelayTextEvent(fmt.Sprintf("part-%03d", relaySnapshotCap)),
