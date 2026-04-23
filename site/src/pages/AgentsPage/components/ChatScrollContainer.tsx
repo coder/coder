@@ -141,6 +141,7 @@ const ChatScrollContainer: FC<{
 				aria-busy={isFetchingMoreMessages || undefined}
 				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
+				<div aria-hidden className="flex-1 basis-0" />
 				<InfiniteScroll
 					dataLength={messageCount}
 					next={onFetchMoreMessages}
