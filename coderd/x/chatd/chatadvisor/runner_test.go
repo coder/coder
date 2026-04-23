@@ -232,22 +232,34 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 		fantasyopenai.Name: parentOpts,
 	}
 
-	// Snapshot PreviousResponseID at stream time, before chatloop has any
-	// chance to clear it on the shared map. Comparing across calls proves
-	// the advisor observes consistent (non-chained) options each invocation.
-	var observedPrevIDs []*string
+	// Snapshot PreviousResponseID and Store at stream time, before chatloop
+	// has any chance to clear them on the shared map. Comparing across calls
+	// proves the advisor observes consistent (non-chained, non-persisted)
+	// options each invocation.
+	type observedOpts struct {
+		prevID *string
+		store  *bool
+	}
+	var observed []observedOpts
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model: &chattest.FakeModel{
 			ProviderName: "test-provider",
 			ModelName:    "test-model",
 			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 				openaiOpts, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-				switch {
-				case !ok, openaiOpts.PreviousResponseID == nil:
-					observedPrevIDs = append(observedPrevIDs, nil)
-				default:
-					copied := *openaiOpts.PreviousResponseID
-					observedPrevIDs = append(observedPrevIDs, &copied)
+				if !ok {
+					observed = append(observed, observedOpts{})
+				} else {
+					snap := observedOpts{}
+					if openaiOpts.PreviousResponseID != nil {
+						copied := *openaiOpts.PreviousResponseID
+						snap.prevID = &copied
+					}
+					if openaiOpts.Store != nil {
+						copied := *openaiOpts.Store
+						snap.store = &copied
+					}
+					observed = append(observed, snap)
 				}
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
@@ -269,11 +281,16 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 		require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	}
 
-	require.Len(t, observedPrevIDs, 2)
-	for i, prevID := range observedPrevIDs {
+	require.Len(t, observed, 2)
+	for i, snap := range observed {
 		// Each nested call must run without chain mode so prompts built
 		// from full history by BuildAdvisorMessages are accepted.
-		require.Nil(t, prevID, "call %d unexpectedly ran in chain mode", i)
+		require.Nil(t, snap.prevID, "call %d unexpectedly ran in chain mode", i)
+		// Store must be explicitly disabled so the provider does not
+		// persist an orphan response that later chain-mode calls would
+		// fail to resume.
+		require.NotNil(t, snap.store, "call %d did not disable Store", i)
+		require.False(t, *snap.store, "call %d ran with Store enabled", i)
 	}
 
 	// The parent's pointer must be untouched across repeated advisor runs.
