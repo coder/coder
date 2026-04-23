@@ -1020,195 +1020,114 @@ func TestAcquireJob(t *testing.T) {
 			require.Equal(t, []byte("private-key"), wb.UserSecrets[2].Value)
 		})
 
-		t.Run(tc.name+"_UserSecretsStopTransition", func(t *testing.T) {
-			// Secrets must never be populated on non-start transitions. The
-			// terraform-provider-coder data source intentionally returns empty
-			// values on stop/delete so that workspaces with revoked or deleted
-			// secrets can still be torn down.
-			t.Parallel()
-			srv, db, ps, pd := setup(t, false, nil)
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
+		for _, transitionCase := range []struct {
+			name       string
+			transition database.WorkspaceTransition
+		}{
+			{
+				name:       "Stop",
+				transition: database.WorkspaceTransitionStop,
+			},
+			{
+				name:       "Delete",
+				transition: database.WorkspaceTransitionDelete,
+			},
+		} {
+			t.Run(tc.name+"_UserSecrets"+transitionCase.name+"Transition", func(t *testing.T) {
+				// Secrets must never be populated on non-start transitions. The
+				// terraform-provider-coder data source intentionally returns empty
+				// values on stop/delete so that workspaces with revoked or deleted
+				// secrets can still be torn down.
+				t.Parallel()
+				srv, db, ps, pd := setup(t, false, nil)
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
 
-			user := dbgen.User(t, db, database.User{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
 
-			// Give the owner a secret so we can prove it is not forwarded on a
-			// stop transition.
-			authCtx := dbauthz.AsSystemRestricted(ctx)
-			_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:      uuid.New(),
-				UserID:  user.ID,
-				Name:    "github-token",
-				EnvName: "GITHUB_TOKEN",
-				Value:   "must-not-leak",
-			})
-			require.NoError(t, err)
-
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      user.ID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				OrganizationID: pd.OrganizationID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          uuid.New(),
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         file.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-					TemplateVersionID: version.ID,
-				})),
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			buildID := uuid.New()
-			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: buildID,
-				})),
-				Tags: pd.Tags,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				ID:                buildID,
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             dbJob.ID,
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStop,
-				Reason:            database.BuildReasonInitiator,
-			})
-
-			var job *proto.AcquiredJob
-			for {
-				job, err = tc.acquire(ctx, srv)
+				// Give the owner a secret so we can prove it is not forwarded on a
+				// transition.
+				authCtx := dbauthz.AsSystemRestricted(ctx)
+				_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
+					ID:      uuid.New(),
+					UserID:  user.ID,
+					Name:    "github-token",
+					EnvName: "GITHUB_TOKEN",
+					Value:   "must-not-leak",
+				})
 				require.NoError(t, err)
-				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-					break
-				}
-			}
 
-			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
-			require.Empty(t, wb.UserSecrets,
-				"stop-transition jobs must not carry user secrets")
-		})
-
-		t.Run(tc.name+"_UserSecretsDeleteTransition", func(t *testing.T) {
-			// Same idea as the test that covers the stop transition, but with
-			// a delete transition.
-			t.Parallel()
-			srv, db, ps, pd := setup(t, false, nil)
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			user := dbgen.User(t, db, database.User{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
-
-			// Give the owner a secret so we can prove it is not forwarded on a
-			// delete transition.
-			authCtx := dbauthz.AsSystemRestricted(ctx)
-			_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:      uuid.New(),
-				UserID:  user.ID,
-				Name:    "github-token",
-				EnvName: "GITHUB_TOKEN",
-				Value:   "must-not-leak",
-			})
-			require.NoError(t, err)
-
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      user.ID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				OrganizationID: pd.OrganizationID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          uuid.New(),
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         file.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+					CreatedBy:      user.ID,
+				})
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					OrganizationID: pd.OrganizationID,
+					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+					JobID:          uuid.New(),
+				})
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					OrganizationID: pd.OrganizationID,
+					ID:             version.JobID,
+					InitiatorID:    user.ID,
+					FileID:         file.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+						TemplateVersionID: version.ID,
+					})),
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID:     template.ID,
+					OwnerID:        user.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				buildID := uuid.New()
+				dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					OrganizationID: pd.OrganizationID,
+					InitiatorID:    user.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					FileID:         file.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: buildID,
+					})),
+					Tags: pd.Tags,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                buildID,
+					WorkspaceID:       workspace.ID,
+					BuildNumber:       1,
+					JobID:             dbJob.ID,
 					TemplateVersionID: version.ID,
-				})),
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			buildID := uuid.New()
-			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: buildID,
-				})),
-				Tags: pd.Tags,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				ID:                buildID,
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             dbJob.ID,
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionDelete,
-				Reason:            database.BuildReasonInitiator,
-			})
+					Transition:        transitionCase.transition,
+					Reason:            database.BuildReasonInitiator,
+				})
 
-			var job *proto.AcquiredJob
-			for {
-				job, err = tc.acquire(ctx, srv)
-				require.NoError(t, err)
-				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-					break
+				var job *proto.AcquiredJob
+				for {
+					job, err = tc.acquire(ctx, srv)
+					require.NoError(t, err)
+					if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+						break
+					}
 				}
-			}
 
-			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
-			require.Empty(t, wb.UserSecrets,
-				"delete-transition jobs must not carry user secrets")
-		})
+				wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
+				require.Empty(t, wb.UserSecrets)
+			})
+		}
 
 		t.Run(tc.name+"_UserSecretsDBError", func(t *testing.T) {
 			// A DB failure fetching user secrets must surface as a provisioner
