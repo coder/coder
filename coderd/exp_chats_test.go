@@ -11381,6 +11381,30 @@ func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
 	require.JSONEq(t, stored, raw)
 }
 
+// TestChatAdvisorConfig_UnauthenticatedFails pins that the advisor config
+// endpoints are gated by apiKeyMiddleware at the /chats route level. The
+// handler itself has no auth check, so this test protects against a future
+// route restructuring that would accidentally expose these settings.
+func TestChatAdvisorConfig_UnauthenticatedFails(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+	_, err := anonClient.GetChatAdvisorConfig(ctx)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+
+	err = anonClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		Enabled: true,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+}
+
 func TestChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
