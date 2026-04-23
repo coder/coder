@@ -4,7 +4,6 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleIcon,
-	PencilIcon,
 	PlusIcon,
 	ServerIcon,
 	XIcon,
@@ -473,46 +472,20 @@ const ServerForm: FC<ServerFormProps> = ({
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
 			<BackButton onClick={onBack} />
-			{/* Header with icon + editable name + enabled toggle */}
+			{/* Header with icon + server name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
 					iconUrl={form.values.iconURL}
 					name={form.values.displayName || "New server"}
 					className="h-8 w-8"
 				/>
-				<div className="inline-flex items-center gap-1">
-					<div className="relative inline-grid">
-						<span
-							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
-							aria-hidden="true"
-						>
-							{form.values.displayName || "Server display name"}
-						</span>
-						<input
-							type="text"
-							value={form.values.displayName}
-							onChange={(e) => {
-								form.setFieldValue("displayName", e.target.value);
-								if (!form.values.slugTouched) {
-									form.setFieldValue("slug", slugify(e.target.value));
-								}
-							}}
-							disabled={isDisabled}
-							spellCheck={false}
-							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-							placeholder="Server display name"
-							aria-label="Display Name"
-							aria-required="true"
-						/>
-					</div>
-					<span
-						className="text-xs font-bold text-content-destructive"
-						aria-hidden="true"
-					>
-						*
-					</span>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-				</div>
+				<span
+					className="truncate text-lg font-medium text-content-primary"
+					title={form.values.displayName || undefined}
+				>
+					{form.values.displayName ||
+						(isEditing ? "Server display name" : "New MCP server")}
+				</span>
 				{isEditing && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -545,6 +518,26 @@ const ServerForm: FC<ServerFormProps> = ({
 			>
 				<div className="space-y-6">
 					<div className="space-y-4">
+						<Field
+							label="Display name"
+							htmlFor={`${formId}-display-name`}
+							required
+						>
+							<Input
+								id={`${formId}-display-name`}
+								className="h-9 text-[13px]"
+								value={form.values.displayName}
+								onChange={(e) => {
+									form.setFieldValue("displayName", e.target.value);
+									if (!form.values.slugTouched) {
+										form.setFieldValue("slug", slugify(e.target.value));
+									}
+								}}
+								placeholder="e.g. Sentry"
+								disabled={isDisabled}
+								aria-label="Display Name"
+							/>
+						</Field>
 						<Field label="Slug" htmlFor={`${formId}-slug`} required>
 							<Input
 								id={`${formId}-slug`}
