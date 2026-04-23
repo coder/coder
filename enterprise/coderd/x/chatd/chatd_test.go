@@ -716,6 +716,99 @@ func TestSubscribeRelayReconnectClearsDedupWhenChatStopsRemote(t *testing.T) {
 	requireRelayTexts(t, events, "stale-one", "stale-two", "new-run")
 }
 
+func TestSubscribeRelayDrainFailureClearsDedupWhenChatStopsRemote(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	secondDialStarted := make(chan struct{})
+	releaseSecondDial := make(chan struct{})
+	var callCount atomic.Int32
+
+	provider := func(ctx context.Context, _ uuid.UUID, worker uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		require.Equal(t, workerID, worker)
+		switch call := callCount.Add(1); call {
+		case 1:
+			live := make(chan codersdk.ChatStreamEvent)
+			close(live)
+			return relaySnapshotEvents("stale-one", "stale-two"), live, func() {}, nil
+		case 2:
+			close(secondDialStarted)
+			select {
+			case <-releaseSecondDial:
+				return nil, nil, nil, xerrors.New("drain dial failed")
+			case <-ctx.Done():
+				return nil, nil, nil, ctx.Err()
+			}
+		case 3:
+			live := make(chan codersdk.ChatStreamEvent)
+			return relaySnapshotEvents("stale-one", "stale-two", "new-run"), live, func() {}, nil
+		default:
+			return nil, nil, nil, xerrors.Errorf("unexpected relay dial %d", call)
+		}
+	}
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-clear-on-drain-failure")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "stale-one", "stale-two")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+
+	select {
+	case <-secondDialStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for second relay dial")
+	}
+
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	waitingPayload, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusWaiting),
+	})
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), waitingPayload)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus &&
+				event.Status != nil &&
+				event.Status.Status == codersdk.ChatStatusWaiting
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	close(releaseSecondDial)
+	requireNoRelayTexts(t, events)
+
+	setChatRunningAndPublish(ctx, t, db, ps, chat.ID, workerID)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 3
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "stale-one", "stale-two", "new-run")
+}
+
 func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	t.Parallel()
 
