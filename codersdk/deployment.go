@@ -4110,20 +4110,27 @@ type AIBridgeProviderConfig struct {
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
 	Name string `json:"name"`
-	// Key is the API key for authenticating with the upstream provider.
-	Key string `json:"-"`
+	// Keys holds one or more API keys for authenticating with the
+	// upstream provider. When multiple keys are configured, they
+	// form a key pool for automatic failover.
+	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
 	// DumpDir is the directory path for dumping API requests and responses.
 	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
-	BedrockBaseURL         string `json:"-"`
-	BedrockRegion          string `json:"bedrock_region,omitempty"`
-	BedrockAccessKey       string `json:"-"`
-	BedrockAccessKeySecret string `json:"-"`
-	BedrockModel           string `json:"bedrock_model,omitempty"`
-	BedrockSmallFastModel  string `json:"bedrock_small_fast_model,omitempty"`
+	BedrockBaseURL string `json:"-"`
+	BedrockRegion  string `json:"bedrock_region,omitempty"`
+	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
+	// more AWS credential pairs for authenticating with Bedrock.
+	// When multiple pairs are configured, they form a key pool
+	// for automatic failover. The two slices must have the same
+	// length.
+	BedrockAccessKeys       []string `json:"-"`
+	BedrockAccessKeySecrets []string `json:"-"`
+	BedrockModel            string   `json:"bedrock_model,omitempty"`
+	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {
