@@ -1222,6 +1222,10 @@ func executeSingleTool(
 		mediaData := base64.StdEncoding.EncodeToString(resp.Data)
 		if s := string(resp.Data); isASCII(s) {
 			if _, err := base64.StdEncoding.DecodeString(s); err == nil {
+				logger.Error(ctx, "tool response Data already contains base64; expected decoded binary",
+					slog.F("tool_name", tc.ToolName),
+					slog.F("tool_call_id", tc.ToolCallID),
+				)
 				mediaData = s
 			}
 		}
