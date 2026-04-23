@@ -117,6 +117,54 @@ describe("getAppHref", () => {
 		expect(href).toBe(externalApp.url);
 	});
 
+	it("returns the raw URL when external app has an invalid URL", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-app",
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBe("my-app");
+	});
+
+	it("returns the raw URL when external app URL is an empty string", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "",
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBe("");
+	});
+
+	it("returns the raw URL when external app URL has no scheme", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "//example.com",
+		};
+		// Protocol-relative URLs like "//example.com" throw
+		// TypeError when passed to new URL() without a base URL,
+		// so the try-catch returns the raw URL unchanged.
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBe("//example.com");
+	});
+
 	it("returns a path when app doesn't use a subdomain", () => {
 		const app = {
 			...MockWorkspaceApp,
