@@ -522,7 +522,8 @@ func (api *API) getChatModelOverrideConfig(
 		// remains accessible and the bad value can be cleared.
 		api.Logger.Warn(
 			ctx,
-			fmt.Sprintf("malformed %s model override in site config, treating as unset", settingName),
+			"malformed model override in site config, treating as unset",
+			slog.F("setting", settingName),
 			slog.F("raw_value", raw),
 			slog.Error(err),
 		)
