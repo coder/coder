@@ -25,20 +25,35 @@ var (
 	TerraformVersion = version.Must(version.NewVersion("1.14.5"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = mustMaxPatchVersion(TerraformVersion)
 
 	errTerraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
 
-func mustMaxPatchVersion(v *version.Version) *version.Version {
+func terraformVersionLine(v *version.Version) string {
 	segments := v.Segments()
 	if len(segments) < 2 {
 		panic(fmt.Sprintf("invalid terraform version %q", v))
 	}
 
-	// Use .9 as an upper bound so newer patch releases in the same
-	// major/minor line do not warn.
-	return version.Must(version.NewVersion(fmt.Sprintf("%d.%d.9", segments[0], segments[1])))
+	return fmt.Sprintf("%d.%d", segments[0], segments[1])
+}
+
+func isNewerTerraformVersionLine(installed, bundled *version.Version) bool {
+	installedSegments := installed.Segments()
+	if len(installedSegments) < 2 {
+		panic(fmt.Sprintf("invalid terraform version %q", installed))
+	}
+
+	bundledSegments := bundled.Segments()
+	if len(bundledSegments) < 2 {
+		panic(fmt.Sprintf("invalid terraform version %q", bundled))
+	}
+
+	if installedSegments[0] != bundledSegments[0] {
+		return installedSegments[0] > bundledSegments[0]
+	}
+
+	return installedSegments[1] > bundledSegments[1]
 }
 
 // Install implements a thread-safe, idempotent Terraform Install

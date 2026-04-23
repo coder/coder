@@ -8,13 +8,72 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMaxTerraformVersionTracksBundledMinor(t *testing.T) {
+func TestTerraformVersionLine(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, mustMaxPatchVersion(TerraformVersion).String(), maxTerraformVersion.String())
+	require.Equal(
+		t,
+		"1.14",
+		terraformVersionLine(version.Must(version.NewVersion("1.14.5"))),
+	)
+}
+
+func TestIsNewerTerraformVersionLine(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		installed string
+		bundled   string
+		want      bool
+	}{
+		{
+			name:      "same patch release",
+			installed: "1.14.5",
+			bundled:   "1.14.5",
+			want:      false,
+		},
+		{
+			name:      "same major minor with higher patch",
+			installed: "1.14.10",
+			bundled:   "1.14.5",
+			want:      false,
+		},
+		{
+			name:      "newer minor release",
+			installed: "1.15.0",
+			bundled:   "1.14.5",
+			want:      true,
+		},
+		{
+			name:      "older minor release",
+			installed: "1.13.9",
+			bundled:   "1.14.5",
+			want:      false,
+		},
+		{
+			name:      "newer major release",
+			installed: "2.0.0",
+			bundled:   "1.14.5",
+			want:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			installed := version.Must(version.NewVersion(tt.installed))
+			bundled := version.Must(version.NewVersion(tt.bundled))
+
+			require.Equal(t, tt.want, isNewerTerraformVersionLine(installed, bundled))
+		})
+	}
 }
 
 func TestBundledTerraformVersionPinsStayInSync(t *testing.T) {
@@ -101,11 +160,11 @@ func TestIronBankVersionFileStaysInSync(t *testing.T) {
 	require.NoError(t, err)
 
 	var versions struct {
-		BundledTerraformVersion       string `json:"bundled_terraform_version"`
-		MaxCompatibleTerraformVersion string `json:"max_compatible_terraform_version"`
+		BundledTerraformVersion string `json:"bundled_terraform_version"`
+		SupportedTerraformLine  string `json:"supported_terraform_line"`
 	}
 	require.NoError(t, json.Unmarshal(content, &versions))
 
 	require.Equal(t, TerraformVersion.String(), versions.BundledTerraformVersion)
-	require.Equal(t, maxTerraformVersion.String(), versions.MaxCompatibleTerraformVersion)
+	require.Equal(t, terraformVersionLine(TerraformVersion), versions.SupportedTerraformLine)
 }
