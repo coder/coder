@@ -2965,7 +2965,7 @@ func (api *API) resumeChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

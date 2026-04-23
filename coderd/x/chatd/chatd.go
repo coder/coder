@@ -2135,7 +2135,7 @@ func (p *Server) ResumeChat(
 		return database.Chat{}, xerrors.Errorf("update chat status: %w", err)
 	}
 	p.publishStatus(chat.ID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return updatedChat, nil
 }
 
@@ -7938,7 +7938,7 @@ func (p *Server) transitionChatStatus(
 
 	logger.Info(ctx, "transitioned chat status due to workspace state change")
 	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 	// If we moved to waiting, wake the run loop so the chat gets
 	// picked up for processing promptly.

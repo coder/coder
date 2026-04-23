@@ -6964,95 +6964,6 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 	return items, nil
 }
 
-const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
-SELECT
-    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
-    EXISTS (
-        SELECT 1 FROM chat_messages cm
-        WHERE cm.chat_id = chats.id
-            AND cm.role = 'assistant'
-            AND cm.deleted = false
-            AND cm.id > COALESCE(chats.last_read_message_id, 0)
-    ) AS has_unread
-FROM
-    chats
-WHERE
-    chats.parent_chat_id = ANY($1 :: uuid[])
-    AND CASE
-        WHEN $2 :: boolean IS NULL THEN true
-        ELSE chats.archived = $2 :: boolean
-    END
-ORDER BY
-    chats.created_at DESC,
-    chats.id DESC
-`
-
-type GetChildChatsByParentIDsParams struct {
-	ParentIds []uuid.UUID  `db:"parent_ids" json:"parent_ids"`
-	Archived  sql.NullBool `db:"archived" json:"archived"`
-}
-
-type GetChildChatsByParentIDsRow struct {
-	Chat      Chat `db:"chat" json:"chat"`
-	HasUnread bool `db:"has_unread" json:"has_unread"`
-}
-
-// Fetches child chats of the given parents, optionally filtered by
-// archive state (NULL = all, true/false = match). The archive
-// invariant (parent archived implies child archived) is enforced
-// at write time, not here.
-func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(arg.ParentIds), arg.Archived)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetChildChatsByParentIDsRow
-	for rows.Next() {
-		var i GetChildChatsByParentIDsRow
-		if err := rows.Scan(
-			&i.Chat.ID,
-			&i.Chat.OwnerID,
-			&i.Chat.WorkspaceID,
-			&i.Chat.Title,
-			&i.Chat.Status,
-			&i.Chat.WorkerID,
-			&i.Chat.StartedAt,
-			&i.Chat.HeartbeatAt,
-			&i.Chat.CreatedAt,
-			&i.Chat.UpdatedAt,
-			&i.Chat.ParentChatID,
-			&i.Chat.RootChatID,
-			&i.Chat.LastModelConfigID,
-			&i.Chat.Archived,
-			&i.Chat.LastError,
-			&i.Chat.Mode,
-			pq.Array(&i.Chat.MCPServerIDs),
-			&i.Chat.Labels,
-			&i.Chat.BuildID,
-			&i.Chat.AgentID,
-			&i.Chat.PinOrder,
-			&i.Chat.LastReadMessageID,
-			&i.Chat.LastInjectedContext,
-			&i.Chat.DynamicTools,
-			&i.Chat.OrganizationID,
-			&i.Chat.PlanMode,
-			&i.Chat.ClientType,
-			&i.HasUnread,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getChatsWithRunningWorkspaces = `-- name: GetChatsWithRunningWorkspaces :many
 SELECT
     c.id AS chat_id,
@@ -7183,6 +7094,95 @@ func (q *sqlQuerier) GetChatsWithStoppedWorkspaces(ctx context.Context) ([]GetCh
 			&i.WorkspaceID,
 			&i.WorkspaceBuildTransition,
 			&i.ProvisionerJobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildChatsByParentIDs = `-- name: GetChildChatsByParentIDs :many
+SELECT
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY($1 :: uuid[])
+    AND CASE
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC
+`
+
+type GetChildChatsByParentIDsParams struct {
+	ParentIds []uuid.UUID  `db:"parent_ids" json:"parent_ids"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+}
+
+type GetChildChatsByParentIDsRow struct {
+	Chat      Chat `db:"chat" json:"chat"`
+	HasUnread bool `db:"has_unread" json:"has_unread"`
+}
+
+// Fetches child chats of the given parents, optionally filtered by
+// archive state (NULL = all, true/false = match). The archive
+// invariant (parent archived implies child archived) is enforced
+// at write time, not here.
+func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChildChatsByParentIDs, pq.Array(arg.ParentIds), arg.Archived)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChildChatsByParentIDsRow
+	for rows.Next() {
+		var i GetChildChatsByParentIDsRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.LastInjectedContext,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.HasUnread,
 		); err != nil {
 			return nil, err
 		}

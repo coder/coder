@@ -1,4 +1,4 @@
-import { ArchiveIcon, ArrowDownIcon, PauseIcon, PlayIcon } from "lucide-react";
+import { ArchiveIcon, PauseIcon, PlayIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -188,7 +188,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	chatBuildId,
-	hasWorkspace,
 	workspaceStatus,
 	chatStatus,
 	store,
