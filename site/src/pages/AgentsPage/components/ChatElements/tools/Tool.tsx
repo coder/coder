@@ -712,21 +712,24 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
 	const rec = asRecord(result);
-	const resultType = rec ? asString(rec.type) : "";
-	const normalizedResultType: AdvisorToolResultType | undefined =
-		resultType === "advice" ||
-		resultType === "limit_reached" ||
-		resultType === "error"
-			? resultType
-			: undefined;
+	const rawResultType = rec ? asString(rec.type) : "";
 	const advice = rec
 		? asString(rec.advice)
 		: typeof result === "string" && !isError
 			? result
 			: undefined;
+	const adviceText = (advice ?? "").trim();
+	const resolvedResultType: AdvisorToolResultType | undefined =
+		rawResultType === "advice" ||
+		rawResultType === "limit_reached" ||
+		rawResultType === "error"
+			? rawResultType
+			: adviceText
+				? "advice"
+				: undefined;
 	const errorMessage =
 		(rec ? asString(rec.error || rec.message) : "") ||
-		(typeof result === "string" && (isError || normalizedResultType === "error")
+		(typeof result === "string" && (isError || resolvedResultType === "error")
 			? result
 			: "");
 	const advisorModel = rec ? asString(rec.advisor_model) : "";
@@ -739,7 +742,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			question={question}
 			status={status}
 			isError={isError}
-			resultType={normalizedResultType}
+			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
 			advisorModel={advisorModel || undefined}
@@ -1039,7 +1042,8 @@ export const Tool = memo(
 				className={cn(
 					name === "execute" ||
 						name === "process_output" ||
-						name === "propose_plan"
+						name === "propose_plan" ||
+						name === "advisor"
 						? "w-full py-0.5"
 						: "py-0.5",
 					// Collapse padding between adjacent tool calls so they hug.

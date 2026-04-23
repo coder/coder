@@ -108,7 +108,9 @@ export const Running: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
-		expect(canvas.getByText("Consulting advisor…")).toBeInTheDocument();
+		expect(canvas.getAllByText("Consulting advisor…").length).toBeGreaterThan(
+			0,
+		);
 	},
 };
 
@@ -147,6 +149,56 @@ export const ErrorState: Story = {
 		expect(canvas.getByText("Advisor request failed.")).toBeInTheDocument();
 		expect(
 			canvas.getByText("The advisor service is temporarily unavailable."),
+		).toBeInTheDocument();
+	},
+};
+
+export const EmptyQuestion: Story = {
+	args: {
+		status: "completed",
+		args: { question: "   " },
+		result: {
+			type: "advice",
+			advice: sampleAdvice,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("No question provided.")).toBeInTheDocument();
+	},
+};
+
+export const EmptyAdvice: Story = {
+	args: {
+		status: "completed",
+		args: { question: sampleQuestion },
+		result: {
+			type: "advice",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Advisor returned no guidance."),
+		).toBeInTheDocument();
+		expect(canvas.getByText("No guidance")).toBeInTheDocument();
+	},
+};
+
+export const BlankError: Story = {
+	args: {
+		status: "completed",
+		isError: true,
+		args: { question: sampleQuestion },
+		result: {
+			type: "error",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Advisor request failed.")).toBeInTheDocument();
+		expect(
+			canvas.getByText("Advisor could not return guidance."),
 		).toBeInTheDocument();
 	},
 };

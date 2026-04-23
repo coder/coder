@@ -25,7 +25,7 @@ const FALLBACK_ERROR = "Advisor could not return guidance.";
 const LIMIT_REACHED_MESSAGE =
 	"You have reached the advisor limit for this conversation.";
 const RUNNING_MESSAGE = "Consulting advisor…";
-const EMPTY_ADVICE_MESSAGE = "Advisor returned no advice.";
+const EMPTY_ADVICE_MESSAGE = "Advisor returned no guidance.";
 
 export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	question,
@@ -41,17 +41,15 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const adviceText = advice?.trim() ?? "";
 	const advisorModelText = advisorModel?.trim() ?? "";
 	const effectiveErrorMessage = errorMessage?.trim() || FALLBACK_ERROR;
-	const normalizedResultType =
-		resultType || (adviceText ? "advice" : undefined);
 	const isRunning = status === "running";
-	const showLimitReached = normalizedResultType === "limit_reached";
-	const showError = isError || normalizedResultType === "error";
-	const hasAdvice = normalizedResultType === "advice";
+	const showLimitReached = resultType === "limit_reached";
+	const showError = isError || resultType === "error";
+	const hasAdvice = resultType === "advice" && adviceText.length > 0;
 	const hasMetadata =
 		advisorModelText.length > 0 || remainingUses !== undefined;
 
 	const headerStatus = isRunning
-		? "Thinking…"
+		? "Consulting advisor…"
 		: showLimitReached
 			? "Limit reached"
 			: showError
@@ -71,22 +69,16 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					<ToolIcon name="advisor" isError={showError} isRunning={isRunning} />
 					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
 						<div className="flex min-w-0 items-center gap-2">
-							<span className="capitalize">
-								<ToolLabel
-									name="advisor"
-									args={{ question: questionText }}
-									result={
-										normalizedResultType
-											? { type: normalizedResultType }
-											: undefined
-									}
-								/>
-							</span>
+							<ToolLabel
+								name="advisor"
+								args={{ question: questionText }}
+								result={resultType ? { type: resultType } : undefined}
+							/>
 							<span className="text-2xs text-content-secondary">
 								{headerStatus}
 							</span>
 						</div>
-						<p className="m-0 truncate text-sm text-content-primary [overflow-wrap:anywhere]">
+						<p className="m-0 truncate text-sm text-content-primary">
 							{questionText}
 						</p>
 					</div>
@@ -115,7 +107,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					) : showLimitReached ? (
 						<div
 							role="status"
-							className="flex items-start gap-3 rounded-md border border-solid border-border-warning bg-surface-warning p-3 text-sm text-content-primary"
+							className="flex items-start gap-3 rounded-md border border-solid border-border-warning bg-surface-orange p-3 text-sm text-content-primary"
 						>
 							<TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-warning" />
 							<div className="space-y-1">
