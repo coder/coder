@@ -330,7 +330,7 @@ func requireNoRelayTexts(
 		default:
 			return false
 		}
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, 2*time.Second, testutil.IntervalFast)
 }
 
 func advanceRelayReconnect(
@@ -378,7 +378,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 					Part: codersdk.ChatMessageText("second-relay"),
 				},
 			}
-			// Don't close — keep alive so the subscriber stays connected.
+			// Don't close, keep alive so the subscriber stays connected.
 		}
 		return nil, ch, func() {}, nil
 	}
@@ -632,6 +632,46 @@ func TestSubscribeRelayReconnectRepeatedPayloadsFallBackToFullSnapshot(t *testin
 		return callCount.Load() == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
 	requireRelayTexts(t, events, "dup", "dup", "new-tail")
+}
+
+func TestSubscribeRelayReconnectDedupsAcrossThreeCycles(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"cycle-a", "cycle-b"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"cycle-b", "cycle-c"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"cycle-b", "cycle-c", "cycle-d"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-three-cycles")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "cycle-a", "cycle-b")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "cycle-c")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 3
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "cycle-d")
+	requireNoRelayTexts(t, events)
 }
 
 func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
@@ -967,7 +1007,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 				return nil, nil, nil, ctx.Err()
 			}
 			// If we get here after being released (not canceled),
-			// return a stale part — this should be discarded.
+			// return a stale part. This should be discarded.
 			ch <- codersdk.ChatStreamEvent{
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
@@ -998,7 +1038,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	// relay.
 	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "stale-dial-test")
 
-	// Subscribe while chat is in "waiting" state — no relay opened.
+	// Subscribe while chat is in "waiting" state, no relay opened.
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
@@ -1092,7 +1132,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
 				event.MessagePart != nil &&
 				event.MessagePart.Part.Text == "stale-part" {
-				t.Fatal("received stale part from old worker — relay did not cancel in-flight dial")
+				t.Fatal("received stale part from old worker, relay did not cancel in-flight dial")
 			}
 			return false
 		default:
@@ -1478,7 +1518,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	require.NoError(t, err)
 
 	// Give the system time to process the notification. No additional
-	// dial should happen — only the initial synchronous one.
+	// dial should happen, only the initial synchronous one.
 	require.Never(t, func() bool {
 		return int(callCount.Load()) > 1
 	}, 2*time.Second, testutil.IntervalFast)
@@ -1489,7 +1529,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 
 // TestSubscribeRelayMultipleReconnects verifies that the reconnect
 // loop handles multiple consecutive relay drops, proving it is
-// robust across repeated iterations — not just the single reconnect
+// robust across repeated iterations, not just the single reconnect
 // already covered by TestSubscribeRelayReconnectsOnDrop.
 func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	t.Parallel()

@@ -297,8 +297,9 @@ func NewMultiReplicaSubscribeFn(
 			}
 			closeRelay(workerID != recentRelayWorkerID)
 			// Create a per-dial context so this goroutine is
-			// canceled if closeRelay() or openRelayAsync() is
-			// called again before the dial completes.
+			// canceled if closeRelay(clearRecentHistory) or
+			// openRelayAsync() is called again before the dial
+			// completes.
 			var dialCtx context.Context
 			dialCtx, dialCancel = context.WithCancel(ctx)
 			expectedWorkerID = workerID
@@ -386,7 +387,7 @@ func NewMultiReplicaSubscribeFn(
 			case <-ctx.Done():
 			}
 		}
-		forwardRelayPart := func(event codersdk.ChatStreamEvent) bool {
+		forwardAndRecordRelayPart := func(event codersdk.ChatStreamEvent) bool {
 			if event.Type != codersdk.ChatStreamEventTypeMessagePart {
 				return true
 			}
@@ -400,7 +401,7 @@ func NewMultiReplicaSubscribeFn(
 		}
 		forwardRelaySnapshot := func(snapshot []codersdk.ChatStreamEvent) bool {
 			for _, event := range snapshot {
-				if !forwardRelayPart(event) {
+				if !forwardAndRecordRelayPart(event) {
 					return false
 				}
 			}
@@ -414,7 +415,7 @@ func NewMultiReplicaSubscribeFn(
 			// Forward any initial relay snapshot parts
 			// collected synchronously above.
 			for _, event := range initialRelaySnapshot {
-				if !forwardRelayPart(event) {
+				if !forwardAndRecordRelayPart(event) {
 					return
 				}
 			}
@@ -629,7 +630,7 @@ func NewMultiReplicaSubscribeFn(
 						scheduleRelayReconnect(delay)
 						continue
 					}
-					if !forwardRelayPart(event) {
+					if !forwardAndRecordRelayPart(event) {
 						return
 					}
 				}
@@ -644,6 +645,14 @@ func NewMultiReplicaSubscribeFn(
 	}
 }
 
+// trimRelaySnapshotOverlap finds the largest suffix of recent that
+// exactly matches a prefix of snapshot, then returns snapshot with
+// that prefix removed. If no match is found, or if more than one
+// overlap size matches, it returns the full snapshot. The
+// overlapMatches == 1 guard is the safety property of reconnect
+// dedup and must not be simplified away: repeated payloads can make
+// the boundary ambiguous, and in that case we prefer duplicate
+// delivery over silently dropping real output.
 func trimRelaySnapshotOverlap(
 	recent []codersdk.ChatStreamEvent,
 	snapshot []codersdk.ChatStreamEvent,
@@ -653,7 +662,7 @@ func trimRelaySnapshotOverlap(
 	limit := min(len(recent), len(snapshot))
 	for size := 1; size <= limit; size++ {
 		matched := true
-		for i := 0; i < size; i++ {
+		for i := range size {
 			recentEvent := recent[len(recent)-size+i]
 			snapshotEvent := snapshot[i]
 			if recentEvent.Type != codersdk.ChatStreamEventTypeMessagePart ||
@@ -674,6 +683,9 @@ func trimRelaySnapshotOverlap(
 	return snapshot[overlap:]
 }
 
+// appendRecentRelayPart appends one relay message part to the
+// bounded sliding-window buffer used for reconnect dedup, keeping at
+// most relaySnapshotCap recent entries.
 func appendRecentRelayPart(
 	recent []codersdk.ChatStreamEvent,
 	event codersdk.ChatStreamEvent,
@@ -689,6 +701,14 @@ func appendRecentRelayPart(
 	return recent[:relaySnapshotCap]
 }
 
+// relayMessagePartEqual reports whether two streamed message parts
+// are safe to treat as identical for reconnect dedup. It
+// intentionally uses reflect.DeepEqual for a conservative
+// comparison. That is safe today because both sides come from JSON
+// and neither carries a monotonic time.Time reading. Audit this
+// helper before adding fields populated with time.Now() or
+// re-encoded json.RawMessage values, because either could silently
+// disable dedup even when the logical payloads still match.
 func relayMessagePartEqual(
 	left *codersdk.ChatStreamMessagePart,
 	right *codersdk.ChatStreamMessagePart,
