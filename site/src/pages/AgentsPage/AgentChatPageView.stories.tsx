@@ -14,6 +14,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import {
 	AgentChatPageLoadingView,
@@ -1205,5 +1206,65 @@ export const ScrollStableAfterEditTruncation: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
+	},
+};
+
+/**
+ * Selecting the Terminal tab in the sidebar must move keyboard focus into
+ * the terminal so typing goes there, not the chat input.
+ */
+export const TerminalFocusOnTabSwitch: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+	},
+	decorators: [withWebSocket],
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The sidebar should open on the Git tab by default.
+		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
+
+		// 1. Click the Terminal tab.
+		await userEvent.click(terminalTab);
+
+		// Wait for the terminal container to appear.
+		const terminalContainer = await waitFor(() => {
+			const el = canvas.getByTestId("agents-sidebar-terminal");
+			expect(el).toBeVisible();
+			return el;
+		});
+
+		// The xterm focus target is a textarea inside the terminal container.
+		await waitFor(
+			() => {
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
+			},
+			{ timeout: 3000 },
+		);
+
+		// 2. Switch to Git, then back to Terminal.
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
+		await userEvent.click(terminalTab);
+
+		// Focus should return to the terminal textarea.
+		await waitFor(
+			() => {
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
+			},
+			{ timeout: 3000 },
+		);
 	},
 };
