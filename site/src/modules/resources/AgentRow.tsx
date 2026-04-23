@@ -156,6 +156,19 @@ export const AgentRow: FC<AgentRowProps> = ({
 			t.stage === "start" &&
 			t.exit_code !== 0,
 	);
+	const failedLogSourceIds = new Set(
+		failedStartTimings
+			?.map((timing) => {
+				const script = agent.scripts.find(
+					(s) => s.display_name === timing.display_name,
+				);
+				return script?.log_source_id;
+			})
+			.filter(Boolean) ?? [],
+	);
+	const firstFailedLogSourceId = agent.log_sources.find((s) =>
+		failedLogSourceIds.has(s.id),
+	)?.id;
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
@@ -235,14 +248,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const failedStartupScriptSource = hasAgentIssues
-		? agent.log_sources.find(
-				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
-			)
-		: undefined;
 	const [selectedLogTab, setSelectedLogTab] = useState(
-		failedStartupScriptSource?.id ?? "all",
+		firstFailedLogSourceId ?? "all",
 	);
+	const hasAutoSelectedFailedTab = useRef(false);
+	useEffect(() => {
+		if (!hasAutoSelectedFailedTab.current && firstFailedLogSourceId) {
+			hasAutoSelectedFailedTab.current = true;
+			setSelectedLogTab(firstFailedLogSourceId);
+		}
+	}, [firstFailedLogSourceId]);
 	const sourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -265,6 +280,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			) : null,
 			title: logSource.display_name,
 			value: logSource.id,
+			hasError: failedLogSourceIds.has(logSource.id),
 		}));
 	const startupScriptLogTab = sourceLogTabs.find(
 		(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
@@ -276,6 +292,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		startIcon?: ReactNode;
 		title: string;
 		value: string;
+		hasError?: boolean;
 	}[] = [
 		{
 			title: "All Logs",
@@ -550,6 +567,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<span className="whitespace-nowrap">
 															{tab.title}
 														</span>
+														{tab.hasError && (
+															<TriangleAlertIcon className="size-icon-xs text-content-warning shrink-0" />
+														)}
 													</TabsTrigger>
 												))}
 												{overflowLogTabs.length > 0 && (
@@ -567,7 +587,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 																aria-label="More log tabs"
 																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
 															>
-																<EllipsisIcon className="size-icon-sm" />
+																{overflowLogTabs.some((t) => t.hasError) ? (
+																	<TriangleAlertIcon className="size-icon-xs text-content-warning" />
+																) : (
+																	<EllipsisIcon className="size-icon-sm" />
+																)}
 																<span className="sr-only">More log tabs</span>
 															</button>
 														</DropdownMenuTrigger>
@@ -586,6 +610,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		<span className="whitespace-nowrap">
 																			{tab.title}
 																		</span>
+																		{tab.hasError && (
+																			<TriangleAlertIcon className="size-icon-xs text-content-warning shrink-0" />
+																		)}
 																	</DropdownMenuRadioItem>
 																))}
 															</DropdownMenuRadioGroup>

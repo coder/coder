@@ -98,10 +98,10 @@ const installScriptLogSource: WorkspaceAgentLogSource = {
 	display_name: "Install Script",
 };
 
-const startupScriptLogSource: WorkspaceAgentLogSource = {
+const buildScriptLogSource: WorkspaceAgentLogSource = {
 	...M.MockWorkspaceAgentLogSource,
 	id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-	display_name: "Startup Script",
+	display_name: "Build Script",
 };
 
 const tabbedLogs = [
@@ -240,7 +240,7 @@ export const StartErrorWithTimings: Story = {
 		const canvas = within(canvasElement);
 
 		const scriptTab = await canvas.findByRole("tab", {
-			name: "Startup Script",
+			name: "Build Script",
 		});
 		await waitFor(() =>
 			expect(scriptTab).toHaveAttribute("data-state", "active"),
@@ -250,11 +250,18 @@ export const StartErrorWithTimings: Story = {
 		agent: {
 			...M.MockWorkspaceAgentStartError,
 			logs_length: 2,
-			log_sources: [startupScriptLogSource],
+			log_sources: [buildScriptLogSource],
+			scripts: [
+				{
+					...M.MockWorkspaceAgent.scripts[0],
+					display_name: "Build Script",
+					log_source_id: buildScriptLogSource.id,
+				},
+			],
 		},
 		agentScriptTimings: [
 			{
-				display_name: "Startup Script",
+				display_name: "Build Script",
 				exit_code: 1,
 				stage: "start",
 				status: "exit_failure",
@@ -273,15 +280,108 @@ export const StartErrorWithTimings: Story = {
 					{
 						id: 200,
 						level: "info",
-						output: "startup: preparing workspace",
+						output: "build: preparing workspace",
 						source_id: M.MockWorkspaceAgentLogSource.id,
 						created_at: fixedLogTimestamp,
 					},
 					{
 						id: 201,
 						level: "error",
-						output: "startup script: command not found",
-						source_id: startupScriptLogSource.id,
+						output: "build script: command not found",
+						source_id: buildScriptLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+				]),
+			},
+		],
+	},
+};
+
+export const MultipleFailedScripts: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// buildScriptLogSource is first in log_sources, so it should be auto-selected.
+		const buildTab = await canvas.findByRole("tab", {
+			name: "Build Script",
+		});
+		await waitFor(() =>
+			expect(buildTab).toHaveAttribute("data-state", "active"),
+		);
+	},
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentStartError,
+			logs_length: 4,
+			log_sources: [buildScriptLogSource, installScriptLogSource],
+			scripts: [
+				{
+					...M.MockWorkspaceAgent.scripts[0],
+					display_name: "Install Script",
+					log_source_id: installScriptLogSource.id,
+				},
+				{
+					...M.MockWorkspaceAgent.scripts[0],
+					id: "b2d3e4f5-a6b7-8901-cdef-234567890abc",
+					display_name: "Build Script",
+					log_source_id: buildScriptLogSource.id,
+				},
+			],
+		},
+		agentScriptTimings: [
+			{
+				display_name: "Install Script",
+				exit_code: 127,
+				stage: "start",
+				status: "exit_failure",
+				started_at: "2021-05-05T00:00:00.000Z",
+				ended_at: "2021-05-05T00:00:01.000Z",
+				workspace_agent_id: M.MockWorkspaceAgentStartError.id,
+				workspace_agent_name: M.MockWorkspaceAgentStartError.name,
+			},
+			{
+				display_name: "Build Script",
+				exit_code: 1,
+				stage: "start",
+				status: "exit_failure",
+				started_at: "2021-05-05T00:00:01.000Z",
+				ended_at: "2021-05-05T00:00:02.000Z",
+				workspace_agent_id: M.MockWorkspaceAgentStartError.id,
+				workspace_agent_name: M.MockWorkspaceAgentStartError.name,
+			},
+		],
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify([
+					{
+						id: 300,
+						level: "info",
+						output: "install: pnpm install",
+						source_id: installScriptLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+					{
+						id: 301,
+						level: "error",
+						output: "install script: command not found",
+						source_id: installScriptLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+					{
+						id: 302,
+						level: "info",
+						output: "build: preparing workspace",
+						source_id: buildScriptLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+					{
+						id: 303,
+						level: "error",
+						output: "build script: command not found",
+						source_id: buildScriptLogSource.id,
 						created_at: fixedLogTimestamp,
 					},
 				]),
