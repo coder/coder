@@ -312,8 +312,6 @@ github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 h1:aBangftG7EVZoUb69Os
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2/go.mod h1:qwXFYgsP6T7XnJtbKlf1HP8AjxZZyzxMmc+Lq5GjlU4=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JRmzdOEo5wUWngaGEFBG8OaE1o2GIHN5ujJ8=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
-github.com/coder/aibridge v1.1.3-0.20260420072253-d474d6813420 h1:vSgHLbHvty3Y9DXAKZimP/GXKI23o52PlTC+EJYh6tM=
-github.com/coder/aibridge v1.1.3-0.20260420072253-d474d6813420/go.mod h1:k2/JzBF/jW2h4xKYyXXy9gbD7qaf0kKvfXxwA2JCYxE=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/anthropic-sdk-go v0.0.0-20260415160422-a31d7d0e7067 h1:v1RAkUO21u0QH6UlUueSHMbgFf++BZZW41Rj6LM2eWo=

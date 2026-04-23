@@ -7,7 +7,6 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { AdminBadge } from "./AdminBadge";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
@@ -110,7 +109,6 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						Conversation Retention Period
 					</h3>
-					<AdminBadge />
 				</div>
 				<Switch
 					checked={isRetentionEnabled}

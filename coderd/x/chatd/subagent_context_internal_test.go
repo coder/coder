@@ -472,12 +472,17 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
-		Anthropic: "test-anthropic-key",
-	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
+	insertEnabledAnthropicProvider(ctx, t, db, parentChat.OwnerID)
+	// The direct DB insert above bypasses the pubsub event that
+	// production uses to invalidate the provider cache. Explicitly
+	// invalidate here so the background processing goroutine does
+	// not serve a stale provider list (OpenAI only) that was cached
+	// before the Anthropic provider was inserted.
+	server.configCache.InvalidateProviders()
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, spawnAgentToolName)

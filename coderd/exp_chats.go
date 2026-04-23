@@ -28,7 +28,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
-	"github.com/coder/coder/v2/coderd/chatfiles"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -50,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -1711,7 +1711,7 @@ func (api *API) authorizeChatWorkspaceExec(
 	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
+			Message: codersdk.ChatGitWatchWorkspaceNotFoundMessage,
 		})
 		return database.Workspace{}, false
 	}
@@ -1742,7 +1742,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
 	)
 
-	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, "Chat has no workspace to watch."); !ok {
+	if _, ok := api.authorizeChatWorkspaceExec(rw, r, chat, codersdk.ChatGitWatchNoWorkspaceMessage); !ok {
 		return
 	}
 
@@ -1756,7 +1756,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	}
 	if len(agents) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace has no agents.",
+			Message: codersdk.ChatGitWatchWorkspaceNoAgentsMessage,
 		})
 		return
 	}
@@ -1780,7 +1780,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+			Message: codersdk.ChatGitWatchAgentStateMessage(apiAgent.Status),
 		})
 		return
 	}
@@ -5165,6 +5165,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := validateChatProviderCentralAPIKey(
+		provider,
 		centralAPIKeyEnabled,
 		api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
 			Provider:             provider,
@@ -5326,6 +5327,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := validateChatProviderCentralAPIKey(
+		existing.Provider,
 		centralAPIKeyEnabled,
 		api.hasEffectiveCentralProviderAPIKey(ctx, database.ChatProvider{
 			ID:                   existing.ID,
@@ -5386,27 +5388,29 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetChatProviderByID(ctx, providerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
+	err := api.Database.InTx(func(tx database.Store) error {
+		provider, err := tx.GetChatProviderByIDForUpdate(ctx, providerID)
+		switch {
+		case err == nil:
+			if err := tx.DeleteChatModelConfigsByProvider(ctx, provider.Provider); err != nil {
+				return xerrors.Errorf("soft delete chat model configs for provider %q: %w", provider.Provider, err)
+			}
+			if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+				return err
+			}
+			if err := tx.DeleteChatProviderByID(ctx, provider.ID); err != nil {
+				return xerrors.Errorf("delete chat provider %s: %w", provider.ID, err)
+			}
+			return nil
+		case xerrors.Is(err, sql.ErrNoRows):
+			return err
+		default:
+			return xerrors.Errorf("get chat provider %s for delete: %w", providerID, err)
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
-		if database.IsForeignKeyViolation(err,
-			database.ForeignKeyChatMessagesModelConfigID,
-			database.ForeignKeyChatsLastModelConfigID,
-		) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Provider models are still referenced by existing chats.",
-				Detail:  err.Error(),
-			})
+	}, nil)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5460,7 +5464,7 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 		hasUserAPIKey := hasUserAPIKeyByProviderID[provider.ID]
 		hasCentralAPIKeyFallback := provider.Enabled &&
 			provider.AllowCentralApiKeyFallback &&
-			api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+			api.hasEffectiveCentralProviderCredentials(ctx, provider, uuid.Nil)
 		resp = append(
 			resp,
 			convertUserChatProviderConfig(
@@ -5546,7 +5550,7 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 
 	hasCentralAPIKeyFallback := provider.Enabled &&
 		provider.AllowCentralApiKeyFallback &&
-		api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+		api.hasEffectiveCentralProviderCredentials(ctx, provider, uuid.Nil)
 	httpapi.Write(
 		ctx,
 		rw,
@@ -5700,6 +5704,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var inserted database.ChatModelConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, insertParams.Provider); err != nil {
+			return err
+		}
+
 		insertAsDefault := isDefault
 		if !insertAsDefault {
 			_, err := tx.GetDefaultChatModelConfig(ctx)
@@ -5745,7 +5753,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
@@ -5878,6 +5886,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
+		if err := requireChatProviderForModelConfig(ctx, tx, updateParams.Provider); err != nil {
+			return err
+		}
+
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
 		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
@@ -5887,6 +5899,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
 			return err
 		}
 
@@ -5905,6 +5920,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
 		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				// Do not wrap with %w. The outer handler maps target misses to 404.
+				return xerrors.Errorf("refresh updated chat model config: %v", err)
+			}
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
 		updated = refreshedConfig
@@ -5918,11 +5937,14 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case database.IsForeignKeyViolation(err):
+		case xerrors.Is(err, errChatProviderNotConfigured):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
+			return
+		case xerrors.Is(err, errChatModelConfigNotFound):
+			httpapi.ResourceNotFound(rw)
 			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6024,6 +6046,11 @@ func ensureDefaultChatModelConfig(
 	params := chatModelConfigToUpdateParams(candidateConfig)
 	params.IsDefault = true
 	if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Do not wrap with %w. Callers map target misses to 404, but a
+			// default-candidate race is an internal retryable failure.
+			return xerrors.Errorf("set default model config: %v", err)
+		}
 		return xerrors.Errorf("set default model config: %w", err)
 	}
 	return nil
@@ -6313,6 +6340,30 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
+var (
+	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
+	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+)
+
+// requireChatProviderForModelConfig takes a FOR UPDATE lock on the provider
+// row to serialize model-config writes with deleteChatProvider. Do not swap
+// this call for the non-locking provider lookup.
+func requireChatProviderForModelConfig(
+	ctx context.Context,
+	tx database.Store,
+	provider string,
+) error {
+	_, err := tx.GetChatProviderByProviderForUpdate(ctx, provider)
+	switch {
+	case err == nil:
+		return nil
+	case xerrors.Is(err, sql.ErrNoRows):
+		return errChatProviderNotConfigured
+	default:
+		return xerrors.Errorf("get chat provider %q: %w", provider, err)
+	}
+}
+
 const maxChatProviderAPIKeySize = 10240 // 10 KB
 
 func validateChatProviderAPIKeySize(apiKey string) error {
@@ -6346,15 +6397,17 @@ func validateChatProviderCredentialPolicy(
 
 //nolint:revive // This helper validates central-key requirements.
 func validateChatProviderCentralAPIKey(
+	provider string,
 	centralEnabled bool,
 	hasCentralAPIKey bool,
 ) error {
-	if centralEnabled && !hasCentralAPIKey {
-		return xerrors.New(
-			"API key is required when central API key is enabled.",
-		)
+	if !centralEnabled || hasCentralAPIKey {
+		return nil
 	}
-	return nil
+	if chatprovider.ProviderAllowsAmbientCredentials(provider) {
+		return nil
+	}
+	return xerrors.New("API key is required when central API key is enabled.")
 }
 
 // ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
@@ -6370,6 +6423,18 @@ func ChatProviderAPIKeysFromDeploymentValues(
 
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
 	return api.hasEffectiveCentralProviderAPIKey(ctx, provider, uuid.Nil)
+}
+
+func (api *API) hasEffectiveCentralProviderCredentials(
+	ctx context.Context,
+	provider database.ChatProvider,
+	excludeProviderID uuid.UUID,
+) bool {
+	if api.hasEffectiveCentralProviderAPIKey(ctx, provider, excludeProviderID) {
+		return true
+	}
+	return provider.CentralApiKeyEnabled &&
+		chatprovider.ProviderAllowsAmbientCredentials(provider.Provider)
 }
 
 func (api *API) hasEffectiveCentralProviderAPIKey(
