@@ -821,11 +821,6 @@ const StickyUserMessage = memo<{
 	},
 );
 
-// Precompute isLastInChain for each assistant message in a single reverse
-// pass to avoid O(N^2) work in the render loop. An assistant message is the
-// last in its chain when the next *visible* message is a user turn (or there
-// is no next visible message). Uses deriveMessageDisplayState to match
-// ChatMessageItem's hide logic. React Compiler memoizes the call site.
 function computeLastInChainFlags(
 	parsedMessages: readonly ParsedMessageEntry[],
 ): boolean[] {
