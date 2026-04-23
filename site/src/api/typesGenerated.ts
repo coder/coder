@@ -782,6 +782,15 @@ export interface AddLicenseRequest {
 	readonly license: string;
 }
 
+// From codersdk/organizations.go
+/**
+ * AddOrganizationMembersRequest provides a list of user IDs to add
+ * as members to an organization in a single batch request.
+ */
+export interface AddOrganizationMembersRequest {
+	readonly user_ids: readonly string[];
+}
+
 // From codersdk/deployment.go
 export type Addon = "ai_governance";
 

@@ -1417,6 +1417,7 @@ func New(options *Options) *API {
 				r.Get("/paginated-members", api.paginatedMembers)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/", api.listMembers)
+					r.Post("/", api.postOrganizationMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
 					})

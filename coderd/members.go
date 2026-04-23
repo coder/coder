@@ -18,11 +18,12 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Add organization member
+// @Summary Add organization member (deprecated)
 // @ID add-organization-member
 // @Security CoderSessionToken
 // @Produce json
@@ -31,6 +32,7 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /organizations/{organization}/members/{user} [post]
+// @Deprecated use POST /organizations/{organization}/members instead
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -88,6 +90,137 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
+// @Summary Batch add organization members
+// @ID batch-add-organization-members
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param request body codersdk.AddOrganizationMembersRequest true "Add members request"
+// @Success 201 {array} codersdk.OrganizationMember
+// @Router /organizations/{organization}/members [post]
+func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		apiKey       = httpmw.APIKey(r)
+		auditor      = api.Auditor.Load()
+	)
+
+	sw, ok := rw.(*tracing.StatusWriter)
+	if !ok {
+		httpapi.InternalServerError(rw, xerrors.New("developer error: http.ResponseWriter is not *tracing.StatusWriter"))
+		return
+	}
+
+	var req codersdk.AddOrganizationMembersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// auditMembers is populated after the transaction succeeds and
+	// read by the deferred audit closure once the final response
+	// status is known. usersByID maps each user ID to its database
+	// row so we can look up usernames for audit entries. On
+	// early-return error paths the slice stays nil, so no audit
+	// events are emitted.
+	var auditMembers []database.OrganizationMember
+	var usersByID map[uuid.UUID]database.User
+	defer func() {
+		for _, member := range auditMembers {
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
+				Audit:          *auditor,
+				Log:            api.Logger,
+				UserID:         apiKey.UserID,
+				OrganizationID: organization.ID,
+				RequestID:      httpmw.RequestID(r),
+				Action:         database.AuditActionCreate,
+				IP:             r.RemoteAddr,
+				Status:         sw.Status,
+				Old:            database.AuditableOrganizationMember{},
+				New:            member.Auditable(usersByID[member.UserID].Username),
+			})
+		}
+	}()
+
+	// Resolve all users in a single query. The request context
+	// (not AsSystemRestricted) is used so dbauthz enforces read
+	// permission on each target user.
+	users, err := api.Database.GetUsersByIDs(ctx, req.UserIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	usersByID = make(map[uuid.UUID]database.User, len(users))
+	for _, u := range users {
+		usersByID[u.ID] = u
+	}
+
+	// Check that every requested user was found and none are
+	// deleted. GetUsersByIDs intentionally includes deleted users
+	// (see query comment), so we reject them explicitly.
+	var missing []uuid.UUID
+	var deleted []uuid.UUID
+	for _, uid := range req.UserIDs {
+		u, ok := usersByID[uid]
+		if !ok {
+			missing = append(missing, uid)
+		} else if u.Deleted {
+			deleted = append(deleted, uid)
+		}
+	}
+	if len(missing) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Users not found: %v", missing),
+		})
+		return
+	}
+	if len(deleted) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Deleted users cannot be added to an organization: %v", deleted),
+		})
+		return
+	}
+
+	// Validate OIDC org-sync constraints for all users before
+	// starting the transaction.
+	for _, user := range users {
+		if !api.manualOrganizationMembership(ctx, rw, user) {
+			return
+		}
+	}
+
+	// Batch-insert new members. ON CONFLICT DO NOTHING silently
+	// skips users who are already members, eliminating the race
+	// between the check and the insert.
+	now := dbtime.Now()
+	allMembers, err := api.Database.InsertOrganizationMembersBatch(ctx, database.InsertOrganizationMembersBatchParams{
+		OrganizationID: organization.ID,
+		UserIds:        req.UserIDs,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Roles:          []string{},
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Populate the audit slice so the deferred closure emits
+	// events with the real response status code.
+	auditMembers = allMembers
+
+	resp, err := convertOrganizationMembers(ctx, api.Database, allMembers)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, resp)
 }
 
 // @Summary Remove organization member
@@ -501,8 +634,8 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 	return true
 }
 
-// convertOrganizationMembers batches the role lookup to make only 1 sql call
-// We
+// convertOrganizationMembers batches the role lookup to make only
+// one SQL call instead of one per member.
 func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) ([]codersdk.OrganizationMember, error) {
 	converted := make([]codersdk.OrganizationMember, 0, len(mems))
 	roleLookup := make([]database.NameOrganizationPair, 0)

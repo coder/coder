@@ -6881,6 +6881,21 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
 }
 
+// InsertOrganizationMembersBatch mocks base method.
+func (m *MockStore) InsertOrganizationMembersBatch(ctx context.Context, arg database.InsertOrganizationMembersBatchParams) ([]database.OrganizationMember, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrganizationMembersBatch", ctx, arg)
+	ret0, _ := ret[0].([]database.OrganizationMember)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertOrganizationMembersBatch indicates an expected call of InsertOrganizationMembersBatch.
+func (mr *MockStoreMockRecorder) InsertOrganizationMembersBatch(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMembersBatch", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMembersBatch), ctx, arg)
+}
+
 // InsertPreset mocks base method.
 func (m *MockStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	m.ctrl.T.Helper()

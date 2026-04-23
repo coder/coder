@@ -15630,6 +15630,72 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const insertOrganizationMembersBatch = `-- name: InsertOrganizationMembersBatch :many
+INSERT INTO organization_members (
+	organization_id,
+	user_id,
+	created_at,
+	updated_at,
+	roles
+)
+SELECT
+	$1 :: uuid,
+	user_id,
+	$2 :: timestamptz,
+	$3 :: timestamptz,
+	$4 :: text[]
+FROM
+	UNNEST($5 :: uuid[]) AS user_id
+ON CONFLICT DO NOTHING
+RETURNING user_id, organization_id, created_at, updated_at, roles
+`
+
+type InsertOrganizationMembersBatchParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time   `db:"updated_at" json:"updated_at"`
+	Roles          []string    `db:"roles" json:"roles"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+}
+
+// Batch-inserts new organization members. Users that are already members
+// are silently skipped via ON CONFLICT DO NOTHING, so the caller does not
+// need to pre-filter. Only newly inserted rows are returned.
+func (q *sqlQuerier) InsertOrganizationMembersBatch(ctx context.Context, arg InsertOrganizationMembersBatchParams) ([]OrganizationMember, error) {
+	rows, err := q.db.QueryContext(ctx, insertOrganizationMembersBatch,
+		arg.OrganizationID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		pq.Array(arg.Roles),
+		pq.Array(arg.UserIds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationMember
+	for rows.Next() {
+		var i OrganizationMember
+		if err := rows.Scan(
+			&i.UserID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			pq.Array(&i.Roles),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,

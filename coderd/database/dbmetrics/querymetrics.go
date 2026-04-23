@@ -3672,6 +3672,14 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOrganizationMembersBatch(ctx context.Context, arg database.InsertOrganizationMembersBatchParams) ([]database.OrganizationMember, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOrganizationMembersBatch(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOrganizationMembersBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationMembersBatch").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertPreset(ctx, arg)

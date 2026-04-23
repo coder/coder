@@ -1405,6 +1405,22 @@
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AddOrganizationMembersRequest
+
+```json
+{
+  "user_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description |
+|------------|-----------------|----------|--------------|-------------|
+| `user_ids` | array of string | true     |              |             |
+
 ## codersdk.AgentConnectionTiming
 
 ```json

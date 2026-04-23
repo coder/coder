@@ -102,6 +102,83 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Batch add organization members
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/members`
+
+> Body parameter
+
+```json
+{
+  "user_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ]
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                       | Required | Description         |
+|----------------|------|--------------------------------------------------------------------------------------------|----------|---------------------|
+| `organization` | path | string                                                                                     | true     | Organization ID     |
+| `body`         | body | [codersdk.AddOrganizationMembersRequest](schemas.md#codersdkaddorganizationmembersrequest) | true     | Add members request |
+
+### Example responses
+
+> 201 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "organization_id": "string"
+      }
+    ],
+    "updated_at": "2019-08-24T14:15:22Z",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                        |
+|--------|--------------------------------------------------------------|-------------|-------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | array of [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+
+<h3 id="batch-add-organization-members-responseschema">Response Schema</h3>
+
+Status Code **201**
+
+| Name                 | Type              | Required | Restrictions | Description |
+|----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`       | array             | false    |              |             |
+| `» created_at`       | string(date-time) | false    |              |             |
+| `» organization_id`  | string(uuid)      | false    |              |             |
+| `» roles`            | array             | false    |              |             |
+| `»» display_name`    | string            | false    |              |             |
+| `»» name`            | string            | false    |              |             |
+| `»» organization_id` | string            | false    |              |             |
+| `» updated_at`       | string(date-time) | false    |              |             |
+| `» user_id`          | string(uuid)      | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get member roles by organization
 
 ### Code samples
@@ -627,7 +704,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Add organization member
+## Add organization member (deprecated)
 
 ### Code samples
 

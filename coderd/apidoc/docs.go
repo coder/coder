@@ -3749,6 +3749,53 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Batch add organization members",
+                "operationId": "batch-add-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Add members request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AddOrganizationMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OrganizationMember"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/organizations/{organization}/members/roles": {
@@ -3977,8 +4024,9 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Add organization member",
+                "summary": "Add organization member (deprecated)",
                 "operationId": "add-organization-member",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -14221,6 +14269,22 @@ const docTemplate = `{
             "properties": {
                 "license": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AddOrganizationMembersRequest": {
+            "type": "object",
+            "required": [
+                "user_ids"
+            ],
+            "properties": {
+                "user_ids": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },

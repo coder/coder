@@ -50,6 +50,28 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: InsertOrganizationMembersBatch :many
+-- Batch-inserts new organization members. Users that are already members
+-- are silently skipped via ON CONFLICT DO NOTHING, so the caller does not
+-- need to pre-filter. Only newly inserted rows are returned.
+INSERT INTO organization_members (
+	organization_id,
+	user_id,
+	created_at,
+	updated_at,
+	roles
+)
+SELECT
+	@organization_id :: uuid,
+	user_id,
+	@created_at :: timestamptz,
+	@updated_at :: timestamptz,
+	@roles :: text[]
+FROM
+	UNNEST(@user_ids :: uuid[]) AS user_id
+ON CONFLICT DO NOTHING
+RETURNING *;
+
 -- name: DeleteOrganizationMember :exec
 DELETE
 	FROM

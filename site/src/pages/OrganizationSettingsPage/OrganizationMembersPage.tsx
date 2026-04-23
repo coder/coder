@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
-	addOrganizationMember,
+	addOrganizationMembers,
 	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
@@ -60,8 +60,8 @@ const OrganizationMembersPage: FC = () => {
 		},
 	);
 
-	const addMemberMutation = useMutation(
-		addOrganizationMember(queryClient, organizationName),
+	const addMembersMutation = useMutation(
+		addOrganizationMembers(queryClient, organizationName),
 	);
 	const removeMemberMutation = useMutation(
 		removeOrganizationMember(queryClient, organizationName),
@@ -104,7 +104,7 @@ const OrganizationMembersPage: FC = () => {
 					membersQuery.error ??
 					organizationRolesQuery.error ??
 					groupsByUserIdQuery.error ??
-					addMemberMutation.error ??
+					addMembersMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
@@ -114,12 +114,7 @@ const OrganizationMembersPage: FC = () => {
 				members={members}
 				membersQuery={membersQuery}
 				addMembers={async (users: User[]) => {
-					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
-					// to add all users in a single request instead of N individual calls.
-					// See branch jakehwll/devex-112-organizations-batch-endpoint.
-					await Promise.all(
-						users.map((user) => addMemberMutation.mutateAsync(user.id)),
-					);
+					await addMembersMutation.mutateAsync(users.map((user) => user.id));
 					void membersQuery.refetch();
 				}}
 				removeMember={setMemberToDelete}

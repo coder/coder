@@ -814,6 +814,18 @@ class ApiMethods {
 		return response.data;
 	};
 
+	addOrganizationMembers = async (
+		organization: string,
+		req: TypesGen.AddOrganizationMembersRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.OrganizationMember[]>(
+			`/api/v2/organizations/${organization}/members`,
+			req,
+		);
+
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */

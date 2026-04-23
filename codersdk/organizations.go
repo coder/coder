@@ -100,6 +100,12 @@ type PaginatedMembersResponse struct {
 	Count   int                              `json:"count"`
 }
 
+// AddOrganizationMembersRequest provides a list of user IDs to add
+// as members to an organization in a single batch request.
+type AddOrganizationMembersRequest struct {
+	UserIDs []uuid.UUID `json:"user_ids" validate:"required,gt=0,lte=100,dive" format:"uuid"`
+}
+
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
 	// DisplayName will default to the same value as `Name` if not provided.
