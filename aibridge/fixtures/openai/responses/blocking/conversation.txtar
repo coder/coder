@@ -1,0 +1,82 @@
+-- request --
+{
+  "conversation": "conv_695fa15ecbb881958e89ac2d35d918ed0c9f1f0524a858fa",
+  "input": "explain why this is funny.",
+  "model": "gpt-4o-mini",
+  "stream": false
+}
+
+
+-- non-streaming --
+{
+  "id": "resp_0c9f1f0524a858fa00695fa15fc5a081958f4304aafd3bdec2",
+  "object": "response",
+  "created_at": 1767874911,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1767874914,
+  "conversation": {
+    "id": "conv_695fa15ecbb881958e89ac2d35d918ed0c9f1f0524a858fa"
+  },
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4o-mini-2024-07-18",
+  "output": [
+    {
+      "id": "msg_0c9f1f0524a858fa00695fa1605bd48195b65b4dfd732941bc",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "This joke plays on a double meaning of the phrase \u201cmake up.\u201d \n\n1. **Literal Meaning**: Atoms are the basic building blocks of matter and literally \"make up\" all substances in the universe.\n\n2. **Figurative Meaning**: The phrase \"make up\" can also mean to fabricate or lie about something. \n\nThe humor comes from the unexpected twist; it starts off sounding like a serious statement about atoms, then surprises us with a clever play on words that suggests atoms are dishonest. This blend of scientific fact and pun creates the comedic effect!"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 48,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 116,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 164
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -344,15 +344,13 @@ func (m *expChatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
 	if !m.toggleOverlay(overlayDiffDrawer) {
 		return nil
 	}
-	if m.chat.gitChanges == nil || m.chat.diffContents == nil || m.chat.diffErr != nil {
+	if m.chat.diffContents == nil || m.chat.diffErr != nil {
 		m.chat.diffErr = nil
 		chatID := m.chat.chat.ID
 		generation := m.chat.chatGeneration
-		return tea.Batch(apiCmd(func() ([]codersdk.ChatGitChange, error) { return m.client.GetChatGitChanges(m.ctx, chatID) }, func(changes []codersdk.ChatGitChange, err error) tea.Msg {
-			return gitChangesMsg{generation: generation, chatID: chatID, changes: changes, err: err}
-		}), apiCmd(func() (codersdk.ChatDiffContents, error) { return m.client.GetChatDiffContents(m.ctx, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
+		return apiCmd(func() (codersdk.ChatDiffContents, error) { return fetchChatDiffContents(m.ctx, m.client, chatID) }, func(diff codersdk.ChatDiffContents, err error) tea.Msg {
 			return diffContentsMsg{generation: generation, chatID: chatID, diff: diff, err: err}
-		}))
+		})
 	}
 	return nil
 }
@@ -376,7 +374,7 @@ func (m expChatsTUIModel) diffOverlayView() string {
 	case m.chat.diffErr != nil:
 		return m.renderOverlay("Diff", m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))))
 	case m.chat.diffContents != nil:
-		return renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
+		return renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.diffSummary, m.chat.diffStyledBody, m.width, m.height)
 	default:
 		return m.renderOverlay("Diff", m.styles.dimmedText.Render("Loading diff…"))
 	}
@@ -468,7 +466,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateChild(msg, viewChat)
 	case chatsListedMsg:
 		return m.updateChild(msg, viewList)
-	case chatOpenedMsg, chatHistoryMsg, chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg, gitChangesMsg, diffContentsMsg:
+	case chatOpenedMsg, chatHistoryMsg, chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg, diffContentsMsg:
 		return m.updateChild(msg, viewChat)
 	case modelsListedMsg:
 		if msg.err != nil {

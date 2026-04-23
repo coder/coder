@@ -40,6 +40,27 @@ export function decodeInlineTextAttachment(content: string): string {
 }
 
 /**
+ * Encodes UTF-8 text as base64. Inverse of decodeInlineTextAttachment.
+ */
+export function encodeInlineTextAttachment(text: string): string {
+	const bytes = new TextEncoder().encode(text);
+	return btoa(String.fromCharCode(...bytes));
+}
+
+export function getTextAttachmentErrorMessage(error: unknown): string | null {
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"name" in error &&
+		error.name === "AbortError"
+	) {
+		return null;
+	}
+
+	return "Couldn't load preview. Select again to retry.";
+}
+
+/**
  * Fetches the text content of a chat file attachment by its ID.
  */
 export async function fetchTextAttachmentContent(

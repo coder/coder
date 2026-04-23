@@ -42,8 +42,14 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
-	/** The currently active tab ID (controlled by the parent). */
-	activeTabId: string | null;
+	/**
+	 * The resolved tab ID to render as active (computed by the parent
+	 * with `getEffectiveTabId`). Keeping a single source of truth in the
+	 * parent prevents this component's highlight from drifting from
+	 * parent-side gating like `TerminalPanel.isVisible` or
+	 * `DebugPanel.isVisible`.
+	 */
+	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
 }
@@ -111,27 +117,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
-	activeTabId,
+	effectiveTabId,
 	onActiveTabChange,
 }) => {
 	const tabIdPrefix = useId();
-	// Build the full list of tab IDs including the desktop tab
-	// so that effectiveTabId validation covers it.
-	const allTabIds = new Set(tabs.map((t) => t.id));
-	if (desktopChatId) {
-		allTabIds.add("desktop");
-	}
-
-	// Derive the effective tab. Fall back to the first tab if
-	// the stored activeTabId no longer matches any tab in the list.
-	const effectiveTabId =
-		activeTabId !== null && allTabIds.has(activeTabId)
-			? activeTabId
-			: tabs.length > 0
-				? tabs[0].id
-				: desktopChatId
-					? "desktop"
-					: null;
 
 	// Unified list of panels for rendering. Includes the desktop
 	// tab when available so we don't need to special-case it.

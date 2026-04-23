@@ -1343,7 +1343,7 @@ export const ComputerTextFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Text-only results are collapsed by default (no image).
-		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
 		expect(toggle).toBeInTheDocument();
 		expect(canvas.queryByRole("img")).toBeNull();
 
@@ -1395,6 +1395,50 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+export const ComputerPromotedAttachmentArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+				attachment_file_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				attachment_name: "screenshot-2026-04-21T00-00-00Z.png",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		expect(toggle).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Screenshot from computer tool" }),
+		).toBeNull();
+
+		await userEvent.click(toggle);
+		expect(
+			canvas.getByText("Attached screenshot-2026-04-21T00-00-00Z.png"),
+		).toBeInTheDocument();
+	},
+};
+
+export const AttachFileLabelFallsBackToPathBasename: Story = {
+	args: {
+		name: "attach_file",
+		status: "completed",
+		args: {
+			path: "docs/runbooks/incident.md",
+		},
+		result: {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Attached incident.md")).toBeInTheDocument();
 	},
 };
 

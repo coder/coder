@@ -77,8 +77,14 @@ func TestExpAgentsE2E(t *testing.T) {
 		chat := seedChat(t, ctx, expClient, orgID, "direct open seed")
 		session := startExpAgentsSession(t, ctx, client, chat.ID.String())
 
+		// The initial render contains both the chat title/content
+		// and the status bar in a single frame. Their relative
+		// order in the PTY byte stream depends on async title
+		// generation, so matching them with separate sequential
+		// expects is racy. Instead, just confirm the seed text is
+		// visible (proving we are in the chat view), then verify
+		// esc navigates back to the list.
 		session.expect(ctx, "direct open seed")
-		session.expect(ctx, "esc")
 		session.esc()
 		session.expect(ctx, "enter: open")
 		session.quit()

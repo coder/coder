@@ -31,6 +31,7 @@ type Metrics struct {
 	MessageCount             *prometheus.HistogramVec
 	PromptSizeBytes          *prometheus.HistogramVec
 	ToolResultSizeBytes      *prometheus.HistogramVec
+	ToolErrorsTotal          *prometheus.CounterVec
 	TTFTSeconds              *prometheus.HistogramVec
 	CompactionTotal          *prometheus.CounterVec
 	StepsTotal               *prometheus.CounterVec
@@ -69,6 +70,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "tool_result_size_bytes",
 			Help:      "Size in bytes of each tool execution result.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
+		}, []string{"provider", "model", "tool_name"}),
+		ToolErrorsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "tool_errors_total",
+			Help:      "Total tool calls that returned an error result.",
 		}, []string{"provider", "model", "tool_name"}),
 		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
@@ -139,6 +146,15 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 		return
 	}
 	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
+}
+
+// RecordToolError increments tool_errors_total for the given
+// tool. No-op when m is nil.
+func (m *Metrics) RecordToolError(provider, model, toolLabel string) {
+	if m == nil {
+		return
+	}
+	m.ToolErrorsTotal.WithLabelValues(provider, model, toolLabel).Inc()
 }
 
 // RecordStreamBufferDropped increments stream_buffer_dropped_total

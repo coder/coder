@@ -772,7 +772,7 @@ export const RenameChatGenerateLateResponseDoesNotClobberOtherChat: Story = {
 		});
 		expect(inputB).toHaveValue("Chat B");
 		await userEvent.clear(inputB);
-		await userEvent.type(inputB, "User edit for B");
+		await userEvent.paste("User edit for B");
 
 		await new Promise((resolve) => setTimeout(resolve, 250));
 		expect(inputB).toHaveValue("User edit for B");
@@ -833,7 +833,7 @@ export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
 			});
 			expect(input).toHaveValue("Chat same");
 			await userEvent.clear(input);
-			await userEvent.type(input, "User edit");
+			await userEvent.paste("User edit");
 
 			await new Promise((resolve) => setTimeout(resolve, 250));
 			expect(input).toHaveValue("User edit");
@@ -1510,7 +1510,9 @@ export const SettingsAPIKeysAdmin: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Secrets (API keys)" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -1541,6 +1543,8 @@ export const SettingsAPIKeysNonAdmin: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("API Keys")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Secrets (API keys)" }),
+		).toBeInTheDocument();
 	},
 };

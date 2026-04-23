@@ -5,7 +5,7 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
-export type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
