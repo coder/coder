@@ -2923,6 +2923,29 @@ func TestToolResultAntivenom(t *testing.T) {
 		require.Contains(t, mediaOutput.Text, "hello")
 		require.Contains(t, mediaOutput.Text, "world")
 	})
+
+	t.Run("PoisonedErrorResultSanitized", func(t *testing.T) {
+		t.Parallel()
+		// Simulate invalid UTF-8 in an error tool result.
+		poisonedError := json.RawMessage(`{"error":"fail` + string([]byte{0xFF, 0xFE}) + `ed"}`)
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-5",
+			ToolName:   "broken_tool",
+			Result:     poisonedError,
+			IsError:    true,
+			IsMedia:    false,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
+		require.True(t, ok, "expected error output, got %T", result.Output)
+		require.True(t, utf8.ValidString(errOutput.Error.Error()),
+			"error message must be valid UTF-8")
+		require.Contains(t, errOutput.Error.Error(), "fail")
+		require.Contains(t, errOutput.Error.Error(), "ed")
+	})
 }
 
 func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {

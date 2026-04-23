@@ -2215,4 +2215,45 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		require.Contains(t, media.Text, "hello")
 		require.Contains(t, media.Text, "world")
 	})
+
+	t.Run("SanitizesInvalidUTF8InTextResult", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"echo",
+			"echoes input",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "hello\xffworld",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"echo": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-3",
+			ToolName:   "echo",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"echo"},
+			map[string]struct{}{},
+		)
+
+		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected ToolResultOutputContentText, got %T", result.Result)
+		require.True(t, utf8.ValidString(textOutput.Text), "Text should be valid UTF-8")
+		require.Contains(t, textOutput.Text, "hello")
+		require.Contains(t, textOutput.Text, "world")
+	})
 }

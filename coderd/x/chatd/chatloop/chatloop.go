@@ -1220,7 +1220,7 @@ func executeSingleTool(
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
-			Text: resp.Content,
+			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
 		}
 	}
 	return result
