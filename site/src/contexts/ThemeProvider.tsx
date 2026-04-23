@@ -22,8 +22,12 @@ import {
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { DEFAULT_THEME, type Theme } from "#/theme";
-import { CONCRETE_THEMES, resolveThemeName } from "#/theme/colorblind";
+import themes, { type Theme } from "#/theme";
+import { CONCRETE_THEMES } from "#/theme/colorblind";
+import {
+	migrateLegacyPreference,
+	resolveActiveThemeName,
+} from "#/theme/themeMode";
 
 /**
  *
@@ -57,17 +61,14 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		};
 	}, [themeQuery]);
 
-	// We might not be logged in yet, or the `theme_preference` could be an
-	// empty string. Prefer the JS-fetched value, fall back to the
-	// server-rendered meta tag, then to DEFAULT_THEME. The DEFAULT_THEME
-	// fallback is intentional: the old `ThemeProvider` coerced empty
-	// preferences to "dark" rather than to the OS color scheme, and the
-	// AppearancePage radio selection depends on the same fallback.
-	const storedPreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
-	const concreteName = resolveThemeName(storedPreference, preferredColorScheme);
+	// Prefer the JS-fetched settings; fall back to the SSR meta tag so
+	// the first paint picks the right theme even before the React Query
+	// response arrives. migrateLegacyPreference tolerates any mix of
+	// new/legacy/missing fields.
+	const settings =
+		appearanceSettingsQuery.data ?? metadata.userAppearance?.value ?? {};
+	const state = migrateLegacyPreference(settings);
+	const concreteName = resolveActiveThemeName(state, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;

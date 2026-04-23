@@ -1123,35 +1123,67 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	themePreference, err := api.Database.GetUserThemePreference(ctx, user.ID)
+	themePreference, err := readOptionalUserConfig(ctx, api.Database.GetUserThemePreference, user.ID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		themePreference = ""
+		writeUserSettingsReadError(ctx, rw, err)
+		return
 	}
 
-	terminalFont, err := api.Database.GetUserTerminalFont(ctx, user.ID)
+	themeMode, err := readOptionalUserConfig(ctx, api.Database.GetUserThemeMode, user.ID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		writeUserSettingsReadError(ctx, rw, err)
+		return
+	}
 
-		terminalFont = ""
+	themeLight, err := readOptionalUserConfig(ctx, api.Database.GetUserThemeLight, user.ID)
+	if err != nil {
+		writeUserSettingsReadError(ctx, rw, err)
+		return
+	}
+
+	themeDark, err := readOptionalUserConfig(ctx, api.Database.GetUserThemeDark, user.ID)
+	if err != nil {
+		writeUserSettingsReadError(ctx, rw, err)
+		return
+	}
+
+	terminalFont, err := readOptionalUserConfig(ctx, api.Database.GetUserTerminalFont, user.ID)
+	if err != nil {
+		writeUserSettingsReadError(ctx, rw, err)
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
 		ThemePreference: themePreference,
+		ThemeMode:       codersdk.ThemeMode(themeMode),
+		ThemeLight:      themeLight,
+		ThemeDark:       themeDark,
 		TerminalFont:    codersdk.TerminalFontName(terminalFont),
+	})
+}
+
+// readOptionalUserConfig wraps a sqlc-generated user_configs getter so
+// that a missing row is returned as an empty string rather than an error.
+// Every appearance setting is optional: the user may never have set one.
+func readOptionalUserConfig(
+	ctx context.Context,
+	get func(context.Context, uuid.UUID) (string, error),
+	userID uuid.UUID,
+) (string, error) {
+	value, err := get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return value, nil
+}
+
+func writeUserSettingsReadError(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Error reading user settings.",
+		Detail:  err.Error(),
 	})
 }
 
@@ -1183,6 +1215,15 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// theme_mode is optional for backward compatibility: older CLI clients
+	// that only know theme_preference continue to work as single-theme
+	// users. The struct-level validator rejects any value other than
+	// "sync", "single", or empty.
+	themeMode := params.ThemeMode
+	if themeMode == "" {
+		themeMode = codersdk.ThemeModeSingle
+	}
+
 	updatedThemePreference, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
 		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
@@ -1190,6 +1231,42 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user theme preference.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updatedThemeMode, err := api.Database.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+		UserID:    user.ID,
+		ThemeMode: string(themeMode),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user theme mode.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updatedThemeLight, err := api.Database.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+		UserID:     user.ID,
+		ThemeLight: params.ThemeLight,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user theme light.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updatedThemeDark, err := api.Database.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+		UserID:    user.ID,
+		ThemeDark: params.ThemeDark,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user theme dark.",
 			Detail:  err.Error(),
 		})
 		return
@@ -1209,6 +1286,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
 		ThemePreference: updatedThemePreference.Value,
+		ThemeMode:       codersdk.ThemeMode(updatedThemeMode.Value),
+		ThemeLight:      updatedThemeLight.Value,
+		ThemeDark:       updatedThemeDark.Value,
 		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
 	})
 }

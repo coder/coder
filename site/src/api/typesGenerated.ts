@@ -7584,6 +7584,11 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/users.go
+export type ThemeMode = "single" | "sync" | "";
+
+export const ThemeModes: ThemeMode[] = ["single", "sync", ""];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -7982,6 +7987,14 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	/**
+	 * ThemeMode is optional for backward compatibility. An empty value is
+	 * treated as "single" so older CLI clients that only send
+	 * theme_preference continue to work.
+	 */
+	readonly theme_mode: ThemeMode;
+	readonly theme_light: string;
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8270,7 +8283,24 @@ export interface UserActivityInsightsResponse {
 
 // From codersdk/users.go
 export interface UserAppearanceSettings {
+	/**
+	 * ThemePreference is the legacy single-field appearance setting. In
+	 * "single" mode it mirrors the active theme; in "sync" mode it holds
+	 * the dark slot so older clients still see a plausible value.
+	 */
 	readonly theme_preference: string;
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is the theme applied when the OS color scheme is light
+	 * and ThemeMode is "sync". Ignored in "single" mode but still stored
+	 * so switching modes preserves the slot value.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is the theme applied when the OS color scheme is dark
+	 * and ThemeMode is "sync". Ignored in "single" mode but still stored.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 

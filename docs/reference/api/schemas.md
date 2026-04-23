@@ -10323,6 +10323,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------------------------------------------------------------------------------------|
 | ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
+## codersdk.ThemeMode
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| ``, `single`, `sync` |
+
 ## codersdk.TimingStage
 
 ```json
@@ -10609,16 +10623,28 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "sync",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
-| `theme_preference` | string                                                 | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                     |
+|--------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                 |
+| `theme_dark`       | string                                                 | false    |              |                                                                                                                                                                 |
+| `theme_light`      | string                                                 | false    |              |                                                                                                                                                                 |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. An empty value is treated as "single" so older CLI clients that only send theme_preference continue to work. |
+| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                 |
+
+#### Enumerated Values
+
+| Property     | Value(s)         |
+|--------------|------------------|
+| `theme_mode` | `single`, `sync` |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -11087,16 +11113,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
-| `theme_preference` | string                                                 | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------------|--------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                   |
+| `theme_dark`       | string                                                 | false    |              | Theme dark is the theme applied when the OS color scheme is dark and ThemeMode is "sync". Ignored in "single" mode but still stored.                                                              |
+| `theme_light`      | string                                                 | false    |              | Theme light is the theme applied when the OS color scheme is light and ThemeMode is "sync". Ignored in "single" mode but still stored so switching modes preserves the slot value.                |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                   |
+| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme; in "sync" mode it holds the dark slot so older clients still see a plausible value. |
 
 ## codersdk.UserLatency
 

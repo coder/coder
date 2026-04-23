@@ -1,22 +1,38 @@
-import type { FC } from "react";
+import { type FC, useMemo, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
 	type UpdateUserAppearanceSettingsRequest,
+	type UserAppearanceSettings,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { DEFAULT_THEME } from "#/theme";
+import type { ConcreteThemeName } from "#/theme/colorblind";
 import {
 	DEFAULT_TERMINAL_FONT,
 	terminalFontLabels,
 	terminalFonts,
 } from "#/theme/constants";
-import { cn } from "#/utils/cn";
+import {
+	draftFromState,
+	migrateLegacyPreference,
+	stateToUpdate,
+	switchToSingle,
+	switchToSync,
+	type ThemeModeDraft,
+} from "#/theme/themeMode";
 import { Section } from "../Section";
+import { SingleModeSection } from "./SingleModeSection";
+import { SyncModeSection } from "./SyncModeSection";
 
 // Display Geist Mono (the default monospace font) first, then the rest
 // alphabetically. TerminalFontNames is auto-generated in alphabetical
@@ -29,7 +45,17 @@ const sortedTerminalFontNames = [
 interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
-	initialValues: UpdateUserAppearanceSettingsRequest;
+	/**
+	 * The full appearance settings document from the API. Unlike the
+	 * previous shape this accepts every field including legacy auto-*
+	 * values so the migration helper can classify them on mount.
+	 */
+	initialValues: UserAppearanceSettings;
+	/**
+	 * The OS color scheme currently in effect. Used to decide which
+	 * sync card shows the "Active" pill.
+	 */
+	activeScheme: "dark" | "light";
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
 }
 
@@ -38,29 +64,81 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	error,
 	onSubmit,
 	initialValues,
+	activeScheme,
 }) => {
-	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
-	const currentTerminalFont =
-		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
+	// Seed the working draft once from the persisted settings. The
+	// draft carries all four slots (mode, single, light, dark) so the
+	// user can switch the dropdown without losing their other-mode
+	// selection mid-interaction.
+	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
+		draftFromState(migrateLegacyPreference(initialValues)),
+	);
 
-	const onChangeTheme = async (theme: string) => {
+	const currentTerminalFont = useMemo(
+		() => initialValues.terminal_font || DEFAULT_TERMINAL_FONT,
+		[initialValues.terminal_font],
+	);
+
+	const submit = (next: ThemeModeDraft, terminalFont: TerminalFontName) => {
 		if (isUpdating) {
 			return;
 		}
-		await onSubmit({
-			theme_preference: theme,
-			terminal_font: currentTerminalFont,
-		});
+		setDraft(next);
+		return onSubmit(stateToUpdate(next, terminalFont));
 	};
 
-	const onChangeTerminalFont = async (terminalFont: TerminalFontName) => {
-		if (isUpdating) {
+	const onChangeMode = (mode: "sync" | "single") => {
+		if (mode === draft.mode) {
 			return;
 		}
-		await onSubmit({
-			theme_preference: currentTheme,
-			terminal_font: terminalFont,
-		});
+		const state =
+			mode === "single"
+				? switchToSingle(
+						draft.mode === "sync"
+							? { mode: "sync", light: draft.light, dark: draft.dark }
+							: { mode: "single", theme: draft.single },
+						activeScheme,
+					)
+				: switchToSync(
+						draft.mode === "single"
+							? { mode: "single", theme: draft.single }
+							: { mode: "sync", light: draft.light, dark: draft.dark },
+					);
+		// Merge the resolved state back into the draft so slot values
+		// the user had chosen in the other mode survive the switch.
+		const next: ThemeModeDraft =
+			state.mode === "sync"
+				? {
+						mode: "sync",
+						single: draft.single,
+						light: state.light,
+						dark: state.dark,
+					}
+				: {
+						mode: "single",
+						single: state.theme,
+						light: draft.light,
+						dark: draft.dark,
+					};
+		submit(next, currentTerminalFont);
+	};
+
+	const onSelectSyncSlot = (
+		scheme: "light" | "dark",
+		theme: ConcreteThemeName,
+	) => {
+		submit(
+			{ ...draft, [scheme]: theme } as ThemeModeDraft,
+			currentTerminalFont,
+		);
+	};
+
+	const onSelectSingle = (theme: ConcreteThemeName) => {
+		submit({ ...draft, single: theme, mode: "single" }, currentTerminalFont);
+	};
+
+	const onChangeTerminalFont = (terminalFont: TerminalFontName) => {
+		submit(draft, terminalFont);
 	};
 
 	return (
@@ -77,27 +155,53 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 				layout="fluid"
 				className="mb-12"
 			>
-				<div className="flex flex-row flex-wrap gap-4">
-					<AutoThemePreviewButton
-						displayName="Auto"
-						active={currentTheme === "auto"}
-						themes={["dark", "light"]}
-						onSelect={() => onChangeTheme("auto")}
-					/>
-					<ThemePreviewButton
-						displayName="Dark"
-						active={currentTheme === "dark"}
-						theme="dark"
-						onSelect={() => onChangeTheme("dark")}
-					/>
-					<ThemePreviewButton
-						displayName="Light"
-						active={currentTheme === "light"}
-						theme="light"
-						onSelect={() => onChangeTheme("light")}
-					/>
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="theme-mode" className="text-sm font-medium">
+							Theme mode
+						</Label>
+						<div className="flex items-center gap-4">
+							<Select
+								value={draft.mode}
+								onValueChange={(value) =>
+									onChangeMode(value as "sync" | "single")
+								}
+							>
+								<SelectTrigger
+									id="theme-mode"
+									className="w-48 text-content-primary"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="sync">Sync with system</SelectItem>
+									<SelectItem value="single">Single theme</SelectItem>
+								</SelectContent>
+							</Select>
+							<span className="text-sm text-content-secondary">
+								{draft.mode === "sync"
+									? "Coder theme will match your system active settings"
+									: "Coder will use your selected theme"}
+							</span>
+						</div>
+					</div>
+
+					{draft.mode === "sync" ? (
+						<SyncModeSection
+							light={draft.light}
+							dark={draft.dark}
+							activeScheme={activeScheme}
+							onSelect={onSelectSyncSlot}
+						/>
+					) : (
+						<SingleModeSection
+							selected={draft.single}
+							onSelect={onSelectSingle}
+						/>
+					)}
 				</div>
 			</Section>
+
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
@@ -138,163 +242,3 @@ function toTerminalFontName(value: string): TerminalFontName {
 		? (value as TerminalFontName)
 		: "";
 }
-
-type ThemeMode = "dark" | "light";
-
-interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
-	themes: [ThemeMode, ThemeMode];
-	onSelect?: () => void;
-}
-
-const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
-	active,
-	preview,
-	className,
-	displayName,
-	themes,
-	onSelect,
-}) => {
-	const [leftTheme, rightTheme] = themes;
-
-	return (
-		<>
-			<input
-				type="radio"
-				name="theme"
-				id={displayName}
-				value={displayName}
-				checked={active}
-				onChange={onSelect}
-				className="sr-only"
-			/>
-			<label
-				htmlFor={displayName}
-				className={cn("relative cursor-pointer", className)}
-			>
-				<ThemePreview
-					className="absolute"
-					style={{
-						// Slightly past the bounding box to avoid cutting off the outline
-						clipPath: "polygon(-5% -5%, 50% -5%, 50% 105%, -5% 105%)",
-					}}
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={leftTheme}
-				/>
-				<ThemePreview
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={rightTheme}
-					style={{
-						// Slightly past the bounding box to avoid cutting off the outline
-						clipPath: "polygon(50% -5%, 105% -5%, 105% 105%, 50% 105%)",
-					}}
-				/>
-			</label>
-		</>
-	);
-};
-
-interface ThemePreviewButtonProps extends ThemePreviewProps {
-	onSelect?: () => void;
-}
-
-const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
-	active,
-	preview,
-	className,
-	displayName,
-	theme,
-	onSelect,
-}) => {
-	return (
-		<>
-			<input
-				type="radio"
-				name="theme"
-				id={displayName}
-				value={displayName}
-				checked={active}
-				onChange={onSelect}
-				className="sr-only"
-			/>
-			<label htmlFor={displayName} className={cn("cursor-pointer", className)}>
-				<ThemePreview
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={theme}
-				/>
-			</label>
-		</>
-	);
-};
-
-interface ThemePreviewProps {
-	active?: boolean;
-	preview?: boolean;
-	className?: string;
-	style?: React.CSSProperties;
-	displayName: string;
-	theme: ThemeMode;
-}
-
-const ThemePreview: FC<ThemePreviewProps> = ({
-	active,
-	preview,
-	className,
-	style,
-	displayName,
-	theme,
-}) => {
-	return (
-		<div className={theme}>
-			<div
-				className={cn(
-					"w-56 overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
-					active && "outline outline-2 outline-content-link",
-					className,
-				)}
-				style={style}
-			>
-				<div className="bg-surface-primary text-content-primary">
-					<div className="bg-surface-primary flex items-center justify-between px-2.5 py-1.5 mb-2 border-0 border-b border-border border-solid">
-						<div className="flex items-center gap-1.5">
-							<div className="bg-content-primary h-1.5 w-5 rounded" />
-							<div className="bg-content-secondary h-1.5 w-5 rounded" />
-							<div className="bg-content-secondary h-1.5 w-5 rounded" />
-						</div>
-						<div className="flex items-center gap-1.5">
-							<div className="bg-green-400 h-1.5 w-3 rounded" />
-							<div className="bg-content-primary h-2 w-2 rounded-full" />
-						</div>
-					</div>
-					<div className="w-32 mx-auto">
-						<div className="bg-content-primary h-2 w-11 rounded mb-1.5" />
-						<div className="border border-solid rounded-t overflow-clip">
-							<div className="bg-surface-secondary h-2.5 -m-px" />
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center justify-between border-0 border-t border-border border-solid px-3 py-1 text-sm">
-					<span>{displayName}</span>
-					{preview && <PreviewBadge />}
-				</div>
-			</div>
-		</div>
-	);
-};

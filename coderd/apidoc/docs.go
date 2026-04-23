@@ -21231,6 +21231,19 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThemeMode": {
+            "type": "string",
+            "enum": [
+                "",
+                "sync",
+                "single"
+            ],
+            "x-enum-varnames": [
+                "ThemeModeUnset",
+                "ThemeModeSync",
+                "ThemeModeSingle"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -21513,6 +21526,24 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "theme_dark": {
+                    "type": "string"
+                },
+                "theme_light": {
+                    "type": "string"
+                },
+                "theme_mode": {
+                    "description": "ThemeMode is optional for backward compatibility. An empty value is\ntreated as \"single\" so older CLI clients that only send\ntheme_preference continue to work.",
+                    "enum": [
+                        "sync",
+                        "single"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ThemeMode"
+                        }
+                    ]
                 },
                 "theme_preference": {
                     "type": "string"
@@ -21918,7 +21949,19 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "ThemeDark is the theme applied when the OS color scheme is dark\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored.",
+                    "type": "string"
+                },
+                "theme_light": {
+                    "description": "ThemeLight is the theme applied when the OS color scheme is light\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored\nso switching modes preserves the slot value.",
+                    "type": "string"
+                },
+                "theme_mode": {
+                    "$ref": "#/definitions/codersdk.ThemeMode"
+                },
                 "theme_preference": {
+                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme; in \"sync\" mode it holds\nthe dark slot so older clients still see a plausible value.",
                     "type": "string"
                 }
             }

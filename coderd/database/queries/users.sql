@@ -170,6 +170,75 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
+-- name: GetUserThemeMode :one
+SELECT
+	value as theme_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'theme_mode';
+
+-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_mode', @theme_mode)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_mode'
+RETURNING *;
+
+-- name: GetUserThemeLight :one
+SELECT
+	value as theme_light
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'theme_light';
+
+-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_light', @theme_light)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_light
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_light'
+RETURNING *;
+
+-- name: GetUserThemeDark :one
+SELECT
+	value as theme_dark
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'theme_dark';
+
+-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_dark', @theme_dark)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_dark
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_dark'
+RETURNING *;
+
 -- name: GetUserChatCustomPrompt :one
 SELECT
 	value as chat_custom_prompt

@@ -25083,6 +25083,57 @@ func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) 
 	return terminal_font, err
 }
 
+const getUserThemeDark = `-- name: GetUserThemeDark :one
+SELECT
+	value as theme_dark
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'theme_dark'
+`
+
+func (q *sqlQuerier) GetUserThemeDark(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserThemeDark, userID)
+	var theme_dark string
+	err := row.Scan(&theme_dark)
+	return theme_dark, err
+}
+
+const getUserThemeLight = `-- name: GetUserThemeLight :one
+SELECT
+	value as theme_light
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'theme_light'
+`
+
+func (q *sqlQuerier) GetUserThemeLight(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserThemeLight, userID)
+	var theme_light string
+	err := row.Scan(&theme_light)
+	return theme_light, err
+}
+
+const getUserThemeMode = `-- name: GetUserThemeMode :one
+SELECT
+	value as theme_mode
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'theme_mode'
+`
+
+func (q *sqlQuerier) GetUserThemeMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserThemeMode, userID)
+	var theme_mode string
+	err := row.Scan(&theme_mode)
+	return theme_mode, err
+}
+
 const getUserThemePreference = `-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference
@@ -25994,6 +26045,87 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeDark = `-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_dark', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_dark'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeDarkParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeDark string    `db:"theme_dark" json:"theme_dark"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeDark, arg.UserID, arg.ThemeDark)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeLight = `-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_light', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_light'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeLightParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeLight string    `db:"theme_light" json:"theme_light"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeLight(ctx context.Context, arg UpdateUserThemeLightParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeLight, arg.UserID, arg.ThemeLight)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeMode = `-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_mode', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_mode'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeModeParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeMode string    `db:"theme_mode" json:"theme_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeMode(ctx context.Context, arg UpdateUserThemeModeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeMode, arg.UserID, arg.ThemeMode)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err

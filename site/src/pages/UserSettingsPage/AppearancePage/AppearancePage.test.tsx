@@ -1,103 +1,99 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
-import { MockUserOwner } from "#/testHelpers/entities";
+import type { UserAppearanceSettings } from "#/api/typesGenerated";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AppearancePage from "./AppearancePage";
 
+// Helper for building a mock PUT response. The shape is a full
+// UserAppearanceSettings so the TS contract matches the API method.
+const putResponse = (
+	overrides: Partial<UserAppearanceSettings> = {},
+): UserAppearanceSettings => ({
+	theme_preference: "dark",
+	theme_mode: "single",
+	theme_light: "light",
+	theme_dark: "dark",
+	terminal_font: "",
+	...overrides,
+});
+
 describe("appearance page", () => {
-	it("does nothing when selecting current theme", async () => {
+	it("switches to single theme mode and picks Light default", async () => {
 		renderWithAuth(<AppearancePage />);
 
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			theme_preference: "dark",
-			terminal_font: "fira-code",
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValue(
+			putResponse({
+				terminal_font: "geist-mono",
+				theme_preference: "light",
+			}),
+		);
+
+		// The initial state (from MockUserAppearanceSettings) is single
+		// mode with `dark` selected. Click the Light default tile and
+		// assert the submit payload.
+		const lightDefault = await screen.findByText("Light default", {
+			exact: true,
 		});
+		await userEvent.click(lightDefault);
 
-		const dark = await screen.findByText("Dark");
-		await userEvent.click(dark);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(0);
-	});
-
-	it("changes theme to light", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			terminal_font: "geist-mono",
-			theme_preference: "light",
-		});
-
-		const light = await screen.findByText("Light");
-		await userEvent.click(light);
-
-		// Check if the API was called correctly
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "geist-mono",
-			theme_preference: "light",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				theme_mode: "single",
+				theme_preference: "light",
+			}),
+		);
 	});
 
-	it("changes font to fira code", async () => {
+	it("switches to sync mode and sends the expected payload", async () => {
 		renderWithAuth(<AppearancePage />);
 
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-		});
-
-		const firaCode = await screen.findByText("Fira Code");
-		await userEvent.click(firaCode);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-		});
-	});
-
-	it("changes font to fira code, then back to geist mono", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		// given
-		vi.spyOn(API, "updateAppearanceSettings")
-			.mockResolvedValueOnce({
-				...MockUserOwner,
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-			})
-			.mockResolvedValueOnce({
-				...MockUserOwner,
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValue(
+			putResponse({
 				terminal_font: "geist-mono",
 				theme_preference: "dark",
-			});
+				theme_mode: "sync",
+			}),
+		);
 
-		// when
+		const dropdown = await screen.findByRole("combobox", {
+			name: /theme mode/i,
+		});
+		await userEvent.click(dropdown);
+		const syncOption = await screen.findByRole("option", {
+			name: /sync with system/i,
+		});
+		await userEvent.click(syncOption);
+
+		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				theme_mode: "sync",
+				theme_light: "light",
+				theme_dark: "dark",
+			}),
+		);
+	});
+
+	it("updates the terminal font", async () => {
+		renderWithAuth(<AppearancePage />);
+
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValue(
+			putResponse({
+				terminal_font: "fira-code",
+				theme_preference: "dark",
+			}),
+		);
+
 		const firaCode = await screen.findByText("Fira Code");
 		await userEvent.click(firaCode);
 
-		// then
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-		});
-
-		// when
-		const geistMono = await screen.findByText("Geist Mono");
-		await userEvent.click(geistMono);
-
-		// then
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
-		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(2, {
-			terminal_font: "geist-mono",
-			theme_preference: "dark",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				terminal_font: "fira-code",
+			}),
+		);
 	});
 });

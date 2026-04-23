@@ -2,6 +2,7 @@ import themes from ".";
 import {
 	CONCRETE_THEMES,
 	isConcreteThemeName,
+	legacyAutoToSync,
 	resolveThemeName,
 } from "./colorblind";
 
@@ -19,19 +20,20 @@ describe("resolveThemeName", () => {
 		expect(resolveThemeName("light-tritan", "dark")).toBe("light-tritan");
 	});
 
-	it("resolves auto to the OS preference", () => {
-		expect(resolveThemeName("auto", "dark")).toBe("dark");
-		expect(resolveThemeName("auto", "light")).toBe("light");
-	});
-
-	it("falls back to the OS scheme for unknown values", () => {
+	it("falls back to the OS scheme for unknown, empty, or legacy auto values", () => {
 		// Empty string is persisted when the user has never set a preference,
 		// so it must resolve to the OS scheme rather than erroring.
 		expect(resolveThemeName("", "dark")).toBe("dark");
 		expect(resolveThemeName("", "light")).toBe("light");
 		expect(resolveThemeName(undefined, "dark")).toBe("dark");
-		// Legacy value from an earlier cleanup migration (000260) must still
-		// resolve safely.
+		// Legacy "auto" family preferences are no longer resolved by this
+		// function. `themeMode.ts` unwraps them first and feeds
+		// resolveThemeName a concrete name (or nothing). Anything else is
+		// treated as "user does not care" and falls back to the OS scheme,
+		// which matches the pre-existing contract.
+		expect(resolveThemeName("auto", "light")).toBe("light");
+		expect(resolveThemeName("auto-protan-deuter", "dark")).toBe("dark");
+		expect(resolveThemeName("auto-tritan", "light")).toBe("light");
 		expect(resolveThemeName("darkBlue", "light")).toBe("light");
 		expect(resolveThemeName("garbage", "dark")).toBe("dark");
 	});
@@ -50,13 +52,12 @@ describe("theme registry", () => {
 
 	// ThemeProvider does `themes[resolveThemeName(...)]` without a null
 	// check, so every value the resolver can return must be a real key of
-	// the `themes` object. Enumerate every preference the UI exposes,
+	// the `themes` object. Enumerate every preference the UI can feed in,
 	// paired with both OS color schemes, and assert the lookup succeeds.
 	it("always resolves to a theme that exists in the registry", () => {
 		const preferences: (string | undefined)[] = [
 			undefined,
 			"",
-			"auto",
 			...CONCRETE_THEMES,
 		];
 		for (const pref of preferences) {
@@ -75,8 +76,13 @@ describe("isConcreteThemeName", () => {
 		}
 	});
 
-	it("rejects the auto preference (embeds require a concrete theme)", () => {
+	it("rejects legacy auto-family preferences", () => {
+		// Embeds and any other caller validating a concrete theme must
+		// reject the auto-family strings. They no longer carry meaning as
+		// concrete themes.
 		expect(isConcreteThemeName("auto")).toBe(false);
+		expect(isConcreteThemeName("auto-protan-deuter")).toBe(false);
+		expect(isConcreteThemeName("auto-tritan")).toBe(false);
 	});
 
 	it("rejects non-string and empty values", () => {
@@ -85,5 +91,33 @@ describe("isConcreteThemeName", () => {
 		expect(isConcreteThemeName(null)).toBe(false);
 		expect(isConcreteThemeName(42)).toBe(false);
 		expect(isConcreteThemeName({})).toBe(false);
+	});
+});
+
+describe("legacyAutoToSync", () => {
+	it("maps each legacy auto value to its sync pair", () => {
+		expect(legacyAutoToSync("auto")).toEqual({
+			mode: "sync",
+			light: "light",
+			dark: "dark",
+		});
+		expect(legacyAutoToSync("auto-protan-deuter")).toEqual({
+			mode: "sync",
+			light: "light-protan-deuter",
+			dark: "dark-protan-deuter",
+		});
+		expect(legacyAutoToSync("auto-tritan")).toEqual({
+			mode: "sync",
+			light: "light-tritan",
+			dark: "dark-tritan",
+		});
+	});
+
+	it("returns null for concrete theme names and unrelated values", () => {
+		expect(legacyAutoToSync("dark")).toBeNull();
+		expect(legacyAutoToSync("dark-tritan")).toBeNull();
+		expect(legacyAutoToSync("")).toBeNull();
+		expect(legacyAutoToSync(undefined)).toBeNull();
+		expect(legacyAutoToSync("garbage")).toBeNull();
 	});
 });

@@ -250,14 +250,45 @@ const (
 	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
+// ThemeMode selects how Coder decides which concrete theme to render.
+// "sync" picks the matching theme for each OS color scheme; "single"
+// renders one concrete theme regardless of OS.
+type ThemeMode string
+
+const (
+	// ThemeModeUnset is the server-side default when the user has never
+	// set a theme_mode. Clients treat it as equivalent to
+	// ThemeModeSingle for backward compatibility with PR #24672.
+	ThemeModeUnset  ThemeMode = ""
+	ThemeModeSync   ThemeMode = "sync"
+	ThemeModeSingle ThemeMode = "single"
+)
+
 type UserAppearanceSettings struct {
-	ThemePreference string           `json:"theme_preference"`
-	TerminalFont    TerminalFontName `json:"terminal_font"`
+	// ThemePreference is the legacy single-field appearance setting. In
+	// "single" mode it mirrors the active theme; in "sync" mode it holds
+	// the dark slot so older clients still see a plausible value.
+	ThemePreference string    `json:"theme_preference"`
+	ThemeMode       ThemeMode `json:"theme_mode"`
+	// ThemeLight is the theme applied when the OS color scheme is light
+	// and ThemeMode is "sync". Ignored in "single" mode but still stored
+	// so switching modes preserves the slot value.
+	ThemeLight string `json:"theme_light"`
+	// ThemeDark is the theme applied when the OS color scheme is dark
+	// and ThemeMode is "sync". Ignored in "single" mode but still stored.
+	ThemeDark    string           `json:"theme_dark"`
+	TerminalFont TerminalFontName `json:"terminal_font"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
+	ThemePreference string `json:"theme_preference" validate:"required"`
+	// ThemeMode is optional for backward compatibility. An empty value is
+	// treated as "single" so older CLI clients that only send
+	// theme_preference continue to work.
+	ThemeMode    ThemeMode        `json:"theme_mode" validate:"omitempty,oneof=sync single"`
+	ThemeLight   string           `json:"theme_light"`
+	ThemeDark    string           `json:"theme_dark"`
+	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
 type UserPreferenceSettings struct {
