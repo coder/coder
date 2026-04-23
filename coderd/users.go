@@ -1300,10 +1300,6 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Only update thinking display mode when the caller explicitly
-	// provides a value. Omitting the field (zero value "") preserves
-	// the stored preference so older clients that don't know about
-	// this field won't silently reset it.
 	var resolvedThinkingMode codersdk.ThinkingDisplayMode
 	if params.ThinkingDisplayMode != "" {
 		updated, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
