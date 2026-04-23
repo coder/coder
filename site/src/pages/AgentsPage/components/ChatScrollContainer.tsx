@@ -4,20 +4,13 @@ import {
 	type ReactNode,
 	type RefObject,
 	useEffect,
-	useId,
 	useState,
 } from "react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
-// Keep the fetch trigger distance aligned with the old observer root margin
-// so the replacement does not change when older history starts loading.
 const SCROLL_THRESHOLD = "600px";
-
-// Match the old near-bottom affordance threshold. The inverse layout reports
-// offsets away from the latest messages as distances from zero, often negative,
-// so use the absolute value instead of depending on a specific sign.
 const SCROLL_TO_BOTTOM_BUTTON_OFFSET_PX = 70;
 
 const ScrollToBottomButton: FC<{
@@ -119,7 +112,6 @@ const ChatScrollContainer: FC<{
 	messageCount,
 	children,
 }) => {
-	const scrollContainerId = `chat-scroll-${useId().replace(/:/g, "")}`;
 	const [scrollContainerElement, setScrollContainerElement] =
 		useState<HTMLDivElement | null>(null);
 
@@ -144,7 +136,6 @@ const ChatScrollContainer: FC<{
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
 			<div
-				id={scrollContainerId}
 				ref={setScrollContainer}
 				data-testid="scroll-container"
 				aria-busy={isFetchingMoreMessages || undefined}
@@ -155,7 +146,7 @@ const ChatScrollContainer: FC<{
 					next={onFetchMoreMessages}
 					hasMore={hasMoreMessages}
 					inverse
-					scrollableTarget={scrollContainerId}
+					scrollableTarget={scrollContainerElement ?? undefined}
 					scrollThreshold={SCROLL_THRESHOLD}
 					hasChildren={messageCount > 0}
 					loader={isFetchingMoreMessages ? <div aria-hidden /> : null}
