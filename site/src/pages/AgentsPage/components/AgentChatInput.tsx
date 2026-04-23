@@ -451,6 +451,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPlusMenuOpen(false);
 	};
 
+	// The badge-pill dismiss button is only rendered while plan mode is on,
+	// so it should always disable, not toggle. Using `handlePlanModeToggle`
+	// here would work today only because of the enclosing `planModeEnabled`
+	// render gate; a dedicated disable handler decouples the semantics from
+	// that gate.
+	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
@@ -972,7 +979,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								Planning
 								{onPlanModeToggle && (
 									<BadgeDismissButton
-										onClick={handlePlanModeToggle}
+										onClick={handleDisablePlanMode}
 										ariaLabel="Disable plan mode"
 									/>
 								)}
