@@ -1221,14 +1221,12 @@ func executeSingleTool(
 		// base64, use it as-is to avoid double-encoding
 		// (but log an error so we catch the bad producer).
 		var mediaData string
-		if s := string(resp.Data); isASCII(s) {
-			if _, err := base64.StdEncoding.DecodeString(s); err == nil {
-				logger.Error(ctx, "tool response Data already contains base64; expected decoded binary",
-					slog.F("tool_name", tc.ToolName),
-					slog.F("tool_call_id", tc.ToolCallID),
-				)
-				mediaData = s
-			}
+		if _, err := base64.StdEncoding.DecodeString(string(resp.Data)); err == nil {
+			logger.Error(ctx, "tool response Data already contains base64; expected decoded binary",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+			)
+			mediaData = string(resp.Data)
 		}
 		if mediaData == "" {
 			mediaData = base64.StdEncoding.EncodeToString(resp.Data)
@@ -1238,7 +1236,6 @@ func executeSingleTool(
 			MediaType: resp.MediaType,
 			Text:      resp.Content,
 		}
-
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: resp.Content,
@@ -1805,16 +1802,4 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
-}
-
-// isASCII reports whether every byte in s is in the ASCII range.
-// Used to cheaply distinguish decoded binary (contains high bytes)
-// from an already-base64-encoded string (ASCII-only).
-func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] > unicode.MaxASCII {
-			return false
-		}
-	}
-	return true
 }
