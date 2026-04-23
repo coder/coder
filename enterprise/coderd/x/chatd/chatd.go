@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,10 @@ const (
 	// which isn't compatible with quartz.Clock determinism in tests.
 	relayRetryFloor = 500 * time.Millisecond // first retry matches old fixed delay
 	relayRetryCeil  = 15 * time.Second       // cap stall before tear-down
+	// relaySnapshotCap bounds both the initial relay snapshot
+	// drain and the per-subscription recent-history buffer used
+	// to trim reconnect overlap.
+	relaySnapshotCap = 100
 	// After this many reconnect retries the relay leg is torn down.
 	// Total dial attempts = 1 initial dial + relayMaxRetries.
 	relayMaxRetries = 6
@@ -157,6 +162,8 @@ func NewMultiReplicaSubscribeFn(
 
 		var relayCancel func()
 		var relayParts <-chan codersdk.ChatStreamEvent
+		recentRelayParts := make([]codersdk.ChatStreamEvent, 0, relaySnapshotCap)
+		var recentRelayWorkerID uuid.UUID
 
 		// If the chat is currently running on a different worker
 		// and we have a remote parts provider, open an initial
@@ -171,6 +178,7 @@ func NewMultiReplicaSubscribeFn(
 			if err == nil {
 				relayCancel = cancel
 				relayParts = parts
+				recentRelayWorkerID = params.Chat.WorkerID.UUID
 				// Collect relay message_parts to forward at the
 				// start of the merge goroutine.
 				for _, event := range snapshot {
@@ -190,12 +198,13 @@ func NewMultiReplicaSubscribeFn(
 		mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
 		// Channel for async relay establishment.
 		type relayResult struct {
+			snapshot []codersdk.ChatStreamEvent
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
-			workerID uuid.UUID // the worker this dial targeted
+			workerID uuid.UUID // the worker this dial targeted.
 			// err and parts are mutually exclusive: success sets
-			// parts; failure sets err (unwrap to *RelayDialError
-			// for classification).
+			// snapshot and parts; failure sets err (unwrap to
+			// *RelayDialError for classification).
 			err error
 		}
 		relayReadyCh := make(chan relayResult, 4)
@@ -232,7 +241,7 @@ func NewMultiReplicaSubscribeFn(
 
 		// Helper to close relay and stop any pending reconnect
 		// timer.
-		closeRelay := func() {
+		closeRelay := func(clearRecentHistory bool) {
 			// Cancel any in-flight dial goroutine first.
 			if dialCancel != nil {
 				dialCancel()
@@ -267,6 +276,10 @@ func NewMultiReplicaSubscribeFn(
 				drainTimerCh = nil
 			}
 			drainAndClose = false
+			if clearRecentHistory {
+				recentRelayParts = recentRelayParts[:0]
+				recentRelayWorkerID = uuid.Nil
+			}
 		}
 
 		// openRelayAsync dials the remote replica in a background
@@ -282,7 +295,7 @@ func NewMultiReplicaSubscribeFn(
 			if workerID != expectedWorkerID {
 				retryState.reset()
 			}
-			closeRelay()
+			closeRelay(workerID != recentRelayWorkerID)
 			// Create a per-dial context so this goroutine is
 			// canceled if closeRelay() or openRelayAsync() is
 			// called again before the dial completes.
@@ -319,51 +332,25 @@ func NewMultiReplicaSubscribeFn(
 					}
 					return
 				}
-				// Discard stale dials so we don't start a
-				// wrappedParts goroutine on a canceled connection.
+				// Discard stale dials so we don't start using a
+				// canceled connection.
 				if dialCtx.Err() != nil {
 					cancel()
 					return
 				}
-				// Wrap the relay channel so snapshot parts
-				// are delivered through the same channel as
-				// live parts. This goroutine only forwards
-				// events - it does not own the relay
-				// lifecycle. When dialCtx is canceled it
-				// simply returns, closing wrappedParts via
-				// its defer. The cancel() is called by
-				// whoever canceled dialCtx (closeRelay or
-				// the send-fallback select below).
-				wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
-				go func() {
-					defer close(wrappedParts)
-					for _, event := range snapshot {
-						if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-							select {
-							case wrappedParts <- event:
-							case <-dialCtx.Done():
-								return
-							}
-						}
+				relaySnapshot := make([]codersdk.ChatStreamEvent, 0, len(snapshot))
+				for _, event := range snapshot {
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						relaySnapshot = append(relaySnapshot, event)
 					}
-					for {
-						select {
-						case event, ok := <-parts:
-							if !ok {
-								return
-							}
-							select {
-							case wrappedParts <- event:
-							case <-dialCtx.Done():
-								return
-							}
-						case <-dialCtx.Done():
-							return
-						}
-					}
-				}()
+				}
 				select {
-				case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID}:
+				case relayReadyCh <- relayResult{
+					snapshot: relaySnapshot,
+					parts:    parts,
+					cancel:   cancel,
+					workerID: workerID,
+				}:
 				case <-dialCtx.Done():
 					cancel()
 				}
@@ -399,18 +386,36 @@ func NewMultiReplicaSubscribeFn(
 			case <-ctx.Done():
 			}
 		}
+		forwardRelayPart := func(event codersdk.ChatStreamEvent) bool {
+			if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+				return true
+			}
+			select {
+			case <-ctx.Done():
+				return false
+			case mergedEvents <- event:
+				recentRelayParts = appendRecentRelayPart(recentRelayParts, event)
+				return true
+			}
+		}
+		forwardRelaySnapshot := func(snapshot []codersdk.ChatStreamEvent) bool {
+			for _, event := range snapshot {
+				if !forwardRelayPart(event) {
+					return false
+				}
+			}
+			return true
+		}
 		statusNotifications := params.StatusNotifications
 		go func() {
 			defer close(mergedEvents)
-			defer closeRelay()
+			defer closeRelay(true)
 
 			// Forward any initial relay snapshot parts
 			// collected synchronously above.
 			for _, event := range initialRelaySnapshot {
-				select {
-				case <-ctx.Done():
+				if !forwardRelayPart(event) {
 					return
-				case mergedEvents <- event:
 				}
 			}
 
@@ -429,16 +434,17 @@ func NewMultiReplicaSubscribeFn(
 						continue
 					}
 					// A nil parts channel signals the dial
-					// failed - classify the error to decide
-					// whether to schedule a backoff retry, emit a
-					// terminal error and tear the relay leg down
-					// (unrecoverable / cap reached), or simply
-					// drop the stale drain.
+					// failed. Classify the error to decide
+					// whether to schedule a backoff retry,
+					// emit a terminal error and tear the
+					// relay leg down (unrecoverable / cap
+					// reached), or tear down a stale drain.
 					if result.parts == nil {
 						if drainAndClose {
-							// Dial failed and we were only
-							// waiting to drain - nothing to do.
-							drainAndClose = false
+							// Dial failed while we were waiting to
+							// drain a relay that is no longer remote.
+							// Clear the dedupe state with the relay.
+							closeRelay(true)
 							continue
 						}
 						var dialErr *RelayDialError
@@ -501,20 +507,34 @@ func NewMultiReplicaSubscribeFn(
 						if dbErr == nil && currentChat.Status == database.ChatStatusRunning &&
 							currentChat.WorkerID.Valid &&
 							currentChat.WorkerID.UUID != params.WorkerID {
-							// A new worker picked up the chat;
-							// discard the stale relay and let
+							// A new worker picked up the chat.
+							// Discard the stale relay and let
 							// openRelayAsync handle the new one.
-							closeRelay()
-						} else {
-							// Chat is still idle - drain the
-							// buffered snapshot before closing.
-							if drainTimer != nil {
-								drainTimer.Stop()
-							}
-							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
-							drainTimerCh = drainTimer.C
-							drainAndClose = false
+							closeRelay(true)
+							continue
 						}
+						// Chat is still idle. Drain the
+						// buffered snapshot before closing.
+						if drainTimer != nil {
+							drainTimer.Stop()
+						}
+						drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
+						drainTimerCh = drainTimer.C
+						drainAndClose = false
+					}
+
+					relaySnapshot := result.snapshot
+					if result.workerID == recentRelayWorkerID {
+						// Do not suppress the whole reconnect
+						// snapshot. Parts emitted while the
+						// relay was down only exist in the
+						// worker buffer, so we trim only the
+						// proven-overlapping prefix.
+						relaySnapshot = trimRelaySnapshotOverlap(recentRelayParts, relaySnapshot)
+					}
+					recentRelayWorkerID = result.workerID
+					if !forwardRelaySnapshot(relaySnapshot) {
+						return
 					}
 				case <-reconnectCh:
 					reconnectCh = nil
@@ -552,6 +572,8 @@ func NewMultiReplicaSubscribeFn(
 					if currentChat.Status == database.ChatStatusRunning &&
 						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != params.WorkerID {
 						openRelayAsync(currentChat.WorkerID.UUID)
+					} else {
+						closeRelay(true)
 					}
 				case sn, ok := <-statusNotifications:
 					if !ok {
@@ -576,13 +598,13 @@ func NewMultiReplicaSubscribeFn(
 							drainTimer = cfg.clock().NewTimer(relayDrainTimeout, "drain")
 							drainTimerCh = drainTimer.C
 						default:
-							closeRelay()
+							closeRelay(true)
 						}
 					}
 				case <-drainTimerCh:
 					drainTimerCh = nil
 					drainTimer = nil
-					closeRelay()
+					closeRelay(true)
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						if relayCancel != nil {
@@ -607,14 +629,8 @@ func NewMultiReplicaSubscribeFn(
 						scheduleRelayReconnect(delay)
 						continue
 					}
-					// Only forward message_part events from
-					// relay.
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case <-ctx.Done():
-							return
-						case mergedEvents <- event:
-						}
+					if !forwardRelayPart(event) {
+						return
 					}
 				}
 			}
@@ -623,9 +639,64 @@ func NewMultiReplicaSubscribeFn(
 		// Cleanup is driven by ctx cancellation: the merge
 		// goroutine owns all relay state (reconnectTimer,
 		// relayCancel, dialCancel, etc.) and tears it down
-		// via defer closeRelay() when ctx is done.
+		// via defer closeRelay(true) when ctx is done.
 		return mergedEvents
 	}
+}
+
+func trimRelaySnapshotOverlap(
+	recent []codersdk.ChatStreamEvent,
+	snapshot []codersdk.ChatStreamEvent,
+) []codersdk.ChatStreamEvent {
+	overlap := 0
+	overlapMatches := 0
+	limit := min(len(recent), len(snapshot))
+	for size := 1; size <= limit; size++ {
+		matched := true
+		for i := 0; i < size; i++ {
+			recentEvent := recent[len(recent)-size+i]
+			snapshotEvent := snapshot[i]
+			if recentEvent.Type != codersdk.ChatStreamEventTypeMessagePart ||
+				snapshotEvent.Type != codersdk.ChatStreamEventTypeMessagePart ||
+				!relayMessagePartEqual(recentEvent.MessagePart, snapshotEvent.MessagePart) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			overlapMatches++
+			overlap = size
+		}
+	}
+	if overlap == 0 || overlapMatches != 1 {
+		return snapshot
+	}
+	return snapshot[overlap:]
+}
+
+func appendRecentRelayPart(
+	recent []codersdk.ChatStreamEvent,
+	event codersdk.ChatStreamEvent,
+) []codersdk.ChatStreamEvent {
+	if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+		return recent
+	}
+	recent = append(recent, event)
+	if len(recent) <= relaySnapshotCap {
+		return recent
+	}
+	copy(recent, recent[len(recent)-relaySnapshotCap:])
+	return recent[:relaySnapshotCap]
+}
+
+func relayMessagePartEqual(
+	left *codersdk.ChatStreamMessagePart,
+	right *codersdk.ChatStreamMessagePart,
+) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Role == right.Role && reflect.DeepEqual(left.Part, right.Part)
 }
 
 // relayRetryState drives the retry policy for the relay reconnect
@@ -741,7 +812,7 @@ func dialRelay(
 	// large message_part batches don't trip the default 32 KiB cap.
 	conn.SetReadLimit(1 << 22)
 
-	snapshot = make([]codersdk.ChatStreamEvent, 0, 100)
+	snapshot = make([]codersdk.ChatStreamEvent, 0, relaySnapshotCap)
 
 	// sourceEvents is the flattened batch→event channel. A small
 	// goroutine reads batches off the websocket and fans them out;

@@ -209,6 +209,142 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 }
 
+type relayDialScript struct {
+	workerID  uuid.UUID
+	snapshot  []string
+	live      []string
+	closeLive bool
+}
+
+func relayTextEvent(text string) codersdk.ChatStreamEvent {
+	return codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: "assistant",
+			Part: codersdk.ChatMessageText(text),
+		},
+	}
+}
+
+func relaySnapshotEvents(texts ...string) []codersdk.ChatStreamEvent {
+	events := make([]codersdk.ChatStreamEvent, 0, len(texts))
+	for _, text := range texts {
+		events = append(events, relayTextEvent(text))
+	}
+	return events
+}
+
+func newScriptedRelayDialer(
+	scripts []relayDialScript,
+) (
+	func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		workerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	),
+	*atomic.Int32,
+) {
+	var callCount atomic.Int32
+	return func(
+		_ context.Context,
+		_ uuid.UUID,
+		workerID uuid.UUID,
+		_ http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		idx := int(callCount.Add(1)) - 1
+		if idx >= len(scripts) {
+			return nil, nil, nil, xerrors.Errorf(
+				"unexpected relay dial %d for worker %s",
+				idx+1,
+				workerID,
+			)
+		}
+		script := scripts[idx]
+		if script.workerID != uuid.Nil && script.workerID != workerID {
+			return nil, nil, nil, xerrors.Errorf(
+				"unexpected relay target %s on dial %d",
+				workerID,
+				idx+1,
+			)
+		}
+		live := make(chan codersdk.ChatStreamEvent, len(script.live))
+		for _, text := range script.live {
+			live <- relayTextEvent(text)
+		}
+		if script.closeLive {
+			close(live)
+		}
+		return relaySnapshotEvents(script.snapshot...), live, func() {}, nil
+	}, &callCount
+}
+
+func requireRelayTexts(
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+	want ...string,
+) {
+	t.Helper()
+	got := make([]string, 0, len(want))
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil {
+				got = append(got, event.MessagePart.Part.Text)
+			}
+			return len(got) >= len(want)
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	require.Equal(t, want, got)
+}
+
+func requireNoRelayTexts(
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+) {
+	t.Helper()
+	require.Never(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			return event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func advanceRelayReconnect(
+	ctx context.Context,
+	t *testing.T,
+	mclk *quartz.Mock,
+	trapReconnect *quartz.Trap,
+) {
+	t.Helper()
+	call := trapReconnect.MustWait(ctx)
+	call.MustRelease(ctx)
+	mclk.Advance(call.Duration).MustWait(ctx)
+}
+
 func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	t.Parallel()
 
@@ -301,6 +437,201 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	require.GreaterOrEqual(t, int(callCount.Load()), 2)
+}
+
+func TestSubscribeRelayReconnectDedupsIdenticalSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"snap-one", "snap-two"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"snap-one", "snap-two"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-dedup-identical")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "snap-one", "snap-two")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireNoRelayTexts(t, events)
+}
+
+func TestSubscribeRelayReconnectTrimsOverlapPlusNewSuffix(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"snap-one"}, live: []string{"seen-live"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"seen-live", "new-tail"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-overlap-new-suffix")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "snap-one", "seen-live")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "new-tail")
+}
+
+func TestSubscribeRelayWorkerChangeResetsDedup(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerA := uuid.New()
+	workerB := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerA, snapshot: []string{"shared-one", "shared-two"}},
+		{workerID: workerB, snapshot: []string{"shared-one", "shared-two"}},
+	})
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerA, "relay-worker-change")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "shared-one", "shared-two")
+	setChatRunningAndPublish(ctx, t, db, ps, chat.ID, workerB)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	requireRelayTexts(t, events, "shared-one", "shared-two")
+}
+
+func TestSubscribeRelayReconnectMismatchFallsBackToFullSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"seen-one", "seen-two"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"different-one", "seen-two"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-mismatch-fallback")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "seen-one", "seen-two")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "different-one", "seen-two")
+}
+
+func TestSubscribeRelayInitialSnapshotSeedsDedup(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"seed-one", "seed-two"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"seed-one", "seed-two", "new-tail"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-initial-snapshot-dedup")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "seed-one", "seed-two")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "new-tail")
+}
+
+func TestSubscribeRelayReconnectRepeatedPayloadsFallBackToFullSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+	dialer, callCount := newScriptedRelayDialer([]relayDialScript{
+		{workerID: workerID, snapshot: []string{"dup", "dup"}, closeLive: true},
+		{workerID: workerID, snapshot: []string{"dup", "dup", "new-tail"}},
+	})
+
+	mclk := quartz.NewMock(t)
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(ctx, t, db)
+	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-repeated-payloads")
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	requireRelayTexts(t, events, "dup", "dup")
+	advanceRelayReconnect(ctx, t, mclk, trapReconnect)
+	require.Eventually(t, func() bool {
+		return callCount.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+	requireRelayTexts(t, events, "dup", "dup", "new-tail")
 }
 
 func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
