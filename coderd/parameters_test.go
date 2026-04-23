@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -404,8 +405,10 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		preview := testutil.RequireReceive(ctx, t, previews)
 		require.Equal(t, -1, preview.ID)
 		require.Len(t, preview.Diagnostics, 1)
-		require.Equal(t, "missing_secret", preview.Diagnostics[0].Extra.Code)
+		require.Equal(t, dynamicparameters.DiagCodeMissingSecret, preview.Diagnostics[0].Extra.Code)
 		require.Contains(t, preview.Diagnostics[0].Detail, "GITHUB_TOKEN")
+		// Error severity drives the Create Workspace button disable.
+		require.Equal(t, codersdk.DiagnosticSeverityError, preview.Diagnostics[0].Severity)
 	})
 }
 

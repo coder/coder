@@ -951,17 +951,12 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 							<p className="m-0">{diagnostic.summary}</p>
 							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
 							{diagnostic.extra?.code === "missing_secret" && (
-								// TODO(PLAT-100): when the user-secrets settings page
-								// lands, swap this external CLI-docs link for a
-								// <RouterLink to="/settings/secrets"> so recovery is a
-								// single click without leaving the app. Opening in a
-								// new tab here because the create-workspace form has
-								// pending parameter state that same-tab navigation
-								// would discard.
+								// TODO(PLAT-102): swap for a RouterLink to
+								// /settings/secrets once that page lands.
 								<p className="m-0">
 									Create this secret with the{" "}
 									<Link
-										href={docs("/reference/cli/secret-create")}
+										href={docs("/reference/cli/secret_create")}
 										target="_blank"
 										rel="noreferrer"
 									>

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"io/fs"
-	"log/slog"
+	stdslog "log/slog"
 	"sync"
 	"time"
 
@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -34,11 +35,48 @@ type Renderer interface {
 
 var ErrTemplateVersionNotReady = xerrors.New("template version job not finished")
 
+// Diagnostic extra codes for secret-requirement validation. The
+// frontend keys off these strings.
+const (
+	DiagCodeMissingSecret             = "missing_secret"
+	DiagCodeOwnerSecretsFetchFailed   = "owner_secrets_fetch_failed"
+	DiagCodeSecretValidationForbidden = "secret_validation_forbidden"
+)
+
+// IsSecretRequirementDiagnostic reports whether d was emitted by the
+// secret-requirement check.
+func IsSecretRequirementDiagnostic(d *hcl.Diagnostic) bool {
+	extra, ok := d.Extra.(previewtypes.DiagnosticExtra)
+	if !ok {
+		return false
+	}
+	switch extra.Code {
+	case DiagCodeMissingSecret, DiagCodeOwnerSecretsFetchFailed, DiagCodeSecretValidationForbidden:
+		return true
+	}
+	return false
+}
+
+func filterSecretDiagnostics(diags hcl.Diagnostics) hcl.Diagnostics {
+	if len(diags) == 0 {
+		return diags
+	}
+	out := make(hcl.Diagnostics, 0, len(diags))
+	for _, d := range diags {
+		if IsSecretRequirementDiagnostic(d) {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 // loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
 // the cached objects to render the template version's parameters.
 type loader struct {
 	templateVersionID uuid.UUID
+	logger            slog.Logger
 
 	// cache of objects
 	templateVersion        *database.TemplateVersion
@@ -87,6 +125,13 @@ func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *
 		if values.TemplateVersionID == r.templateVersionID {
 			r.terraformValues = &values
 		}
+	}
+}
+
+// WithLogger sets the logger used by the renderer.
+func WithLogger(logger slog.Logger) func(r *loader) {
+	return func(r *loader) {
+		r.logger = logger
 	}
 }
 
@@ -203,13 +248,14 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 	closeFiles = false // Caller will have to call close
 	return &dynamicRenderer{
-		data:            r,
-		templateFS:      templateFS,
-		db:              db,
-		ownerErrors:     make(map[uuid.UUID]error),
-		ownerSecretsErr: make(map[uuid.UUID]error),
-		close:           cache.Close,
-		tfvarValues:     tfVarValues,
+		data:              r,
+		templateFS:        templateFS,
+		db:                db,
+		logger:            r.logger,
+		ownerErrors:       make(map[uuid.UUID]error),
+		ownerSecretErrors: make(map[uuid.UUID]error),
+		close:             cache.Close,
+		tfvarValues:       tfVarValues,
 	}, nil
 }
 
@@ -217,13 +263,13 @@ type dynamicRenderer struct {
 	db         database.Store
 	data       *loader
 	templateFS fs.FS
+	logger     slog.Logger
 
 	ownerErrors  map[uuid.UUID]error
 	currentOwner *previewtypes.WorkspaceOwner
 
-	// ownerSecretsErr caches NotAuthorized denials per owner. Successes
-	// and transient errors are not cached; see getOwnerSecrets.
-	ownerSecretsErr map[uuid.UUID]error
+	// ownerSecretErrors caches NotAuthorized denials per owner.
+	ownerSecretErrors map[uuid.UUID]error
 
 	tfvarValues map[string]cty.Value
 
@@ -260,7 +306,7 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		// Do not emit parser logs to coderd output logs.
 		// TODO: Returning this logs in the output would benefit the caller.
 		//  Unsure how large the logs can be, so for now we just discard them.
-		Logger: slog.New(slog.DiscardHandler),
+		Logger: stdslog.New(stdslog.DiscardHandler),
 	}
 
 	output, diags := preview.Preview(ctx, input, r.templateFS)
@@ -268,9 +314,8 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		return nil, diags
 	}
 
-	// Secret requirements may change across renders because coder_secret
-	// blocks can be conditional on parameter values (e.g.
-	// count = var.x ? 1 : 0), so this check has to run every render.
+	// coder_secret blocks can be conditional on parameter values, so
+	// this must run every render.
 	if len(output.SecretRequirements) > 0 {
 		diags = diags.Extend(r.checkSecretRequirements(ctx, ownerID, output.SecretRequirements))
 	}
@@ -280,35 +325,35 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 
 // checkSecretRequirements emits missing_secret diagnostics for unmet
 // SecretRequirements. Callers without user_secret:read on the owner get
-// a single secret_validation_forbidden warning, preventing enumeration
-// of the target's secret names via diagnostic presence.
+// a single secret_validation_forbidden warning instead, to avoid
+// leaking the target's secret names via diagnostic presence.
 //
-// TODO: wsbuilder reuses this renderer under the caller's context, so
-// cross-user builds pass the warning through. Authoritative build-time
-// enforcement is tracked as a follow-up.
+// TODO: add authoritative build-time enforcement so
+// cross-user builds don't fall back to a warning.
 func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID uuid.UUID, reqs []previewtypes.SecretRequirement) hcl.Diagnostics {
 	secrets, err := r.getOwnerSecrets(ctx, ownerID)
 	if err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
-			// Warning, not error: the caller can still create the workspace;
-			// the build will simply fail later if required secrets are not
-			// set. Using warning severity also keeps the Create Workspace
-			// button enabled (which checks for error-severity diagnostics).
+			// Warning keeps the Create Workspace button enabled.
 			return hcl.Diagnostics{{
 				Severity: hcl.DiagWarning,
 				Summary:  "Cannot validate secret requirements",
 				Detail:   "You are not permitted to read secret metadata for this user. The workspace may fail to build if required secrets are not set.",
 				Extra: previewtypes.DiagnosticExtra{
-					Code: "secret_validation_forbidden",
+					Code: DiagCodeSecretValidationForbidden,
 				},
 			}}
 		}
+		r.logger.Warn(ctx, "failed to fetch owner secrets for secret-requirement validation",
+			slog.F("owner_id", ownerID),
+			slog.Error(err),
+		)
 		return hcl.Diagnostics{{
 			Severity: hcl.DiagError,
 			Summary:  "Failed to fetch owner secrets",
-			Detail:   "The create workspace page cannot validate template secret requirements. Please try again.",
+			Detail:   "Could not validate template secret requirements. Please try again.",
 			Extra: previewtypes.DiagnosticExtra{
-				Code: "owner_secrets_fetch_failed",
+				Code: DiagCodeOwnerSecretsFetchFailed,
 			},
 		}}
 	}
@@ -326,6 +371,10 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 
 	var diags hcl.Diagnostics
 	for _, req := range reqs {
+		// Defensive: SecretFromBlock should reject this upstream.
+		if req.Env == "" && req.File == "" {
+			continue
+		}
 		satisfied := false
 		switch {
 		case req.Env != "":
@@ -341,7 +390,7 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 			Summary:  "Missing required secret",
 			Detail:   req.HelpMessage,
 			Extra: previewtypes.DiagnosticExtra{
-				Code: "missing_secret",
+				Code: DiagCodeMissingSecret,
 			},
 		})
 	}
@@ -362,19 +411,17 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	return nil
 }
 
-// getOwnerSecrets returns the owner's user-secret metadata under the
-// caller's auth context. Non-owners get NotAuthorizedError (only the
-// owner holds user_secret:read). Only NotAuthorized denials are cached;
-// successes and transient errors re-fetch so `coder secret create`
-// guidance is picked up without a page reload.
+// getOwnerSecrets fetches the owner's secrets under the caller's auth
+// context. Only NotAuthorized denials are cached; successes re-fetch so
+// newly-created secrets are picked up on the next render.
 func (r *dynamicRenderer) getOwnerSecrets(ctx context.Context, ownerID uuid.UUID) ([]database.ListUserSecretsRow, error) {
-	if err, cached := r.ownerSecretsErr[ownerID]; cached {
+	if err, cached := r.ownerSecretErrors[ownerID]; cached {
 		return nil, err
 	}
 	rows, err := r.db.ListUserSecrets(ctx, ownerID)
 	if err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
-			r.ownerSecretsErr[ownerID] = err
+			r.ownerSecretErrors[ownerID] = err
 		}
 		return nil, err
 	}

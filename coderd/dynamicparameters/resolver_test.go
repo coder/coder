@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -143,9 +144,9 @@ func TestResolveParameters(t *testing.T) {
 			{name: "decreasing/decrease allowed", monotonic: "decreasing", prev: "10", cur: "5"},
 			{name: "decreasing/same allowed", monotonic: "decreasing", prev: "5", cur: "5"},
 			{name: "decreasing/increase rejected", monotonic: "decreasing", prev: "5", cur: "10", expectErr: "must be equal or lower than previous value"},
-			// First build — not enforced
+			// First build, not enforced
 			{name: "increasing/first build", monotonic: "increasing", cur: "1", firstBuild: true},
-			// No previous value — not enforced
+			// No previous value, not enforced
 			{name: "increasing/no previous", monotonic: "increasing", cur: "5"},
 		}
 
@@ -205,4 +206,121 @@ func TestResolveParameters(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("BaselineSecretDiagnosticsDoNotBlockDeactivatingRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		render := rendermock.NewMockRenderer(ctrl)
+		ownerID := uuid.New()
+
+		gomock.InOrder(
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "true")},
+				}, hcl.Diagnostics{secretDiagnostic(dynamicparameters.DiagCodeMissingSecret)}),
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "false"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "false")},
+				}, nil),
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		values, err := dynamicparameters.ResolveParameters(ctx, ownerID, render, false,
+			[]database.WorkspaceBuildParameter{{Name: "use_github", Value: "true"}},
+			[]codersdk.WorkspaceBuildParameter{{Name: "use_github", Value: "false"}},
+			[]database.TemplateVersionPresetParameter{},
+		)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"use_github": "false"}, values)
+	})
+
+	t.Run("SkipSecretRequirementsDropsFinalSecretDiagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		render := rendermock.NewMockRenderer(ctrl)
+		ownerID := uuid.New()
+
+		gomock.InOrder(
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "true")},
+				}, nil),
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "true")},
+				}, hcl.Diagnostics{secretDiagnostic(dynamicparameters.DiagCodeMissingSecret)}),
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		values, err := dynamicparameters.ResolveParameters(ctx, ownerID, render, false,
+			[]database.WorkspaceBuildParameter{{Name: "use_github", Value: "true"}},
+			nil,
+			nil,
+			dynamicparameters.SkipSecretRequirements(),
+		)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"use_github": "true"}, values)
+	})
+
+	t.Run("FinalSecretDiagnosticsBlockByDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		render := rendermock.NewMockRenderer(ctrl)
+		ownerID := uuid.New()
+
+		gomock.InOrder(
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "true")},
+				}, nil),
+			render.EXPECT().
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Return(&preview.Output{
+					Parameters: []previewtypes.Parameter{stringParameter("use_github", "true")},
+				}, hcl.Diagnostics{secretDiagnostic(dynamicparameters.DiagCodeMissingSecret)}),
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := dynamicparameters.ResolveParameters(ctx, ownerID, render, false,
+			[]database.WorkspaceBuildParameter{{Name: "use_github", Value: "true"}},
+			nil,
+			nil,
+		)
+		require.Error(t, err)
+		resp, ok := httperror.IsResponder(err)
+		require.True(t, ok)
+		_, respErr := resp.Response()
+		require.Contains(t, respErr.Detail, "Secret requirement diagnostic")
+	})
+}
+
+func stringParameter(name string, value string) previewtypes.Parameter {
+	return previewtypes.Parameter{
+		ParameterData: previewtypes.ParameterData{
+			Name:         name,
+			Type:         previewtypes.ParameterTypeString,
+			FormType:     provider.ParameterFormTypeInput,
+			Mutable:      true,
+			DefaultValue: previewtypes.StringLiteral(value),
+		},
+		Value: previewtypes.StringLiteral(value),
+	}
+}
+
+func secretDiagnostic(code string) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "Secret requirement diagnostic",
+		Extra: previewtypes.DiagnosticExtra{
+			Code: code,
+		},
+	}
 }

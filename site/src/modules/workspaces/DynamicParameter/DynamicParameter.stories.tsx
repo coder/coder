@@ -308,8 +308,34 @@ export const MissingSecretDiagnostic: StoryObj<typeof Diagnostics> = {
 		// stay stable across versioned builds (`/@vX.Y.Z/`).
 		await expect(link).toHaveAttribute(
 			"href",
-			expect.stringContaining("/reference/cli/secret-create"),
+			expect.stringContaining("/reference/cli/secret_create"),
 		);
 		await expect(link).toHaveAttribute("target", "_blank");
 	},
 };
+
+// Warning variant for callers lacking user_secret:read on the owner.
+const secretValidationForbiddenDiagnostic: FriendlyDiagnostic = {
+	severity: "warning",
+	summary: "Cannot validate secret requirements",
+	detail:
+		"You are not permitted to read secret metadata for this user. The workspace may fail to build if required secrets are not set.",
+	extra: { code: "secret_validation_forbidden" },
+};
+
+export const SecretValidationForbiddenDiagnostic: StoryObj<typeof Diagnostics> =
+	{
+		render: () => (
+			<Diagnostics diagnostics={[secretValidationForbiddenDiagnostic]} />
+		),
+		play: async ({ canvasElement }) => {
+			const canvas = within(canvasElement);
+			await expect(
+				canvas.getByText("Cannot validate secret requirements"),
+			).toBeVisible();
+			// No CLI-recovery link for the warning variant.
+			await expect(
+				canvas.queryByRole("link", { name: /coder secret create/i }),
+			).toBeNull();
+		},
+	};

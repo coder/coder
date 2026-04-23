@@ -384,7 +384,7 @@ export const MissingSecretRequirement: Story = {
 		// (`/@vX.Y.Z/`) don't break the assertion.
 		await expect(link).toHaveAttribute(
 			"href",
-			expect.stringContaining("/reference/cli/secret-create"),
+			expect.stringContaining("/reference/cli/secret_create"),
 		);
 		await expect(link).toHaveAttribute("target", "_blank");
 	},

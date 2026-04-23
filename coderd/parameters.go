@@ -82,6 +82,7 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 
 		renderer, err := dynamicparameters.Prepare(ctx, api.Database, api.FileCache, templateVersion.ID,
 			dynamicparameters.WithTemplateVersion(templateVersion),
+			dynamicparameters.WithLogger(api.Logger.Named("dynamicparameters")),
 		)
 		if err != nil {
 			if httpapi.Is404Error(err) {

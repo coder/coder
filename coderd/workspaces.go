@@ -794,6 +794,7 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
+			Logger(api.Logger.Named("wsbuilder")).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)

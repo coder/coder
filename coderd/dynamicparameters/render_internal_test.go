@@ -18,16 +18,15 @@ import (
 	previewtypes "github.com/coder/preview/types"
 )
 
-// newTestRenderer constructs a dynamicRenderer pointing at a testdata
-// fixture on disk. The caller is responsible for seeding the organization
-// and a member row so that WorkspaceOwner lookups succeed.
+// newTestRenderer builds a dynamicRenderer backed by the given testdata
+// fixture. The caller must seed an org and member row.
 func newTestRenderer(t *testing.T, db database.Store, orgID uuid.UUID, fixture string) *dynamicRenderer {
 	t.Helper()
 	return &dynamicRenderer{
-		db:              db,
-		templateFS:      os.DirFS(filepath.Join("testdata", fixture)),
-		ownerErrors:     make(map[uuid.UUID]error),
-		ownerSecretsErr: make(map[uuid.UUID]error),
+		db:                db,
+		templateFS:        os.DirFS(filepath.Join("testdata", fixture)),
+		ownerErrors:       make(map[uuid.UUID]error),
+		ownerSecretErrors: make(map[uuid.UUID]error),
 		data: &loader{
 			templateVersion: &database.TemplateVersion{
 				OrganizationID: orgID,
@@ -38,8 +37,7 @@ func newTestRenderer(t *testing.T, db database.Store, orgID uuid.UUID, fixture s
 	}
 }
 
-// seedOwner creates a user and an organization member, which is what
-// WorkspaceOwner requires to resolve the owner.
+// seedOwner creates a user and org member so WorkspaceOwner resolves.
 func seedOwner(t *testing.T, db database.Store, orgID uuid.UUID) database.User {
 	t.Helper()
 	u := dbgen.User(t, db, database.User{})
@@ -54,7 +52,7 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := seedOwner(t, db, org.ID)
 
@@ -66,12 +64,8 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 	require.NotNil(t, out)
 	requireMissingSecret(t, diags, "Add a GitHub PAT with env=GITHUB_TOKEN")
 
-	// Mimic the user following the diagnostic's "coder secret create"
-	// guidance in another tab, then coming back. The SAME renderer (i.e.
-	// the same websocket session) must pick up the new secret on the next
-	// render without needing a page reload; otherwise the Create Workspace
-	// button stays disabled against a stale cached secret list and the
-	// recovery UX silently breaks.
+	// The same renderer must pick up a newly-created secret on the
+	// next render, without a reload.
 	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:  owner.ID,
 		Name:    "github_token",
@@ -86,20 +80,18 @@ func TestDynamicRender_ConditionalSecretRequirement(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := seedOwner(t, db, org.ID)
 
 	renderer := newTestRenderer(t, db, org.ID, "secret_conditional")
 	defer renderer.Close()
 
-	// use_github=false keeps the coder_secret block inactive, so nothing
-	// to validate.
+	// Block inactive: no validation.
 	_, diags := renderer.Render(ctx, owner.ID, map[string]string{"use_github": "false"})
 	requireNoMissingSecret(t, diags)
 
-	// Flipping the parameter activates the block and surfaces the
-	// unsatisfied requirement.
+	// Block active: requirement surfaces.
 	_, diags = renderer.Render(ctx, owner.ID, map[string]string{"use_github": "true"})
 	requireMissingSecret(t, diags, "Add a GitHub PAT")
 }
@@ -108,13 +100,12 @@ func TestDynamicRender_SingleSecretSatisfiesEnvAndFile(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := seedOwner(t, db, org.ID)
 
-	// One user_secrets row with BOTH env_name and file_path populated.
-	// Per the User Secrets RFC a single secret must satisfy both an env
-	// and a file requirement simultaneously.
+	// One row must satisfy both an env and a file requirement: the
+	// check builds independent envSet and fileSet maps.
 	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:   owner.ID,
 		Name:     "combined",
@@ -129,11 +120,41 @@ func TestDynamicRender_SingleSecretSatisfiesEnvAndFile(t *testing.T) {
 	requireNoMissingSecret(t, diags)
 }
 
+func TestDynamicRender_PartialEnvAndFileSatisfaction(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := t.Context()
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := seedOwner(t, db, org.ID)
+
+	// Env-only secret against an env+file requirement: only the file
+	// requirement should fail.
+	_ = dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:  owner.ID,
+		Name:    "env_only",
+		EnvName: "GITHUB_TOKEN",
+	})
+
+	renderer := newTestRenderer(t, db, org.ID, "secret_env_and_file")
+	defer renderer.Close()
+
+	_, diags := renderer.Render(ctx, owner.ID, nil)
+	var missing []*hcl.Diagnostic
+	for _, d := range diags {
+		if extra, ok := d.Extra.(previewtypes.DiagnosticExtra); ok && extra.Code == DiagCodeMissingSecret {
+			missing = append(missing, d)
+		}
+	}
+	require.Len(t, missing, 1, "only the file requirement should be unmet; env was satisfied by the seeded secret")
+	require.Contains(t, missing[0].Detail, "needs file")
+}
+
 func TestDynamicRender_OwnerSwitch(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	// Owner A satisfies the requirement; owner B does not.
@@ -156,8 +177,7 @@ func TestDynamicRender_OwnerSwitch(t *testing.T) {
 	requireMissingSecret(t, diags, "")
 }
 
-// countingStore wraps a database.Store and counts ListUserSecrets calls
-// per user so we can assert the owner-keyed cache behavior.
+// countingStore counts ListUserSecrets calls per user.
 type countingStore struct {
 	database.Store
 	mu    sync.Mutex
@@ -180,17 +200,14 @@ func (c *countingStore) callsFor(id uuid.UUID) int {
 	return c.calls[id]
 }
 
-// TestDynamicRender_NotAuthorizedIsCached asserts that NotAuthorized
-// denials are cached per-owner for the renderer lifetime: repeated
-// renders for a denied owner hit ListUserSecrets at most once.
+// TestDynamicRender_NotAuthorizedIsCached pins that NotAuthorized
+// denials hit ListUserSecrets at most once per owner.
 func TestDynamicRender_NotAuthorizedIsCached(t *testing.T) {
 	t.Parallel()
 
 	inner, _ := dbtestutil.NewDB(t)
-	// Compose: outer countingStore sees every ListUserSecrets invocation;
-	// inner secretAuthDenyingStore makes each one return NotAuthorized.
 	db := &countingStore{Store: secretAuthDenyingStore{Store: inner}}
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := seedOwner(t, db, org.ID)
 
@@ -201,14 +218,11 @@ func TestDynamicRender_NotAuthorizedIsCached(t *testing.T) {
 		_, _ = renderer.Render(ctx, owner.ID, nil)
 	}
 	require.Equal(t, 1, db.callsFor(owner.ID),
-		"NotAuthorized must be cached; expected one ListUserSecrets call across multiple renders")
+		"NotAuthorized must be cached across renders")
 }
 
-// secretAuthDenyingStore wraps database.Store and makes ListUserSecrets
-// return dbauthz.NotAuthorizedError, simulating a caller that lacks
-// user_secret:read on the target owner. This is the exact condition a
-// template admin rendering for another user hits, per the User Secrets
-// RFC's owner-only RBAC model.
+// secretAuthDenyingStore makes ListUserSecrets return NotAuthorized,
+// simulating a non-owner caller.
 type secretAuthDenyingStore struct {
 	database.Store
 }
@@ -217,25 +231,19 @@ func (secretAuthDenyingStore) ListUserSecrets(_ context.Context, _ uuid.UUID) ([
 	return nil, dbauthz.NotAuthorizedError{}
 }
 
-// TestDynamicRender_NonOwnerCannotLeakSecretRequirements is the
-// regression test for the information-leak vector where a non-owner
-// (e.g. a template admin) could enumerate a target user's secret
-// env_names and file_paths by watching for missing_secret diagnostics
-// across crafted templates. The fix is to keep the ListUserSecrets call
-// inside the caller's own authorization context; this test pins it.
+// TestDynamicRender_NonOwnerCannotLeakSecretRequirements guards against
+// a non-owner enumerating secret names via missing_secret diagnostics.
 func TestDynamicRender_NonOwnerCannotLeakSecretRequirements(t *testing.T) {
 	t.Parallel()
 
 	inner, _ := dbtestutil.NewDB(t)
 	db := secretAuthDenyingStore{Store: inner}
-	ctx := context.Background()
+	ctx := t.Context()
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := seedOwner(t, db, org.ID)
 
-	// Seed a secret that DOES match the template's requirement. Under the
-	// buggy behavior (elevated system actor) this would satisfy the
-	// requirement and emit no missing_secret diagnostic, while under the
-	// correct behavior the non-owner never sees the list at all.
+	// Secret matches the requirement; a non-owner must still never
+	// see it.
 	_ = dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:  owner.ID,
 		Name:    "gh",
@@ -247,37 +255,36 @@ func TestDynamicRender_NonOwnerCannotLeakSecretRequirements(t *testing.T) {
 
 	_, diags := renderer.Render(ctx, owner.ID, nil)
 
-	// 1. Never emit missing_secret for a non-owner, regardless of whether
-	//    the target satisfies the requirement. This is the leak being
-	//    prevented: the presence/absence of missing_secret must not be
-	//    observable by callers who lack user_secret:read on the target.
+	// No missing_secret diagnostic for a non-owner, regardless of
+	// whether the target satisfies the requirement.
 	requireNoMissingSecret(t, diags)
 
-	// 2. Surface a visible warning so the admin understands the feature
-	//    is not running for this target, rather than silently succeeding.
+	// Surface a warning so the admin knows validation didn't run.
 	var sawWarn bool
 	for _, d := range diags {
 		extra, ok := d.Extra.(previewtypes.DiagnosticExtra)
 		if !ok {
 			continue
 		}
-		if extra.Code == "secret_validation_forbidden" {
+		if extra.Code == DiagCodeSecretValidationForbidden {
 			require.Equal(t, hcl.DiagWarning, d.Severity,
-				"secret_validation_forbidden must be a warning so it does not disable the Create Workspace button")
+				"secret_validation_forbidden must be a warning")
 			sawWarn = true
 		}
 	}
-	require.True(t, sawWarn,
-		"expected secret_validation_forbidden warning when caller lacks user_secret:read")
+	require.True(t, sawWarn, "expected secret_validation_forbidden warning")
 }
 
 func requireMissingSecret(t *testing.T, diags hcl.Diagnostics, wantDetail string) {
 	t.Helper()
 	for _, d := range diags {
 		extra, ok := d.Extra.(previewtypes.DiagnosticExtra)
-		if !ok || extra.Code != "missing_secret" {
+		if !ok || extra.Code != DiagCodeMissingSecret {
 			continue
 		}
+		// The Create Workspace button disables only on error severity.
+		require.Equal(t, hcl.DiagError, d.Severity,
+			"missing_secret must be error severity")
 		if wantDetail != "" {
 			require.Contains(t, d.Detail, wantDetail)
 		}
@@ -289,7 +296,7 @@ func requireMissingSecret(t *testing.T, diags hcl.Diagnostics, wantDetail string
 func requireNoMissingSecret(t *testing.T, diags hcl.Diagnostics) {
 	t.Helper()
 	for _, d := range diags {
-		if extra, ok := d.Extra.(previewtypes.DiagnosticExtra); ok && extra.Code == "missing_secret" {
+		if extra, ok := d.Extra.(previewtypes.DiagnosticExtra); ok && extra.Code == DiagCodeMissingSecret {
 			t.Fatalf("unexpected missing_secret diagnostic: %s", d.Detail)
 		}
 	}
