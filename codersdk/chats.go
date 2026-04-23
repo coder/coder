@@ -654,15 +654,19 @@ type AdvisorConfig struct {
 	// use the runtime default.
 	MaxOutputTokens int64 `json:"max_output_tokens"`
 	// ModelConfigID selects a specific chat model config to power the
-	// advisor. uuid.Nil means reuse the outer chat model.
+	// advisor. uuid.Nil means reuse the outer chat model. The runtime
+	// must fall back to the outer chat model when this ID cannot be
+	// resolved (e.g. the referenced model config was soft-deleted or
+	// its provider was disabled after the admin saved this config).
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
 	// ReasoningEffort overlays provider reasoning effort on the advisor
 	// call config when supported. Allowed: "", "low", "medium", "high".
 	ReasoningEffort string `json:"reasoning_effort"`
 }
 
-// UpdateAdvisorConfigRequest is the pinned request body for updating
-// advisor runtime configuration.
+// UpdateAdvisorConfigRequest is the request body for updating advisor
+// runtime configuration. It is a type alias for AdvisorConfig because
+// the request and response shapes are currently identical.
 type UpdateAdvisorConfigRequest = AdvisorConfig
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting

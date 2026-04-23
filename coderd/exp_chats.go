@@ -4240,12 +4240,8 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if resp.MaxUsesPerRun < 0 {
-		resp.MaxUsesPerRun = 0
-	}
-	if resp.MaxOutputTokens < 0 {
-		resp.MaxOutputTokens = 0
-	}
+	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
+	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
@@ -4264,13 +4260,13 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.MaxUsesPerRun < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "max_uses_per_run must be non-negative.",
+			Message: fmt.Sprintf("max_uses_per_run %d must be non-negative.", req.MaxUsesPerRun),
 		})
 		return
 	}
 	if req.MaxOutputTokens < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "max_output_tokens must be non-negative.",
+			Message: fmt.Sprintf("max_output_tokens %d must be non-negative.", req.MaxOutputTokens),
 		})
 		return
 	}
@@ -4278,8 +4274,7 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	case "", "low", "medium", "high":
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "reasoning_effort is invalid.",
-			Detail:  `reasoning_effort must be one of "", "low", "medium", or "high".`,
+			Message: fmt.Sprintf(`reasoning_effort %q is not valid; must be one of "", "low", "medium", or "high".`, req.ReasoningEffort),
 		})
 		return
 	}
@@ -4292,8 +4287,7 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		if _, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "model_config_id is invalid.",
-					Detail:  "unknown model_config_id",
+					Message: fmt.Sprintf("model_config_id %q does not match any existing model config.", req.ModelConfigID),
 				})
 				return
 			}

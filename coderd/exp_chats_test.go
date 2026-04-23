@@ -11202,7 +11202,73 @@ func TestChatAdvisorConfig_UnauthorizedUser(t *testing.T) {
 	})
 	requireSDKError(t, err, http.StatusForbidden)
 
+	// Members must still be able to read the advisor config: the dbauthz
+	// layer only requires an authenticated actor, and the GET handler has
+	// no RBAC check because the admin settings UI and chatd runtime are
+	// the planned consumers. This assertion pins that behavior so a
+	// future RBAC tightening is a deliberate change.
+	memberResp, err := memberClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, memberResp)
+
 	resp, err = adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, want, resp)
+}
+
+func TestChatAdvisorConfig_NegativeMaxUsesPerRunRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		MaxUsesPerRun: -1,
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Contains(t, sdkErr.Message, "max_uses_per_run")
+	require.Contains(t, sdkErr.Message, "-1")
+	require.Contains(t, sdkErr.Message, "non-negative")
+}
+
+func TestChatAdvisorConfig_NegativeMaxOutputTokensRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		MaxOutputTokens: -1,
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Contains(t, sdkErr.Message, "max_output_tokens")
+	require.Contains(t, sdkErr.Message, "-1")
+	require.Contains(t, sdkErr.Message, "non-negative")
+}
+
+func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	modelConfig := createChatModelConfig(t, adminClient)
+
+	want := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 2048,
+		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: "medium",
+	}
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, want, resp)
 }
@@ -11218,7 +11284,8 @@ func TestChatAdvisorConfig_InvalidReasoningEffort(t *testing.T) {
 		ReasoningEffort: "ultra",
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Equal(t, "reasoning_effort is invalid.", sdkErr.Message)
+	require.Contains(t, sdkErr.Message, `reasoning_effort "ultra"`)
+	require.Contains(t, sdkErr.Message, "not valid")
 }
 
 func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
@@ -11228,12 +11295,13 @@ func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
 	adminClient := newChatClient(t)
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
+	unknownID := uuid.New()
 	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
-		ModelConfigID: uuid.New(),
+		ModelConfigID: unknownID,
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Equal(t, "model_config_id is invalid.", sdkErr.Message)
-	require.Equal(t, "unknown model_config_id", sdkErr.Detail)
+	require.Contains(t, sdkErr.Message, unknownID.String())
+	require.Contains(t, sdkErr.Message, "does not match any existing model config")
 }
 
 func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {

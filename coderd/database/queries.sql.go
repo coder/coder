@@ -20541,6 +20541,10 @@ SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config
 `
 
+// GetChatAdvisorConfig returns the deployment-wide runtime configuration
+// for the experimental chat advisor as a JSON blob. Callers unmarshal the
+// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
+// values apply by default.
 func (q *sqlQuerier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getChatAdvisorConfig)
 	var advisor_config string
@@ -20931,6 +20935,9 @@ INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config'
 `
 
+// UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
+// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+// to JSON before invoking this query.
 func (q *sqlQuerier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAdvisorConfig, value)
 	return err
