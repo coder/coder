@@ -27,23 +27,12 @@ func HealthcheckOrSessionAuth(
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			token := APITokenFromRequest(r)
-			if token != "" {
-				var claims jwtutils.RegisteredClaims
-				err := jwtutils.Verify(
-					r.Context(), verifyKey, token, &claims,
-					jwtutils.WithVerifyExpected(jwt.Expected{
-						Subject: healthcheckSubject,
-						Time:    time.Now(),
-					}),
-				)
-				if err == nil {
-					// Valid healthcheck JWT; skip session auth
-					// and RBAC. The echo endpoint exposes no
-					// sensitive data.
-					next.ServeHTTP(rw, r)
-					return
-				}
+			if isValidHealthcheckJWT(r, verifyKey) {
+				// Valid healthcheck JWT; skip session auth
+				// and RBAC. The echo endpoint exposes no
+				// sensitive data.
+				next.ServeHTTP(rw, r)
+				return
 			}
 
 			// Not a valid healthcheck JWT. Fall through to
@@ -51,4 +40,21 @@ func HealthcheckOrSessionAuth(
 			sessionAuth(rbacAuth(next)).ServeHTTP(rw, r)
 		})
 	}
+}
+
+func isValidHealthcheckJWT(r *http.Request, key jwtutils.VerifyKeyProvider) bool {
+	token := APITokenFromRequest(r)
+	if token == "" {
+		return false
+	}
+
+	var claims jwtutils.RegisteredClaims
+	err := jwtutils.Verify(
+		r.Context(), key, token, &claims,
+		jwtutils.WithVerifyExpected(jwt.Expected{
+			Subject: healthcheckSubject,
+			Time:    time.Now(),
+		}),
+	)
+	return err == nil
 }
