@@ -25,6 +25,7 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 		model_config_id: "",
 	},
 	isAdvisorConfigLoading: false,
+	isAdvisorConfigFetching: false,
 	isAdvisorConfigLoadError: false,
 	modelConfigsData: [],
 	modelConfigsError: undefined,

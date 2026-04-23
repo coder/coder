@@ -120,6 +120,13 @@ const isNonNegativeIntegerString = (value: string): boolean => {
 const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 	const errors: Partial<Record<keyof AdvisorSettingsFormValues, string>> = {};
 
+	// Skip validation of the advisor-only fields when the feature is disabled.
+	// Those inputs are hidden, so an admin disabling the advisor should not be
+	// blocked by stale invalid values left in hidden fields.
+	if (!values.enabled) {
+		return errors;
+	}
+
 	if (!isNonNegativeIntegerString(values.max_uses_per_run)) {
 		errors.max_uses_per_run =
 			"Max uses per run must be a non-negative integer.";
@@ -200,8 +207,10 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	);
 	const selectedModelLabel = isUnsetModelConfigId(form.values.model_config_id)
 		? "Use chat model"
-		: (selectedModelConfig?.display_name ??
-			`Unavailable model (${form.values.model_config_id})`);
+		: isLoadingModelConfigs
+			? "Loading..."
+			: (selectedModelConfig?.display_name ??
+				`Unavailable model (${form.values.model_config_id})`);
 	const selectedModelValue = isUnsetModelConfigId(form.values.model_config_id)
 		? chatModelFallbackValue
 		: hasUnavailableSelectedModel

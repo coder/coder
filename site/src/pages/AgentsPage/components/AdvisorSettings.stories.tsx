@@ -293,6 +293,97 @@ export const Loading: Story = {
 	},
 };
 
+export const Refetching: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+		},
+		isAdvisorConfigFetching: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByRole("switch", { name: /Enable advisor/i }),
+		).toBeDisabled();
+		expect(
+			canvas.getByRole("spinbutton", { name: /Max uses per run/i }),
+		).toBeDisabled();
+		expect(
+			canvas.getByRole("combobox", { name: /Reasoning effort/i }),
+		).toBeDisabled();
+		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
+	},
+};
+
+export const LoadingModelConfigs: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			model_config_id: "model-2",
+		},
+		modelConfigs: [],
+		isLoadingModelConfigs: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const advisorModelSelect = await canvas.findByRole("combobox", {
+			name: /Advisor model/i,
+		});
+
+		expect(advisorModelSelect).toBeDisabled();
+		expect(advisorModelSelect).toHaveTextContent(/Loading/i);
+		expect(
+			canvas.getByText(/Loading chat model overrides\./i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelConfigsError: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			model_config_id: "model-2",
+		},
+		modelConfigsError: new Error("fail"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const advisorModelSelect = await canvas.findByRole("combobox", {
+			name: /Advisor model/i,
+		});
+
+		expect(advisorModelSelect).toBeDisabled();
+		expect(
+			canvas.getByText(
+				/Model overrides are unavailable\. The current selection will be sent unchanged\./i,
+			),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelConfigsErrorWithUnsetSelection: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+		},
+		modelConfigsError: new Error("fail"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText(
+				/Model overrides are unavailable\. Saving will keep using the chat model\./i,
+			),
+		).toBeInTheDocument();
+	},
+};
+
 export const LoadError: Story = {
 	args: {
 		advisorConfigData: undefined,
