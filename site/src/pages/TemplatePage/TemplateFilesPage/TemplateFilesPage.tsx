@@ -1,7 +1,7 @@
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { useLocation, useParams } from "react-router";
 import { ExternalLinkIcon } from "lucide-react";
+import { type FC, useEffect } from "react";
+import { useQuery } from "react-query";
+import { useLocation, useNavigate, useParams } from "react-router";
 import {
 	previousTemplateVersion,
 	templateFiles,
@@ -11,6 +11,7 @@ import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { docs } from "#/utils/docs";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
@@ -18,7 +19,15 @@ const TemplateFilesPage: FC = () => {
 		organization?: string;
 	};
 	const location = useLocation();
-	const justCreated = location.state?.justCreated === true;
+	const navigate = useNavigate();
+	const locationState = location.state as { justCreated?: boolean } | null;
+	const justCreated = locationState?.justCreated === true;
+
+	useEffect(() => {
+		if (justCreated) {
+			navigate(location.pathname, { replace: true, state: {} });
+		}
+	}, [justCreated, navigate, location.pathname]);
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const { data: currentFiles } = useQuery(
 		templateFiles(activeVersion.job.file_id),
@@ -50,8 +59,8 @@ const TemplateFilesPage: FC = () => {
 						Awesome, you just created a new template!
 					</AlertTitle>
 					<AlertDescription>
-						To customize it further you can edit the Terraform or Coder Template directly. You can
-						use our template agent skill to help you.
+						To customize it further you can edit the Terraform or Coder Template
+						directly. You can use our template agent skill to help you.
 					</AlertDescription>
 					<div className="flex items-center gap-2 mt-4">
 						<Button asChild size="sm" variant="default">
@@ -67,7 +76,7 @@ const TemplateFilesPage: FC = () => {
 						</Button>
 						<Button asChild size="sm" variant="outline">
 							<a
-								href="https://coder.com/docs/admin/templates/creating-templates"
+								href={docs("/admin/templates/creating-templates")}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="flex items-center"
