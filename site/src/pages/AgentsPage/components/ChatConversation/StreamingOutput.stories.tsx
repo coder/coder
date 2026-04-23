@@ -42,7 +42,7 @@ export const ThinkingPlaceholder: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const matches = canvas.getAllByText("Thinking");
+		const matches = canvas.getAllByText("Thinking...");
 		expect(matches.length).toBeGreaterThanOrEqual(1);
 		expect(
 			canvas.queryByRole("heading", { name: /retrying request/i }),
@@ -73,7 +73,7 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		const thinkingMatches = canvas.getAllByText(/^thinking$/i);
+		const thinkingMatches = canvas.getAllByText(/thinking\.\.\.$/i);
 		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
 	},
 };
