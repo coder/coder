@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -1213,7 +1214,7 @@ func executeSingleTool(
 		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
-			Data:      string(resp.Data),
+			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
 			Text:      resp.Content,
 		}

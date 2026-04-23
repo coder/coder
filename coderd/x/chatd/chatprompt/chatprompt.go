@@ -3,6 +3,7 @@ package chatprompt
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"mime"
@@ -840,17 +841,18 @@ func toolResultContentToPart(
 			result = []byte(`{"error":""}`)
 		}
 	case fantasy.ToolResultOutputContentText:
-		result = json.RawMessage(output.Text)
+		sanitized := strings.ToValidUTF8(output.Text, "\uFFFD")
+		result = json.RawMessage(sanitized)
 		// Ensure valid JSON; wrap in an object if not.
 		if !json.Valid(result) {
-			result, _ = json.Marshal(map[string]any{"output": output.Text})
+			result, _ = json.Marshal(map[string]any{"output": sanitized})
 		}
 	case fantasy.ToolResultOutputContentMedia:
 		isMedia = true
 		persisted := persistedMediaResult{
 			Data:     output.Data,
 			MimeType: output.MediaType,
-			Text:     output.Text,
+			Text:     strings.ToValidUTF8(output.Text, "\uFFFD"),
 		}
 		// Tool renderers only receive the persisted result JSON, while
 		// ClientMetadata is consumed later to append sibling file parts.
@@ -1336,16 +1338,28 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		var media persistedMediaResult
 		unmarshalErr := json.Unmarshal(part.Result, &media)
 		if unmarshalErr == nil && media.Data != "" && media.MimeType != "" {
-			return fantasy.ToolResultPart{
-				ToolCallID:       toolCallID,
-				ProviderExecuted: part.ProviderExecuted,
-				Output: fantasy.ToolResultOutputContentMedia{
-					Data:      media.Data,
-					MediaType: media.MimeType,
-					Text:      media.Text,
-				},
-				ProviderOptions: opts,
+			// Validate that Data is valid base64. Corrupted
+			// media (e.g. raw binary stored as string) would
+			// cause Anthropic to reject the request.
+			_, decErr := base64.StdEncoding.DecodeString(media.Data)
+			if decErr == nil {
+				return fantasy.ToolResultPart{
+					ToolCallID:       toolCallID,
+					ProviderExecuted: part.ProviderExecuted,
+					Output: fantasy.ToolResultOutputContentMedia{
+						Data:      media.Data,
+						MediaType: media.MimeType,
+						Text:      strings.ToValidUTF8(media.Text, "\uFFFD"),
+					},
+					ProviderOptions: opts,
+				}
 			}
+			logger.Warn(context.Background(),
+				"corrupted media data in tool result, falling through to text",
+				slog.F("tool_call_id", toolCallID),
+				slog.F("mime_type", media.MimeType),
+				slog.Error(decErr),
+			)
 		}
 
 		fields := []slog.Field{
@@ -1363,11 +1377,16 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		)
 	}
 
+	// Sanitize invalid UTF-8 in text results before sending
+	// to the LLM. This repairs stored messages that were
+	// poisoned by raw binary in tool results.
+	sanitizedResult := strings.ToValidUTF8(resultText, "\uFFFD")
+
 	return fantasy.ToolResultPart{
 		ToolCallID:       toolCallID,
 		ProviderExecuted: part.ProviderExecuted,
 		Output: fantasy.ToolResultOutputContentText{
-			Text: resultText,
+			Text: sanitizedResult,
 		},
 		ProviderOptions: opts,
 	}

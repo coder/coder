@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -179,7 +180,13 @@ func (*computerUseTool) captureScreenshot(
 			fmt.Sprintf("screenshot failed: %v", err),
 		), nil
 	}
-	return fantasy.NewImageResponse([]byte(screenResp.ScreenshotData), "image/png"), nil
+	screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(
+			fmt.Sprintf("failed to decode screenshot data: %v", err),
+		), nil
+	}
+	return fantasy.NewImageResponse(screenData, "image/png"), nil
 }
 
 func (t *computerUseTool) captureSharedScreenshot(
@@ -200,8 +207,22 @@ func (t *computerUseTool) captureSharedScreenshot(
 	)
 	if t.storeFile == nil {
 		t.logger.Warn(ctx, "screenshot attachment storage is not configured")
-		return fantasy.NewImageResponse([]byte(screenResp.ScreenshotData), "image/png"), nil
+		screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
+		if err != nil {
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("failed to decode screenshot data: %v", err),
+			), nil
+		}
+		return fantasy.NewImageResponse(screenData, "image/png"), nil
 	}
+
+	screenData, err := base64.StdEncoding.DecodeString(screenResp.ScreenshotData)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(
+			fmt.Sprintf("failed to decode screenshot data: %v", err),
+		), nil
+	}
+	response := fantasy.NewImageResponse(screenData, "image/png")
 
 	attachment, err := storeScreenshotAttachment(
 		ctx,
@@ -209,7 +230,6 @@ func (t *computerUseTool) captureSharedScreenshot(
 		attachmentName,
 		screenResp.ScreenshotData,
 	)
-	response := fantasy.NewImageResponse([]byte(screenResp.ScreenshotData), "image/png")
 	if err != nil {
 		t.logger.Warn(ctx, "failed to persist screenshot attachment",
 			slog.F("attachment_name", attachmentName),
