@@ -1,10 +1,10 @@
 package chatadvisor
 
 import (
-	"maps"
 	"sync/atomic"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -48,11 +48,37 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 
 	normalized := cfg
 	normalized.ModelConfig = cfg.ModelConfig
-	normalized.ProviderOptions = maps.Clone(cfg.ProviderOptions)
+	normalized.ProviderOptions = cloneProviderOptions(cfg.ProviderOptions)
 	maxOutputTokens := cfg.MaxOutputTokens
 	normalized.ModelConfig.MaxOutputTokens = &maxOutputTokens
 
 	return &Runtime{cfg: normalized}, nil
+}
+
+// cloneProviderOptions returns a copy of opts in which pointer entries for
+// known, in-place mutated provider option types are deep-copied. chatloop
+// mutates the OpenAI Responses entry (PreviousResponseID) on chain-mode
+// exit, so sharing the pointer with the parent run would let an advisor
+// call corrupt the parent's chain state.
+func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions {
+	if opts == nil {
+		return nil
+	}
+	cloned := make(fantasy.ProviderOptions, len(opts))
+	for key, value := range opts {
+		switch typed := value.(type) {
+		case *fantasyopenai.ResponsesProviderOptions:
+			if typed == nil {
+				cloned[key] = value
+				continue
+			}
+			copied := *typed
+			cloned[key] = &copied
+		default:
+			cloned[key] = value
+		}
+	}
+	return cloned
 }
 
 // RemainingUses reports how many advisor calls are still available for the

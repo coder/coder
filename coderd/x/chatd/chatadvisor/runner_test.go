@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -177,6 +178,46 @@ func TestNewRuntimeValidation(t *testing.T) {
 			require.ErrorContains(t, err, testCase.errText)
 		})
 	}
+}
+
+func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	parentPrevID := "resp_parent_abc123"
+	parentOpts := &fantasyopenai.ResponsesProviderOptions{
+		PreviousResponseID: &parentPrevID,
+	}
+	parentProviderOpts := fantasy.ProviderOptions{
+		fantasyopenai.Name: parentOpts,
+	}
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		ProviderOptions: parentProviderOpts,
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(context.Background(), "anything?", nil)
+	require.NoError(t, err)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+
+	// Parent's OpenAI Responses entry must still carry its PreviousResponseID;
+	// the advisor's nested chatloop run must not have mutated the shared pointer.
+	require.NotNil(t, parentOpts.PreviousResponseID)
+	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
 }
 
 func TestBuildAdvisorMessagesPreservesSystemAndTruncatesConversation(t *testing.T) {
