@@ -83,10 +83,11 @@ pages.
 | [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Not Supported            | [v2.26.6](https://github.com/coder/coder/releases/tag/v2.26.6)   |
 | [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Not Supported            | [v2.27.11](https://github.com/coder/coder/releases/tag/v2.27.11) |
 | [2.28](https://coder.com/changelog/coder-2-28) | November 04, 2025  | Not Supported            | [v2.28.11](https://github.com/coder/coder/releases/tag/v2.28.11) |
-| [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025  | Extended Support Release | [v2.29.9](https://github.com/coder/coder/releases/tag/v2.29.9)   |
-| [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026  | Security Support         | [v2.30.6](https://github.com/coder/coder/releases/tag/v2.30.6)   |
-| [2.31](https://coder.com/changelog/coder-2-31) | February 23, 2026  | Stable                   | [v2.31.7](https://github.com/coder/coder/releases/tag/v2.31.7)   |
-| 2.32                                           |                    | Not Released             | N/A                                                              |
+| [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025  | Extended Support Release | [v2.29.10](https://github.com/coder/coder/releases/tag/v2.29.10) |
+| [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026  | Security Support         | [v2.30.7](https://github.com/coder/coder/releases/tag/v2.30.7)   |
+| [2.31](https://coder.com/changelog/coder-2-31) | February 23, 2026  | Stable                   | [v2.31.9](https://github.com/coder/coder/releases/tag/v2.31.9)   |
+| [2.32](https://coder.com/changelog/coder-2-32) | April 14, 2026     | Mainline                 | [v2.32.0](https://github.com/coder/coder/releases/tag/v2.32.0)   |
+| 2.33                                           |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]

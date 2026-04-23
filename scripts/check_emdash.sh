@@ -20,9 +20,14 @@ emdash=$'\xE2\x80\x94'
 endash=$'\xE2\x80\x93'
 pattern="${emdash}|${endash}"
 
+# Git exclude_pathspecs excluded from the check. Used in both ls-files and diff comparison.
+exclude_pathspecs=(
+	":(exclude)aibridge/fixtures/**/*.txtar"
+)
+
 scan_all_files() {
 	local output
-	output=$(git ls-files -z | xargs -0 grep -IEn "$pattern" 2>/dev/null || true)
+	output=$(git ls-files -z -- "${exclude_pathspecs[@]}" | xargs -0 grep -IEn "$pattern" 2>/dev/null || true)
 	if [[ -n "$output" ]]; then
 		echo "$output"
 		found=1
@@ -58,7 +63,7 @@ else
 		fi
 
 		found=0
-		if ! diff_output=$(git diff "$base" -U0 -- . 2>&1); then
+		if ! diff_output=$(git diff "$base" -U0 -- . "${exclude_pathspecs[@]}" 2>&1); then
 			echo "ERROR: git diff against $base failed:"
 			echo "$diff_output"
 			exit 1

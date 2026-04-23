@@ -3,7 +3,6 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import { AdminBadge } from "./AdminBadge";
 import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import { ModelSelector } from "./ChatElements/ModelSelector";
 
@@ -96,11 +95,11 @@ export const ExploreModelOverrideSettings: FC<
 						<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 							Explore subagent model
 						</h3>
-						<AdminBadge />
 					</div>
 					<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 						Optional deployment-wide model override for read-only Explore
-						subagents spawned with <code>spawn_explore_agent</code>.
+						subagents spawned with <code>spawn_agent</code> using
+						<code>type=explore</code>.
 					</p>
 				</>
 			)}

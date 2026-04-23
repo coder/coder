@@ -237,7 +237,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		if callCount.Add(1) == 1 {
 			// Root chat: model calls spawn_agent.
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"do the thing","title":"sub"}`),
 			)
 		}
 		// Subsequent calls (including the subagent): just reply.
@@ -431,7 +431,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"inspect the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"inspect the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -587,7 +587,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 
 		if callCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_explore_agent", `{"prompt":"investigate the codebase","title":"sub"}`),
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"explore","prompt":"investigate the codebase","title":"sub"}`),
 			)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -631,7 +631,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		sawRoot := false
 		sawChild := false
 		for _, tools := range toolsByCall {
-			if slice.Contains(tools, "spawn_explore_agent") {
+			if slice.Contains(tools, "spawn_agent") {
 				sawRoot = true
 				continue
 			}
@@ -652,7 +652,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	var rootCalls, childCalls [][]string
 	var rootRequests, childRequests []recordedOpenAIRequest
 	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_explore_agent") {
+		if slice.Contains(tools, "spawn_agent") {
 			rootCalls = append(rootCalls, tools)
 			rootRequests = append(rootRequests, recordedRequests[i])
 			continue
@@ -666,13 +666,11 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
 	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
 	require.Contains(t, rootCalls[0], "spawn_agent")
-	require.Contains(t, rootCalls[0], "spawn_explore_agent")
 	require.Contains(t, rootCalls[0], "write_file")
 	require.Contains(t, rootCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "write_file")
 	require.NotContains(t, childCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "spawn_agent")
-	require.NotContains(t, childCalls[0], "spawn_explore_agent")
 	require.NotContains(t, childCalls[0], "wait_agent")
 	require.Contains(t, childCalls[0], "read_file")
 	require.Contains(t, childCalls[0], "execute")
@@ -1416,10 +1414,10 @@ func TestPlanTurnPromptContract(t *testing.T) {
 		if msg.Role != "system" {
 			continue
 		}
-		// The overlay constant includes a placeholder that is replaced at
+		// The overlay prompt includes a placeholder that is replaced at
 		// runtime, so strip only the stable body text before checking.
 		overlayBody := strings.TrimSuffix(
-			chatd.PlanningOverlayPrompt,
+			chatd.PlanningOverlayPrompt(),
 			"{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}",
 		)
 		sanitized := strings.ReplaceAll(msg.Content, overlayBody, "")
@@ -5499,7 +5497,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	t.Cleanup(anthropicSrv.Close)
 
 	// OpenAI mock for the root chat. The first streaming call
-	// triggers spawn_computer_use_agent; subsequent calls reply
+	// triggers spawn_agent; subsequent calls reply
 	// with text.
 	var openAICallCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -5509,8 +5507,8 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		if openAICallCount.Add(1) == 1 {
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk(
-					"spawn_computer_use_agent",
-					`{"prompt":"do the desktop thing","title":"cu-sub"}`,
+					"spawn_agent",
+					`{"type":"computer_use","prompt":"do the desktop thing","title":"cu-sub"}`,
 				),
 			)
 		}
@@ -5657,7 +5655,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
-		"spawn_agent", "spawn_computer_use_agent",
+		"spawn_agent",
 		"wait_agent", "message_agent", "close_agent",
 	}
 	for _, tool := range subagentTools {

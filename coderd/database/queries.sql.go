@@ -1364,22 +1364,43 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
 WITH cursor_pos AS (
-	-- Resolve the cursor's started_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group.
-	SELECT MIN(aibridge_interceptions.started_at) AS started_at
-	FROM aibridge_interceptions
-	WHERE aibridge_interceptions.session_id = $1 AND aibridge_interceptions.ended_at IS NOT NULL
+	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group. Direct
+	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
+	-- affected by fan-out from multiple prompts per interception).
+	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
+	-- never NULL, which would silently drop rows from the HAVING comparison.
+	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
+	FROM aibridge_interceptions ai
+	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
+	WHERE ai.session_id = $1 AND ai.ended_at IS NOT NULL
 ),
 session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
+	-- A lateral correlated subquery for prompts keeps the join one-to-one
+	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
+	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
+	-- index makes this an index-only lookup per interception row rather than
+	-- a full-table-scan GROUP BY over all prompts.
+	-- last_active_at is the latest prompt timestamp, falling back to
+	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
+	-- it is never NULL so the HAVING row-value cursor comparison is safe.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
 		MIN(ai.started_at) AS started_at,
 		MAX(ai.ended_at) AS ended_at,
-		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
+		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
 	FROM
 		aibridge_interceptions ai
+	LEFT JOIN LATERAL (
+		SELECT created_at AS latest_prompt_at
+		FROM aibridge_user_prompts
+		WHERE interception_id = ai.id
+		ORDER BY created_at DESC
+		LIMIT 1
+	) latest_prompt ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
@@ -1422,22 +1443,21 @@ session_page AS (
 	GROUP BY
 		ai.session_id, ai.initiator_id
 	HAVING
-		-- Cursor pagination: uses a composite (started_at, session_id)
-		-- cursor to support keyset pagination. The less-than comparison
-		-- matches the DESC sort order so rows after the cursor come
-		-- later in results. The cursor value comes from cursor_pos to
-		-- guarantee single evaluation.
+		-- Cursor pagination: uses a composite (last_active_at, session_id) cursor to
+		-- support keyset pagination. The less-than comparison matches the DESC
+		-- sort order so rows after the cursor come later in results. The cursor
+		-- value comes from cursor_pos to guarantee single evaluation.
 		CASE
 			WHEN $1::text != '' THEN (
-				(MIN(ai.started_at), ai.session_id) < (
-					(SELECT started_at FROM cursor_pos),
+				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
+					(SELECT last_active_at FROM cursor_pos),
 					$1::text
 				)
 			)
 			ELSE true
 		END
 	ORDER BY
-		MIN(ai.started_at) DESC,
+		last_active_at DESC,
 		ai.session_id DESC
 	LIMIT COALESCE(NULLIF($10::integer, 0), 100)
 	OFFSET $9
@@ -1459,7 +1479,8 @@ SELECT
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
-	COALESCE(slp.prompt, '') AS last_prompt
+	COALESCE(slp.prompt, '') AS last_prompt,
+	sp.last_active_at AS last_active_at
 FROM
 	session_page sp
 JOIN
@@ -1496,7 +1517,7 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) slp ON true
 ORDER BY
-	sp.started_at DESC,
+	sp.last_active_at DESC,
 	sp.session_id DESC
 `
 
@@ -1531,6 +1552,7 @@ type ListAIBridgeSessionsRow struct {
 	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 	LastPrompt            string          `db:"last_prompt" json:"last_prompt"`
+	LastActiveAt          time.Time       `db:"last_active_at" json:"last_active_at"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -1578,6 +1600,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
+			&i.LastActiveAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4283,6 +4306,23 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const deleteChatModelConfigsByProvider = `-- name: DeleteChatModelConfigsByProvider :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    provider = $1::text
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByProvider, provider)
+	return err
+}
+
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
     id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
@@ -4699,6 +4739,37 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 	return i, err
 }
 
+const getChatProviderByIDForUpdate = `-- name: GetChatProviderByIDForUpdate :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
+FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByIDForUpdate, id)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
+	)
+	return i, err
+}
+
 const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
 SELECT
     id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
@@ -4710,6 +4781,37 @@ WHERE
 
 func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
 	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+		&i.CentralApiKeyEnabled,
+		&i.AllowUserApiKey,
+		&i.AllowCentralApiKeyFallback,
+	)
+	return i, err
+}
+
+const getChatProviderByProviderForUpdate = `-- name: GetChatProviderByProviderForUpdate :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByProviderForUpdate, provider)
 	var i ChatProvider
 	err := row.Scan(
 		&i.ID,

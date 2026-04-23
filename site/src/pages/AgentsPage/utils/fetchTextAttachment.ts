@@ -1,8 +1,18 @@
+import {
+	type AttachmentFailure,
+	classifyAttachmentFailureResponse,
+	getChatFileURL,
+} from "./chatAttachments";
+
 /**
  * Roughly 1-2 lines of typical code at normal terminal width.
  * Short enough to fit in attachment previews without excessive wrapping.
  */
 const TEXT_ATTACHMENT_PREVIEW_LENGTH = 150;
+
+type TextAttachmentLoadResult =
+	| { kind: "loaded"; content: string }
+	| AttachmentFailure;
 
 export function formatTextAttachmentPreview(
 	text: string,
@@ -30,17 +40,36 @@ export function decodeInlineTextAttachment(content: string): string {
 }
 
 /**
+ * Encodes UTF-8 text as base64. Inverse of decodeInlineTextAttachment.
+ */
+export function encodeInlineTextAttachment(text: string): string {
+	const bytes = new TextEncoder().encode(text);
+	return btoa(String.fromCharCode(...bytes));
+}
+
+export function getTextAttachmentErrorMessage(error: unknown): string | null {
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"name" in error &&
+		error.name === "AbortError"
+	) {
+		return null;
+	}
+
+	return "Couldn't load preview. Select again to retry.";
+}
+
+/**
  * Fetches the text content of a chat file attachment by its ID.
  */
 export async function fetchTextAttachmentContent(
 	fileId: string,
 	signal?: AbortSignal,
-): Promise<string> {
-	const response = await fetch(`/api/experimental/chats/files/${fileId}`, {
-		signal,
-	});
-	if (!response.ok) {
-		throw new Error("Failed to fetch file");
+): Promise<TextAttachmentLoadResult> {
+	const response = await fetch(getChatFileURL(fileId), { signal });
+	if (response.ok) {
+		return { kind: "loaded", content: await response.text() };
 	}
-	return response.text();
+	return classifyAttachmentFailureResponse(response);
 }

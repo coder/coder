@@ -23,7 +23,7 @@ func buildAssistantPartsForPersist(
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
 	for _, block := range assistantBlocks {
-		part := chatprompt.PartFromContent(block)
+		part := chatprompt.PartFromContentWithLogger(ctx, logger, block)
 		if part.ToolName != "" {
 			if configID, ok := toolNameToConfigID[part.ToolName]; ok {
 				part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}

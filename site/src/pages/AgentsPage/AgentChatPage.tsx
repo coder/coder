@@ -32,6 +32,7 @@ import {
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
+	userChatDebugLogging,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -138,6 +139,40 @@ export const restoreOptimisticRequestSnapshot = (
 		store.setStreamError(snapshot.streamError);
 	});
 };
+
+export async function submitEditAndScroll({
+	editMessage,
+	editArgs,
+	scrollToBottom,
+	onError,
+}: {
+	editMessage: (args: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	}) => Promise<unknown>;
+	editArgs: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	};
+	scrollToBottom: (() => void) | null | undefined;
+	onError: (error: unknown) => void;
+}): Promise<void> {
+	try {
+		await editMessage(editArgs);
+	} catch (error) {
+		onError(error);
+		throw error;
+	}
+	// Scroll after the mutation resolves so the optimistic
+	// truncation and server reconciliation have already been
+	// applied to the DOM. Scrolling before this point causes
+	// the sticky user message to cycle through prior messages
+	// as the IntersectionObserver reacts to rapid layout
+	// shifts between the old and truncated content.
+	scrollToBottom?.();
+}
 
 /** @internal Exported for testing. */
 export const waitForPendingChatSettingsSyncs = async (
@@ -619,6 +654,7 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = filterWorkspaceOptionsByOrganization(
@@ -626,6 +662,8 @@ const AgentChatPage: FC = () => {
 		chatQuery.data?.organization_id,
 	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const debugLoggingEnabled =
+		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1222,18 +1260,19 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			scrollToBottomRef.current?.();
-			try {
-				await editMessage({
+			await submitEditAndScroll({
+				editMessage,
+				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
-				});
-			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				handleUsageLimitError(error);
-				throw error;
-			}
+				},
+				scrollToBottom: scrollToBottomRef.current,
+				onError: (error) => {
+					restoreOptimisticRequestSnapshot(store, previousSnapshot);
+					handleUsageLimitError(error);
+				},
+			});
 			return;
 		}
 
@@ -1400,6 +1439,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}

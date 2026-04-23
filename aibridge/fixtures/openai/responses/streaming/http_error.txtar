@@ -1,0 +1,21 @@
+-- request --
+{
+  "input": "tell me a joke",
+  "model": "gpt-4o-mini",
+  "stream": true
+}
+
+-- streaming --
+HTTP/2.0 429 Too Many Requests
+Content-Length: 176
+Content-Type: application/json
+
+{
+  "error": {
+    "message": "Rate limit exceeded. Please try again in 20 seconds.",
+    "type": "rate_limit_error",
+    "param": null,
+    "code": "rate_limit_exceeded"
+  }
+}
+

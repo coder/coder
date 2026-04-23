@@ -4,11 +4,10 @@ import type { AlertProps } from "#/components/Alert/Alert";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Pill } from "#/components/Pill/Pill";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
 
 export type NotificationItem = {
@@ -33,55 +32,53 @@ export const Notifications: FC<NotificationsProps> = ({
 	const theme = useTheme();
 
 	return (
-		<TooltipProvider>
-			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
-				<TooltipTrigger asChild>
-					<div
-						// Adds some spacing from the Tooltip content
-						className="py-2"
-						data-testid={`${severity}-notifications`}
-					>
-						<NotificationPill
-							items={items}
-							severity={severity}
-							icon={icon}
-							isTooltipOpen={isOpen}
-						/>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent
-					align="end"
-					collisionPadding={16}
-					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
-					style={{
-						borderColor: theme.roles[severity].outline,
-					}}
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					className="py-2 bg-transparent border-none cursor-pointer"
+					data-testid={`${severity}-notifications`}
 				>
-					{items.map((n) => (
-						<NotificationItem notification={n} key={n.title} />
-					))}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+					<NotificationPill
+						items={items}
+						severity={severity}
+						icon={icon}
+						isOpen={isOpen}
+					/>
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				collisionPadding={16}
+				className="max-w-[400px] p-0 w-auto bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
+				style={{
+					borderColor: theme.roles[severity].outline,
+				}}
+			>
+				{items.map((n) => (
+					<NotificationItem notification={n} key={n.title} />
+				))}
+			</PopoverContent>
+		</Popover>
 	);
 };
 
 type NotificationPillProps = NotificationsProps & {
-	isTooltipOpen: boolean;
+	isOpen: boolean;
 };
 
 const NotificationPill: FC<NotificationPillProps> = ({
 	items,
 	severity,
 	icon,
-	isTooltipOpen,
+	isOpen,
 }) => {
 	return (
 		<Pill
 			icon={icon}
 			css={(theme) => ({
 				"& svg": { color: theme.roles[severity].outline },
-				borderColor: isTooltipOpen ? theme.roles[severity].outline : undefined,
+				borderColor: isOpen ? theme.roles[severity].outline : undefined,
 			})}
 		>
 			{items.length}

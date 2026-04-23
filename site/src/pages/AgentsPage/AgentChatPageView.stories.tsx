@@ -138,6 +138,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		diffStatusData: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["diffStatusData"],
+		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
 		handleCommit: fn(),
@@ -216,7 +217,7 @@ export const WithError: Story = {
 		<StoryAgentChatPageView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded.",
+				message: "Anthropic is temporarily overloaded (HTTP 529).",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -229,11 +230,10 @@ export const WithError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is currently overloaded\./i),
+			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByText(/http 529/i)).toBeVisible();
 	},
 };
 
@@ -1141,6 +1141,66 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 		);
 
 		// Scroll-to-bottom button should not be visible.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};
+
+const editSubmitScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/**
+ * Verifies that the scroll position settles at the bottom of the
+ * conversation after an optimistic edit truncation removes messages.
+ * The actual scroll-ordering regression (scrollToBottom must fire
+ * after editMessage resolves) is covered by the submitEditAndScroll
+ * unit tests in AgentChatPage.test.ts.
+ */
+export const ScrollStableAfterEditTruncation: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={editSubmitScrollStore} />,
+	play: async ({ canvasElement }) => {
+		// Reset the module-scoped store so interactive re-runs in
+		// Storybook start from the full 30-message conversation.
+		editSubmitScrollStore.replaceMessages(buildLongConversation(30));
+		editSubmitScrollStore.setChatStatus("completed");
+
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		const existing = getStoreMessages(editSubmitScrollStore);
+		const editIndex = 10;
+		const truncated = existing.slice(0, editIndex);
+		truncated.push(
+			buildMessage(existing[editIndex].id, "user", "Edited question"),
+		);
+		editSubmitScrollStore.replaceMessages(truncated);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();

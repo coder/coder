@@ -177,6 +177,7 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	readonly last_prompt?: string;
+	readonly last_active_at: string;
 }
 
 // From codersdk/aibridge.go
@@ -1654,6 +1655,59 @@ export interface ChatGitChange {
 
 // From codersdk/chats.go
 /**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ * ChatGitWatchAgentStatePrefix is the common prefix of the
+ * message produced by ChatGitWatchAgentStateMessage. The CLI
+ * uses it as a mechanical fingerprint for the "agent not yet
+ * connected" case without depending on the formatted values.
+ */
+export const ChatGitWatchAgentStatePrefix = "Agent state is ";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchWorkspaceNoAgentsMessage =
+	"Chat workspace has no agents.";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
+
+// From codersdk/chats.go
+/**
  * ChatInputPart is a single user input part for creating a chat.
  */
 export interface ChatInputPart {
@@ -2179,6 +2233,11 @@ export interface ChatStreamError {
 	 * Message is the normalized, user-facing error message.
 	 */
 	readonly message: string;
+	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
 	/**
 	 * Kind classifies the error for consistent client rendering.
 	 */

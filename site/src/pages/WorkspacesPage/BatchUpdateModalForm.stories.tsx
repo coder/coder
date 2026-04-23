@@ -12,9 +12,9 @@ import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { MockTemplateVersion, MockWorkspace } from "#/testHelpers/entities";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 
-type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
-type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {
-	latest_build: Writeable<WorkspaceBuild>;
+type Writable<T> = { -readonly [Key in keyof T]: T[Key] };
+type MutableWorkspace = Writable<Omit<Workspace, "latest_build">> & {
+	latest_build: Writable<WorkspaceBuild>;
 };
 
 const meta: Meta<typeof BatchUpdateModalForm> = {
