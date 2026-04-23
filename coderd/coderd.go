@@ -1827,13 +1827,15 @@ func New(options *Options) *API {
 			})
 			r.Get("/user-status-counts", api.insightsUserStatusCounts)
 		})
-		r.Route("/debug", func(r chi.Router) {
-			// /debug/ws accepts either a healthcheck JWT (from the
-			// background runner) or a normal session token with RBAC.
-			// It is separated from the rest of the debug group so
-			// the healthcheck runner can authenticate without a real
-			// API key.
-			debugRBAC := func(next http.Handler) http.Handler {
+		// /debug/ws accepts a healthcheck JWT OR normal session
+		// auth. Registered outside the /debug group so it is not
+		// subject to the group-level session auth + RBAC. The
+		// background healthcheck runner uses this to reach the
+		// echo endpoint without a real API key.
+		r.With(httpmw.HealthcheckOrSessionAuth(
+			api.healthcheckKey,
+			apiKeyMiddleware,
+			func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 					if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
 						httpapi.Forbidden(rw)
@@ -1841,81 +1843,81 @@ func New(options *Options) *API {
 					}
 					next.ServeHTTP(rw, r)
 				})
-			}
-
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.HealthcheckOrSessionAuth(
-					api.healthcheckKey,
-					apiKeyMiddleware,
-					debugRBAC,
-				))
-				r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
-			})
-
-			// All other debug routes: session auth + owner RBAC.
-			r.Group(func(r chi.Router) {
-				r.Use(
-					apiKeyMiddleware,
-					debugRBAC,
-				)
-
-				r.Get("/coordinator", api.debugCoordinator)
-				r.Get("/tailnet", api.debugTailnet)
-				r.Route("/health", func(r chi.Router) {
-					r.Get("/", api.debugDeploymentHealth)
-					r.Route("/settings", func(r chi.Router) {
-						r.Get("/", api.deploymentHealthSettings)
-						r.Put("/", api.putDeploymentHealthSettings)
-					})
-				})
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/debug-link", api.userDebugOIDC)
-				})
-				if options.DERPServer != nil {
-					r.Route("/derp", func(r chi.Router) {
-						r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
-					})
-				}
-				r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
-
-				r.Post("/profile", api.debugCollectProfile)
-
-				r.Route("/pprof", func(r chi.Router) {
-					r.Use(func(next http.Handler) http.Handler {
-						// Some of the pprof handlers strip the `/debug/pprof`
-						// prefix, so we need to strip our additional prefix as
-						// well.
-						return http.StripPrefix("/api/v2", next)
-					})
-
-					// Serve the index HTML page.
-					r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-						// Redirect to include a trailing slash, otherwise links on
-						// the generated HTML page will be broken.
-						if !strings.HasSuffix(r.URL.Path, "/") {
-							http.Redirect(w, r, "/api/v2/debug/pprof/", http.StatusTemporaryRedirect)
+			},
+		)).Get("/debug/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
+		r.Route("/debug", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				// Ensure only users with the debug_info:read (e.g. only owners)
+				// can view debug endpoints.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
+							httpapi.Forbidden(rw)
 							return
 						}
-						httppprof.Index(w, r)
+
+						next.ServeHTTP(rw, r)
 					})
+				},
+			)
 
-					// Handle any out of the box pprof handlers that don't get
-					// dealt with by the default index handler. See httppprof.init.
-					r.Get("/cmdline", httppprof.Cmdline)
-					r.Get("/profile", httppprof.Profile)
-					r.Get("/symbol", httppprof.Symbol)
-					r.Get("/trace", httppprof.Trace)
+			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/tailnet", api.debugTailnet)
+			r.Route("/health", func(r chi.Router) {
+				r.Get("/", api.debugDeploymentHealth)
+				r.Route("/settings", func(r chi.Router) {
+					r.Get("/", api.deploymentHealthSettings)
+					r.Put("/", api.putDeploymentHealthSettings)
+				})
+			})
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/debug-link", api.userDebugOIDC)
+			})
+			if options.DERPServer != nil {
+				r.Route("/derp", func(r chi.Router) {
+					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+				})
+			}
+			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 
-					// Index will handle any standard and custom runtime/pprof
-					// profiles.
-					r.Get("/*", httppprof.Index)
+			r.Post("/profile", api.debugCollectProfile)
+
+			r.Route("/pprof", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					// Some of the pprof handlers strip the `/debug/pprof`
+					// prefix, so we need to strip our additional prefix as
+					// well.
+					return http.StripPrefix("/api/v2", next)
 				})
 
-				r.Get("/metrics", promhttp.InstrumentMetricHandler(
-					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				).ServeHTTP)
+				// Serve the index HTML page.
+				r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+					// Redirect to include a trailing slash, otherwise links on
+					// the generated HTML page will be broken.
+					if !strings.HasSuffix(r.URL.Path, "/") {
+						http.Redirect(w, r, "/api/v2/debug/pprof/", http.StatusTemporaryRedirect)
+						return
+					}
+					httppprof.Index(w, r)
+				})
+
+				// Handle any out of the box pprof handlers that don't get
+				// dealt with by the default index handler. See httppprof.init.
+				r.Get("/cmdline", httppprof.Cmdline)
+				r.Get("/profile", httppprof.Profile)
+				r.Get("/symbol", httppprof.Symbol)
+				r.Get("/trace", httppprof.Trace)
+
+				// Index will handle any standard and custom runtime/pprof
+				// profiles.
+				r.Get("/*", httppprof.Index)
 			})
+
+			r.Get("/metrics", promhttp.InstrumentMetricHandler(
+				options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+			).ServeHTTP)
 		})
 		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
 		r.Route("/oauth2-provider", func(r chi.Router) {
