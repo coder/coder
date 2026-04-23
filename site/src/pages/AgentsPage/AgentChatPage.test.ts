@@ -894,7 +894,9 @@ describe("submitEditAndScroll", () => {
 		).rejects.toThrow("boom");
 
 		expect(scrollToBottom).not.toHaveBeenCalled();
-		expect(onError).toHaveBeenCalledWith(expect.any(Error));
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "boom" }),
+		);
 	});
 
 	it("tolerates null scrollToBottom", async () => {
