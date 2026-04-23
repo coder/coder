@@ -136,7 +136,7 @@ type Options struct {
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 	ConnectionLogger               connectionlog.ConnectionLogger
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
+	HealthcheckFunc    func(ctx context.Context, apiKey string, client *http.Client, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 

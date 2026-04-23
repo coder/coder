@@ -95,7 +95,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
 
-		report := api.HealthcheckFunc(ctx, apiKey, &api.healthCheckProgress)
+		report := api.HealthcheckFunc(ctx, apiKey, nil, &api.healthCheckProgress)
 		if report != nil {
 			api.healthCheckCache.Store(report)
 		}
