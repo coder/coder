@@ -140,14 +140,6 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
-/**
- * Submits an edited chat message and scrolls to the bottom after the
- * mutation resolves. Exported for testing: the scroll must happen
- * after the mutation, not before, to avoid sticky message cycling
- * from IntersectionObserver cascades during layout shifts.
- *
- * @internal
- */
 export async function submitEditAndScroll({
 	editMessage,
 	editArgs,
