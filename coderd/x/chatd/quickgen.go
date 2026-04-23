@@ -29,13 +29,64 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const titleGenerationPrompt = "Write a short title for the user's message. " +
-	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
-	"Do not answer the user or describe the title-writing task. " +
-	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
-	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
-	"Sentence case. No quotes, emoji, markdown, or trailing punctuation."
+// titleGenerationPrompt shapes auto-generated chat titles as a
+// lead identifier followed by a short noun phrase, not a sentence.
+// The first ~30 characters of a title are what the sidebar shows,
+// so the most distinctive tokens must come first. The negative
+// example on PR #4821 is load-bearing: earlier iterations tried
+// to enumerate banned verbs ("fix", "help", "check", ...) but the
+// model kept inventing similar ones ("investigate", "wire up",
+// "click handler"). A single NOT example catches the class.
+// renderManualTitlePrompt mirrors these rules inline for the
+// multi-turn manual-regeneration path; keep the two in sync when
+// editing either.
+const titleGenerationPrompt = "Write a short chat title. The title appears " +
+	"in a sidebar where only the first ~30 characters are visible, " +
+	"so the most distinctive tokens must come first.\n\n" +
+	"Format:\n" +
+	"- One or more identifiers, followed by a short noun phrase. " +
+	"Not a sentence. Not a list of disconnected tokens.\n" +
+	"- Target 3-5 words total (including identifiers). Go shorter " +
+	"when identifiers carry most of the meaning.\n\n" +
+	"Identifiers to lead with (verbatim, preserving casing and " +
+	"punctuation): issue keys, PR numbers, repo names, file paths, " +
+	"function names, error codes.\n\n" +
+	"For paths with 3 or more segments, use just the basename. " +
+	"Keep the path prefix only if the basename alone would be " +
+	"ambiguous (e.g. index.ts, main.go).\n\n" +
+	"Casing:\n" +
+	"- Lowercase descriptive words.\n" +
+	"- Preserve exact casing for identifiers, proper nouns " +
+	"(Windows, React, Anthropic), and acronyms (CI, SQL, MCP).\n\n" +
+	"Vocabulary:\n" +
+	"- Drop words that describe the act of working on the task " +
+	"(\"read X\", \"look at X\", \"help with Y\", \"investigate Z\").\n" +
+	"- Keep words that name the technical subject (\"nil panic\", " +
+	"\"token refresh\", \"cache miss\").\n" +
+	"- No articles, no conjunctions, no trailing punctuation, no " +
+	"quotes, no emoji, no markdown.\n\n" +
+	"If the user's message is short or vague, use their own words. " +
+	"Do not invent abstraction nouns.\n\n" +
+	"Do not answer the user or describe the title-writing task.\n\n" +
+	"Examples:\n" +
+	"- User: \"Can you read FOOBAR-123 and identify a fix?\"\n" +
+	"  Title: FOOBAR-123 fix\n" +
+	"- User: \"The frobulator in pkg/foo/bar.go keeps panicking on " +
+	"nil inputs\"\n" +
+	"  Title: pkg/foo/bar.go frobulator nil panic\n" +
+	"- User: \"coderd/database/queries/workspaces.sql " +
+	"GetWorkspaceByID is slow\"\n" +
+	"  Title: workspaces.sql GetWorkspaceByID slow\n" +
+	"- User: \"disengage plan mode from Planning badge\"\n" +
+	"  Title: Planning badge disengage\n" +
+	"  (NOT: Planning badge click handler, \"click handler\" " +
+	"invents a word.)\n" +
+	"- User: \"help me understand how useEffect works in React\"\n" +
+	"  Title: React useEffect behavior\n" +
+	"- User: \"PR #4821 is failing CI on the Windows runner\"\n" +
+	"  Title: PR #4821 Windows CI failure\n" +
+	"- User: \"why is my workspace slow\"\n" +
+	"  Title: slow workspace"
 
 const (
 	// maxConversationContextRunes caps the conversation sample in manual

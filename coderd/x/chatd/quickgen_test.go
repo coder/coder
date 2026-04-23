@@ -354,12 +354,56 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
-func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
+func Test_titleGenerationPrompt_UsesNounPhraseRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	// Framing: noun phrase, not a sentence, not a disconnected
+	// keyword bag. The sidebar-scanability rationale is what
+	// motivates "distinctive tokens first" and should appear
+	// verbatim so future edits don't accidentally drop it.
+	require.Contains(t, titleGenerationPrompt, "first ~30 characters are visible")
+	require.Contains(t, titleGenerationPrompt, "Not a sentence. Not a list of disconnected tokens.")
+
+	// Target word count is a soft range, not a hard cap. The
+	// validator enforces length separately by rune count.
+	require.Contains(t, titleGenerationPrompt, "Target 3-5 words total")
+
+	// Path rule is explicitly "paths" (not "file paths") so it
+	// also applies to directory paths.
+	require.Contains(t, titleGenerationPrompt, "For paths with 3 or more segments")
+
+	// Casing rule preserves proper nouns and acronyms rather
+	// than forcing sentence case, which conflicts with leading
+	// identifiers like ECONNREFUSED or PR numbers.
+	require.Contains(t, titleGenerationPrompt, "Preserve exact casing for identifiers, proper nouns")
+	require.NotContains(t, titleGenerationPrompt, "Sentence case")
+
+	// Vocabulary guidance is stated as a principle (act-of-
+	// working verbs vs. technical-subject verbs), not as an
+	// enumerated banned-word list. The previous enumeration
+	// was incomplete and the model kept inventing similar
+	// words that weren't on the list.
+	require.Contains(t, titleGenerationPrompt, "Drop words that describe the act of working on the task")
+	require.Contains(t, titleGenerationPrompt, "Keep words that name the technical subject")
+
+	// Anti-invention rule anchors on a negative example; the
+	// enumerated banned-verbs list that used to carry this
+	// rule must be gone.
+	require.Contains(t, titleGenerationPrompt, "Do not invent abstraction nouns")
+	require.Contains(t, titleGenerationPrompt, "Title: Planning badge disengage")
+	require.Contains(t, titleGenerationPrompt, "NOT: Planning badge click handler")
+	require.NotContains(t, titleGenerationPrompt, "generic verbs (read, review")
+
+	// FOOBAR-123 example uses the user's word ("fix") rather
+	// than an invented abstraction ("investigation"); swapping
+	// back would re-introduce the self-contradiction that the
+	// anti-invention rule is meant to prevent.
+	require.Contains(t, titleGenerationPrompt, "Title: FOOBAR-123 fix")
+	require.NotContains(t, titleGenerationPrompt, "Title: FOOBAR-123 investigation")
+
+	// Preserved guidance from the previous prompt.
+	require.Contains(t, titleGenerationPrompt, "use their own words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
-	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
