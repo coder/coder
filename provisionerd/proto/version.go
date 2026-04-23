@@ -80,9 +80,11 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `merge_strategy` field to `provisioner.Env` message
 //
 // API v1.17:
-//   - Added `user_secrets` field to `AcquiredJob.WorkspaceBuild`, to carry
-//     user secret values from coderd to provisioner daemons for onward
-//     delivery to provisioners.
+//   - Added `user_secrets` field to `AcquiredJob.WorkspaceBuild`, carrying user
+//     secret values from coderd to provisioner daemons.
+//   - Added `UserSecretValue` message and `user_secrets` field to `PlanRequest`,
+//     carrying user secret values from provisioner daemons to provisioners
+//     during plan.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 17

@@ -422,6 +422,10 @@ func provisionEnv(
 			env = append(env, fmt.Sprintf("CODER_SECRET_ENV_%s=%s", secret.EnvName, string(secret.Value)))
 		}
 		if secret.FilePath != "" {
+			// Environment variables are used to communicate the file path a
+			// secret should be written to. The hex encoding is done because
+			// file paths contain slashes, tildes, and dots that are illegal
+			// in environment variable names.
 			env = append(env, fmt.Sprintf("CODER_SECRET_FILE_%s=%s", hex.EncodeToString([]byte(secret.FilePath)), string(secret.Value)))
 		}
 	}
