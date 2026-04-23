@@ -11,16 +11,20 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	chatAgentModelOverrideKey,
+	chatAgentModelOverrideQuery,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatDebugRunsKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
+	chatModelsKey,
 	chatsKey,
 	createChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
+	deleteUserChatProviderKey,
 	editChatMessage,
 	infiniteChats,
 	interruptChat,
@@ -34,15 +38,21 @@ import {
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
+	updateChatAgentModelOverrideMutation,
 	updateChatPlanMode,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	upsertUserChatProviderKey,
+	userChatProviderConfigsKey,
 } from "./chats";
 
 vi.mock("#/api/api", () => ({
 	API: {
 		experimental: {
 			updateChat: vi.fn(),
+			updateChatAgentModelOverride: vi.fn(),
+			upsertUserChatProviderKey: vi.fn(),
+			deleteUserChatProviderKey: vi.fn(),
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
@@ -119,6 +129,118 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("chat agent model override query helpers", () => {
+	it("builds distinct query keys for each override context", () => {
+		expect(chatAgentModelOverrideKey("general")).toEqual([
+			"chat-agent-model-override",
+			"general",
+		]);
+		expect(chatAgentModelOverrideQuery("explore").queryKey).toEqual([
+			"chat-agent-model-override",
+			"explore",
+		]);
+	});
+
+	it("invalidates only the targeted override query", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChatAgentModelOverride).mockResolvedValue(
+			undefined,
+		);
+		queryClient.setQueryData(chatAgentModelOverrideKey("general"), {
+			context: "general",
+			model_config_id: "model-1",
+			is_malformed: false,
+		} satisfies TypesGen.ChatAgentModelOverrideResponse);
+		queryClient.setQueryData(chatAgentModelOverrideKey("explore"), {
+			context: "explore",
+			model_config_id: "model-9",
+			is_malformed: false,
+		} satisfies TypesGen.ChatAgentModelOverrideResponse);
+
+		const mutation = updateChatAgentModelOverrideMutation(
+			queryClient,
+			"general",
+		);
+		await mutation.mutationFn({ model_config_id: "model-2" });
+		await mutation.onSuccess?.();
+
+		expect(API.experimental.updateChatAgentModelOverride).toHaveBeenCalledWith(
+			"general",
+			{ model_config_id: "model-2" },
+		);
+		expect(
+			queryClient.getQueryState(chatAgentModelOverrideKey("general"))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatAgentModelOverrideKey("explore"))
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+});
+
+describe("user chat provider key mutations", () => {
+	it("invalidates provider config and chat model queries after upserting a provider key", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.upsertUserChatProviderKey).mockResolvedValue({
+			provider_id: "provider-1",
+			provider: "openai",
+			display_name: "OpenAI",
+			has_user_api_key: true,
+			has_central_api_key_fallback: false,
+		});
+		queryClient.setQueryData(
+			userChatProviderConfigsKey,
+			[] satisfies readonly TypesGen.UserChatProviderConfig[],
+		);
+		queryClient.setQueryData(chatModelsKey, {
+			providers: [],
+		} satisfies TypesGen.ChatModelsResponse);
+
+		const mutation = upsertUserChatProviderKey(queryClient);
+		await mutation.mutationFn({
+			providerConfigId: "provider-1",
+			req: { api_key: "secret" },
+		});
+		await mutation.onSuccess?.();
+
+		expect(API.experimental.upsertUserChatProviderKey).toHaveBeenCalledWith(
+			"provider-1",
+			{ api_key: "secret" },
+		);
+		expect(
+			queryClient.getQueryState(userChatProviderConfigsKey)?.isInvalidated,
+		).toBe(true);
+		expect(queryClient.getQueryState(chatModelsKey)?.isInvalidated).toBe(true);
+	});
+
+	it("invalidates provider config and chat model queries after deleting a provider key", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.deleteUserChatProviderKey).mockResolvedValue(
+			undefined,
+		);
+		queryClient.setQueryData(
+			userChatProviderConfigsKey,
+			[] satisfies readonly TypesGen.UserChatProviderConfig[],
+		);
+		queryClient.setQueryData(chatModelsKey, {
+			providers: [],
+		} satisfies TypesGen.ChatModelsResponse);
+
+		const mutation = deleteUserChatProviderKey(queryClient);
+		await mutation.mutationFn("provider-1");
+		await mutation.onSuccess?.();
+
+		expect(API.experimental.deleteUserChatProviderKey).toHaveBeenCalledWith(
+			"provider-1",
+		);
+		expect(
+			queryClient.getQueryState(userChatProviderConfigsKey)?.isInvalidated,
+		).toBe(true);
+		expect(queryClient.getQueryState(chatModelsKey)?.isInvalidated).toBe(true);
+	});
+});
 
 describe("invalidateChatListQueries", () => {
 	it("invalidates flat and infinite chat list queries", async () => {
@@ -823,7 +945,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("editChatMessage invalidates chat detail and debug runs, not messages", async () => {
+	it("editChatMessage invalidates chat detail, messages, and debug runs", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -833,57 +955,23 @@ describe("mutation invalidation scope", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 
-		// Chat metadata and debug runs should be invalidated because
-		// editing changes the chat's updated_at and can start a new
-		// debug run.
+		// These queries should be invalidated -- editing changes
+		// message content, may update the chat record, and can start
+		// a new debug run.
 		const chatState = queryClient.getQueryState(chatKey(chatId));
 		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
 			true,
 		);
 
-		// Messages are NOT invalidated. The per-chat WebSocket handles
-		// post-edit message delivery, making REST invalidation
-		// unnecessary.
 		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should not be invalidated",
-		).not.toBe(true);
+			"chatMessagesKey should be invalidated",
+		).toBe(true);
 
 		expect(
 			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
-		).toBe(true);
-	});
-
-	it("editChatMessage onError invalidates messages", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
-
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		});
-
-		const mutation = editChatMessage(queryClient, chatId);
-		mutation.onError(
-			new Error("fail"),
-			{ messageId: 2, req: editReq },
-			{
-				previousData: {
-					pages: [{ messages, queued_messages: [], has_more: false }],
-					pageParams: [undefined],
-				},
-			},
-		);
-
-		await new Promise((r) => setTimeout(r, 0));
-
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
-		expect(
-			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated on error",
 		).toBe(true);
 	});
 
@@ -1117,7 +1205,7 @@ describe("mutation invalidation scope", () => {
 
 		const mutation = editChatMessage(queryClient, chatId);
 
-		// Pass undefined context. This simulates onMutate throwing before
+		// Pass undefined context, which simulates onMutate throwing
 		// it could return a snapshot.
 		mutation.onError(
 			new Error("fail"),
@@ -1125,16 +1213,9 @@ describe("mutation invalidation scope", () => {
 			undefined,
 		);
 
-		// Cache should be untouched: no crash, no corruption.
+		// Cache should be untouched. No crash, no corruption.
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
-
-		await new Promise((r) => setTimeout(r, 0));
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
-		expect(
-			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated even without context",
-		).toBe(true);
 	});
 
 	it("editChatMessage onMutate updates the first page and preserves older pages", async () => {

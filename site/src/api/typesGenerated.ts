@@ -1273,6 +1273,25 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+export type ChatAgentModelOverrideContext = "explore" | "general";
+
+export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
+	"explore",
+	"general",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatAgentModelOverrideResponse is the response body for the chat agent
+ * model override configuration endpoint.
+ */
+export interface ChatAgentModelOverrideResponse {
+	readonly context: ChatAgentModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
@@ -1588,20 +1607,6 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatExploreModelOverrideResponse is the response body for the Explore
- * subagent model override configuration endpoint.
- */
-export interface ChatExploreModelOverrideResponse {
-	readonly model_config_id?: string;
-	/**
-	 * HasMalformedOverride reports whether the saved override is malformed and
-	 * is currently being treated as unset.
-	 */
-	readonly has_malformed_override: boolean;
 }
 
 // From codersdk/chats.go
@@ -7659,6 +7664,15 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatAgentModelOverrideRequest is the request body for updating the
+ * chat agent model override configuration endpoint.
+ */
+export interface UpdateChatAgentModelOverrideRequest {
+	readonly model_config_id: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -7672,15 +7686,6 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDesktopEnabledRequest {
 	readonly enable_desktop: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatExploreModelOverrideRequest is the request body for updating the
- * Explore subagent model override configuration endpoint.
- */
-export interface UpdateChatExploreModelOverrideRequest {
-	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go

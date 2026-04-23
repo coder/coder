@@ -1256,6 +1256,14 @@ func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGeneralModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatGeneralModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGeneralModelOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatIncludeDefaultSystemPrompt(ctx)
@@ -5285,6 +5293,14 @@ func (m queryMetricsStore) UpsertChatExploreModelOverride(ctx context.Context, v
 	r0 := m.s.UpsertChatExploreModelOverride(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertChatExploreModelOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatExploreModelOverride").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatGeneralModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatGeneralModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGeneralModelOverride").Inc()
 	return r0
 }
 

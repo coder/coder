@@ -156,7 +156,11 @@ const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
-		exploreModelOverrideData={{ has_malformed_override: false }}
+		exploreModelOverrideData={{
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
