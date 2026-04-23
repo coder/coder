@@ -192,6 +192,8 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
+// Shallow-compare two ChatDiffStatus objects by their meaningful
+// fields, ignoring refreshed_at/stale_at which change on every poll.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,
@@ -217,6 +219,10 @@ const diffStatusEqual = (
 	);
 };
 
+/**
+ * Merges event-scoped chat fields into a cached summary, using updated_at
+ * as a stale guard while still adopting the latest DB-backed model config.
+ */
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
 	watchedChat: TypesGen.Chat,
@@ -240,6 +246,7 @@ export const mergeWatchedChatSummary = (
 	const nextBuildId = isFreshEnough
 		? (watchedChat.build_id ?? cachedChat.build_id)
 		: cachedChat.build_id;
+	// All event types carry the current model config from the DB.
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
@@ -252,6 +259,9 @@ export const mergeWatchedChatSummary = (
 			? cachedChat.updated_at
 			: watchedChat.updated_at;
 
+	// Keep updated_at in the no-op guard. This gives up the old streaming
+	// rerender shortcut so later stale events cannot pass isFreshEnough
+	// against a timestamp that should already have been superseded.
 	if (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
@@ -278,6 +288,10 @@ export const mergeWatchedChatSummary = (
 	};
 };
 
+/**
+ * Applies the same event-scoped merge and stale guard across the list,
+ * parent-child, and per-chat caches, covering all three cache layers.
+ */
 export const mergeWatchedChatIntoCaches = (
 	queryClient: QueryClient,
 	watchedChat: TypesGen.Chat,

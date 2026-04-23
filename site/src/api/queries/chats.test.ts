@@ -1920,6 +1920,42 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 	});
+
+	it("marks other chats unread on fresh status updates", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(true);
+	});
+
+	it("preserves has_unread for the active chat", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: true,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-1",
+			}).has_unread,
+		).toBe(true);
+	});
 });
 
 describe("mergeWatchedChatIntoCaches", () => {
