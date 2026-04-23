@@ -144,6 +144,9 @@ const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 	return errors;
 };
 
+const getModelDisplayName = (config: ChatModelConfig): string =>
+	config.display_name.trim() || config.model;
+
 const getReasoningEffortLabel = (value: AdvisorReasoningEffort): string => {
 	switch (value) {
 		case "low":
@@ -209,8 +212,9 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		? "Use chat model"
 		: isLoadingModelConfigs
 			? "Loading..."
-			: (selectedModelConfig?.display_name ??
-				`Unavailable model (${form.values.model_config_id})`);
+			: selectedModelConfig
+				? getModelDisplayName(selectedModelConfig)
+				: `Unavailable model (${form.values.model_config_id})`;
 	const selectedModelValue = isUnsetModelConfigId(form.values.model_config_id)
 		? chatModelFallbackValue
 		: hasUnavailableSelectedModel
@@ -383,7 +387,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 								</SelectItem>
 								{enabledModelConfigs.map((config) => (
 									<SelectItem key={config.id} value={config.id}>
-										{config.display_name}
+										{getModelDisplayName(config)}
 									</SelectItem>
 								))}
 							</SelectContent>
