@@ -44,22 +44,11 @@ const (
 	// scanCooldown is the minimum interval between successive scans.
 	scanCooldown = 1 * time.Second
 	// fallbackPollInterval is the safety-net poll period used when no
-	// filesystem events arrive. Short enough that out-of-band edits
-	// (interactive SSH, long-running watchers) surface within a few
-	// seconds; long enough that an idle clean repo does not poll hot.
-	// scanCooldown still caps the actual scan frequency.
-	//
-	// Cost sketch: each idle tick forks 6 git subprocesses per
-	// subscribed repo (rev-parse --git-dir, symbolic-ref HEAD,
-	// config remote.origin.url, rev-parse HEAD, diff HEAD,
-	// ls-files --others --exclude-standard), plus one
-	// diff --no-index per untracked file. At 5s cadence that is
-	// ~72 subprocesses/minute per repo per open chat connection.
-	// An outer guard in RunLoop skips the tick when a trigger-
-	// driven scan already ran within the last interval, so a busy
-	// chat pays near-zero fallback cost.
-	// Tune this constant if the floor proves too expensive on
-	// workspaces with many subscribed repos.
+	// filesystem events arrive. scanCooldown caps the actual scan
+	// frequency; an outer guard in RunLoop further skips the tick
+	// when a trigger-driven scan already ran within this interval.
+	// Each tick forks 6 git subprocesses per subscribed repo plus
+	// one diff --no-index per untracked file.
 	fallbackPollInterval = 5 * time.Second
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.
@@ -239,15 +228,9 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 	h.lastScanAt = now
 
-	// Always emit a message when there are subscribed roots, even
-	// if no repo had a delta. The message carries a fresh
-	// ScannedAt so clients can render an honest "checked Ns ago"
-	// indicator on a stable idle repo, where the agent is still
-	// actively polling every fallbackPollInterval but no deltas
-	// are found. The Repositories slice marshals as absent via
-	// omitempty when empty, which keeps the heartbeat message tiny
-	// and wire-compatible with consumers that only look at
-	// Repositories.
+	// Always emit when any root is subscribed. A no-delta scan sends
+	// ScannedAt + empty Repositories (omitted via omitempty) so the
+	// client's "checked Ns ago" label stays honest on idle repos.
 	return &codersdk.WorkspaceAgentGitServerMessage{
 		Type:         codersdk.WorkspaceAgentGitServerMessageTypeChanges,
 		ScannedAt:    &now,
@@ -272,13 +255,8 @@ func (h *Handler) RunLoop(ctx context.Context, scanFn func()) {
 			h.rateLimitedScan(ctx, scanFn)
 
 		case <-fallbackTicker.C:
-			// Skip the fallback scan when another trigger already
-			// produced a scan within the fallback interval. Without
-			// this guard, a busy chat (agent edits firing PathStore
-			// notifications) would still pay the full fallback-tick
-			// scan cost on top of the trigger-driven scans. The skip
-			// is safe because the trigger's scan has already
-			// observed the current tree.
+			// Skip when a recent trigger-driven scan already covered
+			// this interval, so a busy chat pays near-zero poll cost.
 			h.mu.Lock()
 			recent := !h.lastScanAt.IsZero() &&
 				h.clock.Since(h.lastScanAt) < fallbackPollInterval

@@ -117,13 +117,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return stats;
 	})();
 
-	// Build the visible tab set. Include any repo that is dirty right
-	// now (in repoStats) plus any repo that was dirty at some point
-	// during this session (in everDirty) and is still known to the
-	// watcher. The ever-dirty retention avoids a visible flip when the
-	// agent edits a file and immediately reverts it; without it, the
-	// tab would vanish on the clean transition and reappear on the
-	// next edit.
+	// Union of currently-dirty and ever-dirty repos (still known to
+	// the watcher) so a clean-revert does not hide the tab.
 	const localRepos = (() => {
 		const roots = new Set<string>(repoStats.keys());
 		if (everDirty) {
@@ -152,9 +147,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 				setView({ type: "local", repoRoot: localRepos[0] });
 			}
 		} else if (view.type === "local") {
-			// The active local tab is still valid as long as it is in
-			// localRepos, which now includes ever-dirty (currently clean)
-			// repos in addition to those with live diff stats.
+			// localRepos includes ever-dirty repos with empty diffs, so
+			// the active tab stays valid until its root leaves the set.
 			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
 					setView({ type: "remote" });

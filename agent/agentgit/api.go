@@ -67,11 +67,8 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 
 	handler := NewHandler(a.logger, a.opts...)
 
-	// scanAndSend performs a scan and forwards the result. Scan
-	// returns nil only when no roots are subscribed yet; once a
-	// subscribe lands it returns a non-nil message (either a delta
-	// or a scanned-at-only heartbeat) that the client uses to keep
-	// its "checked Ns ago" label honest.
+	// Scan returns nil only when no roots are subscribed; once any
+	// root lands it returns either a delta or a heartbeat message.
 	scanAndSend := func() {
 		msg := handler.Scan(ctx)
 		if msg == nil {

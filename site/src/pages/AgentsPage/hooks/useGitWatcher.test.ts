@@ -1053,4 +1053,43 @@ describe("useGitWatcher", () => {
 		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
 		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
+
+	it("preserves lastCheckedAt across agentStatus flap on the same chat", async () => {
+		const socket1 = createMockSocket();
+
+		const { result, rerender } = renderHook(
+			({ agentStatus }: { agentStatus: WorkspaceAgentStatus | undefined }) =>
+				useGitWatcher({ chatId: "chat-stable", agentStatus }),
+			{ initialProps: { agentStatus: "connected" as WorkspaceAgentStatus } },
+		);
+
+		act(() => socket1.simulateOpen());
+		act(() => {
+			socket1.simulateMessage({
+				type: "changes",
+				scanned_at: "2024-01-02T03:04:05Z",
+				repositories: [],
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.lastCheckedAt?.toISOString()).toBe(
+				"2024-01-02T03:04:05.000Z",
+			);
+		});
+
+		// Transient flap: the socket is torn down but the stale-data
+		// timestamp must keep advancing so the UI's "checked Ns ago"
+		// label does not disappear during reconnection backoff.
+		createMockSocket();
+		rerender({ agentStatus: "connecting" as WorkspaceAgentStatus });
+		expect(result.current.lastCheckedAt?.toISOString()).toBe(
+			"2024-01-02T03:04:05.000Z",
+		);
+
+		createMockSocket();
+		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
+		expect(result.current.lastCheckedAt?.toISOString()).toBe(
+			"2024-01-02T03:04:05.000Z",
+		);
+	});
 });

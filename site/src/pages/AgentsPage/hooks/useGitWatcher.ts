@@ -30,28 +30,14 @@ interface UseGitWatcherResult {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/**
-	 * Repo roots known to the watcher that have shown a non-empty
-	 * unified_diff at least once since the current chat was selected.
-	 * Used by GitPanel to keep a tab visible after the tree goes clean,
-	 * instead of hiding it the moment the diff empties out (which
-	 * causes a visible flip when the agent edits a file and then
-	 * reverts it).
-	 *
-	 * Entries are evicted when the watcher reports `removed: true` for
-	 * the repo, and the entire set is cleared when `chatId` changes.
-	 * It is preserved across reconnects and transient agentStatus
-	 * flaps on the same chat. Consumers should intersect this with
-	 * `repositories` before rendering, since a removed repo is dropped
-	 * from both but a not-yet-known repo can appear in one without the
-	 * other.
+	 * Repo roots seen with a non-empty unified_diff during this chat.
+	 * Survives reconnects; evicted on `removed: true`, cleared on
+	 * chatId change. Consumers should intersect with `repositories`.
 	 */
 	everDirty: ReadonlySet<string>;
-	/**
-	 * Timestamp of the most recent scan observed from the server, or
-	 * undefined if no scan has been received yet. Consumers can render
-	 * this as a "checked Ns ago" affordance so users know how stale the
-	 * local view is.
-	 */
+	/** ScannedAt from the latest server message. Undefined until the
+	 *  first message arrives. Preserved across reconnects so the UI's
+	 *  relative-time label keeps advancing during backoff. */
 	lastCheckedAt: Date | undefined;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
@@ -75,16 +61,14 @@ export function useGitWatcher({
 	const [isConnected, setIsConnected] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
-	// Reset everDirty when chatId changes, using the official React
-	// pattern for "adjust state on prop change" (a state mirror of the
-	// prop + a setState during render that bails out when unchanged).
-	// See https://react.dev/reference/react/useState#storing-information-from-previous-renders.
-	// An agentStatus flap on the same chat must not clear everDirty,
-	// so it is intentionally not part of this comparison.
+	// Chat-scoped state (everDirty, lastCheckedAt) resets on chatId
+	// change but must survive agentStatus flaps on the same chat.
+	// https://react.dev/reference/react/useState#storing-information-from-previous-renders
 	const [lastChatId, setLastChatId] = useState<string | undefined>(chatId);
 	if (lastChatId !== chatId) {
 		setLastChatId(chatId);
 		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
+		setLastCheckedAt(undefined);
 	}
 
 	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
@@ -198,15 +182,12 @@ export function useGitWatcher({
 		});
 
 		return () => {
-			// dispose() suppresses onDisconnect, so reset state
-			// explicitly. `everDirty` is intentionally preserved
-			// across reconnects and brief agentStatus flaps; it is
-			// cleared only when chatId changes (via the `lastChatId`
-			// mirror-state check during render, above).
+			// Reset connection-scoped state only. `everDirty` and
+			// `lastCheckedAt` are chat-scoped and persist across
+			// reconnects, so a slow backoff keeps the label advancing.
 			dispose();
 			setIsConnected(false);
 			setRepositories(new Map());
-			setLastCheckedAt(undefined);
 			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
