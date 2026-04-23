@@ -145,7 +145,11 @@ const WorkspacesPage: FC = () => {
 	);
 	const chatsByWorkspaceQuery = useQuery({
 		...chatsByWorkspace(workspaceIds),
-		enabled: workspaceIds.length > 0,
+		// Only fetch chat lookups for users who can actually create chats;
+		// the endpoint still runs a DB query + RBAC post-filter and the
+		// AgentsNavItem / chat link UI is already hidden for users without
+		// this permission, so the query would return nothing useful for them.
+		enabled: permissions.createChat && workspaceIds.length > 0,
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
