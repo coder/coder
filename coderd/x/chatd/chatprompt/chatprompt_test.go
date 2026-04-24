@@ -135,6 +135,34 @@ func TestSanitizeAnthropicWebSearchToolCalls(t *testing.T) {
 		require.True(t, toolResult.ProviderExecuted)
 	})
 
+	t.Run("removes only unpaired call from mixed message", func(t *testing.T) {
+		t.Parallel()
+
+		unpairedWebSearchCall := webSearchCall
+		unpairedWebSearchCall.ToolCallID = "srvtoolu_unpaired"
+		messages := []fantasy.Message{{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				textPart,
+				webSearchCall,
+				matchedResult,
+				unpairedWebSearchCall,
+			},
+		}}
+		sanitized, stats := chatprompt.SanitizeAnthropicWebSearchToolCalls(
+			fantasyanthropic.Name,
+			messages,
+		)
+		require.Equal(t, 1, stats.RemovedToolCalls)
+		require.Equal(t, 0, stats.DroppedMessages)
+		require.Len(t, sanitized, 1)
+		require.Equal(t, []fantasy.MessagePart{
+			textPart,
+			webSearchCall,
+			matchedResult,
+		}, sanitized[0].Content)
+	})
+
 	t.Run("leaves other providers unchanged", func(t *testing.T) {
 		t.Parallel()
 

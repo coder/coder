@@ -36,14 +36,40 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
 // AnthropicWebSearchSanitizationStats describes prompt changes made
-// while removing unpaired Anthropic web_search server-tool calls.
+// while removing unpaired Anthropic web_search provider-executed calls.
 type AnthropicWebSearchSanitizationStats struct {
 	RemovedToolCalls int
 	DroppedMessages  int
 }
 
+// LogAnthropicWebSearchSanitization logs prompt changes made while removing
+// unpaired Anthropic web_search provider-executed calls.
+func LogAnthropicWebSearchSanitization(
+	ctx context.Context,
+	logger slog.Logger,
+	phase string,
+	provider string,
+	modelName string,
+	stats AnthropicWebSearchSanitizationStats,
+	extra ...slog.Field,
+) {
+	if stats.RemovedToolCalls == 0 {
+		return
+	}
+	fields := []slog.Field{
+		slog.F("phase", phase),
+		slog.F("tool_name", "web_search"),
+		slog.F("provider", provider),
+		slog.F("model", modelName),
+		slog.F("removed_tool_calls", stats.RemovedToolCalls),
+		slog.F("dropped_messages", stats.DroppedMessages),
+	}
+	fields = append(fields, extra...)
+	logger.Warn(ctx, "removed unpaired provider-executed web_search tool calls", fields...)
+}
+
 // SanitizeAnthropicWebSearchToolCalls removes Anthropic web_search
-// server-tool calls that do not have a same-message provider result.
+// provider-executed calls that do not have a same-message provider result.
 func SanitizeAnthropicWebSearchToolCalls(
 	provider string,
 	messages []fantasy.Message,
@@ -61,13 +87,13 @@ func SanitizeAnthropicWebSearchToolCalls(
 			continue
 		}
 
-		providerResults := make(map[string]struct{})
+		providedResultIDs := make(map[string]struct{})
 		for _, part := range msg.Content {
 			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
 			if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
 				continue
 			}
-			providerResults[result.ToolCallID] = struct{}{}
+			providedResultIDs[result.ToolCallID] = struct{}{}
 		}
 
 		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
@@ -75,7 +101,7 @@ func SanitizeAnthropicWebSearchToolCalls(
 		for _, part := range msg.Content {
 			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
 			if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
-				if _, hasResult := providerResults[toolCall.ToolCallID]; !hasResult {
+				if _, hasResult := providedResultIDs[toolCall.ToolCallID]; !hasResult {
 					stats.RemovedToolCalls++
 					removedFromMessage++
 					changed = true
