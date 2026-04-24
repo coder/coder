@@ -28,6 +28,7 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
+import { RoleSelector } from "./RoleSelector";
 
 const loginTypeOptions = {
 	password: {
@@ -80,6 +81,7 @@ type CreateUserFormData = {
 	readonly login_type: TypesGen.LoginType;
 	readonly password: string;
 	readonly service_account: boolean;
+	readonly roles: string[];
 };
 
 interface CreateUserFormProps {
@@ -90,6 +92,7 @@ interface CreateUserFormProps {
 	authMethods?: TypesGen.AuthMethods;
 	showOrganizations: boolean;
 	serviceAccountsEnabled: boolean;
+	availableRoles?: TypesGen.AssignableRoles[];
 }
 
 // Stable reference for empty org options to avoid re-render loops
@@ -104,6 +107,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	showOrganizations,
 	authMethods,
 	serviceAccountsEnabled,
+	availableRoles,
 }) => {
 	const availableLoginTypes = [
 		authMethods?.password.enabled && "password",
@@ -125,6 +129,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 				: "00000000-0000-0000-0000-000000000000",
 			login_type: defaultLoginType,
 			service_account: defaultLoginType === "none",
+			roles: [],
 		},
 		validationSchema,
 		onSubmit,
@@ -176,7 +181,11 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 			{isApiError(error) && !hasApiFieldErrors(error) && (
 				<ErrorAlert error={error} className="mb-8" />
 			)}
-			<form onSubmit={form.handleSubmit} autoComplete="off">
+			<form
+				onSubmit={form.handleSubmit}
+				autoComplete="off"
+				className="border border-border border-solid rounded-md p-4"
+			>
 				<div className="flex flex-col gap-6">
 					<FormField
 						field={getFieldHelpers("username")}
@@ -330,6 +339,16 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							data-testid="password-input"
 						/>
 					)}
+
+					{form.values.login_type &&
+						availableRoles &&
+						availableRoles.length > 0 && (
+							<RoleSelector
+								roles={availableRoles}
+								selectedRoles={form.values.roles}
+								onChange={(roles) => form.setFieldValue("roles", roles)}
+							/>
+						)}
 				</div>
 
 				<FormFooter className="mt-8">

@@ -2,8 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
 import {
+	assignableRole,
+	MockAuditorRole,
+	MockAuthMethodsPasswordOnly,
 	MockOrganization,
 	MockOrganization2,
+	MockOwnerRole,
+	MockTemplateAdminRole,
+	MockUserAdminRole,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { CreateUserForm } from "./CreateUserForm";
@@ -68,5 +74,31 @@ export const GeneralError: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+	},
+};
+
+const mockAvailableRoles = [
+	assignableRole(MockOwnerRole, true),
+	assignableRole(MockUserAdminRole, true),
+	assignableRole(MockTemplateAdminRole, true),
+	assignableRole(MockAuditorRole, true),
+];
+
+export const WithRoles: Story = {
+	args: {
+		availableRoles: mockAvailableRoles,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const WithRolesSelected: Story = {
+	args: {
+		availableRoles: mockAvailableRoles,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("checkbox", { name: /owner/i }));
+		await userEvent.click(canvas.getByRole("checkbox", { name: /auditor/i }));
 	},
 };
