@@ -268,8 +268,9 @@ export const mergeWatchedChatSummary = (
 	const isFreshEnough = updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	const nextTitle =
-		isFreshEnough && isTitleEvent ? watchedChat.title : cachedChat.title;
+	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
+	// apply title_change payloads even when the chat summary timestamp is older.
+	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent

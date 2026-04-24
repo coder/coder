@@ -1983,6 +1983,29 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("merges title updates even when chat updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Newer generated title",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Newer generated title",
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+	});
+
 	it("merges fresh diff status updates without clobbering status or title", () => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
