@@ -263,6 +263,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING value::boolean AS task_notification_alert_dismissed;
 
+-- name: GetUserThinkingDisplayMode :one
+SELECT
+	value AS thinking_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_thinking_display_mode';
+
+-- name: UpdateUserThinkingDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_thinking_display_mode', @thinking_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @thinking_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_thinking_display_mode'
+RETURNING value AS thinking_display_mode;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

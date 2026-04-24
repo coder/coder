@@ -2737,6 +2737,13 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
+func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatGeneralModelOverride(ctx)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -4394,6 +4401,17 @@ func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) 
 		return "", err
 	}
 	return q.db.GetUserThemePreference(ctx, userID)
+}
+
+func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.GetUserThinkingDisplayMode(ctx, userID)
 }
 
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
@@ -7011,6 +7029,17 @@ func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.Up
 	return q.db.UpdateUserThemePreference(ctx, arg)
 }
 
+func (q *querier) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.UpdateUserThinkingDisplayMode(ctx, arg)
+}
+
 func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return err
@@ -7388,6 +7417,13 @@ func (q *querier) UpsertChatExploreModelOverride(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatExploreModelOverride(ctx, value)
+}
+
+func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatGeneralModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
