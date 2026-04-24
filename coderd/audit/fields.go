@@ -10,7 +10,8 @@ import (
 type BackgroundSubsystem string
 
 const (
-	BackgroundSubsystemDormancy BackgroundSubsystem = "dormancy"
+	BackgroundSubsystemDormancy        BackgroundSubsystem = "dormancy"
+	BackgroundSubsystemChatAutoArchive BackgroundSubsystem = "chat_auto_archive"
 )
 
 func BackgroundTaskFields(subsystem BackgroundSubsystem) map[string]string {

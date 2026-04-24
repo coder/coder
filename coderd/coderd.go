@@ -1201,6 +1201,8 @@ func New(options *Options) *API {
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
 				r.Get("/retention-days", api.getChatRetentionDays)
 				r.Put("/retention-days", api.putChatRetentionDays)
+				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
+				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
