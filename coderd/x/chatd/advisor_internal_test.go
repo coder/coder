@@ -2,6 +2,7 @@ package chatd //nolint:testpackage // Accesses unexported advisor helpers.
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -92,6 +93,35 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{}, xerrors.New("lookup failed")
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
+			fallbackModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			logger,
+		)
+		require.Equal(t, fallbackModel, gotModel)
+		require.Equal(t, fallbackCallConfig, gotCfg)
+	})
+
+	// Covers the sql.ErrNoRows branch separately from the generic-error
+	// branch above. GetEnabledChatModelConfigByID returns ErrNoRows when
+	// an admin disables the advisor model or its provider, and that case
+	// has a distinct log message. Without this test, removing the
+	// errors.Is(err, sql.ErrNoRows) check would still pass the sibling
+	// test.
+	t.Run("DisabledProviderReturnsFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				return database.ChatModelConfig{}, sql.ErrNoRows
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)

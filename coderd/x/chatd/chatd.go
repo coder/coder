@@ -3947,6 +3947,8 @@ func New(cfg Config) *Server {
 					p.configCache.InvalidateModelConfig(ev.EntityID)
 				case coderdpubsub.ChatConfigEventUserPrompt:
 					p.configCache.InvalidateUserPrompt(ev.EntityID)
+				case coderdpubsub.ChatConfigEventAdvisorConfig:
+					p.configCache.InvalidateAdvisorConfig()
 				}
 			}),
 		)

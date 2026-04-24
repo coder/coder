@@ -1099,3 +1099,32 @@ func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.AdvisorConfig{}, cfg)
 }
+
+// Guards the pubsub-driven invalidation path. Without this, an admin
+// writing PUT /api/experimental/chats/config/advisor could keep every
+// replica serving stale enabled/model/limits for up to
+// chatConfigAdvisorConfigTTL, which defeats the subscriber in chatd.go.
+func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{}
+	store.getChatAdvisorConfig = func(context.Context) (string, error) {
+		call := store.advisorConfigCalls.Load()
+		return fmt.Sprintf(`{"max_uses_per_run":%d}`, call), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	cache.InvalidateAdvisorConfig()
+
+	second, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
+		"invalidation must force a refetch without waiting for TTL expiry")
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+}

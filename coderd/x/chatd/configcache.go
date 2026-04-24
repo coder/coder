@@ -423,6 +423,18 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.mu.Unlock()
 }
 
+// InvalidateAdvisorConfig drops the cached advisor configuration so the
+// next AdvisorConfig call re-fetches from the database. Called from the
+// ChatConfigEvent subscriber after an admin writes
+// PUT /api/experimental/chats/config/advisor; without this the cache
+// could serve stale enabled/model/limits for up to
+// chatConfigAdvisorConfigTTL.
+func (c *chatConfigCache) InvalidateAdvisorConfig() {
+	c.mu.Lock()
+	c.advisorConfig = nil
+	c.mu.Unlock()
+}
+
 // AdvisorConfig returns the deployment-wide advisor configuration. The
 // underlying site-config row changes on the order of hours or days, so
 // this cache saves a per-turn DB round trip on chats that reference the
