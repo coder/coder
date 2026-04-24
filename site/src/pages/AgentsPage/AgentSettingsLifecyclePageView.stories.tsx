@@ -393,6 +393,12 @@ export const AutoArchiveExceedsMax: Story = {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
 		});
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/must not exceed 3650 days/i),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -417,6 +423,10 @@ export const AutoArchiveBelowMin: Story = {
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+		});
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(canvas.getByText(/at least 1 day/i)).toBeInTheDocument();
 		});
 	},
 };

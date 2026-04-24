@@ -133,6 +133,8 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 							aria-label="Conversation retention period in days"
 							value={form.values.retention_days}
 							onChange={form.handleChange}
+							onBlur={form.handleBlur}
+							aria-invalid={Boolean(form.errors.retention_days)}
 							disabled={isSavingRetentionDays || isRetentionDaysLoading}
 							className="flex-1"
 						/>
