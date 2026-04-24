@@ -3379,6 +3379,24 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/retention-days", req);
 	};
 
+	getChatAutoArchiveDays =
+		async (): Promise<TypesGen.ChatAutoArchiveDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatAutoArchiveDaysResponse>(
+					"/api/experimental/chats/config/auto-archive-days",
+				);
+			return response.data;
+		};
+
+	updateChatAutoArchiveDays = async (
+		req: TypesGen.UpdateChatAutoArchiveDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/auto-archive-days",
+			req,
+		);
+	};
+
 	updateChatTemplateAllowlist = async (
 		req: TypesGen.ChatTemplateAllowlist,
 	): Promise<void> => {

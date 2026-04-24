@@ -18,6 +18,12 @@ const baseArgs: AgentSettingsLifecyclePageViewProps = {
 	onSaveRetentionDays: fn(),
 	isSavingRetentionDays: false,
 	isSaveRetentionDaysError: false,
+	autoArchiveDaysData: { auto_archive_days: 90 },
+	isAutoArchiveDaysLoading: false,
+	isAutoArchiveDaysLoadError: false,
+	onSaveAutoArchiveDays: fn(),
+	isSavingAutoArchiveDays: false,
+	isSaveAutoArchiveDaysError: false,
 };
 
 const meta = {
@@ -232,6 +238,141 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+// --- Auto-Archive Stories ---
+
+export const AutoArchiveDefault: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		expect(toggle).toBeChecked();
+
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		expect(input).toHaveValue(90);
+	},
+};
+
+export const AutoArchiveDisabled: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		expect(toggle).not.toBeChecked();
+		expect(canvas.queryByLabelText("Auto-archive period in days")).toBeNull();
+	},
+};
+
+export const AutoArchiveToggleOnSavesDefault: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 0 },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		expect(toggle).not.toBeChecked();
+
+		await userEvent.click(toggle);
+
+		await waitFor(() => {
+			expect(args.onSaveAutoArchiveDays).toHaveBeenNthCalledWith(
+				1,
+				{ auto_archive_days: 90 },
+				expect.anything(),
+			);
+		});
+
+		const archiveForm = toggle.closest("form");
+		if (!(archiveForm instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive toggle to live inside a form.");
+		}
+
+		const input = await within(archiveForm).findByLabelText(
+			"Auto-archive period in days",
+		);
+		expect(input).toHaveValue(90);
+	},
+};
+
+export const AutoArchiveToggleOffSavesDisabled: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		expect(toggle).toBeChecked();
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveAutoArchiveDays).toHaveBeenCalledWith(
+				{ auto_archive_days: 0 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AutoArchiveExceedsMax: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		const archiveForm = input.closest("form");
+		if (!(archiveForm instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive input to live inside a form.");
+		}
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "9999");
+
+		const saveButton = within(archiveForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(input).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+		});
+	},
+};
+
+export const AutoArchiveSaveError: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+		isSaveAutoArchiveDaysError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save auto-archive setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const AutoArchiveLoadError: Story = {
+	args: {
+		isAutoArchiveDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load auto-archive setting."),
+		).toBeInTheDocument();
+	},
+};
+
+// --- Retention Stories ---
 
 export const RetentionToggleOnSavesDefault: Story = {
 	args: {
