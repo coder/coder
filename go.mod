@@ -89,7 +89,7 @@ replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260424191546-5ab
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.
 // See: https://github.com/coder/anthropic-sdk-go/commits/a31d7d0e7067
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260415160422-a31d7d0e7067
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260424230212-3be8e193ec89
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262

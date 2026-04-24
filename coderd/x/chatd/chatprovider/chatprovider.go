@@ -1206,9 +1206,6 @@ func ModelFromConfig(
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithUserAgent(userAgent),
-			fantasybedrock.WithHTTPClient(
-				bedrockHeaderCleaningHTTPClient(httpClient),
-			),
 		}
 		if apiKey != "" {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
@@ -1218,6 +1215,9 @@ func ModelFromConfig(
 		}
 		if baseURL != "" {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithBaseURL(baseURL))
+		}
+		if httpClient != nil {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasybedrock.New(bedrockOpts...)
 	case fantasygoogle.Name:

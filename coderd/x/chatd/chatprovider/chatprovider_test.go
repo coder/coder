@@ -982,18 +982,19 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 		AnthropicVersion string
 		XAPIKey          string
 		Body             string
+		ReadError        error
 	}
 
 	requests := make(chan requestCapture, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
 
 		requests <- requestCapture{
 			Authorization:    r.Header.Get("Authorization"),
 			AnthropicVersion: r.Header.Get("Anthropic-Version"),
 			XAPIKey:          r.Header.Get("X-Api-Key"),
 			Body:             string(body),
+			ReadError:        err,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1032,6 +1033,7 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
 	require.Empty(t, got.AnthropicVersion)
 	require.Empty(t, got.XAPIKey)
 	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
