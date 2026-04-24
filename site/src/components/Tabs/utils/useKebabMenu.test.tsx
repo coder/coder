@@ -87,8 +87,7 @@ const TestHarness = ({ tabGap = 0 }: { tabGap?: number }) => {
 describe("useKebabMenu", () => {
 	beforeEach(() => {
 		resizeObserverInstances = [];
-		globalThis.ResizeObserver =
-			MockResizeObserver as unknown as typeof ResizeObserver;
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 	});
 
 	afterEach(() => {
@@ -96,7 +95,7 @@ describe("useKebabMenu", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("shows all tabs when the available width is enough", () => {
+	it("shows all tabs when the available width is enough", async () => {
 		render(<TestHarness />);
 
 		const [all, build, startup] = screen.getAllByRole("button");
@@ -104,7 +103,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(build, 70);
 		setElementOffsetWidth(startup, 70);
 
-		act(() => {
+		await act(() => {
 			getLastResizeObserver().simulateResize(220);
 		});
 
@@ -114,7 +113,7 @@ describe("useKebabMenu", () => {
 		expect(screen.getByTestId("overflow-values")).toBeEmptyDOMElement();
 	});
 
-	it("accounts for outsideBox tab gap when reserving kebab space", () => {
+	it("accounts for outsideBox tab gap when reserving kebab space", async () => {
 		render(<TestHarness tabGap={24} />);
 
 		const [all, build, startup] = screen.getAllByRole("button");
@@ -122,7 +121,7 @@ describe("useKebabMenu", () => {
 		setElementOffsetWidth(build, 70);
 		setElementOffsetWidth(startup, 70);
 
-		act(() => {
+		await act(() => {
 			getLastResizeObserver().simulateResize(220);
 		});
 
