@@ -1128,19 +1128,19 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
-	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDays").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDays").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatACLByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatACLByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
+	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDays").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDays").Inc()
 	return r0, r1
 }
 
