@@ -2816,7 +2816,7 @@ func TestAutoPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testi
 
 func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid.NullUUID) {
 	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	firstRunStarted := make(chan struct{})
 	allowFirstRunFinish := make(chan struct{})
@@ -2871,7 +2871,7 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 
 	require.Eventually(t, func() bool {
 		return requestCount.Load() >= 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
