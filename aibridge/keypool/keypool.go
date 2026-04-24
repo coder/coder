@@ -9,6 +9,17 @@ import (
 	"github.com/coder/quartz"
 )
 
+var (
+	// ErrNoKeys is returned when the input is empty.
+	ErrNoKeys = xerrors.New("no keys provided")
+	// ErrDuplicateKey is returned when the input contains
+	// duplicate key values.
+	ErrDuplicateKey = xerrors.New("duplicate key")
+	// ErrAllKeysExhausted is returned when the walker has visited
+	// every key in the pool and none are available.
+	ErrAllKeysExhausted = xerrors.New("all keys exhausted")
+)
+
 // KeyState represents the current state of a key in the pool.
 type KeyState int
 
@@ -23,112 +34,98 @@ const (
 	KeyStatePermanent
 )
 
-// DefaultCooldown is applied when MarkTemporary is called with a
-// zero or negative cooldown duration.
-const DefaultCooldown = 60 * time.Second
+// defaultCooldown is applied when a key is marked temporary
+// with a zero or negative cooldown duration.
+const defaultCooldown = 60 * time.Second
 
-// keyEntry holds a key and its current state.
-type keyEntry struct {
-	key      string
-	state    KeyState
-	cooldown time.Time // Only meaningful when state == KeyStateTemporary.
+// Key holds a key value and its runtime state.
+type Key struct {
+	pool        *Pool
+	value       string
+	isPermanent bool
+	expiresAt   time.Time
 }
 
 // Pool manages a set of keys with state tracking and
-// automatic cooldown expiry. It is safe for concurrent use.
+// cooldown expiry. It is safe for concurrent use.
 type Pool struct {
-	mu      sync.RWMutex
-	entries []keyEntry
-	clock   quartz.Clock
+	mu    sync.RWMutex
+	keys  []Key
+	clock quartz.Clock
 }
 
-// New creates a pool from the given keys. All keys start in the
-// valid state. Returns nil if keys is empty.
-func New(keys []string, clk quartz.Clock) *Pool {
+// New creates a pool from the given keys. All keys start in
+// the valid state. Returns ErrNoKeys if keys is empty and
+// ErrDuplicateKey if any key appears more than once.
+func New(keys []string, clk quartz.Clock) (*Pool, error) {
 	if len(keys) == 0 {
-		return nil
+		return nil, ErrNoKeys
+	}
+	pool := &Pool{
+		keys:  make([]Key, len(keys)),
+		clock: clk,
 	}
 
-	entries := make([]keyEntry, len(keys))
-	for i, k := range keys {
-		entries[i] = keyEntry{key: k, state: KeyStateValid}
+	seen := make(map[string]struct{}, len(keys))
+	for i, val := range keys {
+		if _, exists := seen[val]; exists {
+			return nil, ErrDuplicateKey
+		}
+		seen[val] = struct{}{}
+		pool.keys[i] = Key{
+			pool:  pool,
+			value: val,
+		}
 	}
 
-	return &Pool{
-		entries: entries,
-		clock:   clk,
-	}
-}
-
-// Key is a handle to a specific key in the pool and provides
-// methods to read its value and update its state.
-type Key struct {
-	pool  *Pool
-	index int
+	return pool, nil
 }
 
 // Value returns the key string.
 func (k *Key) Value() string {
-	return k.pool.entries[k.index].key
+	return k.value
 }
 
-// State returns the current state of the key.
+// State returns the current state of the key, derived from its
+// isPermanent flag and cooldown deadline.
 func (k *Key) State() KeyState {
 	k.pool.mu.RLock()
 	defer k.pool.mu.RUnlock()
 
-	return k.pool.entries[k.index].state
-}
-
-// MarkValid transitions the key back to valid state. The call
-// is a no-op if the key is permanent or if the key is temporary
-// with an active cooldown.
-func (k *Key) MarkValid() {
-	k.pool.mu.Lock()
-	defer k.pool.mu.Unlock()
-
-	entry := &k.pool.entries[k.index]
-	switch entry.state {
-	case KeyStatePermanent:
-		return
-	case KeyStateTemporary:
-		// Ignore stale successes from concurrent requests
-		// that started before the key was rate-limited.
-		if k.pool.clock.Now().Before(entry.cooldown) {
-			return
-		}
+	if k.isPermanent {
+		return KeyStatePermanent
 	}
-
-	entry.state = KeyStateValid
+	// Cooldown still active: key is temporarily unavailable.
+	if k.pool.clock.Now().Before(k.expiresAt) {
+		return KeyStateTemporary
+	}
+	return KeyStateValid
 }
 
-// MarkTemporary marks the key as temporarily unavailable with
-// the specified cooldown duration. If cooldown is zero or
-// negative, DefaultCooldown is used. If the key is already in
-// a permanent state, the call is a no-op.
+// MarkTemporary marks the key as temporarily unavailable
+// with the specified cooldown duration. If cooldown is zero
+// or negative, DefaultCooldown is used. If the key is
+// already permanent, the call is a no-op.
 func (k *Key) MarkTemporary(cooldown time.Duration) {
 	k.pool.mu.Lock()
 	defer k.pool.mu.Unlock()
 
-	entry := &k.pool.entries[k.index]
-	if entry.state == KeyStatePermanent {
+	if k.isPermanent {
 		return
 	}
 
 	if cooldown <= 0 {
-		cooldown = DefaultCooldown
+		cooldown = defaultCooldown
 	}
 
 	newDeadline := k.pool.clock.Now().Add(cooldown)
 
-	// Keep the longer cooldown when concurrent requests both
-	// mark the same key as rate-limited.
-	if entry.state == KeyStateTemporary && entry.cooldown.After(newDeadline) {
+	// In case the key has a later expiry, keep it.
+	if k.expiresAt.After(newDeadline) {
 		return
 	}
 
-	entry.state = KeyStateTemporary
-	entry.cooldown = newDeadline
+	k.expiresAt = newDeadline
 }
 
 // MarkPermanent marks the key as permanently unavailable. This
@@ -137,7 +134,7 @@ func (k *Key) MarkPermanent() {
 	k.pool.mu.Lock()
 	defer k.pool.mu.Unlock()
 
-	k.pool.entries[k.index].state = KeyStatePermanent
+	k.isPermanent = true
 }
 
 // Walker traverses a Pool for a single request. Each request
@@ -156,41 +153,32 @@ func (p *Pool) Walker() *Walker {
 	return &Walker{pool: p, pos: 0}
 }
 
-// ErrAllKeysExhausted is returned when the walker has visited
-// every key in the pool and none are available.
-var ErrAllKeysExhausted = xerrors.New("all keys exhausted")
-
 // Next returns a Key handle for the next available key. This is
 // a read-only operation; it does not modify the pool state.
 //
 // Returns ErrAllKeysExhausted when no more keys are available.
 func (w *Walker) Next() (*Key, error) {
-	p := w.pool
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	pool := w.pool
+	if pool == nil {
+		return nil, ErrAllKeysExhausted
+	}
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
 
-	now := p.clock.Now()
+	for i := w.pos; i < len(pool.keys); i++ {
+		key := &pool.keys[i]
 
-	for i := w.pos; i < len(p.entries); i++ {
-		entry := &p.entries[i]
-
-		switch entry.state {
-		case KeyStateValid:
-			// Key is available, use it.
-			w.pos = i + 1
-			return &Key{pool: p, index: i}, nil
-
-		case KeyStateTemporary:
-			// Cooldown expired, treat as available.
-			if now.After(entry.cooldown) {
-				w.pos = i + 1
-				return &Key{pool: p, index: i}, nil
-			}
-			// Still cooling down, skip.
-
-		case KeyStatePermanent:
-			// Permanently unavailable, skip.
+		// Permanently unavailable, skip.
+		if key.isPermanent {
+			continue
 		}
+		// Cooldown still active, skip.
+		if pool.clock.Now().Before(key.expiresAt) {
+			continue
+		}
+		// Key is available.
+		w.pos = i + 1
+		return key, nil
 	}
 
 	return nil, ErrAllKeysExhausted
