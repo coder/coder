@@ -387,6 +387,7 @@ export const AutoArchiveSaveError: Story = {
 
 export const AutoArchiveLoadError: Story = {
 	args: {
+		autoArchiveDaysData: undefined,
 		isAutoArchiveDaysLoadError: true,
 	},
 	play: async ({ canvasElement }) => {
