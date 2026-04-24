@@ -117,58 +117,58 @@ jobs:
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
-      - name: Upload Embedded Postgres Cache
-        uses: ./.github/actions/embedded-pg-cache/upload
-        with:
-          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
-          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
+      # - name: Upload Embedded Postgres Cache
+      #   uses: ./.github/actions/embedded-pg-cache/upload
+      #   with:
+      #     cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+      #     cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
-      - name: Upload test stats to Datadog
-        timeout-minutes: 1
-        continue-on-error: true
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
+      # - name: Upload test stats to Datadog
+      #   timeout-minutes: 1
+      #   continue-on-error: true
+      #   uses: ./.github/actions/upload-datadog
+      #   if: success() || failure()
+      #   with:
+      #     api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  notify-slack-on-failure:
-    needs:
-      - test-go-pg
-    runs-on: ubuntu-latest
-    if: failure()
+  # notify-slack-on-failure:
+  #   needs:
+  #     - test-go-pg
+  #   runs-on: ubuntu-latest
+  #   if: failure()
 
-    steps:
-      - name: Send Slack notification
-        run: |
-          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": "❌ Nightly gauntlet failed",
-                  "emoji": true
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": '"$ESCAPED_PROMPT"'
-                }
-              }
-            ]
-          }' "${SLACK_WEBHOOK}"
-        env:
-          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
-          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}
+  #   steps:
+  #     - name: Send Slack notification
+  #       run: |
+  #         ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+  #         curl -X POST -H 'Content-type: application/json' \
+  #         --data '{
+  #           "blocks": [
+  #             {
+  #               "type": "header",
+  #               "text": {
+  #                 "type": "plain_text",
+  #                 "text": "❌ Nightly gauntlet failed",
+  #                 "emoji": true
+  #               }
+  #             },
+  #             {
+  #               "type": "section",
+  #               "text": {
+  #                 "type": "mrkdwn",
+  #                 "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+  #               }
+  #             },
+  #             {
+  #               "type": "section",
+  #               "text": {
+  #                 "type": "mrkdwn",
+  #                 "text": '"$ESCAPED_PROMPT"'
+  #               }
+  #             }
+  #           ]
+  #         }' "${SLACK_WEBHOOK}"
+  #       env:
+  #         SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+  #         RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+  #         BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}
