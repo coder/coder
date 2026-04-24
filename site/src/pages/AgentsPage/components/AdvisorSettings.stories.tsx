@@ -460,6 +460,46 @@ export const SaveErrorWithDetail: Story = {
 	},
 };
 
+export const DeselectModelBackToUseChatModel: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			model_config_id: "model-2",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const advisorModelSelect = await canvas.findByRole("combobox", {
+			name: /Advisor model/i,
+		});
+
+		expect(advisorModelSelect).toHaveTextContent(/Claude Sonnet 4/i);
+
+		await userEvent.click(advisorModelSelect);
+		await userEvent.click(
+			await body.findByRole("option", { name: /^Use chat model$/i }),
+		);
+
+		await waitFor(() => {
+			expect(advisorModelSelect).toHaveTextContent(/Use chat model/i);
+		});
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request.model_config_id).toBe(nilUUID);
+	},
+};
+
 export const DisableThenSave: Story = {
 	args: {
 		advisorConfigData: {

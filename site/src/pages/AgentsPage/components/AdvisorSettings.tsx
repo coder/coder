@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
-import { type FC, useId } from "react";
+import { type FC, useEffect, useId, useRef } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
@@ -180,22 +180,38 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
 
+	// Track the most recent committed advisor values (the server's view or the
+	// last successful save). Reading `advisorConfigData` directly in `onSubmit`
+	// can yield a stale snapshot when a refetch is in flight or has failed,
+	// which would silently roll back recently saved limits if the user then
+	// disables the advisor before the query settles.
+	const committedValuesRef = useRef<AdvisorSettingsFormValues>(
+		normalizeAdvisorConfig(advisorConfigData),
+	);
+	useEffect(() => {
+		committedValuesRef.current = normalizeAdvisorConfig(advisorConfigData);
+	}, [advisorConfigData]);
+
 	const form = useFormik<AdvisorSettingsFormValues>({
 		enableReinitialize: true,
 		validateOnMount: true,
 		initialValues: normalizeAdvisorConfig(advisorConfigData),
 		validate: validateAdvisorConfig,
 		onSubmit: (values, { resetForm }) => {
-			// When disabling, preserve the stored values for the hidden fields
-			// so potentially invalid in-flight edits (empty strings, fractional
-			// numbers) cannot silently overwrite previously configured limits.
+			// When disabling, preserve the last committed values for the hidden
+			// fields so potentially invalid in-flight edits (empty strings,
+			// fractional numbers) cannot silently overwrite previously
+			// configured limits, and so a pending or failed refetch of the
+			// advisor config cannot revert recently saved values.
 			const source: AdvisorSettingsFormValues = values.enabled
 				? values
-				: { ...normalizeAdvisorConfig(advisorConfigData), enabled: false };
+				: { ...committedValuesRef.current, enabled: false };
 			const request = toAdvisorConfigRequest(source);
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
-					resetForm({ values: normalizeAdvisorConfig(request) });
+					const nextValues = normalizeAdvisorConfig(request);
+					committedValuesRef.current = nextValues;
+					resetForm({ values: nextValues });
 				},
 			});
 		},
