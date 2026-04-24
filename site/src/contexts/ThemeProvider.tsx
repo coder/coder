@@ -23,6 +23,7 @@ import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { DEFAULT_THEME, type Theme } from "#/theme";
+import { CONCRETE_THEMES, resolveThemeName } from "#/theme/colorblind";
 
 /**
  *
@@ -56,15 +57,17 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		};
 	}, [themeQuery]);
 
-	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
-	const themePreference =
+	// We might not be logged in yet, or the `theme_preference` could be an
+	// empty string. Prefer the JS-fetched value, fall back to the
+	// server-rendered meta tag, then to DEFAULT_THEME. The DEFAULT_THEME
+	// fallback is intentional: the old `ThemeProvider` coerced empty
+	// preferences to "dark" rather than to the OS color scheme, and the
+	// AppearancePage radio selection depends on the same fallback.
+	const storedPreference =
 		appearanceSettingsQuery.data?.theme_preference ||
 		metadata.userAppearance?.value?.theme_preference ||
 		DEFAULT_THEME;
-	// The janky casting here is fine because of the much more type safe fallback
-	// We need to support `themePreference` being wrong anyway because the database
-	// value could be anything, like an empty string.
+	const concreteName = resolveThemeName(storedPreference, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -72,22 +75,19 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (root.dataset.embedTheme) {
 			return;
 		}
-		if (themePreference === "auto") {
-			root.classList.add(preferredColorScheme);
-		} else {
-			root.classList.add(themePreference);
-		}
+		root.classList.add(concreteName);
 
 		return () => {
 			if (!root.dataset.embedTheme) {
-				root.classList.remove("light", "dark");
+				// Remove every theme class we might have applied so switching
+				// between two concrete themes never leaves both classes on the
+				// root.
+				root.classList.remove(...CONCRETE_THEMES);
 			}
 		};
-	}, [themePreference, preferredColorScheme]);
+	}, [concreteName]);
 
-	const theme =
-		themes[themePreference as keyof typeof themes] ??
-		themes[preferredColorScheme];
+	const theme = themes[concreteName];
 
 	return (
 		<StyledEngineProvider injectFirst>

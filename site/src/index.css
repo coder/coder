@@ -154,83 +154,285 @@
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
 	}
+	/*
+		Colorblind-friendly variants. Each of these class names is set as
+		the only theme class on `<html>` by ThemeProvider, so a block must
+		declare every CSS variable used across the app. Where a variable
+		is unaffected by the colorblind palette (layout chrome, neutrals)
+		we keep the value in sync with the base `.light` or `.dark` block
+		above.
+
+		Palette rationale:
+		- dark-protan-deuter / light-protan-deuter: shift the red/green
+		  success+error axis onto sky-blue (success) + vermilion/orange
+		  (destructive). Warning stays amber because amber reads as
+		  distinct from blue under protanopia and deuteranopia.
+		- dark-tritan / light-tritan: keep the red/green success+error
+		  axis intact and move warning from amber to fuchsia because
+		  amber and sky-blue blur together under tritanopia.
+	*/
+	.light-protan-deuter {
+		--content-primary: 240 10% 4%;
+		--content-secondary: 240 5% 34%;
+		--content-link: 199 89% 48%;
+		--content-invert: 0 0% 98%;
+		--content-disabled: 240 5% 65%;
+		--content-success: 199 89% 48%;
+		--content-warning: 27 96% 61%;
+		--content-destructive: 24 95% 53%;
+		--surface-primary: 0 0% 100%;
+		--surface-secondary: 240 5% 96%;
+		--surface-tertiary: 240 6% 90%;
+		--surface-quaternary: 240 5% 84%;
+		--surface-invert-primary: 240 4% 16%;
+		--surface-invert-secondary: 240 5% 26%;
+		--surface-destructive: 34 100% 92%;
+		--surface-green: 201 94% 86%;
+		--surface-grey: 240 5% 96%;
+		--surface-orange: 34 100% 92%;
+		--surface-sky: 191, 67%, 89%;
+		--surface-red: 34 100% 92%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 289 100% 98%;
+		--border-purple: 255 92% 76%;
+		--border-default: 240 6% 90%;
+		--border-success: 199 89% 48%;
+		--border-sky: 203 90% 40%;
+		--border-green: 201 94% 86%;
+		--border-magenta: 295, 68%, 46%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 24 95% 53%;
+		--border-secondary: 240 5% 65%;
+		--overlay-default: 240 5% 84% / 80%;
+		--radius: 0.5rem;
+		--highlight-purple: 271, 61%, 35%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 30 100% 32%;
+		--highlight-sky: 195, 61%, 22%;
+		--highlight-red: 24 95% 42%;
+		--highlight-magenta: 295, 68%, 40%;
+		--syntax-key: 211 95% 33%;
+		--syntax-string: 24 95% 42%;
+		--syntax-number: 199 89% 38%;
+		--syntax-boolean: 240 100% 50%;
+		--git-added: 199 89% 48%;
+		--git-deleted: 24 95% 53%;
+		--git-modified: 271 91% 45%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--git-merged-bright: 272 72% 47%;
+		--surface-git-added: 204 94% 94%;
+		--surface-git-deleted: 33 100% 93%;
+		--surface-git-merged: 269 100% 95%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+		--avatar-lg: 2.5rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
+	}
+	.dark-protan-deuter {
+		--content-primary: 0 0% 100%;
+		--content-secondary: 240 5% 65%;
+		--content-link: 199 82% 67%;
+		--content-invert: 240 10% 4%;
+		--content-disabled: 240 5% 26%;
+		--content-success: 199 82% 67%;
+		--content-warning: 31 97% 72%;
+		--content-destructive: 27 96% 67%;
+		--surface-primary: 240 10% 4%;
+		--surface-secondary: 240 6% 10%;
+		--surface-tertiary: 240 4% 16%;
+		--surface-quaternary: 240 5% 26%;
+		--surface-invert-primary: 240 6% 90%;
+		--surface-invert-secondary: 240 5% 65%;
+		--surface-destructive: 17 75% 15%;
+		--surface-green: 201 80% 14%;
+		--surface-grey: 240 6% 10%;
+		--surface-orange: 13 81% 15%;
+		--surface-sky: 196, 67%, 12%;
+		--surface-red: 17 75% 15%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 291, 74%, 15%;
+		--border-purple: 255 92% 76%;
+		--border-default: 240 4% 16%;
+		--border-success: 199 82% 67%;
+		--border-magenta: 292, 100%, 78%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 27 96% 67%;
+		--border-sky: 194 90% 62%;
+		--border-green: 201 94% 86%;
+		--border-secondary: 240 5% 26%;
+		--overlay-default: 240 10% 4% / 80%;
+		--highlight-purple: 269, 100%, 74%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 31 100% 70%;
+		--highlight-sky: 188, 75%, 80%;
+		--highlight-red: 27 96% 67%;
+		--highlight-magenta: 292, 100%, 78%;
+		--syntax-key: 201 98% 80%;
+		--syntax-string: 18 47% 64%;
+		--syntax-number: 100 28% 73%;
+		--syntax-boolean: 207 61% 59%;
+		--git-added: 199 82% 67%;
+		--git-deleted: 27 96% 67%;
+		--git-modified: 271 91% 65%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--git-merged-bright: 270 95% 75%;
+		--surface-git-added: 201 80% 14%;
+		--surface-git-deleted: 17 75% 15%;
+		--surface-git-merged: 274 87% 21%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+	}
+	.light-tritan {
+		--content-primary: 240 10% 4%;
+		--content-secondary: 240 5% 34%;
+		--content-link: 221 83% 53%;
+		--content-invert: 0 0% 98%;
+		--content-disabled: 240 5% 65%;
+		--content-success: 142 72% 29%;
+		--content-warning: 322 81% 43%;
+		--content-destructive: 0 84% 60%;
+		--surface-primary: 0 0% 100%;
+		--surface-secondary: 240 5% 96%;
+		--surface-tertiary: 240 6% 90%;
+		--surface-quaternary: 240 5% 84%;
+		--surface-invert-primary: 240 4% 16%;
+		--surface-invert-secondary: 240 5% 26%;
+		--surface-destructive: 0 93% 94%;
+		--surface-green: 141 79% 85%;
+		--surface-grey: 240 5% 96%;
+		--surface-orange: 34 100% 92%;
+		--surface-sky: 191, 67%, 89%;
+		--surface-red: 0 93% 94%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 289 100% 98%;
+		--border-purple: 255 92% 76%;
+		--border-default: 240 6% 90%;
+		--border-success: 142 76% 36%;
+		--border-sky: 203 90% 40%;
+		--border-green: 138 82% 82%;
+		--border-magenta: 295, 68%, 46%;
+		--border-warning: 322 81% 60%;
+		--border-destructive: 0 84% 60%;
+		--border-secondary: 240 5% 65%;
+		--overlay-default: 240 5% 84% / 80%;
+		--radius: 0.5rem;
+		--highlight-purple: 271, 61%, 35%;
+		--highlight-green: 143 64% 24%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-sky: 195, 61%, 22%;
+		--highlight-red: 0 74% 42%;
+		--highlight-magenta: 322, 81%, 43%;
+		--syntax-key: 211 95% 33%;
+		--syntax-string: 0 77% 36%;
+		--syntax-number: 158 88% 28%;
+		--syntax-boolean: 322 81% 43%;
+		--git-added: 142 72% 29%;
+		--git-deleted: 0 74% 42%;
+		--git-modified: 322 81% 43%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 72% 29%;
+		--git-deleted-bright: 0 74% 42%;
+		--git-merged-bright: 272 72% 47%;
+		--surface-git-added: 141 84% 93%;
+		--surface-git-deleted: 0 93% 94%;
+		--surface-git-merged: 269 100% 95%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+		--avatar-lg: 2.5rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
+	}
+	.dark-tritan {
+		--content-primary: 0 0% 100%;
+		--content-secondary: 240 5% 65%;
+		--content-link: 213 94% 68%;
+		--content-invert: 240 10% 4%;
+		--content-disabled: 240 5% 26%;
+		--content-success: 142 76% 36%;
+		--content-warning: 322 81% 67%;
+		--content-destructive: 0 91% 71%;
+		--surface-primary: 240 10% 4%;
+		--surface-secondary: 240 6% 10%;
+		--surface-tertiary: 240 4% 16%;
+		--surface-quaternary: 240 5% 26%;
+		--surface-invert-primary: 240 6% 90%;
+		--surface-invert-secondary: 240 5% 65%;
+		--surface-destructive: 0 75% 15%;
+		--surface-green: 145 80% 10%;
+		--surface-grey: 240 6% 10%;
+		--surface-orange: 13 81% 15%;
+		--surface-sky: 196, 67%, 12%;
+		--surface-red: 0 75% 15%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 322 70% 15%;
+		--border-purple: 255 92% 76%;
+		--border-default: 240 4% 16%;
+		--border-success: 142 76% 36%;
+		--border-magenta: 322 81% 72%;
+		--border-warning: 322 81% 67%;
+		--border-destructive: 0 91% 71%;
+		--border-sky: 194 90% 62%;
+		--border-green: 143 77% 87%;
+		--border-secondary: 240 5% 26%;
+		--overlay-default: 240 10% 4% / 80%;
+		--highlight-purple: 269, 100%, 74%;
+		--highlight-green: 141 79% 85%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-sky: 188, 75%, 80%;
+		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 322 81% 72%;
+		--syntax-key: 201 98% 80%;
+		--syntax-string: 18 47% 64%;
+		--syntax-number: 100 28% 73%;
+		--syntax-boolean: 322 81% 67%;
+		--git-added: 142 77% 73%;
+		--git-deleted: 0 94% 82%;
+		--git-modified: 322 81% 72%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 71% 45%;
+		--git-deleted-bright: 0 91% 71%;
+		--git-merged-bright: 270 95% 75%;
+		--surface-git-added: 145 80% 10%;
+		--surface-git-deleted: 0 75% 15%;
+		--surface-git-merged: 274 87% 21%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+	}
 }
 
-@layer components {
-	/* Map each stripe variant to a color token so the
-	   pseudo-element rules can stay DRY. */
-	.navbar-stripe-devel {
-		--stripe-color: var(--content-warning);
-	}
-
-	.navbar-stripe-rc {
-		--stripe-color: var(--border-sky);
-	}
-
-	/* Thin stripe bars at the top and bottom edges of the
-	   navbar. Using pseudo-elements keeps the stripes out of
-	   the content area so nav links stay readable. */
-	.navbar-stripe-devel::before,
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::before,
-	.navbar-stripe-rc::after {
-		content: "";
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: repeating-linear-gradient(
-			-45deg,
-			transparent,
-			transparent 4px,
-			hsl(var(--stripe-color) / 0.5) 4px,
-			hsl(var(--stripe-color) / 0.5) 8px
-		);
-		pointer-events: none;
-	}
-
-	.navbar-stripe-devel::before,
-	.navbar-stripe-rc::before {
-		top: 0;
-	}
-
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::after {
-		bottom: 0;
-	}
-
-	@media (max-width: 767px) {
-		/*
-			 * Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
-			 * custom property on the chat input container so the dropdown
-			 * position tracks the actual input box, not a hardcoded offset.
-			 */
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
-			position: fixed !important;
-			left: 1rem !important;
-			width: calc(100vw - 2rem) !important;
-			min-width: 0 !important;
-			transform: none !important;
-			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
-			top: auto !important;
-		}
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
-			bottom: auto !important;
-			top: var(--mobile-dropdown-top, 3.5rem) !important;
-		}
-		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-top-below-header
-			) {
-			bottom: auto !important;
-			top: 5rem !important;
-		}
-		.mobile-full-width-dropdown {
-			width: 100% !important;
-			min-width: 0 !important;
-			max-width: none !important;
-		}
-	}
-}
 @layer base {
 	* {
 		@apply border-border;

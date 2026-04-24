@@ -1,0 +1,89 @@
+import themes from ".";
+import {
+	CONCRETE_THEMES,
+	isConcreteThemeName,
+	resolveThemeName,
+} from "./colorblind";
+
+describe("resolveThemeName", () => {
+	it("returns the stored preference as-is for concrete themes", () => {
+		expect(resolveThemeName("dark", "light")).toBe("dark");
+		expect(resolveThemeName("light", "dark")).toBe("light");
+		expect(resolveThemeName("dark-protan-deuter", "light")).toBe(
+			"dark-protan-deuter",
+		);
+		expect(resolveThemeName("light-protan-deuter", "dark")).toBe(
+			"light-protan-deuter",
+		);
+		expect(resolveThemeName("dark-tritan", "light")).toBe("dark-tritan");
+		expect(resolveThemeName("light-tritan", "dark")).toBe("light-tritan");
+	});
+
+	it("resolves auto to the OS preference", () => {
+		expect(resolveThemeName("auto", "dark")).toBe("dark");
+		expect(resolveThemeName("auto", "light")).toBe("light");
+	});
+
+	it("falls back to the OS scheme for unknown values", () => {
+		// Empty string is persisted when the user has never set a preference,
+		// so it must resolve to the OS scheme rather than erroring.
+		expect(resolveThemeName("", "dark")).toBe("dark");
+		expect(resolveThemeName("", "light")).toBe("light");
+		expect(resolveThemeName(undefined, "dark")).toBe("dark");
+		// Legacy value from an earlier cleanup migration (000260) must still
+		// resolve safely.
+		expect(resolveThemeName("darkBlue", "light")).toBe("light");
+		expect(resolveThemeName("garbage", "dark")).toBe("dark");
+	});
+});
+
+describe("theme registry", () => {
+	it("contains every concrete theme name", () => {
+		for (const name of CONCRETE_THEMES) {
+			expect(themes).toHaveProperty(name);
+		}
+	});
+
+	it("exports exactly the themes registered in CONCRETE_THEMES", () => {
+		expect(new Set(Object.keys(themes))).toEqual(new Set(CONCRETE_THEMES));
+	});
+
+	// ThemeProvider does `themes[resolveThemeName(...)]` without a null
+	// check, so every value the resolver can return must be a real key of
+	// the `themes` object. Enumerate every preference the UI exposes,
+	// paired with both OS color schemes, and assert the lookup succeeds.
+	it("always resolves to a theme that exists in the registry", () => {
+		const preferences: (string | undefined)[] = [
+			undefined,
+			"",
+			"auto",
+			...CONCRETE_THEMES,
+		];
+		for (const pref of preferences) {
+			for (const scheme of ["dark", "light"] as const) {
+				const resolved = resolveThemeName(pref, scheme);
+				expect(themes[resolved]).toBeDefined();
+			}
+		}
+	});
+});
+
+describe("isConcreteThemeName", () => {
+	it("returns true for every concrete theme name", () => {
+		for (const name of CONCRETE_THEMES) {
+			expect(isConcreteThemeName(name)).toBe(true);
+		}
+	});
+
+	it("rejects the auto preference (embeds require a concrete theme)", () => {
+		expect(isConcreteThemeName("auto")).toBe(false);
+	});
+
+	it("rejects non-string and empty values", () => {
+		expect(isConcreteThemeName("")).toBe(false);
+		expect(isConcreteThemeName(undefined)).toBe(false);
+		expect(isConcreteThemeName(null)).toBe(false);
+		expect(isConcreteThemeName(42)).toBe(false);
+		expect(isConcreteThemeName({})).toBe(false);
+	});
+});

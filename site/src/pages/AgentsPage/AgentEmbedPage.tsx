@@ -8,6 +8,11 @@ import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { ProxyProvider } from "#/contexts/ProxyContext";
 import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import { permissionChecks } from "#/modules/permissions";
+import {
+	CONCRETE_THEMES,
+	type ConcreteThemeName,
+	isConcreteThemeName,
+} from "#/theme/colorblind";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
@@ -48,7 +53,7 @@ const getBootstrapToken = (data: unknown): string | undefined => {
 	return token.length > 0 ? token : undefined;
 };
 
-const getThemeFromMessage = (data: unknown): "light" | "dark" | undefined => {
+const getThemeFromMessage = (data: unknown): ConcreteThemeName | undefined => {
 	if (typeof data !== "object" || data === null) {
 		return undefined;
 	}
@@ -60,7 +65,7 @@ const getThemeFromMessage = (data: unknown): "light" | "dark" | undefined => {
 		return undefined;
 	}
 	const payload = msg.payload as { theme?: unknown };
-	if (payload.theme !== "light" && payload.theme !== "dark") {
+	if (!isConcreteThemeName(payload.theme)) {
 		return undefined;
 	}
 	return payload.theme;
@@ -71,12 +76,15 @@ const getThemeFromMessage = (data: unknown): "light" | "dark" | undefined => {
  * attribute so ThemeProvider skips its own class manipulation.
  * No-ops when the requested theme is already active.
  */
-const applyEmbedTheme = (theme: "light" | "dark") => {
+const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	const root = document.documentElement;
 	if (root.dataset.embedTheme === theme) {
 		return;
 	}
-	root.classList.remove("light", "dark");
+	// Clear every possible theme class, not just light/dark, so switching
+	// between a colorblind variant and the base theme does not leave a
+	// stale class on the root.
+	root.classList.remove(...CONCRETE_THEMES);
 	root.classList.add(theme);
 	root.dataset.embedTheme = theme;
 };
@@ -172,7 +180,7 @@ const AgentEmbedPage: FC = () => {
 	const [searchParams] = useSearchParams();
 	useLayoutEffect(() => {
 		const paramTheme = searchParams.get("theme");
-		if (paramTheme === "light" || paramTheme === "dark") {
+		if (isConcreteThemeName(paramTheme)) {
 			applyEmbedTheme(paramTheme);
 		} else {
 			const prefersDark = window.matchMedia(
@@ -181,7 +189,7 @@ const AgentEmbedPage: FC = () => {
 			applyEmbedTheme(prefersDark ? "dark" : "light");
 		}
 		return () => {
-			document.documentElement.classList.remove("light", "dark");
+			document.documentElement.classList.remove(...CONCRETE_THEMES);
 			delete document.documentElement.dataset.embedTheme;
 		};
 	}, [searchParams]);
