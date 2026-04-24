@@ -93,6 +93,12 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 			DisableParallelToolUse: &disableParallelToolUse,
 		},
 	}
+	enableParallelToolUse := false
+	providerOptionsAllowParallel := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &enableParallelToolUse,
+		},
+	}
 
 	testCases := []struct {
 		name        string
@@ -138,6 +144,40 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 					Content: []fantasy.MessagePart{
 						fantasy.TextPart{Text: "search for coder"},
 					},
+				},
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{webSearchCall},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "now summarize"},
+					},
+					ProviderOptions: providerOptions,
+				},
+			},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "search for coder"},
+					fantasy.TextPart{Text: "now summarize"},
+				},
+				ProviderOptions: providerOptions,
+			}},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "coalesces adjacent provider options with second wins",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search for coder"},
+					},
+					ProviderOptions: providerOptionsAllowParallel,
 				},
 				{
 					Role:    fantasy.MessageRoleAssistant,

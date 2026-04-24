@@ -2195,6 +2195,52 @@ func TestRun_AnthropicInterruptedProviderToolKeepsLocalSyntheticResult(t *testin
 	require.True(t, isErr)
 }
 
+func TestRun_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) {
+	t.Parallel()
+
+	var capturedPrompt []fantasy.Message
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			capturedPrompt = append([]fantasy.Message(nil), call.Prompt...)
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+			{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolCallPart{
+						ToolCallID:       "ws-1",
+						ToolName:         "web_search",
+						Input:            `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+				},
+			},
+			textMessage(fantasy.MessageRoleUser, "continue"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, capturedPrompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, capturedPrompt[0].Role)
+	require.Len(t, capturedPrompt[0].Content, 2)
+	requireNoProviderExecutedToolCallPrompt(t, capturedPrompt)
+}
+
 func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
 	t.Parallel()
 
