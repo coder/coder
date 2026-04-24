@@ -15,7 +15,7 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
 
@@ -48,6 +48,10 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onCancel,
 	templateVersionId,
 }) => {
+	const [protectedParameters, setProtectedParameters] = useState(
+		() => new Set(autofillParameters.map((p) => p.name)),
+	);
+
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
@@ -76,6 +80,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			name: parameter.name,
 			value,
 		});
+		setProtectedParameters((prev: Set<string>) => {
+			if (prev.has(parameter.name)) return prev;
+			const next = new Set(prev);
+			next.add(parameter.name);
+			return next;
+		});
 		sendDynamicParamsRequest(parameter, value);
 	};
 
@@ -99,6 +109,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		protectedParameters,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -182,7 +193,11 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
-			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
+			<form
+				onSubmit={form.handleSubmit}
+				className="flex flex-col gap-8"
+				data-testid="form"
+			>
 				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>

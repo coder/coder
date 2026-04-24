@@ -114,17 +114,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		autofillParameters.map((param) => [param.name, param]),
 	);
 
-	// Only touched fields are sent to the websocket
-	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = Object.fromEntries(
-		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
+	// Track which parameters are protected from websocket overwrites.
+	// Autofilled parameters start protected, and user changes add to the set.
+	const [protectedParameters, setProtectedParameters] = useState(
+		() =>
+			new Set(
+				parameters.filter((p) => autofillByName[p.name]).map((p) => p.name),
+			),
 	);
+
+	const protectParameter = useCallback((name: string) => {
+		setProtectedParameters((prev) => {
+			if (prev.has(name)) return prev;
+			const next = new Set(prev);
+			next.add(name);
+			return next;
+		});
+	}, []);
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
 	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
-	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response
+	//    in the useSyncFormParameters hook, unless they have been touched by the
+	//    user or auto-filled.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -135,7 +149,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					autofillParameters,
 				),
 			},
-			initialTouched,
+			initialTouched: Object.fromEntries(
+				parameters
+					.filter((p) => autofillByName[p.name])
+					.map((p) => [p.name, true]),
+			),
 			validationSchema: Yup.object({
 				name: nameValidator("Workspace Name"),
 				rich_parameter_values:
@@ -285,6 +303,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			for (const update of updates) {
 				form.setFieldValue(update.field, update.fieldValue);
 				form.setFieldTouched(update.parameter.name, true);
+				protectParameter(update.parameter.name);
 			}
 
 			sendDynamicParamsRequest(
@@ -300,6 +319,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		presets,
 		form.setFieldValue,
 		form.setFieldTouched,
+		protectParameter,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,
@@ -327,6 +347,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		// Only send the request if the value has changed from the form value
 		if (currentFormValue !== value) {
 			form.setFieldTouched(parameter.name, true);
+			protectParameter(parameter.name);
 			sendDynamicParamsRequest([{ parameter, value }]);
 		}
 	};
@@ -334,6 +355,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		protectedParameters,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -419,6 +441,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
 					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 

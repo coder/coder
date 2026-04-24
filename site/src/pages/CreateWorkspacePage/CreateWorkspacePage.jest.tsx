@@ -3,6 +3,7 @@ import {
 	MockDynamicParametersResponse,
 	MockDynamicParametersResponseWithError,
 	MockPermissions,
+	MockPreviewParameter,
 	MockSliderParameter,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
@@ -15,8 +16,11 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { createMockWebSocket } from "testHelpers/websockets";
-import { screen, waitFor } from "@testing-library/react";
+import {
+	createMockWebSocket,
+	mockDynamicParameterWebSocket,
+} from "testHelpers/websockets";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
@@ -47,33 +51,7 @@ describe("CreateWorkspacePage", () => {
 		jest.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		jest.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
 		jest.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
-
-		jest
-			.spyOn(API, "templateVersionDynamicParameters")
-			.mockImplementation((_versionId, _ownerId, callbacks) => {
-				const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-				mockWebSocket.addEventListener("message", (event) => {
-					callbacks.onMessage(JSON.parse(event.data));
-				});
-				mockWebSocket.addEventListener("error", () => {
-					callbacks.onError(
-						new Error("Connection for dynamic parameters failed."),
-					);
-				});
-				mockWebSocket.addEventListener("close", () => {
-					callbacks.onClose();
-				});
-
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify(MockDynamicParametersResponse),
-					}),
-				);
-
-				return mockWebSocket;
-			});
+		mockDynamicParameterWebSocket(MockDynamicParametersResponse);
 	});
 
 	afterEach(() => {
@@ -105,32 +83,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("sends parameter updates via WebSocket when form values change", async () => {
-			const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(
-							new Error("Connection for dynamic parameters failed."),
-						);
-					});
-					mockWebSocket.addEventListener("close", () => {
-						callbacks.onClose();
-					});
-
-					publisher.publishOpen(new Event("open"));
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(MockDynamicParametersResponse),
-						}),
-					);
-
-					return mockWebSocket;
-				});
+			const [mockWebSocket] = mockDynamicParameterWebSocket(
+				MockDynamicParametersResponse,
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -216,27 +171,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
-			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: 0,
-								parameters: [MockDropdownParameter],
-								diagnostics: [],
-							}),
-						}),
-					);
-
-					return mockWebSocket;
-				});
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockDropdownParameter,
+			]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -265,27 +202,89 @@ describe("CreateWorkspacePage", () => {
 			expect(screen.queryByText("CPU Count")).toBeInTheDocument();
 			expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
 		});
+
+		it("does not clobber user values", async () => {
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockPreviewParameter,
+			]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const form = screen.getByTestId("form");
+			const input = await within(form).findByRole("textbox", {
+				name: /parameter 1/i,
+			});
+			await userEvent.clear(input);
+			await userEvent.type(input, "hi there hello");
+
+			await waitFor(() => {
+				expect(
+					within(form).getByDisplayValue("hi there hello"),
+				).toBeInTheDocument();
+			});
+
+			// Simulate a stale response.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 1,
+							parameters: [MockPreviewParameter, MockValidationParameter],
+						}),
+					}),
+				);
+			});
+
+			// Should have the new field, but keep the existing user-filled values.
+			await waitFor(() => {
+				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
+				expect(
+					within(form).getByDisplayValue("hi there hello"),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("does not clobber auto-filled values", async () => {
+			const [, mockPublisher] = mockDynamicParameterWebSocket([
+				MockPreviewParameter,
+				MockSliderParameter,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?param.cpu_count=44&param.parameter1=auto`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			// Simulate a stale response.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters: [
+								MockPreviewParameter,
+								MockSliderParameter,
+								MockValidationParameter,
+							],
+						}),
+					}),
+				);
+			});
+
+			// Should have the new field, but keep the existing auto-filled values.
+			const form = screen.getByTestId("form");
+			await waitFor(() => {
+				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
+				expect(within(form).getByDisplayValue("44")).toBeInTheDocument();
+				expect(within(form).getByDisplayValue("auto")).toBeInTheDocument();
+			});
+		});
 	});
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(MockDynamicParametersResponseWithError),
-						}),
-					);
-
-					return mockWebSocket;
-				});
+			mockDynamicParameterWebSocket(MockDynamicParametersResponseWithError);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -329,38 +328,20 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+			const [mockWebSocket, publisher] =
+				mockDynamicParameterWebSocket(mockResponseInitial);
+			const originalSend = mockWebSocket.send;
+			mockWebSocket.send = jest.fn((data) => {
+				originalSend.call(mockWebSocket, data);
 
-					mockWebSocket.addEventListener("message", (event) => {
-						callbacks.onMessage(JSON.parse(event.data));
-					});
-
-					publisher.publishOpen(new Event("open"));
-
+				if (typeof data === "string" && data.includes('"200"')) {
 					publisher.publishMessage(
 						new MessageEvent("message", {
-							data: JSON.stringify(mockResponseInitial),
+							data: JSON.stringify(mockResponseWithError),
 						}),
 					);
-
-					const originalSend = mockWebSocket.send;
-					mockWebSocket.send = jest.fn((data) => {
-						originalSend.call(mockWebSocket, data);
-
-						if (typeof data === "string" && data.includes('"200"')) {
-							publisher.publishMessage(
-								new MessageEvent("message", {
-									data: JSON.stringify(mockResponseWithError),
-								}),
-							);
-						}
-					});
-
-					return mockWebSocket;
-				});
+				}
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
