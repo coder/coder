@@ -782,49 +782,33 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 			},
 		},
 	)
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "External Snapshot MCP",
-		Slug:          "external-snapshot-mcp",
-		Url:           externalMCPServer.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "External Snapshot MCP",
+		Slug:        "external-snapshot-mcp",
+		Url:         externalMCPServer.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
-	_, err = db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Second MCP",
-		Slug:          "second-mcp",
-		Url:           secondMCPServer.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Second MCP",
+		Slug:        "second-mcp",
+		Url:         secondMCPServer.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	rootChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
 		LastModelConfigID: webSearchModel.ID,
 		Title:             "root",
-		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeApi,
 	})
-	require.NoError(t, err)
 
-	exploreChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	exploreChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
@@ -841,8 +825,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
 		ClientType:   database.ChatClientTypeApi,
 	})
-	require.NoError(t, err)
-	insertUserTextMessage(ctx, t, db, exploreChat.ID, user.ID, webSearchModel.ID, "inspect the codebase")
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -939,20 +921,13 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Root Explore Runtime MCP",
-		Slug:          "root-explore-runtime-mcp",
-		Url:           externalMCPServer.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Root Explore Runtime MCP",
+		Slug:        "root-explore-runtime-mcp",
+		Url:         externalMCPServer.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps)
 
@@ -1148,34 +1123,20 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	parentConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Runtime Parent MCP",
-		Slug:          "runtime-parent-mcp",
-		Url:           parentTS.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	parentConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Runtime Parent MCP",
+		Slug:        "runtime-parent-mcp",
+		Url:         parentTS.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
-	injectedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Runtime Injected MCP",
-		Slug:          "runtime-injected-mcp",
-		Url:           injectedTS.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	injectedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Runtime Injected MCP",
+		Slug:        "runtime-injected-mcp",
+		Url:         injectedTS.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps)
 
@@ -1326,53 +1287,32 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	approvedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	approvedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Approved MCP",
 		Slug:            "plan-approved-mcp",
 		Url:             echoTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
 		AllowInPlanMode: true,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
-	blockedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:     "Plan Blocked MCP",
-		Slug:            "plan-blocked-mcp",
-		Url:             echoTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
-		AllowInPlanMode: false,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+	blockedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Plan Blocked MCP",
+		Slug:        "plan-blocked-mcp",
+		Url:         echoTS.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
-	filteredConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	filteredConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Filtered MCP",
 		Slug:            "plan-filtered-mcp",
 		Url:             filteredTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
 		AllowInPlanMode: true,
 		ToolAllowList:   []string{"visible"},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	ctrl := gomock.NewController(t)
@@ -1627,27 +1567,21 @@ func insertParentWithActiveChild(
 	model database.ChatModelConfig,
 ) (parent database.Chat, child database.Chat) {
 	t.Helper()
-	var err error
-	parent, err = db.InsertChat(ctx, database.InsertChatParams{
+	t.Helper()
+	parent = dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		LastModelConfigID: model.ID,
 		Title:             "parent",
 	})
-	require.NoError(t, err)
-	child, err = db.InsertChat(ctx, database.InsertChatParams{
+	child = dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		LastModelConfigID: model.ID,
 		Title:             "child",
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
 	})
-	require.NoError(t, err)
 	return parent, child
 }
 
@@ -2055,18 +1989,16 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfig := seedChatDependencies(t, db)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "reject invalid queued model config",
 	})
-	require.NoError(t, err)
 
 	invalidModelConfigID := uuid.New()
-	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+	_, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
 		ModelConfigID: invalidModelConfigID,
@@ -2525,15 +2457,12 @@ func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
 		codersdk.ChatModelCallConfig{},
 	)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfigA.ID,
 		Title:             "promote queued uses stored model",
 	})
-	require.NoError(t, err)
 
 	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with model b")})
 	require.NoError(t, err)
@@ -2605,15 +2534,13 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 	require.NoError(t, err)
 	defer cancelWatch()
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfigA.ID,
 		Title:             "promote queued reloads pending chat",
 	})
-	require.NoError(t, err)
 
 	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with new model")})
 	require.NoError(t, err)
@@ -2915,15 +2842,12 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfigA := seedChatDependencies(t, db)
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfigA.ID,
 		Title:             "promote queued legacy fallback",
 	})
-	require.NoError(t, err)
 
 	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("legacy queued row")})
 	require.NoError(t, err)
@@ -2956,15 +2880,12 @@ func TestPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfig := seedChatDependencies(t, db)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "promote queued invalid fallback",
 	})
-	require.NoError(t, err)
 
 	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("invalid queued model")})
 	require.NoError(t, err)
@@ -5848,43 +5769,6 @@ func insertChatModelConfigWithCallConfig(
 	return modelConfig
 }
 
-func insertUserTextMessage(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	chatID uuid.UUID,
-	userID uuid.UUID,
-	modelConfigID uuid.UUID,
-	text string,
-) {
-	t.Helper()
-
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
-	require.NoError(t, err)
-
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chatID,
-		CreatedBy:           []uuid.UUID{userID},
-		ModelConfigID:       []uuid.UUID{modelConfigID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{string(content.RawMessage)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
-		ProviderResponseID:  []string{""},
-	})
-	require.NoError(t, err)
-}
-
 // seedWorkspaceWithAgent creates a full workspace chain with a connected
 // agent. This is the common setup needed by tests that exercise tool
 // execution against a workspace.
@@ -7107,20 +6991,13 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	// Seed the MCP server config in the database. This must
 	// happen after seedChatDependencies so user.ID exists for
 	// the foreign key.
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Test MCP",
-		Slug:          "test-mcp",
-		Url:           mcpTS.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		DisplayName: "Test MCP",
+		Slug:        "test-mcp",
+		Url:         mcpTS.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -7288,21 +7165,14 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Mode MCP",
 		Slug:            "plan-mode-mcp",
 		Url:             mcpTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
 		AllowInPlanMode: true,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps)
 
@@ -7403,21 +7273,14 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Workflow MCP",
 		Slug:            "plan-workflow-mcp",
 		Url:             mcpTS.URL,
-		Transport:       "streamable_http",
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
 		AllowInPlanMode: true,
-		ToolAllowList:   []string{},
-		ToolDenyList:    []string{},
-		CreatedBy:       user.ID,
-		UpdatedBy:       user.ID,
+		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	ctrl := gomock.NewController(t)
@@ -7620,25 +7483,19 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 
 	// Seed the MCP server config with OAuth2 auth pointing to our
 	// mock token endpoint.
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:    "Authed MCP",
 		Slug:           "authed-mcp",
 		Url:            mcpTS.URL,
-		Transport:      "streamable_http",
 		AuthType:       "oauth2",
 		OAuth2ClientID: "test-client-id",
 		OAuth2TokenURL: tokenSrv.URL,
-		Availability:   "default_off",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
-		CreatedBy:      user.ID,
-		UpdatedBy:      user.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	// Seed an expired OAuth2 token with a valid refresh_token.
-	_, err = db.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+	_, err := db.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 		MCPServerConfigID: mcpConfig.ID,
 		UserID:            user.ID,
 		AccessToken:       "old-expired-access-token",
@@ -7754,24 +7611,17 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:    "Broken MCP",
 		Slug:           "broken-mcp",
 		Url:            "http://127.0.0.1:0/does-not-exist",
-		Transport:      "streamable_http",
 		AuthType:       "oauth2",
 		OAuth2ClientID: "test-client-id",
 		OAuth2TokenURL: tokenSrv.URL,
-		Availability:   "default_off",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
-		CreatedBy:      user.ID,
-		UpdatedBy:      user.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
-
-	_, err = db.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+	_, err := db.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 		MCPServerConfigID: mcpConfig.ID,
 		UserID:            user.ID,
 		AccessToken:       "old-expired-token",
@@ -7779,6 +7629,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 		TokenType:         "Bearer",
 		Expiry:            sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 	})
+
 	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps)
@@ -8462,18 +8313,15 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 
-	archivedChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	archivedChat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
 		Title:             "acquire-skip-archived",
 		LastModelConfigID: model.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 	})
-	require.NoError(t, err)
 
 	// Archive the chat, then force it to pending.
-	_, err = db.ArchiveChatByID(ctx, archivedChat.ID)
+	_, err := db.ArchiveChatByID(ctx, archivedChat.ID)
 	require.NoError(t, err)
 
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -8484,15 +8332,13 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 
 	// Insert a second, non-archived pending chat so the result
 	// slice is non-empty and the assertion is not vacuously true.
-	activeChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	activeChat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
 		Title:             "acquire-active",
 		LastModelConfigID: model.ID,
 		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
 	})
-	require.NoError(t, err)
 
 	now := time.Now()
 	acquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{

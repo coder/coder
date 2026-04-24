@@ -176,6 +176,50 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider) d
 	return provider
 }
 
+func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
+	t.Helper()
+
+	createdBy := seed.CreatedBy.UUID
+	if createdBy == uuid.Nil {
+		createdBy = User(t, db, database.User{}).ID
+	}
+	updatedBy := seed.UpdatedBy.UUID
+	if updatedBy == uuid.Nil {
+		updatedBy = createdBy
+	}
+
+	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
+		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Description:             seed.Description,
+		IconURL:                 seed.IconURL,
+		Transport:               takeFirst(seed.Transport, "streamable_http"),
+		Url:                     takeFirst(seed.Url, "https://mcp.example.com"),
+		AuthType:                takeFirst(seed.AuthType, "none"),
+		OAuth2ClientID:          seed.OAuth2ClientID,
+		OAuth2ClientSecret:      seed.OAuth2ClientSecret,
+		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
+		OAuth2AuthURL:           seed.OAuth2AuthURL,
+		OAuth2TokenURL:          seed.OAuth2TokenURL,
+		OAuth2Scopes:            seed.OAuth2Scopes,
+		APIKeyHeader:            seed.APIKeyHeader,
+		APIKeyValue:             seed.APIKeyValue,
+		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
+		CustomHeaders:           seed.CustomHeaders,
+		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
+		Availability:            takeFirst(seed.Availability, "default_off"),
+		Enabled:                 takeFirst(seed.Enabled, true),
+		ModelIntent:             seed.ModelIntent,
+		AllowInPlanMode:         seed.AllowInPlanMode,
+		CreatedBy:               createdBy,
+		UpdatedBy:               updatedBy,
+	})
+	require.NoError(t, err, "insert MCP server config")
+	return cfg
+}
+
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
 	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),

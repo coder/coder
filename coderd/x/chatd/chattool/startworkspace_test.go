@@ -473,16 +473,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-start-workspace-passes-parameters",
-			ClientType:        database.ChatClientTypeUi,
 		})
-		require.NoError(t, err)
 
 		expectedParams := []codersdk.WorkspaceBuildParameter{
 			{Name: "region", Value: "us-east-1"},
@@ -605,16 +602,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-start-workspace-responder-error-without-validations",
-			ClientType:        database.ChatClientTypeUi,
 		})
-		require.NoError(t, err)
 
 		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 			DB:      db,

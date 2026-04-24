@@ -372,6 +372,37 @@ func TestGenerator(t *testing.T) {
 		})
 		require.Equal(t, database.ChatMessageRoleAssistant, msg2.Role)
 	})
+
+	t.Run("MCPServerConfig", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		// Defaults.
+		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{})
+		require.NotEqual(t, uuid.Nil, cfg.ID)
+		require.Equal(t, "streamable_http", cfg.Transport)
+		require.Equal(t, "none", cfg.AuthType)
+		require.Equal(t, "default_off", cfg.Availability)
+		require.True(t, cfg.Enabled)
+		require.Empty(t, cfg.ToolAllowList)
+		require.Empty(t, cfg.ToolDenyList)
+		require.NotEmpty(t, cfg.Slug)
+		require.NotEmpty(t, cfg.Url)
+
+		// Overrides.
+		cfg2 := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			DisplayName:     "Custom MCP",
+			Slug:            "custom-mcp",
+			Url:             "https://custom.example.com",
+			AuthType:        "oauth2",
+			AllowInPlanMode: true,
+		})
+		require.Equal(t, "Custom MCP", cfg2.DisplayName)
+		require.Equal(t, "custom-mcp", cfg2.Slug)
+		require.Equal(t, "https://custom.example.com", cfg2.Url)
+		require.Equal(t, "oauth2", cfg2.AuthType)
+		require.True(t, cfg2.AllowInPlanMode)
+	})
 }
 
 func must[T any](value T, err error) T {
