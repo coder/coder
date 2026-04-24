@@ -347,6 +347,37 @@ export const AutoArchiveExceedsMax: Story = {
 	},
 };
 
+export const AutoArchiveBelowMin: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		const archiveForm = input.closest("form");
+		if (!(archiveForm instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive input to live inside a form.");
+		}
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "0");
+
+		const saveButton = within(archiveForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(input).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+		});
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Auto-archive period must be at least 1 day."),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 export const AutoArchiveSaveError: Story = {
 	args: {
 		autoArchiveDaysData: { auto_archive_days: 90 },

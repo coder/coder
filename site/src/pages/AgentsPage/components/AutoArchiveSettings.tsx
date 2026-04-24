@@ -133,11 +133,12 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 						disabled={isSavingAutoArchiveDays || isAutoArchiveDaysLoading}
 						className="w-full"
 					/>
-					{form.errors.auto_archive_days && form.touched.auto_archive_days && (
-						<p className="m-0 text-xs text-content-destructive">
-							{form.errors.auto_archive_days}
-						</p>
-					)}
+					{form.errors.auto_archive_days &&
+						(form.touched.auto_archive_days || form.dirty) && (
+							<p className="m-0 text-xs text-content-destructive">
+								{form.errors.auto_archive_days}
+							</p>
+						)}
 					<div className="mt-2 flex min-h-6 justify-end">
 						{(form.dirty || isSavedVisible || isSavingAutoArchiveDays) &&
 							(isSavedVisible ? (
