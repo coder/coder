@@ -180,5 +180,6 @@ func (w *Walker) Next() (*Key, error) {
 		return key, nil
 	}
 
+	// No keys available.
 	return nil, ErrAllKeysExhausted
 }
