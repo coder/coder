@@ -163,7 +163,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	}
 
 	// Same rationale as chat_retention_days: read outside the tx.
-	chatAutoArchiveDays, err := db.GetChatAutoArchiveDays(ctx, database.DefaultChatAutoArchiveDays)
+	chatAutoArchiveDays, err := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
 	if err != nil {
 		i.logger.Warn(ctx, "failed to read chat auto-archive config, skipping auto-archive", slog.Error(err))
 		chatAutoArchiveDays = 0

@@ -796,6 +796,11 @@ type ChatDebugStep struct {
 // Zero means disabled — the template's own autostop setting applies.
 const DefaultChatWorkspaceTTL = 0
 
+// DefaultChatAutoArchiveDays is the default auto-archive window, in
+// days, applied when no site config row exists. Zero disables
+// auto-archival.
+const DefaultChatAutoArchiveDays int32 = 0
+
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {

@@ -3413,6 +3413,14 @@ export interface DebugProfileOptions {
 
 // From codersdk/chats.go
 /**
+ * DefaultChatAutoArchiveDays is the default auto-archive window, in
+ * days, applied when no site config row exists. Zero disables
+ * auto-archival.
+ */
+export const DefaultChatAutoArchiveDays = 0;
+
+// From codersdk/chats.go
+/**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
  * Zero means disabled — the template's own autostop setting applies.
  */

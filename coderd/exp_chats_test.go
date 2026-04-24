@@ -10975,7 +10975,7 @@ func TestChatAutoArchiveDays(t *testing.T) {
 	// nothing has been configured.
 	resp, err := adminClient.GetChatAutoArchiveDays(ctx)
 	require.NoError(t, err, "get default")
-	require.Equal(t, database.DefaultChatAutoArchiveDays, resp.AutoArchiveDays, "default should match DefaultChatAutoArchiveDays")
+	require.Equal(t, codersdk.DefaultChatAutoArchiveDays, resp.AutoArchiveDays, "default should match DefaultChatAutoArchiveDays")
 
 	// Admin can set auto-archive days to 45.
 	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
