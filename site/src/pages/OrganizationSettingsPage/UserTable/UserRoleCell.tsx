@@ -187,11 +187,13 @@ function sortRolesByAccessLevel<T extends SlimRole>(
 		return roles;
 	}
 
-	return [...roles].sort(
-		(r1, r2) =>
-			roleNamesByAccessLevel.indexOf(r1.name) -
-			roleNamesByAccessLevel.indexOf(r2.name),
-	);
+	// Roles not in the priority list (e.g. "member") sort after all known roles.
+	const rank = (name: string) =>
+		roleNamesByAccessLevel.includes(name)
+			? roleNamesByAccessLevel.indexOf(name)
+			: Number.POSITIVE_INFINITY;
+
+	return [...roles].sort((r1, r2) => rank(r1.name) - rank(r2.name));
 }
 
 function getSelectedRoleNames(roles: readonly SlimRole[]) {
