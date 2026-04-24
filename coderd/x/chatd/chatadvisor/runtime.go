@@ -91,9 +91,9 @@ func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions 
 // response on the provider side. Must be called on a cloned map to avoid
 // mutating shared parent state.
 func resetProviderOptionsForNestedCall(opts fantasy.ProviderOptions) {
-	storeDisabled := false
 	for _, value := range opts {
 		if typed, ok := value.(*fantasyopenai.ResponsesProviderOptions); ok && typed != nil {
+			storeDisabled := false
 			typed.PreviousResponseID = nil
 			typed.Store = &storeDisabled
 		}
