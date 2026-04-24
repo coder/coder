@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { templaceACLAvailable } from "#/api/queries/templates";
@@ -78,7 +78,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
 						src={option.avatar_url}
 					/>
-					{isSelected && <Check className="size-4 shrink-0" />}
+					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>
 			)}
 			open={open}

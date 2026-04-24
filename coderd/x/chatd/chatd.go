@@ -64,6 +64,9 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	// defaultDialTimeout matches the timeout used by ~8 other
+	// server-side AgentConn callers.
+	defaultDialTimeout = 30 * time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -116,7 +119,17 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
-var errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+var (
+	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatAgentDisconnected   = xerrors.New(
+		"workspace agent is disconnected and cannot execute tools. " +
+			"The workspace may need to be restarted from the Coder dashboard",
+	)
+	errChatDialTimeout = xerrors.New(
+		"connection to the workspace agent timed out. " +
+			"The workspace may need to be restarted from the Coder dashboard",
+	)
+)
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -133,6 +146,7 @@ type Server struct {
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
+	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
@@ -547,6 +561,16 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 	return nil, agentRelease
 }
 
+// isAgentUnreachable reports whether the given agent row's
+// status is disconnected or timed out. It uses timestamp
+// arithmetic on the row. The "connecting" state is allowed
+// through because it is normal after a fresh workspace build.
+func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
+	status := agent.Status(now, inactiveTimeout)
+	return status.Status == database.WorkspaceAgentStatusDisconnected ||
+		status.Status == database.WorkspaceAgentStatusTimeout
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -555,8 +579,30 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		// Capture agentID in the same lock section as
+		// currentConn to prevent a TOCTOU race with
+		// concurrent clearCachedWorkspaceState calls.
+		agentID := c.agent.ID
 		c.mu.Unlock()
+
+		// Status check on cache hit: re-fetch the agent
+		// row so we see the latest heartbeat rather than
+		// a potentially stale cached copy.
 		if currentConn != nil {
+			if agentID != uuid.Nil {
+				freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
+				if err != nil {
+					c.server.logger.Warn(ctx, "failed to re-fetch agent for status check",
+						slog.F("agent_id", agentID),
+						slog.Error(err),
+					)
+					// On DB error the check re-runs on the
+					// next tool call.
+				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
+					c.clearCachedWorkspaceState()
+					return nil, errChatAgentDisconnected
+				}
+			}
 			return currentConn, nil
 		}
 		if staleRelease != nil {
@@ -568,8 +614,13 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			return nil, err
 		}
 
+		// Wrap the dial in a timeout to bound the time spent
+		// waiting for an unreachable agent. The timeout scopes
+		// only dialWithLazyValidation, not ensureWorkspaceAgent
+		// or the post-dial binding steps.
+		dialCtx, dialCancel := context.WithTimeoutCause(ctx, c.server.dialTimeout, errChatDialTimeout)
 		dialResult, err := dialWithLazyValidation(
-			ctx,
+			dialCtx,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
@@ -578,13 +629,21 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			},
 			workspaceDialValidationDelay,
 		)
+		dialCancel()
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
+				return nil, err
+			}
+			// Surface the dial timeout sentinel only when the
+			// parent context is still alive. If the parent was
+			// canceled (e.g. ErrInterrupted), its error must
+			// propagate unchanged so the chatloop can detect it.
+			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
+				return nil, errChatDialTimeout
 			}
 			return nil, err
 		}
-
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
 		if dialResult.WasSwitched {
@@ -812,6 +871,8 @@ func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
 const MaxQueueSize = 20
 
 var (
+	// ErrInvalidModelConfigID indicates the requested model config does not exist.
+	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
 	// ErrMessageQueueFull indicates the per-chat queue limit was reached.
 	ErrMessageQueueFull = xerrors.New("chat message queue is full")
 	// ErrEditedMessageNotFound indicates the edited message does not exist
@@ -819,6 +880,10 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+	// ErrChatArchived indicates the chat is archived and cannot
+	// accept modifications (messages, edits, promotions, or
+	// tool-result submissions).
+	ErrChatArchived = xerrors.New("chat is archived")
 
 	// errChatTakenByOtherWorker is a sentinel used inside the
 	// processChat cleanup transaction to signal that another
@@ -887,7 +952,7 @@ type SendMessageOptions struct {
 	ChatID        uuid.UUID
 	CreatedBy     uuid.UUID
 	Content       []codersdk.ChatMessagePart
-	ModelConfigID *uuid.UUID
+	ModelConfigID uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
 	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
@@ -920,7 +985,6 @@ type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
 	QueuedMessageID int64
-	ModelConfigID   *uuid.UUID
 }
 
 // PromoteQueuedResult contains post-promotion message metadata.
@@ -1135,6 +1199,10 @@ func (p *Server) SendMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+
 		// Enforce usage limits before queueing or inserting.
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
 			return limitErr
@@ -1150,19 +1218,32 @@ func (p *Server) SendMessage(
 			}
 		}
 
-		modelConfigID := lockedChat.LastModelConfigID
-		if opts.ModelConfigID != nil {
-			modelConfigID = *opts.ModelConfigID
+		modelConfigID, err := resolveSendMessageModelConfigID(
+			ctx,
+			tx,
+			lockedChat,
+			opts.ModelConfigID,
+		)
+		if err != nil {
+			return err
 		}
 
 		// Update MCP server IDs on the chat when explicitly provided.
+		// Explore child chats keep the spawn-time snapshot immutable.
 		if opts.MCPServerIDs != nil {
-			lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
-				ID:           opts.ChatID,
-				MCPServerIDs: *opts.MCPServerIDs,
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat mcp server ids: %w", err)
+			if isExploreSubagentMode(lockedChat.Mode) {
+				p.logger.Warn(ctx,
+					"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
+					slog.F("chat_id", opts.ChatID),
+				)
+			} else {
+				lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+					ID:           opts.ChatID,
+					MCPServerIDs: *opts.MCPServerIDs,
+				})
+				if err != nil {
+					return xerrors.Errorf("update chat mcp server ids: %w", err)
+				}
 			}
 		}
 
@@ -1189,6 +1270,10 @@ func (p *Server) SendMessage(
 			queued, err := tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 				ChatID:  opts.ChatID,
 				Content: content.RawMessage,
+				ModelConfigID: uuid.NullUUID{
+					UUID:  modelConfigID,
+					Valid: modelConfigID != uuid.Nil,
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert queued message: %w", err)
@@ -1293,6 +1378,90 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 	return nil
 }
 
+func chatdModelConfigLookupContext(ctx context.Context) context.Context {
+	//nolint:gocritic // Chat message admission needs daemon-scoped
+	// deployment-config reads for model config validation.
+	return dbauthz.AsChatd(ctx)
+}
+
+func resolveSendMessageModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	requested uuid.UUID,
+) (uuid.UUID, error) {
+	if requested == uuid.Nil {
+		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+	}
+
+	chatdCtx := chatdModelConfigLookupContext(ctx)
+	if _, err := store.GetChatModelConfigByID(chatdCtx, requested); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"%w: %s",
+				ErrInvalidModelConfigID,
+				requested,
+			)
+		}
+		return uuid.Nil, xerrors.Errorf(
+			"get requested model config %s: %w",
+			requested,
+			err,
+		)
+	}
+	return requested, nil
+}
+
+func resolveQueuedMessageModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	queuedModelConfigID uuid.NullUUID,
+) (uuid.UUID, error) {
+	chatdCtx := chatdModelConfigLookupContext(ctx)
+	if queuedModelConfigID.Valid && queuedModelConfigID.UUID != uuid.Nil {
+		if _, err := store.GetChatModelConfigByID(chatdCtx, queuedModelConfigID.UUID); err == nil {
+			return queuedModelConfigID.UUID, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"get queued model config %s: %w",
+				queuedModelConfigID.UUID,
+				err,
+			)
+		}
+	}
+
+	return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+}
+
+func resolveFallbackModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	modelConfigID uuid.UUID,
+) (uuid.UUID, error) {
+	chatdCtx := chatdModelConfigLookupContext(ctx)
+	if modelConfigID != uuid.Nil {
+		if _, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID); err == nil {
+			return modelConfigID, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"get chat model config %s: %w",
+				modelConfigID,
+				err,
+			)
+		}
+	}
+
+	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.New("no default chat model config is available")
+		}
+		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
+	}
+	return defaultConfig.ID, nil
+}
+
 // EditMessage marks the old user message as deleted, soft-deletes all
 // following messages, inserts a new message with the updated content,
 // clears queued messages, and moves the chat into pending status.
@@ -1323,6 +1492,10 @@ func (p *Server) EditMessage(
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		if lockedChat.Archived {
+			return ErrChatArchived
 		}
 
 		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
@@ -1684,9 +1857,9 @@ func (p *Server) PromoteQueued(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		modelConfigID := lockedChat.LastModelConfigID
-		if opts.ModelConfigID != nil {
-			modelConfigID = *opts.ModelConfigID
+
+		if lockedChat.Archived {
+			return ErrChatArchived
 		}
 
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
@@ -1695,18 +1868,30 @@ func (p *Server) PromoteQueued(
 		}
 
 		var (
-			targetContent json.RawMessage
-			found         bool
+			targetContent       json.RawMessage
+			targetModelConfigID uuid.NullUUID
+			found               bool
 		)
 		for _, qm := range queuedMessages {
 			if qm.ID == opts.QueuedMessageID {
 				targetContent = qm.Content
+				targetModelConfigID = qm.ModelConfigID
 				found = true
 				break
 			}
 		}
 		if !found {
 			return xerrors.New("queued message not found")
+		}
+
+		effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
+			ctx,
+			tx,
+			lockedChat,
+			targetModelConfigID,
+		)
+		if err != nil {
+			return err
 		}
 
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
@@ -1721,7 +1906,7 @@ func (p *Server) PromoteQueued(
 			ctx,
 			tx,
 			lockedChat,
-			modelConfigID,
+			effectiveModelConfigID,
 			pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
@@ -1821,6 +2006,9 @@ func (p *Server) SubmitToolResults(
 		locked, lockErr := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if lockErr != nil {
 			return xerrors.Errorf("lock chat for update: %w", lockErr)
+		}
+		if locked.Archived {
+			return ErrChatArchived
 		}
 		if locked.Status != database.ChatStatusRequiresAction {
 			statusConflict = &ToolResultStatusConflictError{
@@ -2196,44 +2384,112 @@ func (p *Server) RegenerateChatTitle(
 		keys,
 	)
 	if err != nil {
-		var generationErr *manualTitleGenerationError
-		if errors.As(err, &generationErr) {
-			// Reuse chatd's scoped auth context for failure accounting while
-			// detaching from request cancellation so usage is still recorded.
-			//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
-			recordCtx, recordCancel := context.WithTimeout(
-				dbauthz.AsChatd(context.WithoutCancel(ctx)),
-				5*time.Second,
-			)
-			defer recordCancel()
-			if _, recordErr := recordManualTitleUsage(
-				recordCtx,
-				p.db,
-				chat,
-				generationErr.modelConfig,
-				generationErr.usage,
-				"",
-			); recordErr != nil {
-				return database.Chat{}, errors.Join(
-					generationErr,
-					xerrors.Errorf("record manual title usage: %w", recordErr),
-				)
-			}
-			return database.Chat{}, generationErr
-		}
-		return database.Chat{}, err
+		return database.Chat{}, p.recordManualTitleGenerationFailure(ctx, chat, err)
 	}
 	return updatedChat, nil
 }
 
-func (p *Server) regenerateChatTitleWithStore(
+// RenameChatTitle persists a user-supplied chat title.
+func (p *Server) RenameChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+	newTitle string,
+) (updated database.Chat, wrote bool, err error) {
+	//nolint:gocritic // Lock release needs chatd-scoped writes.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return database.Chat{}, false, err
+	}
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+
+	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
+	}
+	if newTitle == currentChat.Title {
+		return currentChat, false, nil
+	}
+
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: newTitle,
+	})
+	if err != nil {
+		return database.Chat{}, false, xerrors.Errorf("update chat title: %w", err)
+	}
+	return updatedChat, true, nil
+}
+
+// PublishTitleChange broadcasts a title_change event for the given chat.
+func (p *Server) PublishTitleChange(chat database.Chat) {
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+}
+
+// ProposeChatTitle generates a title suggestion from the chat's visible messages without persisting it.
+func (p *Server) ProposeChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+) (string, error) {
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID)
+	if err != nil {
+		return "", xerrors.Errorf("resolve chat providers: %w", err)
+	}
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return "", err
+	}
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+
+	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat, keys)
+	if err != nil {
+		return "", p.recordManualTitleGenerationFailure(ctx, chat, err)
+	}
+	return title, nil
+}
+
+func (p *Server) recordManualTitleGenerationFailure(
+	ctx context.Context,
+	chat database.Chat,
+	err error,
+) error {
+	var generationErr *manualTitleGenerationError
+	if !errors.As(err, &generationErr) {
+		return err
+	}
+
+	//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
+	recordCtx, recordCancel := context.WithTimeout(
+		dbauthz.AsChatd(context.WithoutCancel(ctx)),
+		5*time.Second,
+	)
+	defer recordCancel()
+	if _, recordErr := recordManualTitleUsage(
+		recordCtx,
+		p.db,
+		chat,
+		generationErr.modelConfig,
+		generationErr.usage,
+		"",
+	); recordErr != nil {
+		return errors.Join(
+			generationErr,
+			xerrors.Errorf("record manual title usage: %w", recordErr),
+		)
+	}
+	return generationErr
+}
+
+//nolint:revive // flag-parameter: enableDebug toggles optional debug capture on a shared code path; splitting would duplicate message fetch and model resolution.
+func (p *Server) fetchAndGenerateManualTitle(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
-) (database.Chat, error) {
+	enableDebug bool,
+) (title string, modelConfig database.ChatModelConfig, usage fantasy.Usage, hasMessages bool, err error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
-		return database.Chat{}, limitErr
+		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, limitErr
 	}
 
 	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
@@ -2245,7 +2501,7 @@ func (p *Server) regenerateChatTitleWithStore(
 		},
 	)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get head chat messages: %w", err)
+		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, xerrors.Errorf("get head chat messages: %w", err)
 	}
 	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
 		ctx,
@@ -2257,47 +2513,93 @@ func (p *Server) regenerateChatTitleWithStore(
 		},
 	)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get tail chat messages: %w", err)
+		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, xerrors.Errorf("get tail chat messages: %w", err)
 	}
 	messages := mergeManualTitleMessages(headMessages, tailMessages)
 	if len(messages) == 0 {
-		return chat, nil
+		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, nil
 	}
 
 	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
 	if err != nil {
-		return database.Chat{}, err
+		return "", database.ChatModelConfig{}, fantasy.Usage{}, true, err
 	}
 
-	debugSvc := p.debugService()
-	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 	titleCtx := ctx
 	titleModel := model
 	finishDebugRun := func(error) {}
-	if debugEnabled {
-		titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
-			ctx,
-			debugSvc,
-			chat,
-			modelConfig,
-			keys,
-			messages,
-			model,
-		)
+	if enableDebug {
+		if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
+			titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
+				ctx,
+				debugSvc,
+				chat,
+				modelConfig,
+				keys,
+				messages,
+				model,
+			)
+		}
 	}
 
-	title, usage, err := generateManualTitle(titleCtx, messages, titleModel)
+	title, usage, err = generateManualTitle(titleCtx, messages, titleModel)
 	finishDebugRun(err)
 	if err != nil {
 		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
 		if usage == (fantasy.Usage{}) {
-			return database.Chat{}, wrappedErr
+			return "", modelConfig, fantasy.Usage{}, true, wrappedErr
 		}
-		return database.Chat{}, &manualTitleGenerationError{
+		return "", modelConfig, usage, true, &manualTitleGenerationError{
 			cause:       wrappedErr,
 			modelConfig: modelConfig,
 			usage:       usage,
 		}
+	}
+
+	return title, modelConfig, usage, true, nil
+}
+
+func (p *Server) proposeChatTitleWithStore(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (string, error) {
+	title, modelConfig, usage, hasMessages, err := p.fetchAndGenerateManualTitle(ctx, store, chat, keys, false)
+	if err != nil {
+		return "", err
+	}
+	if !hasMessages {
+		return "", nil
+	}
+
+	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer recordCancel()
+	if _, recordErr := recordManualTitleUsage(
+		recordCtx,
+		store,
+		chat,
+		modelConfig,
+		usage,
+		"",
+	); recordErr != nil {
+		return "", xerrors.Errorf("record manual title usage: %w", recordErr)
+	}
+	return title, nil
+}
+
+func (p *Server) regenerateChatTitleWithStore(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (database.Chat, error) {
+	title, modelConfig, usage, hasMessages, err := p.fetchAndGenerateManualTitle(ctx, store, chat, keys, true)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if !hasMessages {
+		return chat, nil
 	}
 
 	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -3113,6 +3415,8 @@ func BuildSingleChatMessageInsertParams(
 	return params
 }
 
+// insertUserMessageAndSetPending inserts a user message, transitions the
+// chat to pending when needed, and returns the refreshed chat row.
 func insertUserMessageAndSetPending(
 	ctx context.Context,
 	store database.Store,
@@ -3138,7 +3442,16 @@ func insertUserMessageAndSetPending(
 	message := messages[0]
 
 	if lockedChat.Status == database.ChatStatusPending {
-		return message, lockedChat, nil
+		if modelConfigID == uuid.Nil || lockedChat.LastModelConfigID == modelConfigID {
+			return message, lockedChat, nil
+		}
+		// The InsertChatMessages CTE updates chats.last_model_config_id when
+		// the message's model config differs. Reload to surface that change.
+		updatedChat, err := store.GetChatByID(ctx, lockedChat.ID)
+		if err != nil {
+			return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("get chat after model config update: %w", err)
+		}
+		return message, updatedChat, nil
 	}
 
 	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -3240,6 +3553,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
@@ -4551,12 +4865,30 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 ) (*database.ChatMessage, []database.ChatQueuedMessage, bool, error) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 
-	nextQueued, err := tx.PopNextQueuedMessage(ctx, chat.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	queuedMessages, err := tx.GetChatQueuedMessages(ctx, chat.ID)
+	if err != nil {
+		return nil, nil, false, xerrors.Errorf("get queued messages: %w", err)
+	}
+	if len(queuedMessages) == 0 {
 		return nil, nil, false, nil
 	}
+	nextQueued := queuedMessages[0]
+	effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
+		ctx,
+		tx,
+		chat,
+		nextQueued.ModelConfigID,
+	)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	poppedQueued, err := tx.PopNextQueuedMessage(ctx, chat.ID)
 	if err != nil {
 		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
+	}
+	if poppedQueued.ID != nextQueued.ID {
+		return nil, nil, false, xerrors.New("popped queued message out of order")
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
@@ -4569,7 +4901,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 			Valid:      len(nextQueued.Content) > 0,
 		},
 		database.ChatMessageVisibilityBoth,
-		chat.LastModelConfigID,
+		effectiveModelConfigID,
 		chatprompt.CurrentContentVersion,
 	).withCreatedBy(chat.OwnerID))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
@@ -5035,40 +5367,102 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-func allowedPlanToolNames(
-	allTools []fantasy.AgentTool,
+// filterExternalMCPConfigsForTurn returns the external MCP server configs
+// visible on the current turn. Explore children snapshot this filtered set at
+// spawn time so later model overrides cannot widen the external-tool boundary.
+func filterExternalMCPConfigsForTurn(
+	configs []database.MCPServerConfig,
+	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
-) []string {
-	isRootChat := !parentChatID.Valid
-	builtinPlanPolicy := map[string]bool{
-		"read_file":                true,
-		"write_file":               isRootChat,
-		"edit_files":               isRootChat,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             false,
-		"process_signal":           false,
-		"list_templates":           isRootChat,
-		"read_template":            isRootChat,
-		"create_workspace":         isRootChat,
-		"start_workspace":          isRootChat,
-		"propose_plan":             isRootChat,
-		"spawn_agent":              isRootChat,
-		"spawn_explore_agent":      isRootChat,
-		"wait_agent":               isRootChat,
-		"message_agent":            false,
-		"close_agent":              false,
-		"spawn_computer_use_agent": false,
-		"read_skill":               true,
-		"read_skill_file":          true,
-		"ask_user_question":        isRootChat,
+) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return configs, nil
+	}
+	if parentChatID.Valid {
+		// Plan-mode subagents do not receive external MCP tools because
+		// their trust boundary is narrower than the root chat's.
+		return nil, map[uuid.UUID]struct{}{}
 	}
 
+	filtered := make([]database.MCPServerConfig, 0, len(configs))
+	approvedIDs := make(map[uuid.UUID]struct{})
+	for _, cfg := range configs {
+		if !cfg.AllowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, cfg)
+		approvedIDs[cfg.ID] = struct{}{}
+	}
+	return filtered, approvedIDs
+}
+
+func builtinPlanToolAllowed(name string, isRootChat bool) bool {
+	switch name {
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+		return true
+	case "write_file", "edit_files", "list_templates", "read_template",
+		"create_workspace", "start_workspace", "propose_plan", "spawn_agent",
+		"spawn_explore_agent", "wait_agent", "ask_user_question":
+		return isRootChat
+	case "process_list", "process_signal", "message_agent", "close_agent",
+		"spawn_computer_use_agent":
+		return false
+	default:
+		return false
+	}
+}
+
+func toolAllowedForTurn(
+	tool fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) bool {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return true
+	}
+	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
+		return true
+	}
+	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
+	if !ok {
+		return false
+	}
+	_, approved := approvedMCPConfigIDs[mcpTool.MCPServerConfigID()]
+	return approved
+}
+
+func filterToolsForTurn(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) []fantasy.AgentTool {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return allTools
+	}
+
+	filtered := make([]fantasy.AgentTool, 0, len(allTools))
+	for _, tool := range allTools {
+		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
+}
+
+// activeToolNamesForTurn extends the built-in plan allowlist with approved
+// external MCP tools for root plan-mode chats.
+func activeToolNamesForTurn(
+	allTools []fantasy.AgentTool,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	approvedMCPConfigIDs map[uuid.UUID]struct{},
+) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		name := tool.Info().Name
-		if builtinPlanPolicy[name] {
-			toolNames = append(toolNames, name)
+		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
 	return toolNames
@@ -5076,27 +5470,25 @@ func allowedPlanToolNames(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":                true,
-		"write_file":               false,
-		"edit_files":               false,
-		"execute":                  true,
-		"process_output":           true,
-		"process_list":             false,
-		"process_signal":           false,
-		"list_templates":           false,
-		"read_template":            false,
-		"create_workspace":         false,
-		"start_workspace":          false,
-		"propose_plan":             false,
-		"spawn_agent":              false,
-		"spawn_explore_agent":      false,
-		"wait_agent":               false,
-		"message_agent":            false,
-		"close_agent":              false,
-		"spawn_computer_use_agent": false,
-		"read_skill":               true,
-		"read_skill_file":          true,
-		"ask_user_question":        false,
+		"read_file":         true,
+		"write_file":        false,
+		"edit_files":        false,
+		"execute":           true,
+		"process_output":    true,
+		"process_list":      false,
+		"process_signal":    false,
+		"list_templates":    false,
+		"read_template":     false,
+		"create_workspace":  false,
+		"start_workspace":   false,
+		"propose_plan":      false,
+		"spawn_agent":       false,
+		"wait_agent":        false,
+		"message_agent":     false,
+		"close_agent":       false,
+		"read_skill":        true,
+		"read_skill_file":   true,
+		"ask_user_question": false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -5104,35 +5496,38 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		name := tool.Info().Name
 		if builtinExplorePolicy[name] {
 			toolNames = append(toolNames, name)
+			continue
+		}
+		// External MCP tools pass through here. They were snapshot-filtered
+		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
+		// implement MCPToolIdentifier, so workspace tools are excluded
+		// here too, in addition to the structural exclusion in runChat
+		// tool assembly.
+		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+			toolNames = append(toolNames, name)
 		}
 	}
 	return toolNames
 }
 
-// allowedBehaviorToolNames applies behavior-specific precedence for
-// tool filtering: Explore mode wins over plan mode, and plan mode wins
-// over the default behavior that allows all tools.
+// allowedBehaviorToolNames runs only on non-plan turns because
+// appendDynamicTools returns early for plan mode. Within that boundary,
+// Explore mode wins over the default behavior that allows all tools.
 func allowedBehaviorToolNames(
 	allTools []fantasy.AgentTool,
-	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
 ) []string {
 	if isExploreSubagentMode(chatMode) {
 		return allowedExploreToolNames(allTools)
 	}
-	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
-		return allowedPlanToolNames(allTools, parentChatID)
-	}
 	return allToolNames(allTools)
 }
 
-func stopAfterBehaviorTools(
+func stopAfterPlanTools(
 	planMode database.NullChatPlanMode,
-	chatMode database.NullChatMode,
 	parentChatID uuid.NullUUID,
 ) map[string]struct{} {
-	if isExploreSubagentMode(chatMode) || !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
+	if !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
 	}
 	stopTools := map[string]struct{}{
@@ -5142,6 +5537,17 @@ func stopAfterBehaviorTools(
 		stopTools["ask_user_question"] = struct{}{}
 	}
 	return stopTools
+}
+
+func stopAfterBehaviorTools(
+	planMode database.NullChatPlanMode,
+	chatMode database.NullChatMode,
+	parentChatID uuid.NullUUID,
+) map[string]struct{} {
+	if isExploreSubagentMode(chatMode) {
+		return nil
+	}
+	return stopAfterPlanTools(planMode, parentChatID)
 }
 
 type systemPromptBehaviorContext struct {
@@ -5181,7 +5587,7 @@ func buildSystemPrompt(
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
 		if behaviorContext.isRootChat {
-			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt)
+			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt())
 			if behaviorContext.planModeInstructions != "" {
 				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
 			}
@@ -5319,7 +5725,6 @@ func appendDynamicTools(
 	raw pqtype.NullRawMessage,
 	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
 ) ([]fantasy.AgentTool, map[string]bool, error) {
 	if isExploreSubagentMode(chatMode) || (planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan) {
 		return tools, nil, nil
@@ -5341,7 +5746,7 @@ func appendDynamicTools(
 	}
 
 	activeToolNames := make(map[string]struct{}, len(tools))
-	for _, name := range allowedBehaviorToolNames(tools, planMode, chatMode, parentChatID) {
+	for _, name := range allowedBehaviorToolNames(tools, chatMode) {
 		activeToolNames[name] = struct{}{}
 	}
 	for _, t := range tools {
@@ -5456,6 +5861,26 @@ func (p *Server) runChat(
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
+	isRootChat := !chat.ParentChatID.Valid
+	var mcpConnectConfigs []database.MCPServerConfig
+	var approvedPlanMCPConfigIDs map[uuid.UUID]struct{}
+	// Explore subagents rely on the immutable spawn-time snapshot
+	// persisted in chat.MCPServerIDs. SendMessage cannot mutate that
+	// snapshot, so no runtime re-filter against parent state is needed.
+	// The child's persisted set is authoritative.
+	mcpConnectConfigs, approvedPlanMCPConfigIDs = filterExternalMCPConfigsForTurn(
+		mcpConfigs,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
+	if isExploreSubagent && isRootChat {
+		// Root Explore chats stay builtin-only per the accepted plan, so
+		// strip any persisted external MCP configs at runtime regardless of
+		// what's on the chat row. Explore children get their snapshot via
+		// the spawn-time inheritance path and are handled below.
+		mcpConnectConfigs = nil
+		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
+	}
 	planModeInstructions := p.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 
 	chainInfo := resolveChainMode(messages)
@@ -5654,17 +6079,20 @@ func (p *Server) runChat(
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
 	})
-	if len(mcpConfigs) > 0 {
+	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
 			// Refresh expired OAuth2 tokens before connecting.
-			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConfigs, mcpTokens)
+			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
-				ctx, logger, mcpConfigs, mcpTokens,
+				ctx, logger, mcpConnectConfigs, mcpTokens,
 			)
 			return nil
 		})
 	}
-	if chat.WorkspaceID.Valid {
+	// Workspace MCP discovery stays disabled for all plan-mode turns.
+	// Root plan mode only gets approved external MCP servers, and
+	// plan-mode subagents get no MCP tools.
+	if chat.WorkspaceID.Valid && !isPlanModeTurn {
 		g2.Go(func() error {
 			// Fast path: check cache using the in-memory cached
 			// agent (ensureWorkspaceAgent is free when already
@@ -5735,7 +6163,6 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
-	isRootChat := !chat.ParentChatID.Valid
 	subagentInstruction := ""
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
@@ -5833,7 +6260,7 @@ func (p *Server) runChat(
 		// FOR UPDATE lock is held only for the INSERT statements.
 		// Marshaling is pure CPU work with no database dependency.
 		assistantParts := buildAssistantPartsForPersist(
-			ctx,
+			persistCtx,
 			p.logger,
 			assistantBlocks,
 			toolResults,
@@ -5853,7 +6280,7 @@ func (p *Server) runChat(
 
 		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
 		for i, tr := range toolResults {
-			trPart := chatprompt.PartFromContent(tr)
+			trPart := chatprompt.PartFromContentWithLogger(ctx, logger, tr)
 			if trPart.ToolName != "" {
 				if configID, ok := toolNameToConfigID[trPart.ToolName]; ok {
 					trPart.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
@@ -6161,19 +6588,26 @@ func (p *Server) runChat(
 	}
 
 	// Record builtin tool names before appending MCP tools
-	// so the metrics layer can bound label cardinality.
+	// so the metrics layer can differentiate between built-in and MCP tools.
 	builtinToolNames := make(map[string]bool, len(tools))
 	for _, t := range tools {
 		builtinToolNames[t.Info().Name] = true
 	}
 
-	// Append tools from external MCP servers. These appear
-	// after the built-in tools so the LLM sees them as
-	// additional capabilities.
-	if !isPlanModeTurn && !isExploreSubagent {
-		tools = append(tools, mcpTools...)
+	// Append external MCP tools from the chat's persisted snapshot after the
+	// built-ins so the LLM sees them as additional capabilities. Explore chats
+	// trust only the persisted MCPServerIDs snapshot, and workspace-local MCP
+	// tools stay unavailable to Explore chats.
+	tools = append(tools, mcpTools...)
+	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
 	}
+	tools = filterToolsForTurn(
+		tools,
+		currentPlanMode,
+		chat.ParentChatID,
+		approvedPlanMCPConfigIDs,
+	)
 	// Append dynamic tools declared by the client at chat
 	// creation time. These appear in the LLM's tool list but
 	// are never executed by the chatloop. The client handles
@@ -6186,17 +6620,28 @@ func (p *Server) runChat(
 		chat.DynamicTools,
 		currentPlanMode,
 		chat.Mode,
-		chat.ParentChatID,
 	)
 	if err != nil {
 		return result, err
 	}
 
-	// Build provider-native tools (e.g., web search) based on
-	// the model configuration.
+	// Build provider-native tools (e.g. web search) based on the
+	// current model configuration. Root Explore chats stay builtin-only per
+	// the accepted plan, so delegated Explore children are the only Explore
+	// chats that can inherit web_search. Write-style provider tools stay
+	// blocked for all Explore chats.
 	var providerTools []chatloop.ProviderTool
-	if !isPlanModeTurn && !isExploreSubagent && callConfig.ProviderOptions != nil {
+	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
+		if isExploreSubagent {
+			if !chat.ParentChatID.Valid {
+				providerTools = nil
+			} else {
+				providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
+					return tool.Definition.GetName() != "web_search"
+				})
+			}
+		}
 	}
 
 	if !isPlanModeTurn && !isExploreSubagent && isComputerUse {
@@ -6238,8 +6683,35 @@ func (p *Server) runChat(
 		)
 		prompt = filterPromptForChainMode(prompt, chainInfo)
 	}
+	activeToolNames := activeToolNamesForTurn(
+		tools,
+		currentPlanMode,
+		chat.ParentChatID,
+		approvedPlanMCPConfigIDs,
+	)
+	if isExploreSubagent {
+		activeToolNames = allowedExploreToolNames(tools)
+	}
+
 	var loopErr error
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(messages)
+
+	// Enrich the logger with correlation fields useful for
+	// diagnosing tool-call errors inside the chatloop.
+	loopLogger := logger.With(
+		slog.F("owner_id", chat.OwnerID),
+		slog.F("organization_id", chat.OrganizationID),
+		slog.F("trigger_message_id", triggerMessageID),
+	)
+	if chat.WorkspaceID.Valid {
+		loopLogger = loopLogger.With(slog.F("workspace_id", chat.WorkspaceID.UUID))
+	}
+	if chat.AgentID.Valid {
+		loopLogger = loopLogger.With(slog.F("agent_id", chat.AgentID.UUID))
+	}
+	if chat.ParentChatID.Valid {
+		loopLogger = loopLogger.With(slog.F("parent_chat_id", chat.ParentChatID.UUID))
+	}
 	result.TriggerMessageID = triggerMessageID
 	result.HistoryTipMessageID = historyTipMessageID
 	finishDebugRun := func(error, any) {}
@@ -6269,10 +6741,11 @@ func (p *Server) runChat(
 		Model:            model,
 		Messages:         prompt,
 		Tools:            tools,
-		ActiveTools:      allowedBehaviorToolNames(tools, currentPlanMode, chat.Mode, chat.ParentChatID),
+		ActiveTools:      activeToolNames,
 		StopAfterTools:   stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		MaxSteps:         maxChatSteps,
 		Metrics:          p.metrics,
+		Logger:           loopLogger,
 		BuiltinToolNames: builtinToolNames,
 
 		ModelConfig:     callConfig,
@@ -6420,6 +6893,10 @@ func (p *Server) runChat(
 // tools are executed server-side by the LLM provider.
 func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []chatloop.ProviderTool {
 	var tools []chatloop.ProviderTool
+
+	if options == nil {
+		return nil
+	}
 
 	if options.Anthropic != nil && options.Anthropic.WebSearchEnabled != nil && *options.Anthropic.WebSearchEnabled {
 		tools = append(tools, chatloop.ProviderTool{

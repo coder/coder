@@ -1184,8 +1184,8 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/explore-model-override", api.getChatExploreModelOverride)
-				r.Put("/explore-model-override", api.putChatExploreModelOverride)
+				r.Get("/agent-model-override/{context}", api.getChatAgentModelOverride)
+				r.Put("/agent-model-override/{context}", api.putChatAgentModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/debug-logging", api.getChatDebugLogging)
@@ -1201,6 +1201,8 @@ func New(options *Options) *API {
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
 				r.Get("/retention-days", api.getChatRetentionDays)
 				r.Put("/retention-days", api.putChatRetentionDays)
+				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
+				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
@@ -1257,6 +1259,7 @@ func New(options *Options) *API {
 				r.Post("/interrupt", api.interruptChat)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
+				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
@@ -2036,16 +2039,20 @@ func New(options *Options) *API {
 	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, additionalCSPHeaders)
 
 	// Embed routes (e.g. VS Code extension chat) are designed to be
-	// loaded inside iframes, so they need a relaxed frame-ancestors
-	// policy instead of the default 'self'. However, if the operator
-	// explicitly configured frame-ancestors via CODER_ADDITIONAL_CSP_POLICY,
+	// loaded inside iframes, so they must not include frame-ancestors
+	// in their CSP. The CSP wildcard '*' only matches network schemes
+	// (http, https, ws, wss) and cannot cover custom schemes like
+	// vscode-webview://, so the only way to allow all embedders is
+	// to omit the directive entirely. If the operator explicitly
+	// configured frame-ancestors via CODER_ADDITIONAL_CSP_POLICY,
 	// respect that setting.
+
 	embedCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(additionalCSPHeaders))
 	for k, v := range additionalCSPHeaders {
 		embedCSPHeaders[k] = v
 	}
 	if _, ok := additionalCSPHeaders[httpmw.CSPFrameAncestors]; !ok {
-		embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{"*"}
+		embedCSPHeaders[httpmw.CSPFrameAncestors] = []string{}
 	}
 	embedCSPMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), cspProxyHosts, embedCSPHeaders)
 	embedHandler := embedCSPMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg)))

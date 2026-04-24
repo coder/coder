@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -55,8 +57,9 @@ func TestPurge(t *testing.T) {
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -90,7 +93,7 @@ func TestMetrics(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days retention
 			},
-		}, clk, reg)
+		}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -151,6 +154,7 @@ func TestMetrics(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
 		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -158,7 +162,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, clk, reg)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -248,7 +252,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -273,7 +277,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -368,7 +372,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		Retention: codersdk.RetentionConfig{
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
-	}, clk, prometheus.NewRegistry())
+	}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 
 	defer closer.Close()
 	<-done // doTick() has now run.
@@ -422,6 +426,63 @@ func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struc
 	}()
 
 	return ch
+}
+
+// tickDriver drives one or more dbpurge ticks against a single
+// dbpurge.New instance. Unlike awaitDoTick it must be constructed
+// *before* dbpurge.New so its traps are installed when the forced
+// initial tick fires. awaitInitial waits for the forced tick's
+// doTick to complete without advancing the clock, so no loop
+// iteration has yet run; awaitNext then explicitly drives each
+// subsequent iteration. This keeps each tick's observable state
+// isolated and deterministic, which matters for tests where
+// per-tick work differs (e.g. batch-size pagination).
+type tickDriver struct {
+	clk       *quartz.Mock
+	trapNow   *quartz.Trap
+	trapStop  *quartz.Trap
+	trapReset *quartz.Trap
+}
+
+func newTickDriver(t *testing.T, clk *quartz.Mock) *tickDriver {
+	t.Helper()
+	d := &tickDriver{
+		clk:       clk,
+		trapNow:   clk.Trap().Now(),
+		trapStop:  clk.Trap().TickerStop(),
+		trapReset: clk.Trap().TickerReset(),
+	}
+	return d
+}
+
+// close releases all traps. Call this via defer *after* the defer
+// that closes the dbpurge instance so trap closure releases the
+// shutdown ticker.Stop() rather than blocking on it.
+func (d *tickDriver) close() {
+	d.trapReset.Close()
+	d.trapStop.Close()
+	d.trapNow.Close()
+}
+
+// awaitInitial waits for the forced initial tick's doTick to
+// complete. No loop iteration runs because the clock has not been
+// advanced.
+func (d *tickDriver) awaitInitial(ctx context.Context, t *testing.T) {
+	t.Helper()
+	d.trapNow.MustWait(ctx).MustRelease(ctx)
+	d.trapReset.MustWait(ctx).MustRelease(ctx)
+}
+
+// awaitNext advances the clock by the tick interval, lets the loop
+// receive the tick and run doTick, and waits for the ensuing
+// ticker.Reset so the driver is ready for another awaitNext.
+func (d *tickDriver) awaitNext(ctx context.Context, t *testing.T) {
+	t.Helper()
+	dur, w := d.clk.AdvanceNext()
+	require.Equal(t, 10*time.Minute, dur)
+	w.MustWait(ctx)
+	d.trapStop.MustWait(ctx).MustRelease(ctx)
+	d.trapReset.MustWait(ctx).MustRelease(ctx)
 }
 
 func assertNoWorkspaceAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
@@ -583,7 +644,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -674,7 +735,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -778,7 +839,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -941,7 +1002,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -1060,7 +1121,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1316,7 +1377,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1403,7 +1464,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1493,7 +1554,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk, prometheus.NewRegistry())
+		}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1613,7 +1674,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1646,6 +1707,23 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// nopAuditorPtr returns an atomic pointer to a nop auditor for tests.
+func nopAuditorPtr(t *testing.T) *atomic.Pointer[audit.Auditor] {
+	t.Helper()
+	nop := audit.NewNop()
+	var p atomic.Pointer[audit.Auditor]
+	p.Store(&nop)
+	return &p
+}
+
+// mockAuditorPtr wraps a *MockAuditor in an atomic pointer for tests.
+func mockAuditorPtr(m *audit.MockAuditor) *atomic.Pointer[audit.Auditor] {
+	a := audit.Auditor(m)
+	var p atomic.Pointer[audit.Auditor]
+	p.Store(&a)
+	return &p
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
@@ -1742,7 +1820,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1799,7 +1877,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1856,7 +1934,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1936,7 +2014,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2127,6 +2205,555 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Equal(t, int64(1), deleted, "should delete remaining 1 chat")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
+	}
+}
+
+// helpers for TestAutoArchiveInactiveChats. Kept scoped to the
+// test so they don't leak into the package surface area.
+func archiveTestDeps(ctx context.Context, t *testing.T, db database.Store) chatAutoArchiveDeps {
+	t.Helper()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+	mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:     "openai",
+		Model:        "test-model",
+		ContextLimit: 8192,
+		Options:      json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+	return chatAutoArchiveDeps{user: user, org: org, modelConfig: mc}
+}
+
+type chatAutoArchiveDeps struct {
+	user        database.User
+	org         database.Organization
+	modelConfig database.ChatModelConfig
+}
+
+// archiveHarness bundles the per-subtest setup shared by every
+// TestAutoArchiveInactiveChats case. Subtests read fields off the
+// harness directly instead of repeating six lines of identical
+// plumbing.
+type archiveHarness struct {
+	ctx    context.Context
+	clk    *quartz.Mock
+	db     database.Store
+	rawDB  *sql.DB
+	logger slog.Logger
+	deps   chatAutoArchiveDeps
+}
+
+func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	return &archiveHarness{
+		ctx:    ctx,
+		clk:    clk,
+		db:     db,
+		rawDB:  rawDB,
+		logger: logger,
+		deps:   archiveTestDeps(ctx, t, db),
+	}
+}
+
+// createArchiveChat inserts a chat with an optional backdated
+// created_at. Title is propagated through so tests can assert on
+// digest contents.
+func createArchiveChat(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, deps chatAutoArchiveDeps, title string, createdAt time.Time) database.Chat {
+	t.Helper()
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    deps.org.ID,
+		OwnerID:           deps.user.ID,
+		LastModelConfigID: deps.modelConfig.ID,
+		Title:             title,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
+	_, err = rawDB.ExecContext(ctx, "UPDATE chats SET created_at = $1, updated_at = $1 WHERE id = $2", createdAt, chat.ID)
+	require.NoError(t, err)
+	return chat
+}
+
+// insertTextMessage appends a non-deleted user message with a
+// backdated created_at. Used to establish "last activity" for the
+// auto-archive query's LATERAL subquery.
+func insertTextMessage(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, chatID, userID, modelConfigID uuid.UUID, createdAt time.Time) {
+	t.Helper()
+	msgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{userID},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{`[{"type":"text","text":"hello"}]`},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	_, err = rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1 WHERE id = $2", createdAt, msgs[0].ID)
+	require.NoError(t, err)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestAutoArchiveInactiveChats(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "AutoArchiveDisabled",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.Zero(t, codersdk.DefaultChatAutoArchiveDays)
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays))
+
+				// Chat older than any reasonable cutoff.
+				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale-chat", now.Add(-365*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshed, err := db.GetChatByID(ctx, staleChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshed.Archived, "chat should stay active when auto-archive is disabled")
+				require.Empty(t, auditor.AuditLogs(), "no audit log entries expected")
+			},
+		},
+		{
+			name: "ArchivesInactiveRoot",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+
+				// Inactive root: newest message 100 days old.
+				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, staleChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+
+				// Active root: message 10 days old, within cutoff.
+				activeChat := createArchiveChat(ctx, t, db, rawDB, deps, "active-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, activeChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-10*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshedStale, err := db.GetChatByID(ctx, staleChat.ID)
+				require.NoError(t, err)
+				require.True(t, refreshedStale.Archived, "stale chat should be auto-archived")
+
+				refreshedActive, err := db.GetChatByID(ctx, activeChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedActive.Archived, "active chat should stay live")
+
+				logs := auditor.AuditLogs()
+				require.Len(t, logs, 1, "expected one audit entry")
+				require.Equal(t, staleChat.ID, logs[0].ResourceID)
+				require.Equal(t, database.ResourceTypeChat, logs[0].ResourceType)
+				require.Equal(t, database.AuditActionWrite, logs[0].Action)
+				require.Contains(t, string(logs[0].AdditionalFields), "chat_auto_archive",
+					"audit entry must carry the auto-archive subsystem tag")
+			},
+		},
+		{
+			name: "ExactCutoffBoundary",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+				// The forced initial tick uses start = now. Compute
+				// the cutoff from that tick's perspective so the
+				// boundary is deterministic.
+				cutoff := now.Add(-90 * 24 * time.Hour)
+
+				// Message exactly at the cutoff: query uses strict <,
+				// so this chat must survive.
+				exactChat := createArchiveChat(ctx, t, db, rawDB, deps, "exact", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, exactChat.ID, deps.user.ID, deps.modelConfig.ID, cutoff)
+
+				// Message one second before the cutoff: should be archived.
+				justOverChat := createArchiveChat(ctx, t, db, rawDB, deps, "just-over", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, justOverChat.ID, deps.user.ID, deps.modelConfig.ID, cutoff.Add(-time.Second))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				// Use newTickDriver for precise tick control so we
+				// observe the forced initial tick's results without
+				// racing with a second tick.
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				// Defer driver.close() after closer.Close(): defers
+				// run LIFO, so driver cleanup frees shutdown's
+				// ticker.Stop() before the dbpurge goroutine blocks
+				// on it.
+				defer closer.Close()
+				defer driver.close()
+				driver.awaitInitial(ctx, t)
+
+				refreshedExact, err := db.GetChatByID(ctx, exactChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedExact.Archived, "chat at exact cutoff must survive (strict <)")
+
+				refreshedOver, err := db.GetChatByID(ctx, justOverChat.ID)
+				require.NoError(t, err)
+				require.True(t, refreshedOver.Archived, "chat one second past cutoff must be archived")
+
+				require.Len(t, auditor.AuditLogs(), 1, "only the just-over chat should produce an audit entry")
+			},
+		},
+		{
+			name: "DeletedMessagesIgnored",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+
+				// Chat created 120 days ago with a recent message
+				// (10 days old) that is then soft-deleted. The
+				// LATERAL subquery filters cm.deleted = false, so
+				// the chat should fall back to created_at and be
+				// archived.
+				chat := createArchiveChat(ctx, t, db, rawDB, deps, "deleted-msg", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, chat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-10*24*time.Hour))
+				// Soft-delete all messages on this chat.
+				_, err := rawDB.ExecContext(ctx, "UPDATE chat_messages SET deleted = true WHERE chat_id = $1", chat.ID)
+				require.NoError(t, err)
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshed, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.True(t, refreshed.Archived, "chat with only deleted messages should be archived")
+				require.Len(t, auditor.AuditLogs(), 1)
+			},
+		},
+		{
+			name: "ChildActivityKeepsRootAlive",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+
+				// Stale root with no messages of its own.
+				root := createArchiveChat(ctx, t, db, rawDB, deps, "stale-root", now.Add(-120*24*time.Hour))
+
+				// Child linked to root with a recent message (10 days old,
+				// well within the 90-day cutoff).
+				child := createArchiveChat(ctx, t, db, rawDB, deps, "active-child", now.Add(-120*24*time.Hour))
+				_, err := rawDB.ExecContext(ctx, "UPDATE chats SET parent_chat_id = $1, root_chat_id = $1 WHERE id = $2", root.ID, child.ID)
+				require.NoError(t, err)
+				insertTextMessage(ctx, t, db, rawDB, child.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-10*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshedRoot, err := db.GetChatByID(ctx, root.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedRoot.Archived, "root must stay active because child has recent activity")
+
+				refreshedChild, err := db.GetChatByID(ctx, child.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedChild.Archived, "child must stay active")
+
+				require.Empty(t, auditor.AuditLogs(), "no chats should be archived")
+			},
+		},
+		{
+			name: "SkipsActiveStatusChats",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+
+				// Stale chats whose status prevents archiving.
+				runningChat := createArchiveChat(ctx, t, db, rawDB, deps, "running-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, runningChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+				_, err := rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusRunning, runningChat.ID)
+				require.NoError(t, err)
+
+				requiresActionChat := createArchiveChat(ctx, t, db, rawDB, deps, "requires-action-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, requiresActionChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusRequiresAction, requiresActionChat.ID)
+				require.NoError(t, err)
+
+				pendingChat := createArchiveChat(ctx, t, db, rawDB, deps, "pending-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, pendingChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusPending, pendingChat.ID)
+				require.NoError(t, err)
+
+				pausedChat := createArchiveChat(ctx, t, db, rawDB, deps, "paused-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, pausedChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusPaused, pausedChat.ID)
+				require.NoError(t, err)
+
+				// Control: a stale chat with archivable status that
+				// should be archived.
+				completedChat := createArchiveChat(ctx, t, db, rawDB, deps, "completed-chat", now.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, completedChat.ID, deps.user.ID, deps.modelConfig.ID, now.Add(-100*24*time.Hour))
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusCompleted, completedChat.ID)
+				require.NoError(t, err)
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshedRunning, err := db.GetChatByID(ctx, runningChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedRunning.Archived, "running chat must not be archived")
+
+				refreshedRA, err := db.GetChatByID(ctx, requiresActionChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedRA.Archived, "requires_action chat must not be archived")
+
+				refreshedPending, err := db.GetChatByID(ctx, pendingChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedPending.Archived, "pending chat must not be archived")
+
+				refreshedPaused, err := db.GetChatByID(ctx, pausedChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedPaused.Archived, "paused chat must not be archived")
+
+				refreshedCompleted, err := db.GetChatByID(ctx, completedChat.ID)
+				require.NoError(t, err)
+				require.True(t, refreshedCompleted.Archived, "completed stale chat should be archived")
+
+				logs := auditor.AuditLogs()
+				require.Len(t, logs, 1, "only the completed chat should produce an audit entry")
+				require.Equal(t, completedChat.ID, logs[0].ResourceID)
+			},
+		},
+		{
+			name: "SkipsPinnedAndChildren",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				// Pinned stale chat: should be skipped.
+				pinnedChat := createArchiveChat(ctx, t, db, rawDB, deps, "pinned-chat", now.Add(-90*24*time.Hour))
+				_, err := rawDB.ExecContext(ctx, "UPDATE chats SET pin_order = 1 WHERE id = $1", pinnedChat.ID)
+				require.NoError(t, err)
+
+				// Stale root with a child.
+				root := createArchiveChat(ctx, t, db, rawDB, deps, "root-chat", now.Add(-90*24*time.Hour))
+				child := createArchiveChat(ctx, t, db, rawDB, deps, "child-chat", now.Add(-90*24*time.Hour))
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET parent_chat_id = $1, root_chat_id = $1 WHERE id = $2", root.ID, child.ID)
+				require.NoError(t, err)
+				// Give the child an active status to prove the cascade is
+				// status-blind by design. If someone adds a status filter
+				// to the cascade CTE, this assertion will catch it.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET status = $1 WHERE id = $2", database.ChatStatusRunning, child.ID)
+				require.NoError(t, err)
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				refreshedPinned, err := db.GetChatByID(ctx, pinnedChat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshedPinned.Archived, "pinned chat must be skipped")
+
+				refreshedRoot, err := db.GetChatByID(ctx, root.ID)
+				require.NoError(t, err)
+				require.True(t, refreshedRoot.Archived, "root should be archived")
+
+				refreshedChild, err := db.GetChatByID(ctx, child.ID)
+				require.NoError(t, err)
+				require.True(t, refreshedChild.Archived, "child should be cascade-archived")
+
+				// One audit entry for the root; the cascaded child is
+				// not audited individually.
+				require.Len(t, auditor.AuditLogs(), 1)
+			},
+		},
+		{
+			name: "MultipleOwners",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				// Two stale roots per owner, backdated well past the
+				// 30-day cutoff.
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-a", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-b", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-a", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-b", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Four audit rows, one per archived root. Each entry
+				// carries the owning UserID so downstream consumers can
+				// correlate per-owner activity.
+				logs := auditor.AuditLogs()
+				require.Len(t, logs, 4)
+				byUser := map[uuid.UUID]int{}
+				for _, l := range logs {
+					byUser[l.UserID]++
+				}
+				require.Equal(t, 2, byUser[deps.user.ID])
+				require.Equal(t, 2, byUser[user2.ID])
+			},
+		},
+		{
+			name: "SecondTickIdempotent",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				// Two stale roots seeded before the first tick.
+				firstA := createArchiveChat(ctx, t, db, rawDB, deps, "first-a", now.Add(-60*24*time.Hour))
+				firstB := createArchiveChat(ctx, t, db, rawDB, deps, "first-b", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				// Defer driver.close() after closer.Close(): defers
+				// run LIFO, so this frees shutdown's ticker.Stop()
+				// before the dbpurge goroutine blocks on it.
+				defer closer.Close()
+				defer driver.close()
+				driver.awaitInitial(ctx, t)
+
+				// Tick 1: both archived.
+				require.Len(t, auditor.AuditLogs(), 2, "tick 1 audits")
+
+				// Seed a third stale root between ticks so tick 2 has
+				// genuine work and we can distinguish "ignored already
+				// archived" from "ignored everything".
+				third := createArchiveChat(ctx, t, db, rawDB, deps, "second-c", now.Add(-60*24*time.Hour))
+
+				driver.awaitNext(ctx, t)
+
+				// Tick 2: exactly one new audit for the third chat;
+				// tick 1's rows must not be re-archived.
+				require.Len(t, auditor.AuditLogs(), 3, "tick 2 cumulative audits")
+
+				// All three chats should remain archived.
+				for _, id := range []uuid.UUID{firstA.ID, firstB.ID, third.ID} {
+					refreshed, err := db.GetChatByID(ctx, id)
+					require.NoError(t, err)
+					require.True(t, refreshed.Archived, "chat %s should remain archived", id)
+				}
+			},
+		},
+		{
+			name: "BatchSizePagination",
+			run: func(t *testing.T) {
+				// With 27 stale roots and batch size 20, tick 1
+				// archives 20, tick 2 archives the remaining 7, tick 3
+				// archives none. We assert the audit dispatch follows
+				// the same pattern: no dispatch runs when rows == 0,
+				// so tick 3 emits no new audits.
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				const total = 27
+				for i := range total {
+					createArchiveChat(ctx, t, db, rawDB, deps,
+						fmt.Sprintf("page-%02d", i),
+						now.Add(-60*24*time.Hour))
+				}
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
+				// Defer driver.close() after closer.Close() so trap
+				// cleanup frees shutdown's ticker.Stop() before the
+				// dbpurge goroutine blocks on it.
+				defer closer.Close()
+				defer driver.close()
+				driver.awaitInitial(ctx, t)
+
+				require.Len(t, auditor.AuditLogs(), 20, "tick 1 audits")
+
+				driver.awaitNext(ctx, t)
+				require.Len(t, auditor.AuditLogs(), 27, "tick 2 cumulative audits")
+
+				driver.awaitNext(ctx, t)
+				// Tick 3: nothing left to archive; dispatch is gated
+				// on len(archivedChats) > 0 so no new audits.
+				require.Len(t, auditor.AuditLogs(), 27, "tick 3 cumulative audits unchanged")
 			},
 		},
 	}

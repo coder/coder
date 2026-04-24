@@ -1,4 +1,8 @@
-import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
+import {
+	EllipsisVerticalIcon,
+	ExternalLinkIcon,
+	HouseIcon,
+} from "lucide-react";
 import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Workspace } from "#/api/typesGenerated";
@@ -69,7 +73,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon" variant="subtle" aria-label="More options">
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">More options</span>
 							</Button>
 						</DropdownMenuTrigger>

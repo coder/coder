@@ -30,7 +30,9 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
+import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -122,8 +124,10 @@ interface AgentChatPageViewProps {
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
+	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+		everDirty: ReadonlySet<string>;
 		refresh: () => boolean;
 	};
 
@@ -155,6 +159,7 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messageCount: number;
 
 	urlTransform?: UrlTransform;
 
@@ -205,6 +210,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
+	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
 	handleCommit,
@@ -224,6 +230,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -275,6 +282,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
 	};
 
+	const shouldShowSidebar = showSidebarPanel;
+
 	// Compute local diff stats from git watcher unified diffs.
 
 	// Prefer the git repository root over the agent's expanded directory
@@ -305,13 +314,79 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
+	// Desktop is only available when the workspace + agent are ready;
+	// `SidebarTabView` gates the desktop tab/panel on the same condition,
+	// so resolve tab selection against the same availability to avoid
+	// picking "desktop" when no desktop panel is rendered.
+	const availableDesktopChatId =
+		workspace && workspaceAgent ? desktopChatId : undefined;
+	// Single source of truth for available tabs and their order. The list
+	// of tab IDs used by `getEffectiveTabId` is derived from this so a
+	// new tab can never be added to one without the other going out of
+	// sync.
+	const sidebarTabConfigs = [
+		{ id: "git", label: "Git" },
+		...(workspace && workspaceAgent
+			? [{ id: "terminal", label: "Terminal" }]
+			: []),
+		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+	];
+	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
+	const effectiveSidebarTabId = getEffectiveTabId(
+		sidebarTabIds,
+		sidebarTabId,
+		availableDesktopChatId,
+	);
+	const renderTabContent = (tabId: string): ReactNode => {
+		switch (tabId) {
+			case "git":
+				return (
+					<GitPanel
+						prTab={
+							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+						}
+						repositories={gitWatcher.repositories}
+						everDirty={gitWatcher.everDirty}
+						onRefresh={handleRefresh}
+						onCommit={handleCommit}
+						isExpanded={visualExpanded}
+						remoteDiffStats={diffStatusData}
+						chatInputRef={editing.chatInputRef}
+					/>
+				);
+			case "terminal":
+				return workspace && workspaceAgent ? (
+					<TerminalPanel
+						chatId={agentId}
+						isVisible={
+							shouldShowSidebar && effectiveSidebarTabId === "terminal"
+						}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+					/>
+				) : null;
+			case "debug":
+				return (
+					<DebugPanel
+						chatId={agentId}
+						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+					/>
+				);
+			default:
+				return null;
+		}
+	};
+	const sidebarTabs = sidebarTabConfigs.map((tab) => ({
+		id: tab.id,
+		label: tab.label,
+		content: renderTabContent(tab.id),
+	}));
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 		</title>
 	);
-
-	const shouldShowSidebar = showSidebarPanel;
 
 	return (
 		<ChatWorkspaceContext
@@ -381,6 +456,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
+							messageCount={messageCount}
 						>
 							<div className="px-4">
 								<ChatPageTimeline
@@ -396,7 +472,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								/>
 							</div>
 						</ChatScrollContainer>
-						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
 								store={store}
@@ -457,56 +533,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					>
 						<SidebarTabView
-							activeTabId={sidebarTabId}
+							effectiveTabId={effectiveSidebarTabId}
 							onActiveTabChange={setSidebarTabId}
-							tabs={[
-								{
-									id: "git",
-									label: "Git",
-									content: (
-										<GitPanel
-											prTab={
-												prNumber && agentId
-													? { prNumber, chatId: agentId }
-													: undefined
-											}
-											repositories={gitWatcher.repositories}
-											onRefresh={handleRefresh}
-											onCommit={handleCommit}
-											isExpanded={visualExpanded}
-											remoteDiffStats={diffStatusData}
-											chatInputRef={editing.chatInputRef}
-										/>
-									),
-								},
-								...(workspace && workspaceAgent
-									? [
-											{
-												id: "terminal",
-												label: "Terminal",
-												content: (
-													<TerminalPanel
-														chatId={agentId}
-														isVisible={
-															shouldShowSidebar && sidebarTabId === "terminal"
-														}
-														workspace={workspace}
-														workspaceAgent={workspaceAgent}
-													/>
-												),
-											},
-										]
-									: []),
-							]}
+							tabs={sidebarTabs}
 							onClose={() => onSetShowSidebarPanel(false)}
 							isExpanded={visualExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							chatTitle={chatTitle}
-							desktopChatId={
-								workspace && workspaceAgent ? desktopChatId : undefined
-							}
+							desktopChatId={availableDesktopChatId}
 						/>
 					</RightPanel>
 				</div>
@@ -581,7 +617,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
 						initialValue=""

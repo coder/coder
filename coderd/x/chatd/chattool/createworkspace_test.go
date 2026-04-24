@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -409,6 +410,75 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	require.Equal(t, buildID.String(), result["build_id"])
 	require.False(t, resp.IsError,
 		"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+}
+
+func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
+		}, nil)
+
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+
+	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
+		OwnerID: ownerID,
+		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			return codersdk.Workspace{}, httperror.NewResponseError(400, codersdk.Response{
+				Message: "missing required parameter",
+				Detail:  "region must be set before the workspace can start",
+				Validations: []codersdk.ValidationError{{
+					Field:  "region",
+					Detail: "region must be set before the workspace can start",
+				}},
+			})
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-structured-error"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result struct {
+		Error       string                     `json:"error"`
+		Detail      string                     `json:"detail"`
+		Validations []codersdk.ValidationError `json:"validations"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "missing required parameter", result.Error)
+	require.Equal(t, "region must be set before the workspace can start", result.Detail)
+	require.Equal(t, []codersdk.ValidationError{{
+		Field:  "region",
+		Detail: "region must be set before the workspace can start",
+	}}, result.Validations)
 }
 
 func TestCreateWorkspace_GlobalTTL(t *testing.T) {

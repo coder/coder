@@ -1,0 +1,163 @@
+Coder MCP tools automatically injected.
+
+-- request --
+{
+	"model": "claude-sonnet-4-20250514",
+	"max_tokens": 1024,
+	"messages": [
+		{
+			"role": "user",
+			"content": "list coder workspace IDs for admin"
+		}
+	]
+}
+
+-- streaming --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01JWGa2JHsKBHL28Cjr2dvPK","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":7545,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}}         }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}    }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll list the work"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"spaces for the admin user to get their"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" workspace IDs."}             }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0   }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01TSQLR6R6wBUqoxGPjQKDAj","name":"bmcp_coder_coder_list_workspaces","input":{}}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"owner\""}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":": \"ad"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"min\"}"}               }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1   }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":74}}
+
+event: message_stop
+data: {"type":"message_stop"           }
+
+
+-- streaming/tool-call --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01LZSVzMCLivzXrp6ZnTcmeG","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":7763,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}}       }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}       }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Here"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" are the workspace IDs for the admin user:\n\n**"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Admin's Workspaces:**\n- Workspace ID: `dd711d5c-83c"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"6-4c08-a0af-b73055906e8"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"c`\n  - Name: `bob`\n  - Template: `docker"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`\n  - Template ID: `b3a9d9b4-486a-4"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"f21-8884-d81d5dbdd837`"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nThe admin user currently has 1 workspace named \"bob\" created from"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the \"docker\" template."}     }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0    }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":128}      }
+
+event: message_stop
+data: {"type":"message_stop" }
+
+
+-- non-streaming --
+{
+    "id": "msg_01FwkWU26guw9EwkL8zeacPL",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-20250514",
+    "content": [
+        {
+            "type": "text",
+            "text": "I'll list the workspaces for the admin user to get their workspace IDs."
+        },
+        {
+            "type": "tool_use",
+            "id": "toolu_01QjNz5b3HxAqAccTVnSMsKP",
+            "name": "bmcp_coder_coder_list_workspaces",
+            "input": {
+                "owner": "admin"
+            }
+        }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "usage": {
+        "input_tokens": 7545,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 75,
+        "service_tier": "standard"
+    }
+}
+
+
+-- non-streaming/tool-call --
+{
+    "id": "msg_01Sr5BnPSwodTo8Df4XvUBg5",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-20250514",
+    "content": [
+        {
+            "type": "text",
+            "text": "Here are the Coder workspace IDs for the admin user:\n\n**Workspace ID:** `dd711d5c-83c6-4c08-a0af-b73055906e8c`\n- **Name:** bob\n- **Template:** docker\n- **Template ID:** b3a9d9b4-486a-4f21-8884-d81d5dbdd837\n- **Status:** Up to date (not outdated)\n\nThe admin user currently has 1 workspace named \"bob\" running on the \"docker\" template."
+        }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+        "input_tokens": 7763,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 129,
+        "service_tier": "standard"
+    }
+}
+

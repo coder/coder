@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { ChevronDownIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -7,9 +7,19 @@ import {
 	useRef,
 	useState,
 } from "react";
+
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ThinkingDisplayMode } from "#/api/typesGenerated";
+
 import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
@@ -17,6 +27,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+
 import {
 	ConversationItem,
 	Message,
@@ -26,8 +37,14 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import {
+	AttachmentBlock,
+	type PreviewTextAttachment,
+} from "./AttachmentBlocks";
+import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -37,7 +54,7 @@ import type {
 	ParsedMessageEntry,
 	RenderBlock,
 } from "./types";
-import { FileBlock, UserMessageContent } from "./UserMessageContent";
+import { UserMessageContent } from "./UserMessageContent";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -61,40 +78,124 @@ const ReasoningDisclosure = memo<{
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}>(({ id, text, isStreaming = false, urlTransform }) => {
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming,
-		bypassSmoothing: !isStreaming,
-		streamKey: id,
-	});
-	const displayText = isStreaming ? visibleText : text;
-	const hasText = displayText.trim().length > 0;
+	thinkingDisplayMode?: ThinkingDisplayMode;
+}>(
+	({
+		id,
+		text,
+		isStreaming = false,
+		urlTransform,
+		thinkingDisplayMode: mode = "auto",
+	}) => {
+		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-	if (hasText) {
+		// Reset manual override on streaming transitions so
+		// auto/preview modes collapse when streaming stops.
+		const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+		if (prevStreaming !== isStreaming) {
+			setPrevStreaming(isStreaming);
+			if (mode === "auto" || mode === "preview") {
+				setManualToggle(null);
+			}
+		}
+
+		const autoExpanded = (() => {
+			switch (mode) {
+				case "always_expanded":
+					return true;
+				case "always_collapsed":
+					return false;
+				case "auto":
+				case "preview":
+					return isStreaming;
+				default: {
+					const _exhaustive: never = mode;
+					return _exhaustive;
+				}
+			}
+		})();
+
+		const expanded = manualToggle ?? autoExpanded;
+
+		const isPreviewConstrained =
+			mode === "preview" && isStreaming && manualToggle === null;
+
+		const previewScrollRef = useRef<HTMLDivElement>(null);
+
+		const { visibleText } = useSmoothStreamingText({
+			fullText: text,
+			isStreaming,
+			bypassSmoothing: !isStreaming,
+			streamKey: id,
+		});
+		const displayText = isStreaming ? visibleText : text;
+		const hasText = displayText.trim().length > 0;
+
+		// Auto-scroll the preview container to the bottom as new
+		// thinking content streams in. useLayoutEffect avoids a
+		// visible frame where content has grown but not scrolled.
+		const displayTextLength = displayText.length;
+		useLayoutEffect(() => {
+			if (
+				displayTextLength &&
+				isPreviewConstrained &&
+				previewScrollRef.current
+			) {
+				previewScrollRef.current.scrollTop =
+					previewScrollRef.current.scrollHeight;
+			}
+		}, [displayTextLength, isPreviewConstrained]);
+
 		return (
-			<div className="w-full">
-				<Response
-					className="text-[11px] text-content-secondary"
-					urlTransform={urlTransform}
-					streaming={isStreaming}
+			<Collapsible
+				open={expanded}
+				onOpenChange={(open) => setManualToggle(open)}
+				className="w-full"
+			>
+				<CollapsibleTrigger
+					className={cn(
+						"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
+						"flex w-full items-center gap-1.5 cursor-pointer",
+						"text-content-secondary transition-colors hover:text-content-primary",
+					)}
 				>
-					{displayText}
-				</Response>
-			</div>
+					<ChevronDownIcon
+						className={cn(
+							"size-icon-sm shrink-0 transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+					{isStreaming ? (
+						<Shimmer as="span" className="text-xs">
+							Thinking
+						</Shimmer>
+					) : (
+						<span className="text-xs">Thinking</span>
+					)}
+				</CollapsibleTrigger>
+				{hasText && (
+					<CollapsibleContent>
+						<div
+							ref={previewScrollRef}
+							className={cn(
+								"mt-1 pl-5",
+								isPreviewConstrained && "max-h-24 overflow-y-auto",
+							)}
+						>
+							<Response
+								className="text-[11px] text-content-secondary"
+								urlTransform={urlTransform}
+								streaming={isStreaming}
+							>
+								{displayText}
+							</Response>
+						</div>
+					</CollapsibleContent>
+				)}
+			</Collapsible>
 		);
-	}
-
-	return (
-		<div className="w-full">
-			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-				<span className="text-sm">
-					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
-				</span>
-			</div>
-		</div>
-	);
-});
+	},
+);
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
@@ -128,12 +229,12 @@ export const BlockList: FC<{
 	keyPrefix: string;
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
+	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -147,7 +248,7 @@ export const BlockList: FC<{
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
@@ -161,6 +262,10 @@ export const BlockList: FC<{
 	hasUserResponseAfterAskQuestion = false,
 	urlTransform,
 }) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const thinkingDisplayMode: ThinkingDisplayMode =
+		prefQuery.data?.thinking_display_mode || "auto";
+
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
 	// Pre-compute which tool IDs have a corresponding block so
@@ -175,6 +280,12 @@ export const BlockList: FC<{
 	);
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
+
+	// A thinking block is actively streaming only when it is the
+	// very last block in the list. Once newer content arrives
+	// (response, tool call, etc.) the thinking phase is over.
+	const lastBlockIsThinking =
+		blocks.length > 0 && blocks[blocks.length - 1].type === "thinking";
 
 	return (
 		<>
@@ -208,8 +319,13 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-thinking-${index}`}
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
-								isStreaming={isStreaming}
+								isStreaming={
+									isStreaming &&
+									lastBlockIsThinking &&
+									index === blocks.length - 1
+								}
 								urlTransform={urlTransform}
+								thinkingDisplayMode={thinkingDisplayMode}
 							/>
 						);
 					case "file-reference":
@@ -240,6 +356,7 @@ export const BlockList: FC<{
 									status="running"
 									isError={false}
 									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
 									mcpServers={mcpServers}
 								/>
@@ -255,7 +372,7 @@ export const BlockList: FC<{
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
 								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
+								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
@@ -280,11 +397,13 @@ export const BlockList: FC<{
 					}
 					case "file":
 						return (
-							<FileBlock
+							<AttachmentBlock
 								key={`${keyPrefix}-file-${block.file_id ?? index}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
+								framePreview
+								showTextStatus
 							/>
 						);
 					case "sources":
@@ -308,7 +427,7 @@ export const BlockList: FC<{
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
@@ -354,7 +473,7 @@ const ChatMessageItem = memo<{
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -380,12 +499,13 @@ const ChatMessageItem = memo<{
 		urlTransform,
 		mcpServers,
 		subagentTitles,
-		computerUseSubagentIds,
+		subagentVariants,
 		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] = useState<string | null>(null);
+		const [previewText, setPreviewText] =
+			useState<PreviewTextAttachment | null>(null);
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -429,7 +549,7 @@ const ChatMessageItem = memo<{
 										tools={parsed.tools}
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
-										computerUseSubagentIds={computerUseSubagentIds}
+										subagentVariants={subagentVariants}
 										showDesktopPreviews={showDesktopPreviews}
 										onImplementPlan={onImplementPlan}
 										onSendAskUserQuestionResponse={
@@ -496,10 +616,9 @@ const ChatMessageItem = memo<{
 							)}
 						</div>
 					)}
-				{/* Spacer for assistant messages without an action bar
-				   (e.g. reasoning-only or sources-only) so they have
-				   consistent bottom padding before the next user bubble. */}
-				{displayState.needsAssistantBottomSpacer && <div className="min-h-6" />}
+				{displayState.needsAssistantBottomSpacer && (
+					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+				)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -508,7 +627,8 @@ const ChatMessageItem = memo<{
 				)}
 				{previewText !== null && (
 					<TextPreviewDialog
-						content={previewText}
+						content={previewText.content}
+						fileName={previewText.fileName}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -811,9 +931,32 @@ const StickyUserMessage = memo<{
 	},
 );
 
+function computeLastInChainFlags(
+	parsedMessages: readonly ParsedMessageEntry[],
+): boolean[] {
+	const flags = new Array<boolean>(parsedMessages.length).fill(false);
+	let nextVisibleIsUser = true; // no next visible => treat as chain end
+	for (let i = parsedMessages.length - 1; i >= 0; i--) {
+		const entry = parsedMessages[i];
+		const { shouldHide } = deriveMessageDisplayState({
+			message: entry.message,
+			parsed: entry.parsed,
+			hideActions: false,
+		});
+		if (entry.message.role !== "user") {
+			flags[i] = nextVisibleIsUser;
+		}
+		if (!shouldHide) {
+			nextVisibleIsUser = entry.message.role === "user";
+		}
+	}
+	return flags;
+}
+
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -825,7 +968,6 @@ interface ConversationTimelineProps {
 	isChatCompleted?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
 	isTurnActive?: boolean;
 }
@@ -834,6 +976,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		parsedMessages,
 		subagentTitles,
+		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
 		onImplementPlan,
@@ -841,9 +984,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isChatCompleted,
 		urlTransform,
 		mcpServers,
-		computerUseSubagentIds,
 		showDesktopPreviews,
 	}) => {
+		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
+
 		if (parsedMessages.length === 0) {
 			return null;
 		}
@@ -901,48 +1045,55 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
-				{parsedMessages.map(({ message, parsed }, msgIdx) => {
-					if (message.role === "user") {
+			<ExpiredFileIdsProvider>
+				<div
+					data-testid="conversation-timeline"
+					className="flex flex-col gap-2"
+				>
+					{parsedMessages.map(({ message, parsed }, msgIdx) => {
+						if (message.role === "user") {
+							return (
+								<StickyUserMessage
+									key={message.id}
+									message={message}
+									parsed={parsed}
+									onEditUserMessage={onEditUserMessage}
+									editingMessageId={editingMessageId}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								/>
+							);
+						}
+						// Hide actions on assistant messages that are not the
+						// last in a consecutive assistant chain. Flags are
+						// precomputed in a single reverse pass above.
+						const isLastInChain = lastInChainFlags[msgIdx];
 						return (
-							<StickyUserMessage
+							<ChatMessageItem
 								key={message.id}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+								askUserQuestionResponseTextByToolId={
+									historicalAskUserQuestionResponseTextByToolId
+								}
+								hasUserResponseAfterAskQuestion={
+									hasUserResponseAfterAskQuestion
+								}
+								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								hideActions={!isLastInChain}
+								mcpServers={mcpServers}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								showDesktopPreviews={showDesktopPreviews}
 							/>
 						);
-					}
-					// Hide actions on assistant messages that are not
-					// the last in a consecutive assistant chain.
-					const next = parsedMessages[msgIdx + 1];
-					const isLastInChain = !next || next.message.role === "user";
-					return (
-						<ChatMessageItem
-							key={message.id}
-							message={message}
-							parsed={parsed}
-							onImplementPlan={onImplementPlan}
-							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-							isChatCompleted={isChatCompleted}
-							latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-							askUserQuestionResponseTextByToolId={
-								historicalAskUserQuestionResponseTextByToolId
-							}
-							hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
-							urlTransform={urlTransform}
-							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							hideActions={!isLastInChain}
-							mcpServers={mcpServers}
-							subagentTitles={subagentTitles}
-							computerUseSubagentIds={computerUseSubagentIds}
-							showDesktopPreviews={showDesktopPreviews}
-						/>
-					);
-				})}
-			</div>
+					})}
+				</div>
+			</ExpiredFileIdsProvider>
 		);
 	},
 );

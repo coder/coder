@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import {
+	MockAgentsAccessRole,
+	MockOrganizationAdminRole,
+	MockOrganizationAuditorRole,
+	MockOrganizationTemplateAdminRole,
+	MockOrganizationUserAdminRole,
 	MockOwnerRole,
 	MockSiteRoles,
 	MockUserAdminRole,
@@ -58,6 +63,23 @@ export const AdvancedOpen: Story = {
 	args: {
 		selectedRoleNames: new Set([MockWorkspaceCreationBanRole.name]),
 		roles: MockSiteRoles,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+	},
+};
+
+export const OrgRoles: Story = {
+	args: {
+		selectedRoleNames: new Set([MockAgentsAccessRole.name]),
+		roles: [
+			MockOrganizationAdminRole,
+			MockOrganizationUserAdminRole,
+			MockOrganizationTemplateAdminRole,
+			MockOrganizationAuditorRole,
+			MockAgentsAccessRole,
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

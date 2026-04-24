@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -83,7 +83,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
-				className="w-64 p-0"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
 			>
 				<Command loop>
 					<CommandInput placeholder="Find organization…" className="text-xs" />
@@ -113,7 +113,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 										{org.display_name || org.name}
 									</span>
 									{value?.id === org.id && (
-										<Check className="ml-auto size-icon-sm shrink-0" />
+										<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 									)}
 								</CommandItem>
 							))}

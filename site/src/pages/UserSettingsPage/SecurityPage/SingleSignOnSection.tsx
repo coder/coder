@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
+import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";

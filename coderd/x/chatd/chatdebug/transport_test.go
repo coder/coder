@@ -8,10 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 func newTestSinkContext(t *testing.T) (context.Context, *attemptSink) {
@@ -823,6 +827,190 @@ func TestRecordingTransport_SSEReadToEOFMarksCompleted(t *testing.T) {
 	// SSE bodies should be preserved as-is, not replaced with
 	// a redaction diagnostic.
 	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords verifies
+// that SSE consumers that reach EOF and abandon the response without
+// calling Close() (the pattern fantasy's Anthropic SSE adapter follows)
+// still populate the attempt sink. Close()-only recording would leave
+// the chat_turn step's attempts field permanently empty.
+func TestRecordingTransport_SSEReadToEOFWithoutCloseStillRecords(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          io.NopCloser(strings.NewReader(ssePayload)),
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req) //nolint:bodyclose // Intentionally skip Close() to verify EOF-only recording.
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, ssePayload, string(body))
+	// Deliberately do NOT call resp.Body.Close(). The attempt must be
+	// recorded on EOF alone.
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingTransport_SSEEmptyBodyRecordsOnEOF verifies that an SSE
+// response with zero bytes (immediate EOF on the first Read) still
+// records a completed attempt. This covers the n == 0 && err == io.EOF
+// branch in accumulateReadLocked where the buffer path is skipped but
+// sawEOF must still fire the Read-path recording.
+func TestRecordingTransport_SSEEmptyBodyRecordsOnEOF(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode:    http.StatusOK,
+					Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body:          io.NopCloser(strings.NewReader("")),
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req) //nolint:bodyclose // Intentionally skip Close() to verify EOF-only recording.
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Empty(t, body)
+
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+	require.Empty(t, attempts[0].Error)
+	require.Empty(t, attempts[0].ResponseBody)
+}
+
+// TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades verifies
+// that when an SSE consumer reads to EOF (which eagerly records the
+// attempt as completed) and then Close() fails because inner.Close()
+// returns an error, the recorded attempt is upgraded to failed with
+// the close error rather than silently remaining completed.
+func TestRecordingTransport_SSEReadToEOFWithCloseErrorUpgrades(t *testing.T) {
+	t.Parallel()
+
+	ctx, sink := newTestSinkContext(t)
+	ssePayload := "data: {\"token\":\"secret\"}\n\ndata: [DONE]\n\n"
+	closeErr := xerrors.New("boom: connection reset")
+	client := &http.Client{
+		Transport: &RecordingTransport{
+			Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{ //nolint:exhaustruct // Test SSE content type.
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+					Body: &failingCloseReader{
+						inner:    strings.NewReader(ssePayload),
+						closeErr: closeErr,
+					},
+					ContentLength: -1,
+				}, nil
+			}),
+		},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, ssePayload, string(body))
+
+	// Close must surface the inner close error to the caller...
+	gotCloseErr := resp.Body.Close()
+	require.ErrorIs(t, gotCloseErr, closeErr)
+
+	// ...and the recorded attempt must reflect that failure instead of
+	// the provisional completed entry written on EOF.
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusFailed, attempts[0].Status)
+	require.Contains(t, attempts[0].Error, "boom: connection reset")
+	require.Equal(t, ssePayload, string(attempts[0].ResponseBody))
+}
+
+// TestRecordingBody_SSEConcurrentReadCloseNoDeadlock exercises the
+// lock-ordering contract between record() and recordProvisional()
+// under concurrent Read/Close on an SSE body. An earlier revision
+// where record() entered recordOnce.Do before acquiring r.mu (while
+// recordProvisional() acquired r.mu first) deadlocked when one
+// goroutine won the Once but then blocked on r.mu while the other
+// held r.mu and blocked on the Once.
+func TestRecordingBody_SSEConcurrentReadCloseNoDeadlock(t *testing.T) {
+	t.Parallel()
+
+	const iterations = 200
+	ssePayload := []byte("data: ping\n\n")
+
+	for i := range iterations {
+		sink := &attemptSink{}
+		body := &recordingBody{
+			inner:         io.NopCloser(strings.NewReader(string(ssePayload))),
+			contentLength: -1,
+			contentType:   "text/event-stream",
+			sink:          sink,
+			startedAt:     time.Now(),
+			base:          Attempt{Number: sink.nextAttemptNumber()},
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			buf := make([]byte, 64)
+			for {
+				if _, err := body.Read(buf); err != nil {
+					return
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			_ = body.Close()
+		}()
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(testutil.WaitShort):
+			t.Fatalf("deadlock detected on iteration %d", i)
+		}
+	}
 }
 
 func TestRecordingTransport_SSEClosedEarlyMarksFailed(t *testing.T) {

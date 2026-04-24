@@ -1,8 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, type PropsWithChildren, useEffect } from "react";
-import { useQueryClient } from "react-query";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import type { Organization } from "#/api/typesGenerated";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	MockDefaultOrganization,
@@ -77,6 +83,14 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+
+const mockPermittedOrganizations = (permissions: Record<string, boolean>) => {
+	spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+		MockOrganization2,
+	]);
+	spyOn(API, "checkAuthorization").mockResolvedValue(permissions);
+};
 
 export const Default: Story = {};
 
@@ -415,57 +429,31 @@ export const ForbiddenNoAgentsRole: Story = {
 };
 
 /**
- * Reproduces a bug where the org dropdown disappears and the form submits
- * with an empty organization_id. When permittedOrganizations() resolves
- * asynchronously with fewer orgs than the dashboard provides, the
- * reconciliation logic can null out selectedOrg.
- *
- * This story simulates the async resolution by NOT pre-seeding the
- * permitted orgs query. Instead, a wrapper component sets the query
- * data after mount (mimicking the real async fetch). The play function
- * then submits the form and asserts that onCreateChat receives a
- * non-empty organizationId.
+ * Covers the reconciliation path where the permitted-organizations query
+ * resolves after mount with fewer orgs than the dashboard provides.
  */
-const DelayedPermittedOrgsWrapper: FC<
-	PropsWithChildren<{ delayedOrgs: Organization[] }>
-> = ({ delayedOrgs, children }) => {
-	const queryClient = useQueryClient();
-	useEffect(() => {
-		// Simulate the permittedOrganizations query resolving after
-		// the initial render, which causes the fallback-to-data
-		// transition that triggers the reconciliation bug.
-		const timer = setTimeout(() => {
-			queryClient.setQueryData(permittedOrgsKey, delayedOrgs);
-		}, 50);
-		return () => clearTimeout(timer);
-	}, [queryClient, delayedOrgs]);
-	return <>{children}</>;
-};
-
 export const PermittedOrgsResolvesToEmpty: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
-		// Deliberately NOT pre-seeding permittedOrgsKey — the
-		// wrapper sets it after mount to simulate async resolution.
+		// Deliberately do not pre-seed permittedOrgsKey. Let the
+		// mocked API calls drive the async permission resolution.
 	},
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
-	decorators: [
-		(Story) => (
-			<DelayedPermittedOrgsWrapper delayedOrgs={[]}>
-				<Story />
-			</DelayedPermittedOrgsWrapper>
-		),
-	],
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: false,
+		});
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for the async permitted orgs resolution to take effect
-		// and for the component to stabilize. The org picker should
-		// disappear since permittedOrgs is empty.
+		// Wait for the permitted orgs query to resolve. The org picker
+		// should disappear since no org is permitted.
 		await waitFor(
 			() => {
 				expect(
@@ -485,8 +473,11 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		const call = (args.onCreateChat as ReturnType<typeof fn>).mock.calls[0];
-		const options = call[0] as { organizationId: string };
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { organizationId: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
 		expect(options.organizationId).not.toBe("");
 		// It should fall back to the default org from the dashboard.
 		expect(options.organizationId).toBe(MockDefaultOrganization.id);
@@ -502,18 +493,17 @@ export const PermittedOrgsResolvesToSubset: Story = {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
-	decorators: [
-		(Story) => (
-			<DelayedPermittedOrgsWrapper delayedOrgs={[MockOrganization2]}>
-				<Story />
-			</DelayedPermittedOrgsWrapper>
-		),
-	],
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for async resolution. With only one permitted org,
-		// the picker should disappear.
+		// Wait for the permitted orgs query to resolve. With only one
+		// permitted org, the picker should disappear.
 		await waitFor(
 			() => {
 				expect(
@@ -533,8 +523,11 @@ export const PermittedOrgsResolvesToSubset: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		const call = (args.onCreateChat as ReturnType<typeof fn>).mock.calls[0];
-		const options = call[0] as { organizationId: string };
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { organizationId: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
 	},
 };

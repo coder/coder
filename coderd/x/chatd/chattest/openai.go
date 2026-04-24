@@ -71,6 +71,7 @@ type OpenAIToolFunction struct {
 // OpenAITool represents a tool definition in an OpenAI request.
 type OpenAITool struct {
 	Type     string             `json:"type"`
+	Name     string             `json:"name,omitempty"`
 	Function OpenAIToolFunction `json:"function"`
 }
 
@@ -137,6 +138,26 @@ type openAIServer struct {
 	server  *httptest.Server
 	handler OpenAIHandler
 	request *OpenAIRequest
+}
+
+// OpenAI creates a fake OpenAI-compatible test server with a
+// sensible default handler and returns its base URL. It handles
+// both the Responses API (/responses) and the Chat Completions
+// API (/chat/completions).
+//
+// Non-streaming requests (e.g. structured-output title generation)
+// receive a JSON payload satisfying the generatedTitle schema.
+// Streaming requests (e.g. the main chat loop) receive a single
+// text chunk. Use NewOpenAI when a test needs control over the
+// response.
+func OpenAI(t testing.TB) string {
+	t.Helper()
+	return NewOpenAI(t, func(req *OpenAIRequest) OpenAIResponse {
+		if req.Stream {
+			return OpenAIStreamingResponse(OpenAITextChunks("Hello from test server.")...)
+		}
+		return OpenAINonStreamingResponse(`{"title": "Test Chat"}`)
+	})
 }
 
 // NewOpenAI creates a new OpenAI test server with a handler function.

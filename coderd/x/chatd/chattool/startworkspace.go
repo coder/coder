@@ -36,6 +36,10 @@ type StartWorkspaceOptions struct {
 	Logger        slog.Logger
 }
 
+type startWorkspaceArgs struct {
+	Parameters map[string]string `json:"parameters,omitempty"`
+}
+
 // StartWorkspace returns a tool that starts a stopped workspace
 // associated with the current chat. The tool is idempotent: if the
 // workspace is already running or building, it returns immediately.
@@ -45,8 +49,10 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 		"Start the chat's workspace if it is currently stopped. "+
 			"This tool is idempotent — if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
-			"first if no workspace exists yet.",
-		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			"first if no workspace exists yet. Provide parameter "+
+			"values (from read_template) only if necessary or "+
+			"explicitly requested by the user.",
+		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.StartFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
 			}
@@ -165,15 +171,24 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
-			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			startReq := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
-			})
+			}
+			for k, v := range args.Parameters {
+				startReq.RichParameterValues = append(
+					startReq.RichParameterValues,
+					codersdk.WorkspaceBuildParameter{Name: k, Value: v},
+				)
+			}
+			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, startReq)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
-					if resp.Message != "" {
-						return fantasy.NewTextErrorResponse(resp.Message), nil
+					result := responseErrorResult(resp)
+					if len(resp.Validations) > 0 && ws.TemplateID != uuid.Nil {
+						result["template_id"] = ws.TemplateID.String()
 					}
+					return toolResponse(result), nil
 				}
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("start workspace: %w", err).Error(),

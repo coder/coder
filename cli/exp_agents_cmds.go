@@ -56,12 +56,6 @@ type (
 		catalog codersdk.ChatModelsResponse
 		err     error
 	}
-	gitChangesMsg struct {
-		generation uint64
-		chatID     uuid.UUID
-		changes    []codersdk.ChatGitChange
-		err        error
-	}
 	diffContentsMsg struct {
 		generation uint64
 		chatID     uuid.UUID

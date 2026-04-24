@@ -1,14 +1,13 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Pill } from "#/components/Pill/Pill";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
 
 export type NotificationItem = {
@@ -33,54 +32,53 @@ export const Notifications: FC<NotificationsProps> = ({
 	const theme = useTheme();
 
 	return (
-		<TooltipProvider>
-			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
-				<TooltipTrigger asChild>
-					<div
-						css={styles.pillContainer}
-						data-testid={`${severity}-notifications`}
-					>
-						<NotificationPill
-							items={items}
-							severity={severity}
-							icon={icon}
-							isTooltipOpen={isOpen}
-						/>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent
-					align="end"
-					collisionPadding={16}
-					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
-					style={{
-						borderColor: theme.roles[severity].outline,
-					}}
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					className="py-2 bg-transparent border-none cursor-pointer"
+					data-testid={`${severity}-notifications`}
 				>
-					{items.map((n) => (
-						<NotificationItem notification={n} key={n.title} />
-					))}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+					<NotificationPill
+						items={items}
+						severity={severity}
+						icon={icon}
+						isOpen={isOpen}
+					/>
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				collisionPadding={16}
+				className="max-w-[400px] p-0 w-auto bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
+				style={{
+					borderColor: theme.roles[severity].outline,
+				}}
+			>
+				{items.map((n) => (
+					<NotificationItem notification={n} key={n.title} />
+				))}
+			</PopoverContent>
+		</Popover>
 	);
 };
 
 type NotificationPillProps = NotificationsProps & {
-	isTooltipOpen: boolean;
+	isOpen: boolean;
 };
 
 const NotificationPill: FC<NotificationPillProps> = ({
 	items,
 	severity,
 	icon,
-	isTooltipOpen,
+	isOpen,
 }) => {
 	return (
 		<Pill
 			icon={icon}
 			css={(theme) => ({
 				"& svg": { color: theme.roles[severity].outline },
-				borderColor: isTooltipOpen ? theme.roles[severity].outline : undefined,
+				borderColor: isOpen ? theme.roles[severity].outline : undefined,
 			})}
 		>
 			{items.length}
@@ -94,10 +92,12 @@ interface NotificationItemProps {
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
-		<article css={styles.notificationItem}>
+		<article className="p-5 leading-normal border-0 border-t border-solid first:border-t-0">
 			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
-				<p css={styles.notificationDetail}>{notification.detail}</p>
+				<p className="m-0 text-content-secondary leading-relaxed block mt-2">
+					{notification.detail}
+				</p>
 			)}
 			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
 		</article>
@@ -107,26 +107,3 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 export const NotificationActionButton: FC<ButtonProps> = (props) => {
 	return <Button variant="default" size="sm" {...props} />;
 };
-
-const styles = {
-	// Adds some spacing from the Tooltip content
-	pillContainer: {
-		padding: "8px 0",
-	},
-	notificationItem: (theme) => ({
-		padding: 20,
-		lineHeight: "1.5",
-		borderTop: `1px solid ${theme.palette.divider}`,
-
-		"&:first-of-type": {
-			borderTop: 0,
-		},
-	}),
-	notificationDetail: (theme) => ({
-		margin: 0,
-		color: theme.palette.text.secondary,
-		lineHeight: 1.6,
-		display: "block",
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

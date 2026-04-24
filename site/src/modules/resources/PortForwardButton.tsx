@@ -13,7 +13,7 @@ import {
 	LockOpenIcon,
 	RadioIcon,
 	ShareIcon,
-	X as XIcon,
+	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";

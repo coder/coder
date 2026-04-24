@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -191,6 +193,171 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 	require.Equal(t, "image/png", filePart.MediaType)
 }
 
+func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mediaType    string
+		expectedText string
+	}{
+		{
+			name:      "missing image file",
+			mediaType: "image/png",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. " +
+				"Reported MIME type: image/png. If you need to inspect it, ask the user to re-upload.",
+		},
+		{
+			name:         "generic mime omits mime sentence",
+			mediaType:    "application/octet-stream",
+			expectedText: "[missing-attachment] The user attached a file here, but the content has expired and is no longer available. If you need to inspect it, ask the user to re-upload.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fileID := uuid.New()
+			rawContent := mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "file",
+					"data": map[string]any{
+						"media_type": tt.mediaType,
+						"file_id":    fileID.String(),
+					},
+				}),
+			})
+			resolver := func(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+				return map[uuid.UUID]chatprompt.FileData{}, nil
+			}
+			prompt, err := chatprompt.ConvertMessagesWithFiles(
+				context.Background(),
+				[]database.ChatMessage{{
+					Role:       database.ChatMessageRoleUser,
+					Visibility: database.ChatMessageVisibilityBoth,
+					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+				}},
+				resolver,
+				slogtest.Make(t, nil),
+			)
+			require.NoError(t, err)
+			require.Len(t, prompt, 1)
+			require.Len(t, prompt[0].Content, 1)
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+			require.True(t, ok, "expected TextPart")
+			require.Equal(t, tt.expectedText, textPart.Text)
+		})
+	}
+}
+
+func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"file_id": fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      []byte{},
+					MediaType: "text/plain",
+					Name:      "empty.txt",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Empty(t, prompt)
+}
+
+func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessage(t *testing.T) {
+	t.Parallel()
+
+	resolvedFileID := uuid.New()
+	missingFileID := uuid.New()
+	resolvedData := []byte("resolved-image-data")
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    resolvedFileID.String(),
+			},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "application/pdf",
+				"file_id":    missingFileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == resolvedFileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+					Name:      "resolved.png",
+				}
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Len(t, prompt[0].Content, 2)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok, "expected missing second part to become a TextPart")
+	require.Equal(t,
+		"[missing-attachment] The user attached a file here, but the content has expired and is no longer available. "+
+			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
+		textPart.Text,
+	)
+}
+
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +465,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_local",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"test"}`,
+			Input:      `{"type":"general","prompt":"test"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_websearch",
@@ -310,7 +477,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 
 	localResult := mustMarshalToolResult(t,
 		"toolu_local", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 
@@ -351,12 +518,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	t.Parallel()
 
-	// Step 1: assistant calls spawn_agent x2 + web_search (PE).
+	// Step 1: assistant calls spawn_agent + legacy spawn_agent + web_search (PE).
 	step1Assistant := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_A",
 			ToolName:   "spawn_agent",
-			Input:      `{"prompt":"a"}`,
+			Input:      `{"type":"general","prompt":"a"}`,
 		},
 		fantasy.ToolCallContent{
 			ToolCallID: "toolu_B",
@@ -373,7 +540,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 
 	resultA := mustMarshalToolResult(t,
 		"toolu_A", "spawn_agent",
-		json.RawMessage(`{"status":"done"}`),
+		json.RawMessage(`{"status":"done","type":"general"}`),
 		false, false, false,
 	)
 	resultB := mustMarshalToolResult(t,
@@ -1149,6 +1316,55 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
 	require.NotNil(t, cc, "cache control must survive new write → new read round-trip")
 	require.Equal(t, "ephemeral", cc.Type)
+}
+
+func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"error":"permission denied","detail":"nested payload"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "execute",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"error\":\"permission denied\",\"detail\":\"nested payload\"}"}`,
+		string(sdkPart.Result))
+}
+
+func TestStructuredToolErrorWriteWrapsJSONObjectWithoutErrorKey(t *testing.T) {
+	t.Parallel()
+
+	resultJSON := `{"message":"error"}`
+	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "call-1",
+		ToolName:   "wait_agent",
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resultJSON),
+		},
+	})
+
+	require.True(t, sdkPart.IsError)
+	assert.JSONEq(t, `{"error":"{\"message\":\"error\"}"}`, string(sdkPart.Result))
 }
 
 // TestMixedFormatConversation verifies ConvertMessagesWithFiles
@@ -2170,6 +2386,103 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.Equal(t, mimeType, mediaOutput.MediaType)
 	})
 
+	t.Run("MediaResultCarriesPromotedAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-promoted"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-00Z.png"
+
+		attachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    attachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			Data             string `json:"data"`
+			MimeType         string `json:"mime_type"`
+			Text             string `json:"text"`
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, imageData, persisted.Data)
+		require.Equal(t, mimeType, persisted.MimeType)
+		require.Equal(t, attachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
+
+		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{sdkPart})
+
+		prompt := loadPrompt(t, chat)
+		require.Len(t, prompt, 2)
+
+		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		require.True(t, ok, "expected ToolResultPart")
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
+		require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
+		require.Equal(t, imageData, mediaOutput.Data)
+		require.Equal(t, mimeType, mediaOutput.MediaType)
+	})
+	t.Run("MediaResultUsesMatchingAttachmentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		const callID = "call-screenshot-matching-attachment"
+		const toolName = "computer"
+		const mimeType = "image/png"
+		const attachmentName = "screenshot-2026-04-21T00-00-01Z.png"
+
+		mismatchedAttachmentID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+		matchingAttachmentID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-ffffffffffff")
+		response := chattool.WithAttachments(
+			fantasy.NewImageResponse([]byte(imageData), mimeType),
+			chattool.AttachmentMetadata{
+				FileID:    mismatchedAttachmentID,
+				MediaType: "application/pdf",
+				Name:      "report.pdf",
+			},
+			chattool.AttachmentMetadata{
+				FileID:    matchingAttachmentID,
+				MediaType: mimeType,
+				Name:      attachmentName,
+			},
+		)
+
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID:     callID,
+			ToolName:       toolName,
+			ClientMetadata: response.Metadata,
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      imageData,
+				MediaType: mimeType,
+			},
+		})
+
+		var persisted struct {
+			AttachmentFileID string `json:"attachment_file_id"`
+			AttachmentName   string `json:"attachment_name"`
+		}
+		require.NoError(t, json.Unmarshal(sdkPart.Result, &persisted))
+		require.Equal(t, matchingAttachmentID.String(), persisted.AttachmentFileID)
+		require.Equal(t, attachmentName, persisted.AttachmentName)
+	})
+
 	t.Run("MediaResultWithText", func(t *testing.T) {
 		t.Parallel()
 
@@ -2467,5 +2780,217 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 		t.Parallel()
 		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
 		assert.Nil(t, part.CreatedAt)
+	})
+}
+
+func TestToolResultAntivenom(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	t.Run("PoisonedTextResultSanitized", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate raw binary bytes stored as json.RawMessage.
+		// This reproduces the crash where tool output containing
+		// invalid UTF-8 was passed verbatim to the LLM provider.
+		poisonedBytes := json.RawMessage(string([]byte{0xFF, 0xD8, 0xFF}))
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-1",
+			ToolName:   "test_tool",
+			Result:     poisonedBytes,
+			IsError:    false,
+			IsMedia:    false,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		textOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
+		require.True(t, ok, "expected text output, got %T", result.Output)
+		require.True(t, utf8.ValidString(textOutput.Text), "output text must be valid UTF-8")
+		require.NotEmpty(t, textOutput.Text)
+	})
+
+	t.Run("PoisonedMediaResultDegradesToText", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate raw JPEG bytes stored where base64 is expected.
+		// The base64 validation guard should reject this and fall
+		// through to the text path.
+		corruptedData := string([]byte{0xFF, 0xD8, 0xFF, 0xE0})
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     corruptedData,
+			MimeType: "image/jpeg",
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-2",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		// Should degrade to text since the data is not valid base64.
+		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.False(t, isMedia, "corrupted media should not be returned as media")
+
+		textOutput, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
+		require.True(t, isText, "should fall through to text, got %T", result.Output)
+		require.True(t, utf8.ValidString(textOutput.Text), "fallback text must be valid UTF-8")
+	})
+
+	t.Run("ValidMediaResultRoundTrips", func(t *testing.T) {
+		t.Parallel()
+
+		// Valid base64 media should pass through the guard and
+		// be returned as ToolResultOutputContentMedia.
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     validBase64,
+			MimeType: "image/png",
+			Text:     "screenshot",
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-3",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.True(t, ok, "valid media should round-trip as media, got %T", result.Output)
+		require.Equal(t, validBase64, mediaOutput.Data)
+		require.Equal(t, "image/png", mediaOutput.MediaType)
+		require.Equal(t, "screenshot", mediaOutput.Text)
+	})
+
+	t.Run("MediaWithInvalidUTF8TextSanitized", func(t *testing.T) {
+		t.Parallel()
+
+		// Valid base64 data with an invalid UTF-8 text annotation.
+		// The media should survive but the text field must be
+		// sanitized to valid UTF-8.
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		invalidText := "hello" + string([]byte{0xFF, 0xFE}) + "world"
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     validBase64,
+			MimeType: "image/png",
+			Text:     invalidText,
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-4",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.True(t, ok, "media with valid base64 should stay as media, got %T", result.Output)
+		require.Equal(t, validBase64, mediaOutput.Data)
+		require.True(t, utf8.ValidString(mediaOutput.Text), "text must be sanitized to valid UTF-8")
+		require.Contains(t, mediaOutput.Text, "hello")
+		require.Contains(t, mediaOutput.Text, "world")
+	})
+
+	t.Run("PoisonedErrorResultSanitized", func(t *testing.T) {
+		t.Parallel()
+		// Simulate invalid UTF-8 in an error tool result.
+		poisonedError := json.RawMessage(`{"error":"fail` + string([]byte{0xFF, 0xFE}) + `ed"}`)
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-5",
+			ToolName:   "broken_tool",
+			Result:     poisonedError,
+			IsError:    true,
+			IsMedia:    false,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
+		require.True(t, ok, "expected error output, got %T", result.Output)
+		require.True(t, utf8.ValidString(errOutput.Error.Error()),
+			"error message must be valid UTF-8")
+		require.Contains(t, errOutput.Error.Error(), "fail")
+		require.Contains(t, errOutput.Error.Error(), "ed")
+	})
+}
+
+func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	t.Run("TextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-1",
+			ToolName:   "test",
+			Result: fantasy.ToolResultOutputContentText{
+				Text: "hello\xffworld",
+			},
+		})
+
+		require.True(t, utf8.Valid(part.Result),
+			"persisted result must be valid UTF-8, got: %q", string(part.Result))
+	})
+
+	t.Run("MediaTextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-2",
+			ToolName:   "computer",
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      validBase64,
+				MediaType: "image/png",
+				Text:      "screenshot\xfe\xffdone",
+			},
+		})
+
+		require.True(t, part.IsMedia)
+		// Unmarshal the persisted media and check Text field.
+		var media struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text"`
+		}
+		err := json.Unmarshal(part.Result, &media)
+		require.NoError(t, err)
+		require.True(t, utf8.ValidString(media.Text),
+			"persisted media text must be valid UTF-8")
+		require.Contains(t, media.Text, "screenshot")
+		require.Contains(t, media.Text, "done")
 	})
 }

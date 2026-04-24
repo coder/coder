@@ -8,6 +8,7 @@ import {
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { UploadState } from "../components/AgentChatInput";
+import { getChatFileURL } from "../utils/chatAttachments";
 
 /** @internal Exported for testing. */
 export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
@@ -88,7 +89,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 			attachments.push(file);
 			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
 			if (p.fileType.startsWith("image/")) {
-				previewUrls.set(file, `/api/experimental/chats/files/${p.fileId}`);
+				previewUrls.set(file, getChatFileURL(p.fileId));
 			}
 		}
 		return { attachments, uploadStates, previewUrls };
@@ -190,12 +191,13 @@ export function useFileAttachments(
 		() => new Map<File, string>(),
 	);
 
-	// Revoke blob URLs on unmount to prevent memory leaks.
 	const revokePreviewUrls = useEffectEvent(() => {
 		for (const [, url] of previewUrls) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 	});
+
+	// Revoke blob URLs on unmount to prevent memory leaks.
 	useEffect(() => {
 		return () => revokePreviewUrls();
 	}, []);
@@ -235,7 +237,7 @@ export function useFileAttachments(
 				// intentionally skip text attachments because the
 				// composer already has the text content locally.
 				if (isImage) {
-					void fetch(`/api/experimental/chats/files/${result.id}`);
+					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
 				const message = getErrorMessage(err, "Upload failed");
@@ -345,7 +347,9 @@ export function useFileAttachments(
 	};
 
 	const resetAttachments = () => {
-		revokePreviewUrls();
+		for (const [, url] of previewUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 		setPreviewUrls(new Map());
 		setTextContents(new Map());
 		setUploadStates(new Map());

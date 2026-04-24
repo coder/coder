@@ -1038,11 +1038,12 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers: row.Providers,
-		Models:    row.Models,
-		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt: row.StartedAt,
-		Threads:   row.Threads,
+		Providers:    row.Providers,
+		Models:       row.Models,
+		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:    row.StartedAt,
+		Threads:      row.Threads,
+		LastActiveAt: row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1516,10 +1517,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 	}
 
 	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
+		ID:            message.ID,
+		ChatID:        message.ChatID,
+		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
+		Content:       parts,
+		CreatedAt:     message.CreatedAt,
 	}
 }
 

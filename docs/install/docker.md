@@ -111,7 +111,7 @@ See Docker's official documentation to
 
 Coder runs as a non-root user, we use `--group-add` to ensure Coder has
 permissions to manage Docker via `docker.sock`. If the host systems
-`/var/run/docker.sock` is not group writeable or does not belong to the `docker`
+`/var/run/docker.sock` is not group writable or does not belong to the `docker`
 group, the above may not work as-is.
 
 ### I cannot add cloud-based templates

@@ -16,7 +16,6 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	MockNoPermissions,
 	MockPermissions,
@@ -29,7 +28,11 @@ import {
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
-import { AgentSettingsBehaviorPageView } from "./AgentSettingsBehaviorPageView";
+import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
+import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
+import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
+import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
+import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { AgentsPageView } from "./AgentsPageView";
@@ -151,62 +154,13 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 // across timezones.
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
-// Renders the real PageView components with mock data so the
-// visual snapshots match the actual UI.
-const BehaviorRouteElement = () => {
-	const { permissions } = useAuthenticated();
-	return (
-		<AgentSettingsBehaviorPageView
-			canSetSystemPrompt={permissions.editDeploymentConfig}
-			systemPromptData={{
-				system_prompt: "",
-				include_default_system_prompt: true,
-				default_system_prompt: "You are Coder, an AI coding assistant...",
-			}}
-			planModeInstructionsData={{
-				plan_mode_instructions: "",
-			}}
-			userPromptData={{ custom_prompt: "" }}
-			desktopEnabledData={{ enable_desktop: false }}
-			workspaceTTLData={{ workspace_ttl_ms: 0 }}
-			isWorkspaceTTLLoading={false}
-			isWorkspaceTTLLoadError={false}
-			modelConfigsData={[]}
-			modelConfigsError={undefined}
-			isLoadingModelConfigs={false}
-			thresholds={[]}
-			isThresholdsLoading={false}
-			thresholdsError={undefined}
-			onSaveSystemPrompt={fn()}
-			isSavingSystemPrompt={false}
-			isSaveSystemPromptError={false}
-			onSavePlanModeInstructions={fn()}
-			isSavingPlanModeInstructions={false}
-			isSavePlanModeInstructionsError={false}
-			onSaveUserPrompt={fn()}
-			isSavingUserPrompt={false}
-			isSaveUserPromptError={false}
-			onSaveDesktopEnabled={fn()}
-			isSavingDesktopEnabled={false}
-			isSaveDesktopEnabledError={false}
-			onSaveWorkspaceTTL={fn()}
-			isSavingWorkspaceTTL={false}
-			isSaveWorkspaceTTLError={false}
-			retentionDaysData={{ retention_days: 30 }}
-			isRetentionDaysLoading={false}
-			isRetentionDaysLoadError={false}
-			onSaveRetentionDays={fn()}
-			isSavingRetentionDays={false}
-			isSaveRetentionDaysError={false}
-			onSaveThreshold={fn(async () => undefined)}
-			onResetThreshold={fn(async () => undefined)}
-		/>
-	);
-};
-
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
-		exploreModelOverrideData={{ has_malformed_override: false }}
+		exploreModelOverrideData={{
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
@@ -224,8 +178,16 @@ const agentsRouting = {
 			path: "settings",
 			element: <AgentSettingsPage />,
 			children: [
-				{ index: true, element: <Navigate to="behavior" replace /> },
-				{ path: "behavior", element: <BehaviorRouteElement /> },
+				{ index: true, element: <AgentSettingsGeneralPage /> },
+				{ path: "general", element: <AgentSettingsGeneralPage /> },
+				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
+				{
+					path: "instructions",
+					element: <AgentSettingsInstructionsPage />,
+				},
+				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
+				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
+				{ path: "admin", element: <AgentsRouteElement /> },
 				{ path: "agents", element: <AgentsRouteElement /> },
 				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
 				{
@@ -264,7 +226,9 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestArchiveAndDeleteWorkspace: fn(),
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
-	onRegenerateTitle: fn(),
+	onRegenerateTitle: fn(async () => "Generated title"),
+	onProposeTitle: fn(async () => "Proposed title"),
+	onRenameTitle: fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,
@@ -347,10 +311,50 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});
+		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
+		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
+			allow_users: false,
+			forced_by_deployment: false,
+		});
+		spyOn(API.experimental, "updateChatDebugLogging").mockResolvedValue();
+		spyOn(API.experimental, "getUserChatDebugLogging").mockResolvedValue({
+			debug_logging_enabled: false,
+			forced_by_deployment: false,
+			user_toggle_allowed: false,
+		});
+		spyOn(API.experimental, "updateUserChatDebugLogging").mockResolvedValue();
+		spyOn(API.experimental, "getChatPlanModeInstructions").mockResolvedValue({
+			plan_mode_instructions: "",
+		});
+		spyOn(
+			API.experimental,
+			"updateChatPlanModeInstructions",
+		).mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({
+			thresholds: [],
+		});
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
+			model_config_id: defaultModelConfigID,
+			threshold_percent: 70,
+		});
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue();
 		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatRetentionDays").mockResolvedValue({
+			retention_days: 30,
+		});
+		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
 		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
 			spend_limit_micros: null,
 			period: "month",
@@ -609,10 +613,23 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const link = await waitFor(() =>
-		canvas.getByRole("link", { name: "Settings" }),
+	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
+	if (settingsLink) {
+		await userEvent.click(settingsLink);
+		return;
+	}
+
+	const mobileMoreOptionsButton = canvas
+		.getAllByRole("button", { name: "More options" })
+		.find((button) => button.getAttribute("aria-haspopup") === "menu");
+	if (!mobileMoreOptionsButton) {
+		throw new Error("Expected a mobile More options menu button.");
+	}
+	await userEvent.click(mobileMoreOptionsButton);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("menuitem", { name: "Settings" }),
 	);
-	await userEvent.click(link);
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -667,9 +684,7 @@ export const OpensSettingsForAdmins: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 	},
@@ -687,11 +702,38 @@ export const OpensSettingsForNonAdmins: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
+
+		expect(
+			screen.queryByRole("link", { name: "Manage Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OpensAdminSubPanelOnMobile: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage Agents" }),
+		);
+
+		await expect(
+			await screen.findByRole("link", { name: "Providers" }),
+		).toBeInTheDocument();
+		await expect(
+			await screen.findByRole("link", { name: "Spend" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -705,14 +747,13 @@ export const SettingsViewResets: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 
-		// Navigate to Spend section
-		await userEvent.click(screen.getByText("Spend"));
+		// Navigate to the admin panel, then open the Spend section.
+		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -721,17 +762,21 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Go back to conversations
-		const backButton = screen.getByLabelText("Back to Agents");
-		await userEvent.click(backButton);
+		// Step back to the top-level settings panel, then back to conversations.
+		const backToSettingsButton = await screen.findByRole("link", {
+			name: "Back to Settings",
+		});
+		await userEvent.click(backToSettingsButton);
+		const backToAgentsButton = await screen.findByRole("link", {
+			name: "Back to Agents",
+		});
+		await userEvent.click(backToAgentsButton);
 
-		// Re-open settings, should reset to Behavior
+		// Re-open settings, should reset to General
 		await openSettingsView(canvasElement);
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your conversations.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 	},
