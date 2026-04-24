@@ -449,7 +449,7 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	}
 }
 
-func parseChatExploreModelOverride(raw string) (*uuid.UUID, error) {
+func parseChatModelOverride(raw string) (*uuid.UUID, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		//nolint:nilnil // Empty site-config value means the override is unset.
@@ -457,19 +457,29 @@ func parseChatExploreModelOverride(raw string) (*uuid.UUID, error) {
 	}
 	modelConfigID, err := uuid.Parse(trimmed)
 	if err != nil {
-		return nil, xerrors.Errorf("parse explore model override: %w", err)
+		return nil, xerrors.Errorf("parse chat model override: %w", err)
 	}
 	return &modelConfigID, nil
 }
 
-func formatChatExploreModelOverride(id *uuid.UUID) string {
+func formatChatModelOverride(id *uuid.UUID) string {
 	if id == nil {
 		return ""
 	}
 	return id.String()
 }
 
-func validateChatExploreModelOverrideID(
+func lookupEnabledChatModelConfigByID(
+	ctx context.Context,
+	db database.Store,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	//nolint:gocritic // Validation lookup uses AsChatd to check model
+	// availability independently of the caller's read permissions.
+	return db.GetEnabledChatModelConfigByID(dbauthz.AsChatd(ctx), id)
+}
+
+func validateChatModelOverrideID(
 	ctx context.Context,
 	db database.Store,
 	id *uuid.UUID,
@@ -482,9 +492,7 @@ func validateChatExploreModelOverrideID(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	//nolint:gocritic // Validation lookup uses system context to check model
-	// availability independently of the caller's read permissions.
-	_, err := db.GetEnabledChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), *id)
+	_, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
 	if err == nil {
 		return 0, nil
 	}
@@ -499,24 +507,87 @@ func validateChatExploreModelOverrideID(
 	}
 }
 
-func (api *API) getChatExploreModelOverrideConfig(
+func (api *API) getChatModelOverrideConfig(
 	ctx context.Context,
+	settingName string,
+	getter func(context.Context) (string, error),
 ) (*uuid.UUID, bool, error) {
-	raw, err := api.Database.GetChatExploreModelOverride(ctx)
+	raw, err := getter(ctx)
 	if err != nil {
-		return nil, false, xerrors.Errorf("get explore model override: %w", err)
+		return nil, false, xerrors.Errorf("get %s model override: %w", settingName, err)
 	}
-	id, err := parseChatExploreModelOverride(raw)
+	id, err := parseChatModelOverride(raw)
 	if err != nil {
 		// Degrade malformed values to unset so the admin settings page
 		// remains accessible and the bad value can be cleared.
-		api.Logger.Warn(ctx, "malformed explore model override in site config, treating as unset",
+		api.Logger.Warn(
+			ctx,
+			"malformed model override in site config, treating as unset",
+			slog.F("setting", settingName),
 			slog.F("raw_value", raw),
 			slog.Error(err),
 		)
 		return nil, true, nil
 	}
 	return id, false, nil
+}
+
+func parseChatAgentModelOverrideContext(raw string) (codersdk.ChatAgentModelOverrideContext, error) {
+	overrideContext := codersdk.ChatAgentModelOverrideContext(raw)
+	if overrideContext.Valid() {
+		return overrideContext, nil
+	}
+	return "", xerrors.Errorf("unknown chat agent model override context %q", raw)
+}
+
+type chatAgentModelOverrideSiteConfig struct {
+	getter func(context.Context) (string, error)
+	upsert func(context.Context, string) error
+}
+
+func (api *API) chatAgentModelOverrideSiteConfig(
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (chatAgentModelOverrideSiteConfig, error) {
+	switch overrideContext {
+	case codersdk.ChatAgentModelOverrideContextGeneral:
+		return chatAgentModelOverrideSiteConfig{
+			getter: api.Database.GetChatGeneralModelOverride,
+			upsert: api.Database.UpsertChatGeneralModelOverride,
+		}, nil
+	case codersdk.ChatAgentModelOverrideContextExplore:
+		return chatAgentModelOverrideSiteConfig{
+			getter: api.Database.GetChatExploreModelOverride,
+			upsert: api.Database.UpsertChatExploreModelOverride,
+		}, nil
+	default:
+		return chatAgentModelOverrideSiteConfig{}, xerrors.Errorf(
+			"unknown chat agent model override context %q",
+			overrideContext,
+		)
+	}
+}
+
+func (api *API) getChatAgentModelOverrideConfig(
+	ctx context.Context,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (*uuid.UUID, bool, error) {
+	siteConfig, err := api.chatAgentModelOverrideSiteConfig(overrideContext)
+	if err != nil {
+		return nil, false, err
+	}
+	return api.getChatModelOverrideConfig(ctx, string(overrideContext), siteConfig.getter)
+}
+
+func (api *API) upsertChatAgentModelOverrideConfig(
+	ctx context.Context,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+	modelConfigID *uuid.UUID,
+) error {
+	siteConfig, err := api.chatAgentModelOverrideSiteConfig(overrideContext)
+	if err != nil {
+		return err
+	}
+	return siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3827,53 +3898,103 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func readChatAgentModelOverrideContext(
+	rw http.ResponseWriter,
+	r *http.Request,
+) (codersdk.ChatAgentModelOverrideContext, bool) {
+	ctx := r.Context()
+	rawContext := chi.URLParam(r, "context")
+	overrideContext, err := parseChatAgentModelOverrideContext(rawContext)
+	if err == nil {
+		return overrideContext, true
+	}
+	validContextValues := make(
+		[]string,
+		0,
+		len(codersdk.AllChatAgentModelOverrideContexts()),
+	)
+	for _, overrideContext := range codersdk.AllChatAgentModelOverrideContexts() {
+		validContextValues = append(validContextValues, string(overrideContext))
+	}
+	validContexts := strings.Join(validContextValues, ", ")
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid chat agent model override context.",
+		Detail: fmt.Sprintf(
+			"Expected one of %s. Got %q.",
+			validContexts,
+			rawContext,
+		),
+	})
+	return "", false
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) getChatAgentModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	overrideContext, ok := readChatAgentModelOverrideContext(rw, r)
+	if !ok {
+		return
+	}
 
-	modelConfigID, hasMalformedOverride, err := api.getChatExploreModelOverrideConfig(ctx)
+	modelConfigID, isMalformed, err := api.getChatAgentModelOverrideConfig(ctx, overrideContext)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching Explore model override.",
+			Message: fmt.Sprintf("Internal error fetching %s model override.", overrideContext),
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatExploreModelOverrideResponse{
-		ModelConfigID:        modelConfigID,
-		HasMalformedOverride: hasMalformedOverride,
-	})
+	resp := codersdk.ChatAgentModelOverrideResponse{
+		Context:       overrideContext,
+		ModelConfigID: formatChatModelOverride(modelConfigID),
+		IsMalformed:   isMalformed,
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatExploreModelOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putChatAgentModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	overrideContext, ok := readChatAgentModelOverrideContext(rw, r)
+	if !ok {
+		return
+	}
 
-	var req codersdk.UpdateChatExploreModelOverrideRequest
+	var req codersdk.UpdateChatAgentModelOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	status, resp := validateChatExploreModelOverrideID(ctx, api.Database, req.ModelConfigID)
+	modelConfigID, err := parseChatModelOverride(req.ModelConfigID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model_config_id.",
+			Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+		})
+		return
+	}
+
+	status, resp := validateChatModelOverrideID(ctx, api.Database, modelConfigID)
 	if resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
 
-	if err := api.Database.UpsertChatExploreModelOverride(ctx, formatChatExploreModelOverride(req.ModelConfigID)); err != nil {
+	if err := api.upsertChatAgentModelOverrideConfig(ctx, overrideContext, modelConfigID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating Explore model override.",
+			Message: fmt.Sprintf("Internal error updating %s model override.", overrideContext),
 			Detail:  err.Error(),
 		})
 		return

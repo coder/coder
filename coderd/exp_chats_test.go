@@ -1134,43 +1134,63 @@ func TestListChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, _ := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
+		_ = createChatModelConfig(t, client)
 
-		// Insert the chat that will later be pinned directly
-		// into the database with a completed status so we
-		// avoid the background chatd processor entirely.
-		pinnedDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "pinned-chat",
-			Status:            database.ChatStatusCompleted,
-			ClientType:        database.ChatClientTypeUi,
+		// Create the chat that will later be pinned. It gets the
+		// earliest updated_at because it is inserted first.
+		pinnedChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "pinned-chat",
+			}},
 		})
 		require.NoError(t, err)
 
-		// Fill page 1 with newer chats so the pinned chat
-		// would normally be pushed off the first page
-		// (default limit 50). Insert directly into the
-		// database to avoid spawning 51 background chat
-		// processors, which causes timeouts under -race.
+		// Fill page 1 with newer chats so the pinned chat would
+		// normally be pushed off the first page (default limit 50).
 		const fillerCount = 51
+		fillerChats := make([]codersdk.Chat, 0, fillerCount)
 		for i := range fillerCount {
-			_, insertErr := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-				OrganizationID:    firstUser.OrganizationID,
-				OwnerID:           firstUser.UserID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             fmt.Sprintf("filler-%d", i),
-				Status:            database.ChatStatusCompleted,
-				ClientType:        database.ChatClientTypeUi,
+			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: fmt.Sprintf("filler-%d", i),
+				}},
 			})
-			require.NoError(t, insertErr)
+			require.NoError(t, createErr)
+			fillerChats = append(fillerChats, c)
 		}
 
+		// Wait for all chats to reach a terminal status so
+		// updated_at is stable before paginating. A single
+		// polling loop checks every chat per tick to avoid
+		// O(N) separate Eventually loops.
+		allCreated := append([]codersdk.Chat{pinnedChat}, fillerChats...)
+		pending := make(map[uuid.UUID]struct{}, len(allCreated))
+		for _, c := range allCreated {
+			pending[c.ID] = struct{}{}
+		}
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			all, listErr := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Pagination: codersdk.Pagination{Limit: fillerCount + 10},
+			})
+			if listErr != nil {
+				return false
+			}
+			for _, ch := range all {
+				if _, ok := pending[ch.ID]; ok && ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning {
+					delete(pending, ch.ID)
+				}
+			}
+			return len(pending) == 0
+		}, testutil.IntervalFast)
+
 		// Pin the earliest chat.
-		err = client.UpdateChat(ctx, pinnedDBChat.ID, codersdk.UpdateChatRequest{
+		err = client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{
 			PinOrder: ptr.Ref(int32(1)),
 		})
 		require.NoError(t, err)
@@ -1186,11 +1206,11 @@ func TestListChats(t *testing.T) {
 		for _, c := range page1 {
 			page1IDs[c.ID] = struct{}{}
 		}
-		_, found := page1IDs[pinnedDBChat.ID]
+		_, found := page1IDs[pinnedChat.ID]
 		require.True(t, found, "pinned chat should appear on page 1")
 
 		// The pinned chat should be the first item in the list.
-		require.Equal(t, pinnedDBChat.ID, page1[0].ID, "pinned chat should be first")
+		require.Equal(t, pinnedChat.ID, page1[0].ID, "pinned chat should be first")
 	})
 
 	// Test cursor pagination with a mix of pinned and unpinned chats.
@@ -9396,6 +9416,44 @@ func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) co
 	return modelConfig
 }
 
+func createAdditionalChatModelConfig(
+	t *testing.T,
+	client *codersdk.ExperimentalClient,
+	provider string,
+	model string,
+) codersdk.ChatModelConfig {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	contextLimit := int64(4096)
+	isDefault := false
+	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     provider,
+		Model:        model,
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+	return modelConfig
+}
+
+func createDisabledChatModelConfig(
+	t *testing.T,
+	client *codersdk.ExperimentalClient,
+	provider string,
+	model string,
+) codersdk.ChatModelConfig {
+	t.Helper()
+
+	modelConfig := createAdditionalChatModelConfig(t, client, provider, model)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+		Enabled: ptr.Ref(false),
+	})
+	require.NoError(t, err)
+	return updated
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestChatSystemPrompt(t *testing.T) {
 	t.Parallel()
@@ -9897,129 +9955,249 @@ func TestChatPlanModeInstructions(t *testing.T) {
 	})
 }
 
-//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
-func TestChatExploreModelOverride(t *testing.T) {
+//nolint:tparallel,paralleltest // Setting subtests share per-setting coderdtest instances.
+func TestChatModelOverrides(t *testing.T) {
 	t.Parallel()
 
-	adminClient, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-	defaultModel := createChatModelConfig(t, adminClient)
-	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-	createAdditionalModel := func(t *testing.T, model string, enabled bool) codersdk.ChatModelConfig {
-		t.Helper()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		contextLimit := int64(4096)
-		isDefault := false
-		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     defaultModel.Provider,
-			Model:        model,
-			ContextLimit: &contextLimit,
-			IsDefault:    &isDefault,
-		})
-		require.NoError(t, err)
-		if enabled {
-			return modelConfig
-		}
-		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
-			Enabled: ptr.Ref(false),
-		})
-		require.NoError(t, err)
-		return updated
+	type overrideResponse struct {
+		context       codersdk.ChatAgentModelOverrideContext
+		modelConfigID string
+		isMalformed   bool
 	}
 
-	t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
+	type settingTest struct {
+		name     string
+		context  codersdk.ChatAgentModelOverrideContext
+		dbGet    func(context.Context, database.Store) (string, error)
+		dbUpsert func(context.Context, database.Store, string) error
+	}
 
-		resp, err := adminClient.GetChatExploreModelOverride(ctx)
-		require.NoError(t, err)
-		require.Nil(t, resp.ModelConfigID)
-		require.False(t, resp.HasMalformedOverride)
-	})
+	settingPath := func(overrideContext codersdk.ChatAgentModelOverrideContext) string {
+		return "/api/experimental/chats/config/agent-model-override/" + string(overrideContext)
+	}
 
-	t.Run("AdminCanSetAndClear", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		overrideModel := createAdditionalModel(t, "gpt-4.1-mini", true)
+	getOverride := func(
+		ctx context.Context,
+		client *codersdk.ExperimentalClient,
+		overrideContext codersdk.ChatAgentModelOverrideContext,
+	) (overrideResponse, error) {
+		resp, err := client.GetChatAgentModelOverride(ctx, overrideContext)
+		if err != nil {
+			return overrideResponse{}, err
+		}
+		return overrideResponse{
+			context:       resp.Context,
+			modelConfigID: resp.ModelConfigID,
+			isMalformed:   resp.IsMalformed,
+		}, nil
+	}
 
-		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
-			ModelConfigID: &overrideModel.ID,
+	putOverride := func(
+		ctx context.Context,
+		client *codersdk.ExperimentalClient,
+		overrideContext codersdk.ChatAgentModelOverrideContext,
+		modelConfigID string,
+	) error {
+		return client.UpdateChatAgentModelOverride(
+			ctx,
+			overrideContext,
+			codersdk.UpdateChatAgentModelOverrideRequest{ModelConfigID: modelConfigID},
+		)
+	}
+
+	settings := []settingTest{
+		{
+			name:    "General",
+			context: codersdk.ChatAgentModelOverrideContextGeneral,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatGeneralModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatGeneralModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
+		{
+			name:    "Explore",
+			context: codersdk.ChatAgentModelOverrideContextExplore,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatExploreModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatExploreModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
+	}
+
+	for _, setting := range settings {
+		t.Run(setting.name, func(t *testing.T) {
+			adminClient, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+			defaultModel := createChatModelConfig(t, adminClient)
+			openAIModel := createAdditionalChatModelConfig(
+				t,
+				adminClient,
+				defaultModel.Provider,
+				"gpt-4.1-mini-"+string(setting.context),
+			)
+			disabledModel := createDisabledChatModelConfig(
+				t,
+				adminClient,
+				defaultModel.Provider,
+				"gpt-4.1-disabled-"+string(setting.context),
+			)
+			memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+			memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+			t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				resp, err := getOverride(ctx, adminClient, setting.context)
+				require.NoError(t, err)
+				require.Equal(t, setting.context, resp.context)
+				require.Empty(t, resp.modelConfigID)
+				require.False(t, resp.isMalformed)
+
+				raw, err := setting.dbGet(ctx, db)
+				require.NoError(t, err)
+				require.Empty(t, raw, "expected empty stored override for %s", settingPath(setting.context))
+			})
+
+			t.Run("AdminCanSetAndClear", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := putOverride(ctx, adminClient, setting.context, openAIModel.ID.String())
+				require.NoError(t, err)
+
+				raw, err := setting.dbGet(ctx, db)
+				require.NoError(t, err)
+				require.Equal(t, openAIModel.ID.String(), raw, "expected stored override for %s", settingPath(setting.context))
+
+				resp, err := getOverride(ctx, adminClient, setting.context)
+				require.NoError(t, err)
+				require.Equal(t, setting.context, resp.context)
+				require.Equal(t, openAIModel.ID.String(), resp.modelConfigID)
+				require.False(t, resp.isMalformed)
+
+				err = putOverride(ctx, adminClient, setting.context, "")
+				require.NoError(t, err)
+
+				raw, err = setting.dbGet(ctx, db)
+				require.NoError(t, err)
+				require.Empty(t, raw, "expected cleared override for %s", settingPath(setting.context))
+
+				resp, err = getOverride(ctx, adminClient, setting.context)
+				require.NoError(t, err)
+				require.Equal(t, setting.context, resp.context)
+				require.Empty(t, resp.modelConfigID)
+				require.False(t, resp.isMalformed)
+			})
+
+			t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				require.NoError(t, setting.dbUpsert(ctx, db, "not-a-uuid"))
+
+				resp, err := getOverride(ctx, adminClient, setting.context)
+				require.NoError(t, err)
+				require.Equal(t, setting.context, resp.context)
+				require.Empty(t, resp.modelConfigID)
+				require.True(t, resp.isMalformed)
+
+				err = putOverride(ctx, adminClient, setting.context, "")
+				require.NoError(t, err)
+
+				raw, err := setting.dbGet(ctx, db)
+				require.NoError(t, err)
+				require.Empty(t, raw, "expected malformed override to be cleared for %s", settingPath(setting.context))
+
+				resp, err = getOverride(ctx, adminClient, setting.context)
+				require.NoError(t, err)
+				require.Equal(t, setting.context, resp.context)
+				require.Empty(t, resp.modelConfigID)
+				require.False(t, resp.isMalformed)
+			})
+
+			t.Run("InvalidUUIDReturns400", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := putOverride(ctx, adminClient, setting.context, "not-a-uuid")
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+				require.Equal(t, "Value \"not-a-uuid\" is not a valid UUID.", sdkErr.Detail)
+			})
+
+			t.Run("DisabledModelReturns400", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := putOverride(ctx, adminClient, setting.context, disabledModel.ID.String())
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+			})
+
+			t.Run("UnknownModelReturns400", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				unknownModelID := uuid.New()
+
+				err := putOverride(ctx, adminClient, setting.context, unknownModelID.String())
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+			})
+
+			t.Run("NonAdminGETReturns404", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				_, err := getOverride(ctx, memberClient, setting.context)
+				requireSDKError(t, err, http.StatusNotFound)
+			})
+
+			t.Run("NonAdminPUTReturns403", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := putOverride(ctx, memberClient, setting.context, defaultModel.ID.String())
+				requireSDKError(t, err, http.StatusForbidden)
+			})
 		})
-		require.NoError(t, err)
+	}
 
-		resp, err := adminClient.GetChatExploreModelOverride(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, resp.ModelConfigID)
-		require.Equal(t, overrideModel.ID, *resp.ModelConfigID)
-		require.False(t, resp.HasMalformedOverride)
-
-		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
-		require.NoError(t, err)
-
-		resp, err = adminClient.GetChatExploreModelOverride(ctx)
-		require.NoError(t, err)
-		require.Nil(t, resp.ModelConfigID)
-		require.False(t, resp.HasMalformedOverride)
-	})
-
-	t.Run("MalformedStoredOverrideIsReportedAndCanBeCleared", func(t *testing.T) {
+	t.Run("UnknownContextReturns400", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		require.NoError(t, db.UpsertChatExploreModelOverride(
-			dbauthz.AsSystemRestricted(ctx),
-			"not-a-uuid",
-		))
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		unknownContext := codersdk.ChatAgentModelOverrideContext("not-a-context")
 
-		resp, err := adminClient.GetChatExploreModelOverride(ctx)
-		require.NoError(t, err)
-		require.Nil(t, resp.ModelConfigID)
-		require.True(t, resp.HasMalformedOverride)
-
-		err = adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{})
-		require.NoError(t, err)
-
-		resp, err = adminClient.GetChatExploreModelOverride(ctx)
-		require.NoError(t, err)
-		require.Nil(t, resp.ModelConfigID)
-		require.False(t, resp.HasMalformedOverride)
-	})
-
-	t.Run("DisabledModelReturns400", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		disabledModel := createAdditionalModel(t, "gpt-4.1-disabled", false)
-
-		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
-			ModelConfigID: &disabledModel.ID,
-		})
+		_, err := getOverride(ctx, adminClient, unknownContext)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+		require.Equal(t, "Invalid chat agent model override context.", sdkErr.Message)
+		require.Equal(
+			t,
+			`Expected one of general, explore. Got "not-a-context".`,
+			sdkErr.Detail,
+		)
+
+		err = putOverride(ctx, adminClient, unknownContext, "")
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid chat agent model override context.", sdkErr.Message)
+		require.Equal(
+			t,
+			`Expected one of general, explore. Got "not-a-context".`,
+			sdkErr.Detail,
+		)
 	})
 
-	t.Run("UnknownModelReturns400", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		unknownModelID := uuid.New()
-
-		err := adminClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
-			ModelConfigID: &unknownModelID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
-	})
-
-	t.Run("NonAdminGETReturns404", func(t *testing.T) {
+	t.Run("NonAdminUnknownContextUsesAuthResponse", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := memberClient.GetChatExploreModelOverride(ctx)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		unknownContext := codersdk.ChatAgentModelOverrideContext("not-a-context")
+
+		_, err := getOverride(ctx, memberClient, unknownContext)
 		requireSDKError(t, err, http.StatusNotFound)
-	})
 
-	t.Run("NonAdminPUTReturns403", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		err := memberClient.UpdateChatExploreModelOverride(ctx, codersdk.UpdateChatExploreModelOverrideRequest{
-			ModelConfigID: &defaultModel.ID,
-		})
+		err = putOverride(ctx, memberClient, unknownContext, "")
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 }

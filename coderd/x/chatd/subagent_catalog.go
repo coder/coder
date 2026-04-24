@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -43,21 +44,36 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "delegated work that may inspect or modify workspace files",
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				return childSubagentChatOptions{}, nil
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveSubagentModelConfigID(
+					ctx,
+					parent.OwnerID,
+					codersdk.ChatAgentModelOverrideContextGeneral,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				options := childSubagentChatOptions{}
+				if modelConfigID != uuid.Nil {
+					options.modelConfigIDOverride = &modelConfigID
+				}
+				return options, nil
 			},
 		},
 		{
 			id:          subagentTypeExplore,
 			description: "read-only discovery, code tracing, and system understanding",
 			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
+				modelConfigID, err := p.resolveSubagentModelConfigID(
 					ctx,
 					turnParent.OwnerID,
-					currentModelConfigID,
+					codersdk.ChatAgentModelOverrideContextExplore,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
+				}
+				if modelConfigID == uuid.Nil {
+					modelConfigID = currentModelConfigID
 				}
 				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
 					ctx,
