@@ -132,6 +132,17 @@ func (rt *Runtime) MaxOutputTokens() int64 {
 	return rt.cfg.MaxOutputTokens
 }
 
+// ProviderOptions reports the resolved provider options applied to each
+// advisor call. NewRuntime clones the supplied options so the returned
+// map reflects what nested calls will actually receive; callers must not
+// mutate the map or its entries.
+func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
+	if rt == nil {
+		return nil
+	}
+	return rt.cfg.ProviderOptions
+}
+
 func (rt *Runtime) tryAcquire() bool {
 	for {
 		used := rt.used.Load()

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -370,5 +371,49 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		require.Equal(t, 3, rt.RemainingUses())
 		require.Equal(t, int64(defaultAdvisorMaxOutputTokens), rt.MaxOutputTokens(),
 			"zero max output tokens must be replaced with defaultAdvisorMaxOutputTokens")
+	})
+
+	// Guards the wiring from AdvisorConfig.ReasoningEffort through
+	// newAdvisorRuntime to ApplyReasoningEffortToOptions. A field swap,
+	// typo, or accidental deletion of the apply call would otherwise
+	// ship silently because chatprovider_test only covers the helper in
+	// isolation.
+	t.Run("ReasoningEffortReachesProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		openAIModel := &chattest.FakeModel{
+			ProviderName: fantasyopenai.Name,
+			ModelName:    "gpt-4",
+		}
+
+		rt := p.newAdvisorRuntime(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   3,
+				MaxOutputTokens: 16384,
+				ReasoningEffort: "high",
+			},
+			openAIModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.NotNil(t, rt)
+
+		providerOptions := rt.ProviderOptions()
+		require.NotNil(t, providerOptions,
+			"advisor runtime must seed provider options when reasoning effort is set")
+		opts, ok := providerOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+		require.True(t, ok,
+			"expected *ResponsesProviderOptions for Responses model, got %T",
+			providerOptions[fantasyopenai.Name])
+		require.NotNil(t, opts.ReasoningEffort,
+			"ReasoningEffort from AdvisorConfig must reach the provider options")
+		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *opts.ReasoningEffort)
 	})
 }
