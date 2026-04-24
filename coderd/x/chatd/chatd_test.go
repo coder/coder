@@ -6177,7 +6177,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		Return(workspacesdk.DesktopActionResponse{
 			ScreenshotWidth:  1920,
 			ScreenshotHeight: 1080,
-			ScreenshotData:   "iVBOR",
+			ScreenshotData:   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==",
 		}, nil).
 		AnyTimes()
 	mockConn.EXPECT().
