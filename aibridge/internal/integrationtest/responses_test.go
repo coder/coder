@@ -609,13 +609,13 @@ func TestClientAndConnectionError(t *testing.T) {
 			name:        "blocking_connection_refused",
 			addr:        startRejectingListener(t),
 			streaming:   false,
-			errContains: "connection reset by peer",
+			errContains: `connection reset by peer|forcibly closed`, // RST error message differs between Linux/macOS|Windows.
 		},
 		{
 			name:        "streaming_connection_refused",
 			addr:        startRejectingListener(t),
 			streaming:   true,
-			errContains: "connection reset by peer",
+			errContains: `connection reset by peer|forcibly closed`, // RST error message differs between Linux/macOS|Windows.
 		},
 		{
 			name:        "blocking_bad_url",
@@ -1062,13 +1062,13 @@ func TestResponsesModelThoughts(t *testing.T) {
 	}
 }
 
-func requireResponsesError(t *testing.T, code int, message string, body []byte) {
+func requireResponsesError(t *testing.T, code int, messagePattern string, body []byte) {
 	var respErr responses.Error
 	err := json.Unmarshal(body, &respErr)
 	require.NoError(t, err)
 
 	require.Equal(t, strconv.Itoa(code), respErr.Code)
-	require.Contains(t, respErr.Message, message)
+	require.Regexp(t, messagePattern, respErr.Message)
 }
 
 func responsesRequestBytes(t *testing.T, streaming bool, additionalFields ...keyVal) []byte {

@@ -164,9 +164,9 @@ func TestAPIDump(t *testing.T) {
 			require.NotEmpty(t, respDumpFile, "response dump file should exist")
 
 			// Verify dump files are in the correct provider subdirectory.
-			require.Contains(t, reqDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+"/",
+			require.Contains(t, reqDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+string(filepath.Separator),
 				"request dump should be in the %s provider directory", tc.expectProviderDir)
-			require.Contains(t, respDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+"/",
+			require.Contains(t, respDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+string(filepath.Separator),
 				"response dump should be in the %s provider directory", tc.expectProviderDir)
 
 			// Verify request dump contains expected HTTP request format.
