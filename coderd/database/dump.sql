@@ -1422,7 +1422,8 @@ CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_config_id uuid
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -3859,6 +3860,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
+
+CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 

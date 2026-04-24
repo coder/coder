@@ -3257,20 +3257,22 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatExploreModelOverride =
-		async (): Promise<TypesGen.ChatExploreModelOverrideResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatExploreModelOverrideResponse>(
-					"/api/experimental/chats/config/explore-model-override",
-				);
-			return response.data;
-		};
+	getChatAgentModelOverride = async (
+		context: TypesGen.ChatAgentModelOverrideContext,
+	): Promise<TypesGen.ChatAgentModelOverrideResponse> => {
+		const response =
+			await this.axios.get<TypesGen.ChatAgentModelOverrideResponse>(
+				`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
+			);
+		return response.data;
+	};
 
-	updateChatExploreModelOverride = async (
-		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+	updateChatAgentModelOverride = async (
+		context: TypesGen.ChatAgentModelOverrideContext,
+		req: TypesGen.UpdateChatAgentModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			"/api/experimental/chats/config/explore-model-override",
+			`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
