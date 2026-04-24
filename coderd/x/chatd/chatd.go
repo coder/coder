@@ -5209,6 +5209,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				QueueUpdate: true,
 			})
 		}
+		if promotedMessage != nil {
+			p.signalWake()
+		}
 
 		if p.shouldPublishFinishedChatState(cleanupCtx, logger, finishResult.updatedChat) {
 			p.publishStatus(chat.ID, status, uuid.NullUUID{})

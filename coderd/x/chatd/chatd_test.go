@@ -2825,6 +2825,7 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	firstRunStarted := make(chan struct{})
+	secondRunStarted := make(chan struct{}, 1)
 	allowFirstRunFinish := make(chan struct{})
 	var requestCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -2847,11 +2848,18 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 			}()
 			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		default:
+			select {
+			case secondRunStarted <- struct{}{}:
+			default:
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("fallback run done")...)
 		}
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.PendingChatAcquireInterval = time.Hour
+		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+	})
 	user, org, modelConfig := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -2875,9 +2883,8 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 
 	close(allowFirstRunFinish)
 
-	require.Eventually(t, func() bool {
-		return requestCount.Load() >= 2
-	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, secondRunStarted)
+	require.GreaterOrEqual(t, requestCount.Load(), int32(2))
 	chatd.WaitUntilIdleForTest(server)
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
