@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -343,6 +344,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 
 func TestAgentConnectionMonitor_FirstConnectionMetric(t *testing.T) {
 	t.Parallel()
+	const metricName = "coderd_agents_first_connection_seconds"
 
 	t.Run("records metric on first connection", func(t *testing.T) {
 		t.Parallel()
@@ -365,16 +367,18 @@ func TestAgentConnectionMonitor_FirstConnectionMetric(t *testing.T) {
 		}
 		uut.init()
 
-		result := findHistogramMetric(t, reg,
-			"coderd_agents_first_connection_seconds",
-			map[string]string{
-				"template_name": "my-template",
-				"agent_name":    "main",
-			},
-		)
-		require.NotNil(t, result)
-		require.EqualValues(t, 1, result.GetSampleCount())
-		require.GreaterOrEqual(t, result.GetSampleSum(), float64(30))
+		require.Equal(t, 1,
+			promtest.CollectAndCount(metrics.FirstConnectionDuration, metricName))
+
+		// Verify the observed sum reflects the duration since CreatedAt.
+		// testutil has no helper for reading histogram sums, so extract
+		// the sample via dto.Metric directly.
+		var observed dto.Metric
+		require.NoError(t, metrics.FirstConnectionDuration.
+			WithLabelValues("my-template", "main").(prometheus.Histogram).
+			Write(&observed))
+		require.EqualValues(t, 1, observed.GetHistogram().GetSampleCount())
+		require.GreaterOrEqual(t, observed.GetHistogram().GetSampleSum(), float64(30))
 	})
 
 	t.Run("skips metric and logs warning if duration is negative", func(t *testing.T) {
@@ -397,18 +401,10 @@ func TestAgentConnectionMonitor_FirstConnectionMetric(t *testing.T) {
 		}
 		uut.init()
 
-		result := findHistogramMetric(t, reg,
-			"coderd_agents_first_connection_seconds",
-			map[string]string{
-				"template_name": "my-template",
-				"agent_name":    "main",
-			},
-		)
-		// The negative-duration path logs a warning and skips
-		// the observation, so the histogram should have no samples.
-		if result != nil {
-			require.EqualValues(t, 0, result.GetSampleCount())
-		}
+		// The negative-duration path skips the observation, so the
+		// histogram should have no recorded label combinations.
+		require.Equal(t, 0,
+			promtest.CollectAndCount(metrics.FirstConnectionDuration, metricName))
 
 		// Verify that a warning was logged.
 		warnings := sink.Entries(func(e slog.SinkEntry) bool {
@@ -417,45 +413,6 @@ func TestAgentConnectionMonitor_FirstConnectionMetric(t *testing.T) {
 		require.Len(t, warnings, 1)
 		require.Contains(t, warnings[0].Message, "negative agent first connection duration")
 	})
-}
-
-// findHistogramMetric searches a Prometheus registry for a histogram
-// matching the given metric name and label set. Returns nil if not
-// found or if no matching label combination exists.
-func findHistogramMetric(
-	t *testing.T,
-	reg *prometheus.Registry,
-	name string,
-	labels map[string]string,
-) *dto.Histogram {
-	t.Helper()
-	metricFamilies, err := reg.Gather()
-	require.NoError(t, err)
-
-	for _, mf := range metricFamilies {
-		if mf.GetName() != name {
-			continue
-		}
-		for _, m := range mf.GetMetric() {
-			if matchLabels(m.GetLabel(), labels) {
-				return m.GetHistogram()
-			}
-		}
-	}
-	return nil
-}
-
-func matchLabels(pairs []*dto.LabelPair, want map[string]string) bool {
-	if len(pairs) != len(want) {
-		return false
-	}
-	for _, lp := range pairs {
-		v, ok := want[lp.GetName()]
-		if !ok || v != lp.GetValue() {
-			return false
-		}
-	}
-	return true
 }
 
 type fakePingerCloser struct {
