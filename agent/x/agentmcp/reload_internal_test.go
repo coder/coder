@@ -59,133 +59,120 @@ func fakeMCPServerConfig(t *testing.T, name string) (ServerConfig, mcpServerEntr
 func TestSnapshotChanged(t *testing.T) {
 	t.Parallel()
 
-	t.Run("UnchangedFiles", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
+	type testCase struct {
+		name       string
+		setup      func(t *testing.T, dir string) []string
+		mutate     func(t *testing.T, dir string)
+		checkPaths func(t *testing.T, dir string, initialPaths []string) []string
+		want       bool
+	}
 
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+	cases := []testCase{
+		{
+			name: "UnchangedFiles",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+				return []string{configPath}
+			},
+			want: false,
+		},
+		{
+			name: "ContentChange",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+				return []string{configPath}
+			},
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				_, entry2 := fakeMCPServerConfig(t, "srv2")
+				writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": entry2})
+			},
+			want: true,
+		},
+		{
+			name: "FileBecomesMissing",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+				return []string{configPath}
+			},
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(dir, ".mcp.json")))
+			},
+			want: true,
+		},
+		{
+			name: "FileAppears",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				return []string{filepath.Join(dir, ".mcp.json")}
+			},
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+			},
+			want: true,
+		},
+		{
+			name: "BothAbsentUnchanged",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				return []string{filepath.Join(dir, ".mcp.json")}
+			},
+			want: false,
+		},
+		{
+			name: "PathSetDiffers",
+			setup: func(t *testing.T, dir string) []string {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+				return []string{configPath}
+			},
+			checkPaths: func(t *testing.T, dir string, initialPaths []string) []string {
+				t.Helper()
+				extraPath := filepath.Join(dir, "extra.mcp.json")
+				return append(initialPaths, extraPath)
+			},
+			want: true,
+		},
+	}
 
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			dir := t.TempDir()
 
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
+			paths := tc.setup(t, dir)
 
-		// Same file, no changes: SnapshotChanged must return false.
-		changed := m.SnapshotChanged([]string{configPath})
-		assert.False(t, changed, "snapshot should not report changes for unchanged files")
-	})
+			m := NewManager(ctx, logger)
+			t.Cleanup(func() { _ = m.Close() })
 
-	t.Run("ContentChange", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
+			err := m.Reload(ctx, paths)
+			require.NoError(t, err)
 
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+			if tc.mutate != nil {
+				tc.mutate(t, dir)
+			}
 
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
+			checkPaths := paths
+			if tc.checkPaths != nil {
+				checkPaths = tc.checkPaths(t, dir, paths)
+			}
 
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
-
-		// Rewrite the file with different content.
-		_, entry2 := fakeMCPServerConfig(t, "srv2")
-		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": entry2})
-
-		changed := m.SnapshotChanged([]string{configPath})
-		assert.True(t, changed, "snapshot should detect content changes")
-	})
-
-	t.Run("FileBecomesMissing", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
-
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
-
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
-
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
-
-		// Delete the file.
-		require.NoError(t, os.Remove(configPath))
-
-		changed := m.SnapshotChanged([]string{configPath})
-		assert.True(t, changed, "snapshot should detect file deletion")
-	})
-
-	t.Run("FileAppears", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
-
-		missingPath := filepath.Join(dir, ".mcp.json")
-
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
-
-		// Initial reload with a missing file.
-		err := m.Reload(ctx, []string{missingPath})
-		require.NoError(t, err)
-
-		// Now create the file.
-		_, entry := fakeMCPServerConfig(t, "srv")
-		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
-
-		changed := m.SnapshotChanged([]string{missingPath})
-		assert.True(t, changed, "snapshot should detect file creation")
-	})
-
-	t.Run("BothAbsentUnchanged", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
-
-		missingPath := filepath.Join(dir, ".mcp.json")
-
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
-
-		err := m.Reload(ctx, []string{missingPath})
-		require.NoError(t, err)
-
-		// File is still missing: unchanged.
-		changed := m.SnapshotChanged([]string{missingPath})
-		assert.False(t, changed, "absent-to-absent should be unchanged")
-	})
-
-	t.Run("PathSetDiffers", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
-
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
-
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
-
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
-
-		// Check with a different path set (extra path).
-		extraPath := filepath.Join(dir, "extra.mcp.json")
-		changed := m.SnapshotChanged([]string{configPath, extraPath})
-		assert.True(t, changed, "different path set should be detected as changed")
-	})
+			changed := m.SnapshotChanged(checkPaths)
+			assert.Equal(t, tc.want, changed)
+		})
+	}
 }
 
 func TestReload(t *testing.T) {

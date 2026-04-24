@@ -24,38 +24,80 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 		return
 	}
 
-	t.Run("InitialRequestNoReload", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
+	// Cases that share the single-request-and-check pattern.
+	type singleRequestCase struct {
+		name             string
+		entries          func(t *testing.T) map[string]mcpServerEntry
+		reloadManager    bool
+		closeManager     bool
+		expectedTools    int
+		toolNameContains string
+	}
 
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+	cases := []singleRequestCase{
+		{
+			name: "InitialRequestNoReload",
+			entries: func(t *testing.T) map[string]mcpServerEntry {
+				t.Helper()
+				_, entry := fakeMCPServerConfig(t, "srv")
+				return map[string]mcpServerEntry{"srv": entry}
+			},
+			reloadManager:    true,
+			expectedTools:    1,
+			toolNameContains: "echo",
+		},
+		{
+			name: "ManagerClosedReturnsEmpty",
+			entries: func(_ *testing.T) map[string]mcpServerEntry {
+				return map[string]mcpServerEntry{}
+			},
+			closeManager:  true,
+			expectedTools: 0,
+		},
+	}
 
-		m := NewManager(ctx, logger)
-		t.Cleanup(func() { _ = m.Close() })
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			dir := t.TempDir()
 
-		// Boot the manager with the initial config.
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
+			configPath := writeMCPConfig(t, dir, tc.entries(t))
 
-		api := NewAPI(logger, m, func() []string {
-			return []string{configPath}
+			m := NewManager(ctx, logger)
+			if tc.closeManager {
+				require.NoError(t, m.Close())
+			} else {
+				t.Cleanup(func() { _ = m.Close() })
+			}
+
+			if tc.reloadManager {
+				err := m.Reload(ctx, []string{configPath})
+				require.NoError(t, err)
+			}
+
+			api := NewAPI(logger, m, func() []string {
+				return []string{configPath}
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/tools", nil)
+			rec := httptest.NewRecorder()
+			api.Routes().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var resp workspacesdk.ListMCPToolsResponse
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+			require.Len(t, resp.Tools, tc.expectedTools)
+			if tc.toolNameContains != "" {
+				assert.Contains(t, resp.Tools[0].Name, tc.toolNameContains)
+			}
 		})
+	}
 
-		// Request should return tools without triggering a reload.
-		req := httptest.NewRequest(http.MethodGet, "/tools", nil)
-		rec := httptest.NewRecorder()
-		api.Routes().ServeHTTP(rec, req)
-
-		require.Equal(t, http.StatusOK, rec.Code)
-		var resp workspacesdk.ListMCPToolsResponse
-		require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-		require.Len(t, resp.Tools, 1)
-		assert.Contains(t, resp.Tools[0].Name, "echo")
-	})
-
+	// ConfigChangeTriggersReload has a mutate-then-re-request flow
+	// that does not fit the single-request table pattern.
 	t.Run("ConfigChangeTriggersReload", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -100,31 +142,5 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 		require.NoError(t, json.NewDecoder(rec2.Body).Decode(&resp2))
 		require.Len(t, resp2.Tools, 1)
 		assert.Contains(t, resp2.Tools[0].Name, "srv2")
-	})
-
-	t.Run("ManagerClosedReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
-
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{})
-
-		m := NewManager(ctx, logger)
-		require.NoError(t, m.Close())
-
-		api := NewAPI(logger, m, func() []string {
-			return []string{configPath}
-		})
-
-		req := httptest.NewRequest(http.MethodGet, "/tools", nil)
-		rec := httptest.NewRecorder()
-		api.Routes().ServeHTTP(rec, req)
-
-		// Should still return 200 with empty tools.
-		require.Equal(t, http.StatusOK, rec.Code)
-		var resp workspacesdk.ListMCPToolsResponse
-		require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-		assert.Empty(t, resp.Tools)
 	})
 }
