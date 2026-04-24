@@ -548,7 +548,7 @@ export const DisableAdvisorWithDeletedModel: Story = {
 	},
 };
 
-export const DisableAdvisorWithDeletedModelWhileModelConfigsLoading: Story = {
+export const DisableAdvisorWhileModelConfigsLoadingPreservesOverride: Story = {
 	args: {
 		advisorConfigData: {
 			enabled: true,
@@ -578,21 +578,22 @@ export const DisableAdvisorWithDeletedModelWhileModelConfigsLoading: Story = {
 			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
 		});
 
-		// Racing a disable against the in-flight model-configs fetch must
-		// still scrub the stale override. Otherwise the backend rejects
-		// the unknown ID with a 400 and blocks a simple disable.
+		// While the model-configs query is in flight we cannot distinguish a
+		// genuinely deleted override from one we simply have not fetched yet,
+		// so the override must be forwarded unchanged. The backend will
+		// surface a specific 400 if the ID really has been deleted.
 		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
 		expect(request).toEqual({
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
 			reasoning_effort: "high",
-			model_config_id: nilUUID,
+			model_config_id: "22222222-2222-2222-2222-222222222222",
 		});
 	},
 };
 
-export const DisableAdvisorWithDeletedModelAndModelConfigsError: Story = {
+export const DisableAdvisorWithModelConfigsErrorPreservesOverride: Story = {
 	args: {
 		advisorConfigData: {
 			enabled: true,
@@ -622,16 +623,17 @@ export const DisableAdvisorWithDeletedModelAndModelConfigsError: Story = {
 			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
 		});
 
-		// Even when the model-configs query is failing, disabling must scrub
-		// the stale override rather than forwarding an ID the client cannot
-		// verify, because the backend rejects unknown non-nil model IDs.
+		// When the model-configs query has failed we cannot verify whether
+		// the override still exists, so the override must be forwarded
+		// unchanged rather than silently dropped. The backend surfaces a
+		// specific 400 if the ID really has been deleted.
 		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
 		expect(request).toEqual({
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
 			reasoning_effort: "high",
-			model_config_id: nilUUID,
+			model_config_id: "22222222-2222-2222-2222-222222222222",
 		});
 	},
 };

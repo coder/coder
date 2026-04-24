@@ -210,14 +210,20 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// that no longer exists, the backend rejects the stale ID with a
 			// 400. When disabling, clear the override so a simple disable
 			// stays reliable in that edge case; the override is unusable
-			// anyway and the admin will reselect one on re-enable. This also
-			// covers an in-flight or failing model-configs fetch: cached
-			// entries still validate the override, and when nothing is
-			// cached the clear keeps disable reliable instead of forwarding
-			// an ID we cannot verify.
+			// anyway and the admin will reselect one on re-enable. Only scrub
+			// when model configs have loaded successfully and the list is
+			// non-empty: during an in-flight fetch, on error, or against an
+			// empty list we cannot distinguish "truly missing" from "not
+			// loaded yet", and silently dropping the override would lose
+			// configuration the admin would otherwise keep on re-enable.
+			// Backend validation will surface a specific 400 in the rare
+			// case where the override really has been deleted.
 			if (
 				!source.enabled &&
 				!isUnsetModelConfigId(source.model_config_id) &&
+				!isLoadingModelConfigs &&
+				!modelConfigsError &&
+				modelConfigs.length > 0 &&
 				!modelConfigs.some((config) => config.id === source.model_config_id)
 			) {
 				source = { ...source, model_config_id: "" };
@@ -316,7 +322,16 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 							inputMode="numeric"
 							aria-label="Max uses per run"
 							value={form.values.max_uses_per_run}
-							onChange={form.handleChange}
+							// Bypass Formik's `handleChange` on purpose: for `type="number"`
+							// it parses the raw input with `parseFloat` and replaces the
+							// declared `string` form value with a `number`, which would
+							// break string-only validators like `isNonNegativeIntegerString`.
+							onChange={(event) =>
+								void form.setFieldValue(
+									"max_uses_per_run",
+									event.currentTarget.value,
+								)
+							}
 							onBlur={form.handleBlur}
 							aria-invalid={Boolean(form.errors.max_uses_per_run)}
 							disabled={isFormDisabled}
@@ -343,7 +358,15 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 							inputMode="numeric"
 							aria-label="Max output tokens"
 							value={form.values.max_output_tokens}
-							onChange={form.handleChange}
+							// See `max_uses_per_run` above for why `handleChange` is
+							// bypassed: Formik's `type="number"` coercion would replace
+							// the declared `string` form value with a `number`.
+							onChange={(event) =>
+								void form.setFieldValue(
+									"max_output_tokens",
+									event.currentTarget.value,
+								)
+							}
 							onBlur={form.handleBlur}
 							aria-invalid={Boolean(form.errors.max_output_tokens)}
 							disabled={isFormDisabled}
