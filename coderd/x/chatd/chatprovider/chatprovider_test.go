@@ -968,6 +968,13 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 	})
 }
 
+// TestModelFromConfig_BedrockStripsAnthropicHeaders is a regression test
+// for a bug where the Anthropic SDK reads ANTHROPIC_API_KEY from the
+// process environment and adds X-Api-Key and Anthropic-Version headers to
+// every request. On Bedrock, these headers conflict with SigV4 signing and
+// cause auth failures. The SDK's Bedrock middleware strips them before
+// signing. This test verifies the outgoing request shape with both
+// Anthropic and AWS credentials present.
 func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
