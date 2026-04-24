@@ -57,7 +57,7 @@ func IsSecretRequirementDiagnostic(d *hcl.Diagnostic) bool {
 	return false
 }
 
-func filterSecretDiagnostics(diags hcl.Diagnostics) hcl.Diagnostics {
+func FilterSecretDiagnostics(diags hcl.Diagnostics) hcl.Diagnostics {
 	if len(diags) == 0 {
 		return diags
 	}
@@ -328,7 +328,7 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 // a single secret_validation_forbidden warning instead, to avoid
 // leaking the target's secret names via diagnostic presence.
 //
-// TODO: add authoritative build-time enforcement so
+// TODO (PLAT-147): add authoritative build-time enforcement so
 // cross-user builds don't fall back to a warning.
 func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID uuid.UUID, reqs []previewtypes.SecretRequirement) hcl.Diagnostics {
 	secrets, err := r.getOwnerSecrets(ctx, ownerID)

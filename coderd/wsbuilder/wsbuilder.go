@@ -1139,6 +1139,10 @@ func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
 	}
 
 	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
+	// Don't let missing secrets block stop or delete on the tags path.
+	if b.trans != database.WorkspaceTransitionStart {
+		diags = dynamicparameters.FilterSecretDiagnostics(diags)
+	}
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
 		return nil, BuildError{http.StatusBadRequest, "workspace tags validation failed", tagErr}

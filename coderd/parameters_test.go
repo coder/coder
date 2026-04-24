@@ -410,6 +410,59 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		// Error severity drives the Create Workspace button disable.
 		require.Equal(t, codersdk.DiagnosticSeverityError, preview.Diagnostics[0].Severity)
 	})
+
+	// Regression test for PLAT-100: a workspace whose template has an
+	// unsatisfied coder_secret requirement must still be stoppable and
+	// deletable. Start remains blocked.
+	t.Run("SecretRequirementDoesNotBlockStopOrDelete", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/secret_required/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+		})
+		_ = setup.stream.Close(websocket.StatusGoingAway)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Owner must satisfy the coder_secret requirement to create
+		// the workspace; delete it later to provoke the bug scenario.
+		_, err = setup.client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "github-token",
+			Value:   "ghp_test",
+			EnvName: "GITHUB_TOKEN",
+		})
+		require.NoError(t, err)
+
+		wrk := coderdtest.CreateWorkspace(t, setup.client, setup.template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+
+		require.NoError(t, setup.client.DeleteUserSecret(ctx, codersdk.Me, "github-token"))
+
+		// Start on the now-unsatisfied requirement must still fail;
+		// otherwise we've over-filtered the diagnostic.
+		_, err = setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.Error(t, err, "start must still reject unsatisfied secret requirement")
+
+		// Stop must succeed despite the unsatisfied requirement.
+		stop, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, stop.ID)
+
+		// Delete must succeed despite the unsatisfied requirement.
+		del, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, del.ID)
+	})
 }
 
 type setupDynamicParamsTestParams struct {

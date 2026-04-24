@@ -94,7 +94,7 @@ func ResolveParameters(
 	output, diags := renderer.Render(ctx, ownerID, previousValuesMap)
 	// Baseline diagnostics reflect the previous build, not the user's
 	// new inputs. The final render below enforces secret requirements.
-	diags = filterSecretDiagnostics(diags)
+	diags = FilterSecretDiagnostics(diags)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to
@@ -124,7 +124,7 @@ func ResolveParameters(
 	// are fatal. Additional validation for immutability has to be done manually.
 	output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
 	if o.skipSecretRequirements {
-		diags = filterSecretDiagnostics(diags)
+		diags = FilterSecretDiagnostics(diags)
 	}
 	if diags.HasErrors() {
 		return nil, parameterValidationError(diags)
