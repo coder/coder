@@ -70,6 +70,7 @@ type Manager struct {
 	servers     map[string]*serverEntry
 	tools       []workspacesdk.MCPToolInfo
 	snapshot    map[string]fileSnapshot
+	serverGen   uint64
 	reloadGroup tailscalesingleflight.Group[string, error]
 }
 
@@ -297,6 +298,7 @@ func (m *Manager) installServers(
 	}
 
 	m.servers = newServers
+	m.serverGen++
 	m.snapshot = snap
 	return closePrev, nil
 }
@@ -613,6 +615,7 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	for k, v := range m.servers {
 		servers[k] = v
 	}
+	gen := m.serverGen
 	m.mu.RUnlock()
 
 	// Fetch tool lists in parallel without holding any lock.
@@ -686,7 +689,12 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	})
 
 	m.mu.Lock()
-	m.tools = merged
+	// Skip the write if the server map changed since the
+	// snapshot. A doReload that bumped the generation will
+	// produce a correct tool list; this write would be stale.
+	if m.serverGen == gen {
+		m.tools = merged
+	}
 	m.mu.Unlock()
 
 	return errors.Join(errs...)
