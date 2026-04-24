@@ -869,7 +869,7 @@ func TestAcquireJob(t *testing.T) {
 			})
 			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
 
-			// Create secrets: 3 valid + 1 that should be filtered out.
+			// Create secrets: 4 valid + 1 that should be filtered out.
 			insert1 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "github-token", EnvName: "GITHUB_TOKEN", Value: "ghp_xxxx"}
 			secret1 := dbgen.UserSecret(t, db, insert1, func(p *database.CreateUserSecretParams) { p.FilePath = "" })
 
@@ -879,8 +879,11 @@ func TestAcquireJob(t *testing.T) {
 			insert3 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "both", EnvName: "BOTH", FilePath: "/etc/both", Value: "both-val"}
 			secret3 := dbgen.UserSecret(t, db, insert3)
 
-			insert4 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "no-injection", Value: "no-injection"}
-			_ = dbgen.UserSecret(t, db, insert4, func(p *database.CreateUserSecretParams) { p.EnvName = ""; p.FilePath = "" })
+			insert4 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "empty-value", Value: "", EnvName: "EMPTY_VALUE", FilePath: "/etc/empty-value"}
+			secret4 := dbgen.UserSecret(t, db, insert4, func(p *database.CreateUserSecretParams) { p.Value = "" })
+
+			insert5 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "no-injection", Value: "no-injection"}
+			_ = dbgen.UserSecret(t, db, insert5, func(p *database.CreateUserSecretParams) { p.EnvName = ""; p.FilePath = "" })
 
 			template := dbgen.Template(t, db, database.Template{
 				Name:           "template",
@@ -970,7 +973,7 @@ func TestAcquireJob(t *testing.T) {
 			}
 
 			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
-			require.Len(t, wb.UserSecrets, 3, "expected 3 secrets (the one with empty env_name and file_path should be filtered)")
+			require.Len(t, wb.UserSecrets, 4, "expected 4 secrets (the one with empty env_name and file_path should be filtered)")
 
 			// Re-sort by (env_name+file_path) before asserting field values.
 			// The terraform-provider-coder contract does not require a
@@ -980,18 +983,22 @@ func TestAcquireJob(t *testing.T) {
 				return strings.Compare(a.EnvName+a.FilePath, b.EnvName+b.FilePath)
 			})
 
-			// After sorting: []{secret3, secret1, secret2}
+			// After sorting: []{secret3, secret4, secret1, secret2}
 			require.Equal(t, secret3.EnvName, wb.UserSecrets[0].EnvName)
 			require.Equal(t, secret3.FilePath, wb.UserSecrets[0].FilePath)
 			require.Equal(t, []byte(secret3.Value), wb.UserSecrets[0].Value)
 
-			require.Equal(t, secret1.EnvName, wb.UserSecrets[1].EnvName)
-			require.Equal(t, secret1.FilePath, wb.UserSecrets[1].FilePath)
-			require.Equal(t, []byte(secret1.Value), wb.UserSecrets[1].Value)
+			require.Equal(t, secret4.EnvName, wb.UserSecrets[1].EnvName)
+			require.Equal(t, secret4.FilePath, wb.UserSecrets[1].FilePath)
+			require.Equal(t, []byte(secret4.Value), wb.UserSecrets[1].Value)
 
-			require.Equal(t, secret2.EnvName, wb.UserSecrets[2].EnvName)
-			require.Equal(t, secret2.FilePath, wb.UserSecrets[2].FilePath)
-			require.Equal(t, []byte(secret2.Value), wb.UserSecrets[2].Value)
+			require.Equal(t, secret1.EnvName, wb.UserSecrets[2].EnvName)
+			require.Equal(t, secret1.FilePath, wb.UserSecrets[2].FilePath)
+			require.Equal(t, []byte(secret1.Value), wb.UserSecrets[2].Value)
+
+			require.Equal(t, secret2.EnvName, wb.UserSecrets[3].EnvName)
+			require.Equal(t, secret2.FilePath, wb.UserSecrets[3].FilePath)
+			require.Equal(t, []byte(secret2.Value), wb.UserSecrets[3].Value)
 		})
 
 		for _, transitionCase := range []struct {
