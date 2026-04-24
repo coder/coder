@@ -5209,13 +5209,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				QueueUpdate: true,
 			})
 		}
-		if promotedMessage != nil {
-			// Wake the processor so it picks up the newly pending
-			// chat immediately instead of waiting for the next
-			// acquire-interval tick.
-			p.signalWake()
-		}
-
 		if p.shouldPublishFinishedChatState(cleanupCtx, logger, finishResult.updatedChat) {
 			p.publishStatus(chat.ID, status, uuid.NullUUID{})
 			// Best-effort: use any generated title captured during
@@ -5226,6 +5219,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				finishResult.updatedChat.Title = title
 			}
 			p.publishChatPubsubEvent(finishResult.updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		}
+
+		if promotedMessage != nil {
+			// Wake the processor so it picks up the newly pending
+			// chat immediately instead of waiting for the next
+			// acquire-interval tick.
+			p.signalWake()
 		}
 
 		// When the chat is parked in requires_action,
