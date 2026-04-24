@@ -1136,3 +1136,55 @@ export const PreservesUnavailableSidebarTab: Story = {
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
 	},
 };
+
+/**
+ * When a chat is archived, clicking a sidebar tab must not persist the
+ * selection to localStorage. The archive flow clears the entry on
+ * purpose so that a subsequent unarchive starts from the default tab;
+ * persisting here would silently recreate the entry for any tab the
+ * user clicks while viewing the read-only archived view.
+ *
+ * This locks down the fix for the codex P2 review comment.
+ */
+export const DoesNotPersistForArchivedChat: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(sidebarTabStorageKey);
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			isArchived
+			isInputDisabled
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the sidebar to render with the default Git tab selected.
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// Click the Terminal tab. The tab still switches visually (React
+		// local state), but the persist-to-localStorage step must be
+		// skipped.
+		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+		await userEvent.click(terminalTab);
+
+		await waitFor(() => {
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		// localStorage must NOT hold an entry for this chat. If it did,
+		// a future unarchive would restore Terminal instead of the
+		// default Git tab.
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
+	},
+};
