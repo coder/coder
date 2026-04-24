@@ -78,9 +78,9 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 								{headerStatus}
 							</span>
 						</div>
-						<p className="m-0 truncate text-sm text-content-primary">
+						<span className="block truncate text-sm text-content-primary">
 							{questionText}
-						</p>
+						</span>
 					</div>
 					{showLimitReached ? (
 						<TriangleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-warning" />
