@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,7 +39,7 @@ const (
 	numHandshakerWorkers   = 5
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
-	mapperRefreshInterval  = 5 * time.Minute
+	mapperRefreshInterval  = 30 * time.Second
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
@@ -1525,7 +1526,6 @@ type workQ[K queueKey] struct {
 
 	cond       *sync.Cond
 	pending    []K
-	pendingSet map[K]bool
 	inProgress map[K]bool
 }
 
@@ -1533,7 +1533,6 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 	q := &workQ[K]{
 		ctx:        ctx,
 		cond:       sync.NewCond(&sync.Mutex{}),
-		pendingSet: make(map[K]bool),
 		inProgress: make(map[K]bool),
 	}
 	// wake up all waiting workers when context is done
@@ -1551,11 +1550,10 @@ func (q *workQ[K]) enqueue(keys ...K) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 	for _, key := range keys {
-		if q.pendingSet[key] {
+		if slices.Contains(q.pending, key) {
 			continue
 		}
 		q.pending = append(q.pending, key)
-		q.pendingSet[key] = true
 	}
 	q.cond.Signal()
 }
@@ -1584,7 +1582,6 @@ func (q *workQ[K]) acquireBatch(limit int) ([]K, error) {
 			}
 			batch = append(batch, k)
 			q.inProgress[k] = true
-			delete(q.pendingSet, k)
 		}
 		q.pending = remaining
 		if len(batch) > 0 {
