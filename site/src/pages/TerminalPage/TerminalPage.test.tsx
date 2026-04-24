@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -229,5 +231,55 @@ describe("TerminalPage", () => {
 		await waitFor(() =>
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
 		);
+	});
+
+	it("skips confirmation dialog for trusted app commands", async () => {
+		// Override the workspace response so the agent has an app with
+		// a command that matches the ?app= slug.
+		const appWithCommand = {
+			...MockWorkspaceApp,
+			slug: "my-app",
+			command: "echo trusted",
+		};
+		const workspaceWithApp: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [appWithCommand],
+							},
+						],
+					},
+				],
+			},
+		};
+		server.use(
+			http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
+				return HttpResponse.json(workspaceWithApp);
+			}),
+		);
+
+		const websocketProtocol =
+			window.location.protocol === "https:" ? "wss" : "ws";
+		const ws = new WS(
+			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&command=echo+trusted&height=24&width=80`,
+		);
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,
+		);
+
+		// No dialog should appear.
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+		// The websocket should connect with the resolved command.
+		const msg = await ws.nextMessage;
+		const resizeReq = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
+		expect(resizeReq.height).toBeGreaterThan(0);
+		expect(resizeReq.width).toBeGreaterThan(0);
 	});
 });

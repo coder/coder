@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { v4 as uuidv4 } from "uuid";
@@ -44,12 +44,9 @@ const TerminalPage: FC = () => {
 	// a round-trip, and must be a UUIDv4.
 	const reconnectionToken = searchParams.get("reconnect") ?? uuidv4();
 	const command = searchParams.get("command") || undefined;
+	const appSlug = searchParams.get("app") || undefined;
 	const containerName = searchParams.get("container") || undefined;
 	const containerUser = searchParams.get("container_user") || undefined;
-
-	// Only pass the command to the terminal once the user has
-	// confirmed it via the dialog.
-	const approvedCommand = command && commandConfirmed ? command : undefined;
 
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
@@ -60,6 +57,25 @@ const TerminalPage: FC = () => {
 	const workspaceAgent = workspace.data
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
+
+	// Resolve the ?app= slug to a command from the agent's app list.
+	// These commands are admin-configured in the template and trusted,
+	// so they skip the confirmation dialog.
+	const appCommand = useMemo(() => {
+		if (!appSlug || !workspaceAgent) {
+			return undefined;
+		}
+		const app = workspaceAgent.apps.find((a) => a.slug === appSlug);
+		return app?.command || undefined;
+	}, [appSlug, workspaceAgent]);
+
+	// Raw ?command= params require explicit user confirmation.
+	// Trusted ?app= commands bypass the dialog.
+	const initialCommand = appCommand
+		? appCommand
+		: command && commandConfirmed
+			? command
+			: undefined;
 	const selectedProxy = proxy.proxy;
 	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
@@ -146,7 +162,7 @@ const TerminalPage: FC = () => {
 					ref={terminalRef}
 					agentId={workspaceAgent?.id}
 					operatingSystem={workspaceAgent?.operating_system}
-					initialCommand={approvedCommand}
+					initialCommand={initialCommand}
 					containerName={containerName}
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
@@ -180,7 +196,7 @@ const TerminalPage: FC = () => {
 				</span>
 			)}
 
-			{command && (
+			{command && !appSlug && (
 				<TerminalCommandConsentDialog
 					open={!commandConfirmed}
 					command={command}
