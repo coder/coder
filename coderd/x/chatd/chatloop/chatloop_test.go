@@ -1054,6 +1054,19 @@ func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Mess
 	}
 }
 
+func requireTextContent(t *testing.T, content []fantasy.Content, text string) fantasy.TextContent {
+	t.Helper()
+
+	for _, block := range content {
+		textContent, ok := fantasy.AsContentType[fantasy.TextContent](block)
+		if ok && textContent.Text == text {
+			return textContent
+		}
+	}
+	t.Fatalf("missing text content %q", text)
+	return fantasy.TextContent{}
+}
+
 func requireToolCallContent(t *testing.T, content []fantasy.Content, id, name string) fantasy.ToolCallContent {
 	t.Helper()
 
@@ -2038,25 +2051,11 @@ func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, persistedSteps, 1)
 
-	var foundToolCall, foundToolResult, foundText bool
-	for _, block := range persistedSteps[0].Content {
-		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
-			foundToolCall = toolCall.ToolCallID == "ws-1" &&
-				toolCall.ToolName == "web_search" &&
-				toolCall.ProviderExecuted
-		}
-		if toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
-			foundToolResult = toolResult.ToolCallID == "ws-1" &&
-				toolResult.ToolName == "web_search" &&
-				toolResult.ProviderExecuted
-		}
-		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
-			foundText = text.Text == "search done"
-		}
-	}
-	require.True(t, foundToolCall)
-	require.True(t, foundToolResult)
-	require.True(t, foundText)
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "ws-1", "web_search")
+	require.True(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "ws-1", "web_search")
+	require.True(t, toolResult.ProviderExecuted)
+	requireTextContent(t, persistedSteps[0].Content, "search done")
 }
 
 func TestRun_AnthropicInterruptedWebSearchDoesNotPersistSyntheticResult(t *testing.T) {

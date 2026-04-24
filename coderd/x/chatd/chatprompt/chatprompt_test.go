@@ -87,6 +87,12 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 	}
 	unpairedWebSearchCall := webSearchCall
 	unpairedWebSearchCall.ToolCallID = "srvtoolu_unpaired"
+	disableParallelToolUse := true
+	providerOptions := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &disableParallelToolUse,
+		},
+	}
 
 	testCases := []struct {
 		name        string
@@ -142,6 +148,7 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 					Content: []fantasy.MessagePart{
 						fantasy.TextPart{Text: "now summarize"},
 					},
+					ProviderOptions: providerOptions,
 				},
 			},
 			want: []fantasy.Message{{
@@ -150,6 +157,7 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 					fantasy.TextPart{Text: "search for coder"},
 					fantasy.TextPart{Text: "now summarize"},
 				},
+				ProviderOptions: providerOptions,
 			}},
 			wantRemoved: 1,
 			wantDropped: 1,

@@ -533,7 +533,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 						ctx, opts.Logger, provider, modelName,
 						"dynamic_tool_persist", step, result.finishReason, result.content,
 					)
-					if len(result.content) == 0 {
+					if len(result.content) == 0 && len(pending) == 0 {
 						tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
 						return ErrDynamicToolCall
 					}

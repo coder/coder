@@ -136,7 +136,28 @@ func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantas
 	content = append(content, last.Content...)
 	content = append(content, msg.Content...)
 	last.Content = content
+	last.ProviderOptions = mergeProviderOptions(last.ProviderOptions, msg.ProviderOptions)
 	return out
+}
+
+func mergeProviderOptions(first, second fantasy.ProviderOptions) fantasy.ProviderOptions {
+	if len(first) == 0 {
+		return second
+	}
+	if len(second) == 0 {
+		return first
+	}
+
+	merged := make(fantasy.ProviderOptions, len(first)+len(second))
+	for provider, options := range first {
+		merged[provider] = options
+	}
+	for provider, options := range second {
+		if options != nil {
+			merged[provider] = options
+		}
+	}
+	return merged
 }
 
 // FileData holds resolved file content for LLM prompt building.
