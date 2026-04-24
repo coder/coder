@@ -11175,7 +11175,7 @@ func TestChatAdvisorConfig_Update(t *testing.T) {
 	require.Equal(t, want, resp)
 }
 
-func TestChatAdvisorConfig_UnauthorizedUser(t *testing.T) {
+func TestChatAdvisorConfig_MemberCannotWriteButCanRead(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -11355,6 +11355,37 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, sparse, resp)
+}
+
+// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins the feature
+// gate's "off" path. The downstream runtime gates the advisor tool and
+// prompt guidance on Enabled, so a regression that silently drops or
+// ignores Enabled: false on PUT would leave the feature stuck on.
+func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.AdvisorConfig{
+		Enabled:       true,
+		MaxUsesPerRun: 2,
+	})
+	require.NoError(t, err)
+
+	enabledResp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.True(t, enabledResp.Enabled)
+
+	err = adminClient.UpdateChatAdvisorConfig(ctx, codersdk.AdvisorConfig{
+		Enabled: false,
+	})
+	require.NoError(t, err)
+
+	disabledResp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.False(t, disabledResp.Enabled)
 }
 
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
