@@ -236,10 +236,11 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
 	const nextTitle =
 		isFreshEnough && isTitleEvent ? watchedChat.title : cachedChat.title;
-	const nextDiffStatus =
-		isFreshEnough && isDiffStatusEvent
-			? watchedChat.diff_status
-			: cachedChat.diff_status;
+	// Diff status freshness is tracked outside chats.updated_at, so apply
+	// diff_status_change payloads even when the chat summary timestamp is older.
+	const nextDiffStatus = isDiffStatusEvent
+		? watchedChat.diff_status
+		: cachedChat.diff_status;
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
