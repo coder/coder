@@ -51,8 +51,18 @@ func BuildAdvisorMessages(
 	// prompt may tell the model to address the end user directly or use
 	// tools. The advisor must override those behaviors, not be overridden
 	// by them.
+	//
+	// Walk system messages newest-to-oldest when consuming the byte
+	// budget so that truncation preserves the most recent directives.
+	// The parent may have injected recent safety or user-instruction
+	// blocks that should win over older foundational prompts, and later
+	// directives override earlier ones anyway. After selection, restore
+	// the original order before appending so the advisor still sees the
+	// parent's intended directive sequence.
+	inheritedSystem := make([]fantasy.Message, 0)
 	remainingSystemBudget := advisorSystemJSONByteBudget
-	for _, msg := range conversationSnapshot {
+	for i := len(conversationSnapshot) - 1; i >= 0; i-- {
+		msg := conversationSnapshot[i]
 		if msg.Role != fantasy.MessageRoleSystem {
 			continue
 		}
@@ -63,11 +73,16 @@ func BuildAdvisorMessages(
 			// parent system prompt could otherwise push the
 			// advisor prompt past the model's context window,
 			// returning a provider error instead of advice.
+			// Continue walking so smaller older directives can
+			// still contribute; stopping here would drop them
+			// solely because a newer sibling was oversized.
 			continue
 		}
-		messages = append(messages, cloneMessage(msg))
+		inheritedSystem = append(inheritedSystem, cloneMessage(msg))
 		remainingSystemBudget -= messageBytes
 	}
+	slices.Reverse(inheritedSystem)
+	messages = append(messages, inheritedSystem...)
 	messages = append(messages, textMessage(fantasy.MessageRoleSystem, AdvisorSystemPrompt))
 
 	recent := make([]fantasy.Message, 0, min(len(conversationSnapshot), advisorRecentMessageLimit))

@@ -406,6 +406,39 @@ func TestBuildAdvisorMessagesDropsOversizedInheritedSystem(t *testing.T) {
 	}
 }
 
+func TestBuildAdvisorMessagesPrefersNewestSystemDirectivesUnderBudget(t *testing.T) {
+	t.Parallel()
+
+	// Two parent system messages together exceed the advisor system byte
+	// budget, so one must be dropped. Later directives override earlier
+	// ones when they conflict, so the advisor must receive the newest
+	// directive and drop the older one. Preserve original order among
+	// messages that survive so the parent's intended directive sequence
+	// is unchanged.
+	const payload = 9000
+	snapshot := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "older-"+strings.Repeat("a", payload)),
+		textMessage(fantasy.MessageRoleSystem, "newer-"+strings.Repeat("b", payload)),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+
+	// newer parent system + advisor system + recent user + question. The
+	// older system message must be dropped because the newer directive
+	// consumed the remaining budget.
+	require.Len(t, messages, 4)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Contains(t, singleText(t, messages[0]), "newer-")
+	require.NotContains(t, singleText(t, messages[0]), "older-")
+	require.Equal(t, fantasy.MessageRoleSystem, messages[1].Role)
+	require.Contains(t, singleText(t, messages[1]), "parent agent")
+	require.Equal(t, fantasy.MessageRoleUser, messages[2].Role)
+	require.Equal(t, "hello", singleText(t, messages[2]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[3].Role)
+	require.Equal(t, "Need advice", singleText(t, messages[3]))
+}
+
 func TestBuildAdvisorMessagesDropsOrphanToolResults(t *testing.T) {
 	t.Parallel()
 
