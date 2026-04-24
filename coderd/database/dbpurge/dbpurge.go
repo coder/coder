@@ -43,11 +43,24 @@ const (
 	chatFilesBatchSize = 1000
 )
 
-// chatAutoArchiveBatchSize bounds how many root chats one tick will
-// archive. Exposed as a var (not const) so tests can shrink it via
-// SetChatAutoArchiveBatchSizeForTest in export_test.go to drive
-// multi-tick pagination without inserting thousands of rows.
-var chatAutoArchiveBatchSize int32 = 1000
+// defaultChatAutoArchiveBatchSize bounds how many root chats one
+// tick will archive by default.
+const defaultChatAutoArchiveBatchSize int32 = 1000
+
+type Option func(*instance)
+
+// WithClock overrides the clock used by the purger. Defaults to
+// quartz.NewReal().
+func WithClock(clk quartz.Clock) Option {
+	return func(i *instance) { i.clk = clk }
+}
+
+// WithChatAutoArchiveBatchSize overrides how many root chats a
+// single tick will auto-archive. Defaults to
+// defaultChatAutoArchiveBatchSize (1000).
+func WithChatAutoArchiveBatchSize(n int32) Option {
+	return func(i *instance) { i.chatAutoArchiveBatchSize = n }
+}
 
 // New creates a new periodically purging database instance.
 // Callers must Close the returned instance.
@@ -55,7 +68,7 @@ var chatAutoArchiveBatchSize int32 = 1000
 // The auditor pointer is loaded on each dispatch tick so runtime
 // entitlement changes (e.g. toggling the audit-log feature) take
 // effect without restarting the process.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor]) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor], opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -88,19 +101,23 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	reg.MustRegister(chatAutoArchiveRecords)
 
 	inst := &instance{
-		cancel:                 cancelFunc,
-		closed:                 closed,
-		logger:                 logger,
-		vals:                   vals,
-		clk:                    clk,
-		auditor:                auditor,
-		iterationDuration:      iterationDuration,
-		recordsPurged:          recordsPurged,
-		chatAutoArchiveRecords: chatAutoArchiveRecords,
+		cancel:                   cancelFunc,
+		closed:                   closed,
+		logger:                   logger,
+		vals:                     vals,
+		clk:                      quartz.NewReal(),
+		auditor:                  auditor,
+		iterationDuration:        iterationDuration,
+		recordsPurged:            recordsPurged,
+		chatAutoArchiveRecords:   chatAutoArchiveRecords,
+		chatAutoArchiveBatchSize: defaultChatAutoArchiveBatchSize,
+	}
+	for _, opt := range opts {
+		opt(inst)
 	}
 
 	// Start the ticker with the initial delay.
-	ticker := clk.NewTicker(delay)
+	ticker := inst.clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
 		err := inst.purgeTick(ctx, db, start)
@@ -108,7 +125,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
 			// Record metrics for failed purge iteration.
-			duration := clk.Since(start)
+			duration := inst.clk.Since(start)
 			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
 		}
 	}
@@ -117,7 +134,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		defer close(closed)
 		defer ticker.Stop()
 		// Force an initial tick.
-		doTick(ctx, dbtime.Time(clk.Now()).UTC())
+		doTick(ctx, dbtime.Time(inst.clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
@@ -295,7 +312,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
 			archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
 				ArchiveCutoff: archiveCutoff,
-				LimitCount:    chatAutoArchiveBatchSize,
+				LimitCount:    i.chatAutoArchiveBatchSize,
 			})
 			if err != nil {
 				return xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
@@ -349,15 +366,16 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 }
 
 type instance struct {
-	cancel                 context.CancelFunc
-	closed                 chan struct{}
-	logger                 slog.Logger
-	vals                   *codersdk.DeploymentValues
-	clk                    quartz.Clock
-	auditor                *atomic.Pointer[audit.Auditor]
-	iterationDuration      *prometheus.HistogramVec
-	recordsPurged          *prometheus.CounterVec
-	chatAutoArchiveRecords prometheus.Counter
+	cancel                   context.CancelFunc
+	closed                   chan struct{}
+	logger                   slog.Logger
+	vals                     *codersdk.DeploymentValues
+	clk                      quartz.Clock
+	auditor                  *atomic.Pointer[audit.Auditor]
+	iterationDuration        *prometheus.HistogramVec
+	recordsPurged            *prometheus.CounterVec
+	chatAutoArchiveRecords   prometheus.Counter
+	chatAutoArchiveBatchSize int32
 }
 
 func (i *instance) Close() error {

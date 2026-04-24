@@ -59,7 +59,7 @@ func TestPurge(t *testing.T) {
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), database.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -93,7 +93,7 @@ func TestMetrics(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days retention
 			},
-		}, clk, reg, nopAuditorPtr(t))
+		}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -162,7 +162,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, clk, reg, nopAuditorPtr(t))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -252,7 +252,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -277,7 +277,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -372,7 +372,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		Retention: codersdk.RetentionConfig{
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
-	}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 
 	defer closer.Close()
 	<-done // doTick() has now run.
@@ -644,7 +644,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -735,7 +735,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -839,7 +839,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -1002,7 +1002,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -1121,7 +1121,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1377,7 +1377,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1464,7 +1464,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1554,7 +1554,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+		}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1674,7 +1674,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1820,7 +1820,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1877,7 +1877,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1934,7 +1934,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2014,7 +2014,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2349,7 +2349,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2378,7 +2378,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2426,7 +2426,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// observe the forced initial tick's results without
 				// racing with a second tick.
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				// Defer driver.close() after closer.Close(): defers
 				// run LIFO, so driver cleanup frees shutdown's
 				// ticker.Stop() before the dbpurge goroutine blocks
@@ -2468,7 +2468,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2499,7 +2499,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2553,7 +2553,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2609,7 +2609,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2652,7 +2652,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2684,7 +2684,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				// Defer driver.close() after closer.Close(): defers
 				// run LIFO, so this frees shutdown's ticker.Stop()
 				// before the dbpurge goroutine blocks on it.
@@ -2725,9 +2725,6 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
-				restore := dbpurge.SetChatAutoArchiveBatchSizeForTest(20)
-				t.Cleanup(restore)
-
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
 				const total = 27
@@ -2740,7 +2737,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), auditorPtr)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
 				// Defer driver.close() after closer.Close() so trap
 				// cleanup frees shutdown's ticker.Stop() before the
 				// dbpurge goroutine blocks on it.
