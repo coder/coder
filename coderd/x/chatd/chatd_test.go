@@ -761,7 +761,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		)
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	webSearchEnabled := true
 	storeEnabled := true
 	// OpenAI only serializes web_search through the Responses API.
@@ -938,7 +938,7 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:   "Root Explore Runtime MCP",
 		Slug:          "root-explore-runtime-mcp",
@@ -1018,7 +1018,7 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 		)
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	webSearchEnabled := true
 	storeEnabled := true
 	// OpenAI only serializes web_search through the Responses API.
@@ -1147,7 +1147,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	parentConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:   "Runtime Parent MCP",
 		Slug:          "runtime-parent-mcp",
@@ -1324,7 +1324,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	approvedConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:     "Plan Approved MCP",
@@ -1562,7 +1562,7 @@ func TestUnarchiveChildChat(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		replica := newTestServer(t, db, ps, uuid.New())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
 
@@ -1583,7 +1583,7 @@ func TestUnarchiveChildChat(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		replica := newTestServer(t, db, ps, uuid.New())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
 		_, err := db.ArchiveChatByID(ctx, parent.ID)
@@ -1603,7 +1603,7 @@ func TestUnarchiveChildChat(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		replica := newTestServer(t, db, ps, uuid.New())
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		_, child := insertParentWithActiveChild(ctx, t, db, user, org, model)
 
@@ -2053,7 +2053,7 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfig := seedChatDependencies(ctx, t, db)
+	user, org, modelConfig := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
@@ -2514,7 +2514,7 @@ func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
+	user, org, modelConfigA := seedChatDependencies(t, db)
 	modelConfigB := insertChatModelConfigWithCallConfig(
 		ctx,
 		t,
@@ -2575,7 +2575,7 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
+	user, org, modelConfigA := seedChatDependencies(t, db)
 	modelConfigB := insertChatModelConfigWithCallConfig(
 		ctx,
 		t,
@@ -2705,7 +2705,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 		// signalWake.
 		cfg.PendingChatAcquireInterval = time.Hour
 	})
-	user, org, modelConfigA := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, modelConfigA := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	modelConfigB := insertChatModelConfigWithCallConfig(
 		ctx,
 		t,
@@ -2848,7 +2848,7 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 		// trigger the next processing run.
 		cfg.PendingChatAcquireInterval = time.Hour
 	})
-	user, org, modelConfig := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -2914,7 +2914,7 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
+	user, org, modelConfigA := seedChatDependencies(t, db)
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
@@ -2954,7 +2954,7 @@ func TestPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfig := seedChatDependencies(ctx, t, db)
+	user, org, modelConfig := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
@@ -3329,7 +3329,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -3435,7 +3435,7 @@ func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -3514,7 +3514,7 @@ func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
 	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -7286,7 +7286,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:     "Plan Mode MCP",
@@ -7401,7 +7401,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 		}
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
 		DisplayName:     "Plan Workflow MCP",
@@ -8297,7 +8297,7 @@ func TestSendMessageRejectsArchivedChat(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
@@ -8326,7 +8326,7 @@ func TestEditMessageRejectsArchivedChat(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
@@ -8362,7 +8362,7 @@ func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
@@ -8419,7 +8419,7 @@ func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
@@ -8460,7 +8460,7 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	_ = newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	archivedChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,

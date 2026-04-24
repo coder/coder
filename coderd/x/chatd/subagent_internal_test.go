@@ -261,8 +261,10 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 }
 
 func insertInternalChatModelConfig(
+	ctx context.Context,
 	t *testing.T,
 	db database.Store,
+	userID uuid.UUID,
 	model string,
 	enabled bool,
 ) database.ChatModelConfig {
@@ -887,7 +889,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	overrideModel := insertInternalChatModelConfig(
-		t, db, "override-no-parent-model-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "override-no-parent-model-"+uuid.NewString(), true,
 	)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-no-model",
@@ -919,7 +921,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	overrideModel := insertInternalChatModelConfig(
-		t, db, "explore-override-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "explore-override-"+uuid.NewString(), true,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -957,7 +959,7 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		t, db, "explore-current-turn-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "explore-current-turn-"+uuid.NewString(), true,
 	)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-fallback",
@@ -1229,7 +1231,7 @@ func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		t, db, "explore-invalid-override-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "explore-invalid-override-"+uuid.NewString(), true,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
 	parentChat := createInternalParentChat(
@@ -1261,10 +1263,10 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		t, db, "explore-fallback-current-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "explore-fallback-current-"+uuid.NewString(), true,
 	)
 	disabledModel := insertInternalChatModelConfig(
-		t, db, "explore-disabled-"+uuid.NewString(), false,
+		ctx, t, db, user.ID, "explore-disabled-"+uuid.NewString(), false,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, disabledModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -1296,7 +1298,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		t, db, "explore-missing-user-key-current-"+uuid.NewString(), true,
+		ctx, t, db, user.ID, "explore-missing-user-key-current-"+uuid.NewString(), true,
 	)
 	// Use raw insert because takeFirst treats false/"" as zero,
 	// overriding CentralApiKeyEnabled and APIKey to defaults.
