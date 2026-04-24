@@ -9,8 +9,9 @@ import (
 )
 
 // ChatConfigEventChannel is the pubsub channel for chat config
-// changes (providers, model configs, user prompts). All replicas
-// subscribe to this channel to invalidate their local caches.
+// changes (providers, model configs, user prompts, advisor config).
+// All replicas subscribe to this channel to invalidate their local
+// caches.
 const ChatConfigEventChannel = "chat:config_change"
 
 // HandleChatConfigEvent wraps a typed callback for ChatConfigEvent
