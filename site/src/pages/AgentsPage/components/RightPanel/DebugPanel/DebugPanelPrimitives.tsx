@@ -33,10 +33,7 @@ interface DebugCodeBlockProps {
 	className?: string;
 }
 
-export const DebugCodeBlock: FC<DebugCodeBlockProps> = ({
-	code,
-	className,
-}) => {
+const DebugCodeBlock: FC<DebugCodeBlockProps> = ({ code, className }) => {
 	return (
 		<pre
 			className={cn(
