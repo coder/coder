@@ -578,9 +578,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [isLoading]);
-	const isUploading = attachments.some(
-		(f) => uploadStates?.get(f)?.status === "uploading",
-	);
+	const isUploading = attachments.some((file) => {
+		const status = uploadStates?.get(file)?.status;
+		return status === "pending" || status === "uploading";
+	});
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);

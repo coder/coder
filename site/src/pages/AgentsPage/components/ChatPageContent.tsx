@@ -1,8 +1,9 @@
-import { type FC, Profiler, type ReactNode, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
@@ -173,6 +174,7 @@ interface ChatPageInputProps {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
+	isEditing: boolean;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -233,6 +235,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	initialEditorState,
 	remountKey,
 	onContentChange,
+	isEditing,
 	editingQueuedMessageID,
 	onStartQueueEdit,
 	onCancelQueueEdit,
@@ -297,6 +300,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
+	const editAttachments = useFileAttachments(organizationId);
+	const {
+		setAttachments: setEditAttachments,
+		setPreviewUrls: setEditPreviewUrls,
+		setUploadStates: setEditUploadStates,
+	} = editAttachments;
+	const wasEditingRef = useRef(isEditing);
+	const activeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
 		textContents,
@@ -304,19 +316,18 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
-		resetAttachments,
-		setAttachments,
-		setPreviewUrls,
-		setUploadStates,
-	} = useFileAttachments(organizationId);
-	// Pre-populate attachments from existing file blocks when
-	// entering edit mode on a message with images.
+	} = activeAttachments;
+
+	// Pre-populate the edit bucket from existing file blocks only
+	// while explicitly editing a message.
 	useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
 		if (!editingFileBlocks || editingFileBlocks.length === 0) {
-			// Clear attachments when exiting edit mode.
-			setAttachments([]);
-			setUploadStates(new Map());
-			setPreviewUrls(new Map());
+			setEditAttachments([]);
+			setEditUploadStates(new Map());
+			setEditPreviewUrls(new Map());
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
@@ -329,8 +340,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
-		setAttachments(files);
-		setPreviewUrls(
+		setEditAttachments(files);
+		setEditPreviewUrls(
 			new Map(
 				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
 			),
@@ -345,8 +356,21 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 				});
 			}
 		}
-		setUploadStates(newUploadStates);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+		setEditUploadStates(newUploadStates);
+	}, [
+		isEditing,
+		editingFileBlocks,
+		setEditAttachments,
+		setEditPreviewUrls,
+		setEditUploadStates,
+	]);
+
+	useEffect(() => {
+		if (wasEditingRef.current && !isEditing) {
+			editAttachments.resetAttachments();
+		}
+		wasEditingRef.current = isEditing;
+	}, [isEditing, editAttachments]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
@@ -355,6 +379,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
+					const hasActiveUploads = attachments.some((file) => {
+						const status = uploadStates.get(file)?.status;
+						return status === "pending" || status === "uploading";
+					});
+					if (hasActiveUploads) {
+						toast.warning("Wait for file uploads to finish before sending.");
+						return;
+					}
 					// Collect uploaded attachment metadata for the optimistic
 					// transcript builder while keeping the server payload
 					// shape unchanged downstream.
@@ -386,7 +418,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						// Attachments preserved for retry on failure.
 						return;
 					}
-					resetAttachments();
+					if (isEditing) {
+						editAttachments.resetAttachments();
+						composeAttachments.resetAttachments();
+					} else {
+						composeAttachments.resetAttachments();
+					}
 				})();
 			}}
 			attachments={attachments}
