@@ -11384,7 +11384,7 @@ func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
 // TestChatAdvisorConfig_CorruptStoredJSONReturnsError pins that the GET
 // handler surfaces a 500 when the stored site_configs row contains bytes
 // that are not valid JSON. Unlike the neighboring chat config endpoints,
-// this handler unmarshals the raw string client-side, so DB corruption
+// this handler unmarshals the raw string server-side, so DB corruption
 // must not present as a default-valued 200.
 func TestChatAdvisorConfig_CorruptStoredJSONReturnsError(t *testing.T) {
 	t.Parallel()
