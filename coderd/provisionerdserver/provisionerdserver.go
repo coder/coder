@@ -595,8 +595,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// transitions where the workspace actually needs them.
 		var userSecrets []*sdkproto.UserSecretValue
 		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// nolint:gocritic // System context needed to read secrets for the workspace owner.
-			dbSecrets, err := s.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), owner.ID)
+			dbSecrets, err := s.Database.ListUserSecretsWithValues(ctx, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("get user secrets: %s", err))
 			}

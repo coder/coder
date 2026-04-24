@@ -869,42 +869,18 @@ func TestAcquireJob(t *testing.T) {
 			})
 			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
 
-			// Create secrets: 3 valid + 1 that should be filtered out. We call
-			// CreateUserSecret directly because dbgen.UserSecret fills in
-			// defaults for empty strings.
-			authCtx := dbauthz.AsSystemRestricted(ctx)
-			_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:      uuid.New(),
-				UserID:  user.ID,
-				Name:    "github-token",
-				EnvName: "GITHUB_TOKEN",
-				Value:   "ghp_xxxx",
-			})
-			require.NoError(t, err)
-			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:       uuid.New(),
-				UserID:   user.ID,
-				Name:     "ssh-key",
-				FilePath: "~/.ssh/id_rsa",
-				Value:    "private-key",
-			})
-			require.NoError(t, err)
-			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:       uuid.New(),
-				UserID:   user.ID,
-				Name:     "both",
-				EnvName:  "BOTH",
-				FilePath: "/etc/both",
-				Value:    "both-val",
-			})
-			require.NoError(t, err)
-			_, err = db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-				ID:     uuid.New(),
-				UserID: user.ID,
-				Name:   "no-injection",
-				Value:  "no-injection",
-			})
-			require.NoError(t, err)
+			// Create secrets: 3 valid + 1 that should be filtered out.
+			insert1 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "github-token", EnvName: "GITHUB_TOKEN", Value: "ghp_xxxx"}
+			secret1 := dbgen.UserSecret(t, db, insert1, func(p *database.CreateUserSecretParams) { p.FilePath = "" })
+
+			insert2 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "ssh-key", FilePath: "~/.ssh/id_rsa", Value: "private-key"}
+			secret2 := dbgen.UserSecret(t, db, insert2, func(p *database.CreateUserSecretParams) { p.EnvName = "" })
+
+			insert3 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "both", EnvName: "BOTH", FilePath: "/etc/both", Value: "both-val"}
+			secret3 := dbgen.UserSecret(t, db, insert3)
+
+			insert4 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "no-injection", Value: "no-injection"}
+			_ = dbgen.UserSecret(t, db, insert4, func(p *database.CreateUserSecretParams) { p.EnvName = ""; p.FilePath = "" })
 
 			template := dbgen.Template(t, db, database.Template{
 				Name:           "template",
@@ -978,15 +954,14 @@ func TestAcquireJob(t *testing.T) {
 			require.NoError(t, err)
 			defer closeStartSubscribe()
 
+			// Grab jobs until we find the workspace build job.
 			var job *proto.AcquiredJob
-			for {
-				// Grab jobs until we find the workspace build job.
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				job, err = tc.acquire(ctx, srv)
 				require.NoError(t, err)
-				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-					break
-				}
-			}
+				_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+				return ok
+			}, testutil.IntervalMedium)
 
 			select {
 			case <-startPublished:
@@ -1005,19 +980,18 @@ func TestAcquireJob(t *testing.T) {
 				return strings.Compare(a.EnvName+a.FilePath, b.EnvName+b.FilePath)
 			})
 
-			// After sorting: ("BOTH" "/etc/both"),
-			// ("GITHUB_TOKEN" ""), ("" "~/.ssh/id_rsa")
-			require.Equal(t, "BOTH", wb.UserSecrets[0].EnvName)
-			require.Equal(t, "/etc/both", wb.UserSecrets[0].FilePath)
-			require.Equal(t, []byte("both-val"), wb.UserSecrets[0].Value)
+			// After sorting: []{secret3, secret1, secret2}
+			require.Equal(t, secret3.EnvName, wb.UserSecrets[0].EnvName)
+			require.Equal(t, secret3.FilePath, wb.UserSecrets[0].FilePath)
+			require.Equal(t, []byte(secret3.Value), wb.UserSecrets[0].Value)
 
-			require.Equal(t, "GITHUB_TOKEN", wb.UserSecrets[1].EnvName)
-			require.Equal(t, "", wb.UserSecrets[1].FilePath)
-			require.Equal(t, []byte("ghp_xxxx"), wb.UserSecrets[1].Value)
+			require.Equal(t, secret1.EnvName, wb.UserSecrets[1].EnvName)
+			require.Equal(t, secret1.FilePath, wb.UserSecrets[1].FilePath)
+			require.Equal(t, []byte(secret1.Value), wb.UserSecrets[1].Value)
 
-			require.Equal(t, "", wb.UserSecrets[2].EnvName)
-			require.Equal(t, "~/.ssh/id_rsa", wb.UserSecrets[2].FilePath)
-			require.Equal(t, []byte("private-key"), wb.UserSecrets[2].Value)
+			require.Equal(t, secret2.EnvName, wb.UserSecrets[2].EnvName)
+			require.Equal(t, secret2.FilePath, wb.UserSecrets[2].FilePath)
+			require.Equal(t, []byte(secret2.Value), wb.UserSecrets[2].Value)
 		})
 
 		for _, transitionCase := range []struct {
