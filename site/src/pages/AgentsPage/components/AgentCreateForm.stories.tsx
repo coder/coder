@@ -368,6 +368,43 @@ export const WithOrganizationPicker: Story = {
 	},
 };
 
+// Guards the tight spacing between the CompactOrgSelector row and the
+// chat input composer. The outer stack uses `gap-2` (8 px), so the
+// visible gap should stay comfortably below 16 px. Prior to the fix
+// the stack used `gap-4` (16 px) which left a much larger gap on
+// 200% zoom desktops.
+export const OrgPickerTightSpacing: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const orgTrigger = await canvas.findByTestId("compact-org-selector");
+		const input = await canvas.findByTestId("chat-message-input");
+
+		// The composer is the rounded-border wrapper around the chat
+		// input. Measuring from its top includes the border instead of
+		// just the inner textarea.
+		const composer = input.closest(".rounded-2xl") as HTMLElement | null;
+		if (!composer) {
+			throw new Error("Expected composer wrapper to exist");
+		}
+
+		const orgRect = orgTrigger.getBoundingClientRect();
+		const composerRect = composer.getBoundingClientRect();
+		const gap = composerRect.top - orgRect.bottom;
+		expect(gap).toBeGreaterThanOrEqual(0);
+		expect(gap).toBeLessThan(16);
+	},
+};
+
 /**
  * Standalone story for the org-change confirmation dialog. Renders
  * the ConfirmDialog directly in its open state, following the same

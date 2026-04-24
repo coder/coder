@@ -457,6 +457,47 @@ export const WithToolbarEndContent: Story = {
 	},
 };
 
+// Covers 200% browser zoom on a 1440x900 desktop (CSS viewport
+// 720x450). The empty state must stay on the desktop branch (sidebar
+// and chat area side-by-side), not collapse into the mobile stack.
+// Chromatic renders this story at 720 px and captures the desktop
+// layout visually; the play function below asserts at the class level
+// that the outer flex container uses the sm: breakpoint so the
+// behavior is enforced even in the vitest/playwright runner (where
+// the real viewport is larger than 720 px).
+export const EmptyStateZoom200Desktop: Story = {
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByTestId("chat-message-input");
+
+		// Walk up from the chat input to find the outer agents page
+		// container. It is the closest ancestor with flex-direction
+		// set at a responsive breakpoint. We then assert the exact
+		// Tailwind class so the test fails if somebody reintroduces
+		// the md: breakpoint that caused the 200% zoom regression.
+		let el: HTMLElement | null = input;
+		let outer: HTMLElement | null = null;
+		while (el && el !== canvasElement) {
+			if (el.className.includes("flex-row")) {
+				outer = el;
+				break;
+			}
+			el = el.parentElement;
+		}
+
+		await expect(outer).not.toBeNull();
+		// The sm: breakpoint (640 px) keeps the layout horizontal at
+		// 720 px (1440 px desktop at 200% zoom). The previous md:
+		// breakpoint (768 px) collapsed the layout to the mobile stack.
+		await expect(outer?.className).toContain("sm:flex-row");
+		await expect(outer?.className).not.toContain("md:flex-row");
+	},
+};
+
 export const CreatingAgent: Story = {
 	args: {
 		isCreating: true,

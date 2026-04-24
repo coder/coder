@@ -412,8 +412,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto p-4 pb-4 md:order-none md:h-full md:flex-1 md:items-center md:pt-12">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:pb-8">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : createError ? (
@@ -496,7 +496,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="mt-1 text-center text-xs text-content-secondary/50">
+					<p className="text-center text-xs text-content-secondary/50">
 						<a
 							href={docs("/ai-coder/agents")}
 							target="_blank"
