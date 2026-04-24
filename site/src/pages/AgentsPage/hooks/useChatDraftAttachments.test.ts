@@ -104,6 +104,11 @@ describe("useChatDraftAttachments", () => {
 		const restored = renderHook(() => useChatDraftAttachments(orgID, chatID));
 		expect(restored.result.current.attachments).toHaveLength(1);
 		expect(restored.result.current.attachments[0].name).toBe("note.txt");
+		expect(
+			restored.result.current.uploadStates.get(
+				restored.result.current.attachments[0],
+			),
+		).toMatchObject({ status: "uploading" });
 		await vi.waitFor(() => {
 			expect(
 				restored.result.current.textContents.get(

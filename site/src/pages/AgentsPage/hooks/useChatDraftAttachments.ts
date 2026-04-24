@@ -75,6 +75,15 @@ const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
 let fallbackClientIdCounter = 0;
 
+const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
+	entry.status === "uploaded" || entry.status === "error";
+
+const pruneTerminalRegistryEntry = (entry: UploadRegistryEntry) => {
+	if (entry.subscribers.size === 0 && isTerminalRegistryStatus(entry)) {
+		activeDraftUploads.delete(entry.clientId);
+	}
+};
+
 const createClientId = () => {
 	const cryptoObject =
 		typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
@@ -268,6 +277,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 				void fetch(getChatFileURL(result.id)).catch(() => undefined);
 			}
 			notifySubscribers(entry);
+			pruneTerminalRegistryEntry(entry);
 		} catch (error) {
 			if (!isCurrentGeneration(entry, generation)) {
 				return;
@@ -275,6 +285,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			entry.status = "error";
 			entry.error = formatAgentAttachmentUploadError(error);
 			notifySubscribers(entry);
+			pruneTerminalRegistryEntry(entry);
 		}
 	})();
 };
@@ -415,6 +426,7 @@ const subscribeToEntry = (
 	entry.subscribers.add(subscriber);
 	subscriptions.current.set(entry.clientId, () => {
 		entry.subscribers.delete(subscriber);
+		pruneTerminalRegistryEntry(entry);
 	});
 };
 
