@@ -387,6 +387,17 @@ const getDraftScopeKey = (
 	chatId: string | undefined,
 ) => (organizationId && chatId ? `${organizationId}:${chatId}` : undefined);
 
+const removeRegistryEntriesForScope = (
+	organizationId: string,
+	chatId: string,
+) => {
+	for (const entry of Array.from(activeDraftUploads.values())) {
+		if (entry.organizationId === organizationId && entry.chatId === chatId) {
+			removeRegistryEntry(entry.clientId);
+		}
+	}
+};
+
 const hydrateViews = (
 	organizationId: string | undefined,
 	chatId: string | undefined,
@@ -618,12 +629,19 @@ export function useChatDraftAttachments(
 	};
 
 	const resetAttachments = () => {
+		if (!organizationId || !chatId) {
+			setViews([]);
+			return;
+		}
+		clearChatDraftAttachmentRecords(organizationId, chatId);
+		const resetScopeKey = getDraftScopeKey(organizationId, chatId);
+		if (scopeRef.current !== resetScopeKey) {
+			removeRegistryEntriesForScope(organizationId, chatId);
+			return;
+		}
 		for (const view of viewsRef.current) {
 			revokeBlobPreview(view);
 			removeRegistryEntry(view.clientId);
-		}
-		if (organizationId && chatId) {
-			clearChatDraftAttachmentRecords(organizationId, chatId);
 		}
 		setViews([]);
 	};

@@ -411,6 +411,66 @@ describe("useChatDraftAttachments", () => {
 		unmount();
 	});
 
+	it("stale reset clears its original chat without clearing the current chat", async () => {
+		const firstUpload = createDeferred<{ id: string }>();
+		const secondUpload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile")
+			.mockReturnValueOnce(firstUpload.promise)
+			.mockReturnValueOnce(secondUpload.promise);
+		const secondChatID = "chat-b";
+		const secondStorageKey = chatDraftAttachmentStorageKey(orgID, secondChatID);
+		const { result, rerender, unmount } = renderHook(
+			({ chatId }) => useChatDraftAttachments(orgID, chatId),
+			{ initialProps: { chatId: chatID } },
+		);
+		const firstFile = new File(["first"], "first.txt", {
+			type: "text/plain",
+			lastModified: 15,
+		});
+
+		act(() => {
+			result.current.handleAttach([firstFile]);
+		});
+		await vi.waitFor(() => {
+			expect(parseStoredDrafts()).toHaveLength(1);
+		});
+		const resetFirstChat = result.current.resetAttachments;
+		rerender({ chatId: secondChatID });
+		const secondFile = new File(["second"], "second.txt", {
+			type: "text/plain",
+			lastModified: 16,
+		});
+
+		act(() => {
+			result.current.handleAttach([secondFile]);
+		});
+		await vi.waitFor(() => {
+			expect(localStorage.getItem(secondStorageKey)).not.toBeNull();
+		});
+
+		act(() => {
+			resetFirstChat();
+		});
+		expect(localStorage.getItem(storageKey)).toBeNull();
+		expect(localStorage.getItem(secondStorageKey)).not.toBeNull();
+		expect(result.current.attachments).toHaveLength(1);
+		expect(result.current.attachments[0].name).toBe("second.txt");
+
+		await act(async () => {
+			firstUpload.resolve({ id: "file-first" });
+			secondUpload.resolve({ id: "file-second" });
+		});
+		await vi.waitFor(() => {
+			expect(result.current.uploadStates.get(secondFile)).toMatchObject({
+				status: "uploaded",
+				fileId: "file-second",
+			});
+		});
+		expect(result.current.attachments).toHaveLength(1);
+		expect(localStorage.getItem(storageKey)).toBeNull();
+		unmount();
+	});
+
 	it("prunes corrupt and wrong-scope stored records during restore", () => {
 		localStorage.setItem(
 			storageKey,
