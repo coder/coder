@@ -22,7 +22,14 @@ const (
 	// number suggests. The walk stops at the first message that would
 	// overflow, trading breadth for contiguity.
 	advisorConversationJSONByteBudget = 12000
-	defaultAdvisorQuestion            = "Provide concise strategic guidance for the parent agent."
+	// advisorSystemJSONByteBudget caps the combined size of inherited
+	// system messages forwarded to the advisor. Without a cap, a large
+	// parent system prompt (long injected instructions, accumulated
+	// context) could push the advisor call past the model's context
+	// window on top of the advisor contract, the recent tail, and the
+	// question, surfacing as a provider error instead of advice.
+	advisorSystemJSONByteBudget = 12000
+	defaultAdvisorQuestion      = "Provide concise strategic guidance for the parent agent."
 )
 
 // BuildAdvisorMessages prepares a nested advisor prompt using the recent chat
@@ -44,11 +51,22 @@ func BuildAdvisorMessages(
 	// prompt may tell the model to address the end user directly or use
 	// tools. The advisor must override those behaviors, not be overridden
 	// by them.
+	remainingSystemBudget := advisorSystemJSONByteBudget
 	for _, msg := range conversationSnapshot {
 		if msg.Role != fantasy.MessageRoleSystem {
 			continue
 		}
+		messageBytes := messageJSONByteCount(msg)
+		if messageBytes > remainingSystemBudget {
+			// Skip oversized inherited system messages rather
+			// than forwarding them wholesale. A single massive
+			// parent system prompt could otherwise push the
+			// advisor prompt past the model's context window,
+			// returning a provider error instead of advice.
+			continue
+		}
 		messages = append(messages, cloneMessage(msg))
+		remainingSystemBudget -= messageBytes
 	}
 	messages = append(messages, textMessage(fantasy.MessageRoleSystem, AdvisorSystemPrompt))
 

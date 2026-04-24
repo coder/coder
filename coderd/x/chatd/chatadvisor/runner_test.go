@@ -374,6 +374,38 @@ func TestBuildAdvisorMessagesPlacesAdvisorPromptAfterInheritedSystem(t *testing.
 	require.Equal(t, "Need advice", singleText(t, messages[4]))
 }
 
+func TestBuildAdvisorMessagesDropsOversizedInheritedSystem(t *testing.T) {
+	t.Parallel()
+
+	// A single oversized parent system message is skipped so it cannot
+	// push the advisor prompt past the model's context window. Smaller
+	// system messages that fit the budget survive, as do later non-system
+	// messages.
+	snapshot := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "small-system"),
+		textMessage(fantasy.MessageRoleSystem, strings.Repeat("x", 20000)),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+	}
+
+	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
+
+	// small-system + advisor system + recent user + question. The
+	// oversized inherited system message must not appear.
+	require.Len(t, messages, 4)
+	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
+	require.Equal(t, "small-system", singleText(t, messages[0]))
+	require.Equal(t, fantasy.MessageRoleSystem, messages[1].Role)
+	require.Contains(t, singleText(t, messages[1]), "parent agent")
+	require.Equal(t, fantasy.MessageRoleUser, messages[2].Role)
+	require.Equal(t, "hello", singleText(t, messages[2]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[3].Role)
+	require.Equal(t, "Need advice", singleText(t, messages[3]))
+
+	for _, msg := range messages {
+		require.NotContains(t, singleText(t, msg), strings.Repeat("x", 100))
+	}
+}
+
 func TestBuildAdvisorMessagesDropsOrphanToolResults(t *testing.T) {
 	t.Parallel()
 
