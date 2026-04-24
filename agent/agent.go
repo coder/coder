@@ -1414,7 +1414,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
-					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
 			})
 			if err != nil {

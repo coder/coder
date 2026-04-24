@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -89,12 +90,12 @@ func NewManager(ctx context.Context, logger slog.Logger) *Manager {
 	}
 }
 
-// connect reads MCP config files and performs a differential
+// doReload reads MCP config files and performs a differential
 // reconnect. Unchanged servers keep their existing client; new or
 // changed servers get a fresh connection; removed servers are
 // closed.
-func (m *Manager) connect(ctx context.Context, mcpConfigFiles []string) error {
-	allConfigs := m.parseAndDedup(ctx, mcpConfigFiles)
+func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
+	allConfigs, snap := m.parseAndDedup(ctx, mcpConfigFiles)
 
 	wantedConfigs := make(map[string]ServerConfig, len(allConfigs))
 	for _, cfg := range allConfigs {
@@ -108,13 +109,16 @@ func (m *Manager) connect(ctx context.Context, mcpConfigFiles []string) error {
 
 	connected := m.connectAll(ctx, toConnect)
 
-	closePrev, err := m.installServers(wantedConfigs, connected, keepSet, prevServers, mcpConfigFiles)
+	closePrev, err := m.installServers(wantedConfigs, connected, keepSet, prevServers, snap)
 	if err != nil {
 		return err
 	}
 
 	// Close removed and replaced servers outside the lock to
 	// avoid blocking concurrent readers on subprocess I/O.
+	// Note: a concurrent CallTool that captured a removed
+	// entry's client before the swap may call a closed client.
+	// This is a narrow race that self-heals on the next request.
 	for _, entry := range toClose {
 		_ = entry.client.Close()
 	}
@@ -133,7 +137,7 @@ func (m *Manager) connect(ctx context.Context, mcpConfigFiles []string) error {
 // parseAndDedup reads all config files and returns a deduplicated
 // list of server configs. Missing files and parse errors are
 // logged and skipped.
-func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) []ServerConfig {
+func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
 	var allConfigs []ServerConfig
 	for _, configPath := range mcpConfigFiles {
 		configs, err := ParseConfig(configPath)
@@ -150,6 +154,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) []
 		allConfigs = append(allConfigs, configs...)
 	}
 
+	// Deduplicate by server name; first occurrence wins.
 	seen := make(map[string]struct{})
 	deduped := make([]ServerConfig, 0, len(allConfigs))
 	for _, cfg := range allConfigs {
@@ -159,7 +164,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) []
 		seen[cfg.Name] = struct{}{}
 		deduped = append(deduped, cfg)
 	}
-	return deduped
+	return deduped, captureSnapshot(mcpConfigFiles)
 }
 
 // classifyServers compares wanted configs against the current
@@ -200,10 +205,7 @@ func (m *Manager) classifyServers(wantedConfigs map[string]ServerConfig) (
 		}
 	}
 
-	prevServers = make(map[string]*serverEntry, len(m.servers))
-	for k, v := range m.servers {
-		prevServers[k] = v
-	}
+	prevServers = maps.Clone(m.servers)
 	return toConnect, toClose, keepSet, prevServers, nil
 }
 
@@ -253,7 +255,7 @@ func (m *Manager) installServers(
 	connected []connectedServer,
 	keepSet map[string]*serverEntry,
 	prevServers map[string]*serverEntry,
-	mcpConfigFiles []string,
+	snap map[string]fileSnapshot,
 ) ([]*serverEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -295,7 +297,7 @@ func (m *Manager) installServers(
 	}
 
 	m.servers = newServers
-	m.snapshot = captureSnapshot(mcpConfigFiles)
+	m.snapshot = snap
 	return closePrev, nil
 }
 
@@ -322,11 +324,18 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 // since the last reload by comparing os.Stat results against
 // the stored snapshot.
 func (m *Manager) SnapshotChanged(paths []string) bool {
-	m.mu.RLock()
-	snap := make(map[string]fileSnapshot, len(m.snapshot))
-	for k, v := range m.snapshot {
-		snap[k] = v
+	seen := make(map[string]struct{}, len(paths))
+	unique := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			unique = append(unique, p)
+		}
 	}
+	paths = unique
+
+	m.mu.RLock()
+	snap := maps.Clone(m.snapshot)
 	snapshotLen := len(snap)
 	m.mu.RUnlock()
 
@@ -373,12 +382,21 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 		return xerrors.New("manager closed")
 	}
 
+	// Double-check: another goroutine may have completed a
+	// reload between the caller's SnapshotChanged and this
+	// call. The singleflight body uses its own resolved paths.
 	if hasSnapshot && !m.SnapshotChanged(paths) {
 		return nil
 	}
 
+	// All concurrent callers share one in-flight reload keyed
+	// by "". If a concurrent caller resolves different paths
+	// (e.g. after a manifest reconnect), its paths are not
+	// consulted; the next SnapshotChanged check after this
+	// reload completes will detect the mismatch and trigger
+	// a fresh reload.
 	ch := m.reloadGroup.DoChan("", func() (error, error) {
-		err := m.connect(m.ctx, paths)
+		err := m.doReload(m.ctx, paths)
 		return err, nil
 	})
 

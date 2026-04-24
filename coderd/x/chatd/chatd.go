@@ -6291,8 +6291,8 @@ func (p *Server) runChat(
 				}
 			}
 
+			invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
 			for _, t := range toolsResp.Tools {
-				invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
 				workspaceMCPTools = append(workspaceMCPTools,
 					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
 				)

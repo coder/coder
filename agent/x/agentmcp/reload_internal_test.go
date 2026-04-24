@@ -175,6 +175,58 @@ func TestSnapshotChanged(t *testing.T) {
 	}
 }
 
+func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
+
+	_, entry1 := fakeMCPServerConfig(t, "srv1")
+	_, entry2 := fakeMCPServerConfig(t, "srv2")
+	path1 := writeMCPConfig(t, dir1, map[string]mcpServerEntry{"srv1": entry1})
+	path2 := writeMCPConfig(t, dir2, map[string]mcpServerEntry{"srv2": entry2})
+	paths := []string{path1, path2}
+
+	m := NewManager(ctx, logger)
+	t.Cleanup(func() { _ = m.Close() })
+
+	// Initial reload with both config files.
+	err := m.Reload(ctx, paths)
+	require.NoError(t, err)
+
+	// Both files unchanged.
+	assert.False(t, m.SnapshotChanged(paths),
+		"snapshot should not change when both files are unchanged")
+
+	// Mutate only the second file.
+	_, entry2b := fakeMCPServerConfig(t, "srv2b")
+	writeMCPConfig(t, dir2, map[string]mcpServerEntry{"srv2b": entry2b})
+
+	assert.True(t, m.SnapshotChanged(paths),
+		"snapshot should change when second file is mutated")
+
+	// Reload picks up the mutation.
+	err = m.Reload(ctx, paths)
+	require.NoError(t, err)
+
+	// Tools from both files should be present.
+	tools := m.Tools()
+	require.Len(t, tools, 2, "should have tools from both config files")
+	names := []string{tools[0].Name, tools[1].Name}
+	assert.Contains(t, names[0]+names[1], "srv1",
+		"should contain tool from first config")
+	assert.Contains(t, names[0]+names[1], "srv2b",
+		"should contain tool from second config")
+}
+
 func TestReload(t *testing.T) {
 	t.Parallel()
 
@@ -230,11 +282,9 @@ func TestReload(t *testing.T) {
 		var wg sync.WaitGroup
 		errs := make([]error, numCallers)
 		for i := range numCallers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				errs[i] = m.Reload(ctx, []string{configPath})
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -535,17 +585,15 @@ func TestDifferentialReload(t *testing.T) {
 		// The original server's tool should still be callable.
 		// This confirms in-flight compatibility: the client pointer
 		// for "srv" was reused.
-		resp, err := m.CallTool(ctx, workspacesdk.CallMCPToolRequest{
+		_, err = m.CallTool(ctx, workspacesdk.CallMCPToolRequest{
 			ToolName: toolName,
 		})
 		// The fake server does not implement tools/call, so we
 		// expect an error from the server, but the call itself
 		// should reach the server (not ErrUnknownServer).
-		if err != nil {
-			assert.NotErrorIs(t, err, ErrUnknownServer,
-				"tool call should reach the server, not fail with unknown server")
-		}
-		_ = resp
+		require.Error(t, err, "fake server does not implement tools/call")
+		assert.NotErrorIs(t, err, ErrUnknownServer,
+			"tool call should reach the server, not fail with unknown server")
 	})
 }
 

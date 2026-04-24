@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 
 	"charm.land/fantasy"
@@ -87,7 +88,7 @@ func (t *WorkspaceMCPTool) Run(
 		// server was removed or renamed. Invalidate the chat's
 		// cached tool list so the next turn refetches.
 		var coderErr *codersdk.Error
-		if errors.As(err, &coderErr) && coderErr.StatusCode() == 404 {
+		if errors.As(err, &coderErr) && coderErr.StatusCode() == http.StatusNotFound {
 			if t.invalidateCache != nil {
 				t.invalidateCache()
 			}

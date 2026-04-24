@@ -45,15 +45,16 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-// handleListTools returns the cached MCP tool definitions,
-// optionally refreshing them first if ?refresh=true is set.
-// Before returning, it checks whether any .mcp.json config
-// file has changed since the last reload and triggers a
-// differential reload if so.
+// handleListTools checks whether any .mcp.json config file
+// has changed since the last reload, triggering a differential
+// reload if so, then returns the cached MCP tool definitions.
+// The ?refresh=true query parameter forces a tool re-scan
+// independent of config changes.
 func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Check config freshness and reload if changed.
+	var reloaded bool
 	paths := api.mcpConfigFiles()
 	if api.manager.SnapshotChanged(paths) {
 		if err := api.manager.Reload(ctx, paths); err != nil {
@@ -67,11 +68,14 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 				api.logger.Warn(ctx, "mcp reload failed", slog.Error(err))
 			}
 			// Fall through to return whatever tools we have.
+		} else {
+			reloaded = true
 		}
 	}
 
 	// Allow callers to force a tool re-scan before listing.
-	if r.URL.Query().Get("refresh") == "true" {
+	// Skip if a reload just ran, since it already refreshes.
+	if r.URL.Query().Get("refresh") == "true" && !reloaded {
 		if err := api.manager.RefreshTools(ctx); err != nil {
 			api.logger.Warn(ctx, "failed to refresh MCP tools", slog.Error(err))
 		}
