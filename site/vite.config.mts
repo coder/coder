@@ -158,7 +158,10 @@ export default defineConfig({
 							});
 						},
 					},
-					"/@": {
+					// Only proxy Coder path-app and terminal URLs. This avoids
+					// colliding with Vite internals like /@vite/*,
+					// /@react-refresh, /@id/*, and /@fs/*.
+					"^/@[^/]+/[^/]+/(apps|terminal)(/|$)": {
 						ws: true,
 						changeOrigin: true,
 						target: process.env.CODER_HOST || "http://localhost:3000",
