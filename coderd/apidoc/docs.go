@@ -13138,7 +13138,7 @@ const docTemplate = `{
                     ]
                 },
                 "circuit_breaker_enabled": {
-                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
                 },
                 "circuit_breaker_failure_threshold": {
