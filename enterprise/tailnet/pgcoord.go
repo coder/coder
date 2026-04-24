@@ -1822,6 +1822,19 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 	h.timer.Reset(d, "heartbeats", "resetExpiryTimerWithLock")
 }
 
+// checkDBHeartbeatAdvanced records the database heartbeat time for the given
+// coordinator and returns true if the heartbeat has advanced since the last
+// observation. On the first call for a given ID it records the baseline and
+// returns false, since there is no previous value to compare against.
+func (h *heartbeats) checkDBHeartbeatAdvanced(id uuid.UUID, dbTime time.Time) bool {
+	prevDBTime, hasPrev := h.lastDBHeartbeat[id]
+	h.lastDBHeartbeat[id] = dbTime
+	if !hasPrev {
+		return false
+	}
+	return dbTime.After(prevDBTime)
+}
+
 func (h *heartbeats) checkExpiry() {
 	if h.ctx.Err() != nil {
 		return
@@ -1871,16 +1884,7 @@ func (h *heartbeats) checkExpiry() {
 			if !inDB {
 				continue
 			}
-			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
-			// Record the DB heartbeat time for future comparisons.
-			h.lastDBHeartbeat[id] = dbTime
-			if !hasPrev {
-				// First DB check for this coordinator. Record the
-				// baseline but don't recover , we have no previous
-				// value to compare against.
-				continue
-			}
-			if dbTime.After(prevDBTime) {
+			if h.checkDBHeartbeatAdvanced(id, dbTime) {
 				// The DB heartbeat_at advanced since our last
 				// check, proving the coordinator wrote a fresh
 				// heartbeat. Rescue it from expiry.
@@ -1889,9 +1893,6 @@ func (h *heartbeats) checkExpiry() {
 					slog.F("db_heartbeat_at", dbTime),
 				)
 				h.coordinators[id] = now
-				// dbTime.After(prevDBTime) proves a new heartbeat
-				// was written (not just a stale read), so it is
-				// safe to rescue from expiry.
 				delete(candidates, id)
 			}
 		}
@@ -1919,29 +1920,23 @@ func (h *heartbeats) checkExpiry() {
 				// Already being handled as an expiry candidate.
 				continue
 			}
-			prevDBTime, hasPrev := h.lastDBHeartbeat[id]
-			// Record DB baseline. This is compared only against
-			// future DB values, not pubsub timestamps.
-			h.lastDBHeartbeat[id] = dbTime
-			if !hasPrev {
-				// First sighting , store baseline, don't add yet.
-				// We need a second observation to confirm liveness.
+			if !h.checkDBHeartbeatAdvanced(id, dbTime) {
+				// First sighting or heartbeat unchanged; need a
+				// second advancing observation to confirm liveness.
 				h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
 					slog.F("other_coordinator_id", id),
 					slog.F("db_heartbeat_at", dbTime),
 				)
 				continue
 			}
-			if dbTime.After(prevDBTime) {
-				// The coordinator's heartbeat_at has advanced since
-				// our last check , it is alive. Add it to the map.
-				h.logger.Info(h.ctx, "discovered unknown coordinator from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				h.coordinators[id] = now
-				discovered = true
-			}
+			// The coordinator's heartbeat_at has advanced since
+			// our last check; it is alive. Add it to the map.
+			h.logger.Info(h.ctx, "discovered unknown coordinator from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			h.coordinators[id] = now
+			discovered = true
 		}
 		if discovered {
 			// Check if any discovered coordinator was previously
