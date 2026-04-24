@@ -500,6 +500,85 @@ export const DeselectModelBackToUseChatModel: Story = {
 	},
 };
 
+export const DisableAdvisorWithDeletedModel: Story = {
+	args: {
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: "22222222-2222-2222-2222-222222222222",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const enableAdvisorSwitch = await canvas.findByRole("switch", {
+			name: /Enable advisor/i,
+		});
+
+		expect(
+			canvas.getByRole("combobox", { name: /Advisor model/i }),
+		).toHaveTextContent(
+			/Unavailable model \(22222222-2222-2222-2222-222222222222\)/i,
+		);
+
+		await userEvent.click(enableAdvisorSwitch);
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+
+		// The backend rejects unknown non-nil model IDs, so disabling must
+		// scrub the stale override rather than forwarding it and failing
+		// the save with a 400.
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request).toEqual({
+			enabled: false,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: nilUUID,
+		});
+	},
+};
+
+export const ValidationBlocksSave: Story = {
+	args: {
+		advisorConfigData: {
+			...defaultAdvisorConfig,
+			enabled: true,
+			max_uses_per_run: 5,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const maxUsesInput = await canvas.findByRole("spinbutton", {
+			name: /Max uses per run/i,
+		});
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+
+		expect(saveButton).toBeDisabled();
+
+		// Dirty-but-invalid state: the field is blank, so client validation
+		// must keep Save disabled even though the form is now dirty.
+		await userEvent.clear(maxUsesInput);
+		await waitFor(() => {
+			expect(saveButton).toBeDisabled();
+		});
+
+		await userEvent.type(maxUsesInput, "3");
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+	},
+};
+
 export const DisableThenSave: Story = {
 	args: {
 		advisorConfigData: {

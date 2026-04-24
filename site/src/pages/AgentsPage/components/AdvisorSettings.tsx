@@ -203,9 +203,23 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// fractional numbers) cannot silently overwrite previously
 			// configured limits, and so a pending or failed refetch of the
 			// advisor config cannot revert recently saved values.
-			const source: AdvisorSettingsFormValues = values.enabled
+			let source: AdvisorSettingsFormValues = values.enabled
 				? values
 				: { ...committedValuesRef.current, enabled: false };
+			// If the last committed model override references a model config
+			// that no longer exists, the backend rejects the stale ID with a
+			// 400. When disabling, clear the override so a simple disable
+			// stays reliable in that edge case; the override is unusable
+			// anyway and the admin will reselect one on re-enable.
+			if (
+				!source.enabled &&
+				!isUnsetModelConfigId(source.model_config_id) &&
+				!isLoadingModelConfigs &&
+				!modelConfigsError &&
+				!modelConfigs.some((config) => config.id === source.model_config_id)
+			) {
+				source = { ...source, model_config_id: "" };
+			}
 			const request = toAdvisorConfigRequest(source);
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
