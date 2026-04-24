@@ -103,13 +103,12 @@ func (k *Key) State() KeyState {
 }
 
 // MarkTemporary marks the key as temporarily unavailable
-// with the specified cooldown duration. If cooldown is zero
-// or negative, DefaultCooldown is used. If the key is
-// already permanent, the call is a no-op.
+// with the specified cooldown duration.
 func (k *Key) MarkTemporary(cooldown time.Duration) {
 	k.pool.mu.Lock()
 	defer k.pool.mu.Unlock()
 
+	// Permanent is irreversible.
 	if k.isPermanent {
 		return
 	}
