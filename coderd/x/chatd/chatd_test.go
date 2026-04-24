@@ -2857,8 +2857,9 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Disable periodic polling so only signalWake can
+		// trigger the next processing run.
 		cfg.PendingChatAcquireInterval = time.Hour
-		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
 	user, org, modelConfig := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
