@@ -63,6 +63,12 @@ type Manager struct {
 	// agent's gracefulCtx). Subprocess lifetime is bound to
 	// this context.
 	ctx context.Context
+	// updateEnv enriches the base process environment with
+	// agent-level variables (CODER_*, manifest env, secrets)
+	// and prepends ScriptBinDir to PATH. This is the same
+	// callback the SSH server uses so MCP subprocesses see
+	// the same environment as interactive sessions.
+	updateEnv func(current []string) ([]string, error)
 
 	mu          sync.RWMutex
 	logger      slog.Logger
@@ -81,13 +87,16 @@ type serverEntry struct {
 }
 
 // NewManager creates a new MCP client manager. The ctx bounds
-// subprocess lifetime and outlives individual requests.
-func NewManager(ctx context.Context, logger slog.Logger) *Manager {
+// subprocess lifetime and outlives individual requests. The
+// updateEnv callback enriches the subprocess environment the
+// same way the SSH server does for interactive sessions.
+func NewManager(ctx context.Context, logger slog.Logger, updateEnv func([]string) ([]string, error)) *Manager {
 	return &Manager{
-		ctx:      ctx,
-		logger:   logger,
-		servers:  make(map[string]*serverEntry),
-		snapshot: make(map[string]fileSnapshot),
+		ctx:       ctx,
+		logger:    logger,
+		updateEnv: updateEnv,
+		servers:   make(map[string]*serverEntry),
+		snapshot:  make(map[string]fileSnapshot),
 	}
 }
 
@@ -413,8 +422,8 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 // connectServer establishes a connection to a single MCP server
 // and returns the connected client. It does not modify any Manager
 // state.
-func (*Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
-	tr, err := createTransport(cfg)
+func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
+	tr, err := m.createTransport(ctx, cfg)
 	if err != nil {
 		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
@@ -451,12 +460,12 @@ func (*Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Cl
 }
 
 // createTransport builds the mcp-go transport for a server config.
-func createTransport(cfg ServerConfig) (transport.Interface, error) {
+func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transport.Interface, error) {
 	switch cfg.Transport {
 	case "stdio":
 		return transport.NewStdio(
 			cfg.Command,
-			buildEnv(cfg.Env),
+			m.buildEnv(ctx, cfg.Env),
 			cfg.Args...,
 		), nil
 	case "http", "":
@@ -474,11 +483,21 @@ func createTransport(cfg ServerConfig) (transport.Interface, error) {
 	}
 }
 
-// buildEnv merges the current process environment with explicit
-// overrides, returning the result as KEY=VALUE strings suitable
-// for the stdio transport.
-func buildEnv(explicit map[string]string) []string {
+// buildEnv enriches the process environment via the agent's
+// updateCommandEnv callback, then merges explicit overrides
+// from the server config on top.
+func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
 	env := os.Environ()
+	if m.updateEnv != nil {
+		var err error
+		env, err = m.updateEnv(env)
+		if err != nil {
+			m.logger.Warn(ctx, "failed to enrich MCP server environment",
+				slog.Error(err),
+			)
+			env = os.Environ()
+		}
+	}
 	if len(explicit) == 0 {
 		return env
 	}

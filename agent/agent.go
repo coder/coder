@@ -423,7 +423,7 @@ func (a *agent) init() {
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
-	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"))
+	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.updateCommandEnv)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory

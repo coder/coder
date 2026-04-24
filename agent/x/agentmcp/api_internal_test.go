@@ -65,7 +65,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 
 			configPath := writeMCPConfig(t, dir, tc.entries(t))
 
-			m := NewManager(ctx, logger)
+			m := NewManager(ctx, logger, nil)
 			if tc.closeManager {
 				require.NoError(t, m.Close())
 			} else {
@@ -106,7 +106,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 		_, entry1 := fakeMCPServerConfig(t, "srv1")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
 
-		m := NewManager(ctx, logger)
+		m := NewManager(ctx, logger, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -164,7 +164,7 @@ func TestHandleListTools_RefreshParam(t *testing.T) {
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger)
+		m := NewManager(ctx, logger, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -200,7 +200,7 @@ func TestHandleListTools_RefreshParam(t *testing.T) {
 		_, entry1 := fakeMCPServerConfig(t, "srv1")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
 
-		m := NewManager(ctx, logger)
+		m := NewManager(ctx, logger, nil)
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
