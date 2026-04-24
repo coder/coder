@@ -108,6 +108,25 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 	}
 	require.Equal(t, "us-east", paramMap["region"])
 	require.Equal(t, "large", paramMap["instance_type"])
+
+	// Verify the empty preset has correct defaults.
+	var emptyPreset map[string]any
+	for _, p := range presetsRaw {
+		pm := p.(map[string]any)
+		if pm["name"] == "empty-preset" {
+			emptyPreset = pm
+			break
+		}
+	}
+	require.NotNil(t, emptyPreset, "expected to find empty-preset")
+	require.Equal(t, false, emptyPreset["default"])
+	_, hasDesc := emptyPreset["description"]
+	require.False(t, hasDesc, "empty-preset should not have description")
+	_, hasIcon := emptyPreset["icon"]
+	require.False(t, hasIcon, "empty-preset should not have icon")
+	emptyParams, ok := emptyPreset["parameters"].([]any)
+	require.True(t, ok)
+	require.Empty(t, emptyParams, "empty-preset should have no parameters")
 }
 
 func TestReadTemplate_NoPresets(t *testing.T) {

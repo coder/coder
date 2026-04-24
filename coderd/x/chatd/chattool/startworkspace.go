@@ -54,8 +54,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			"first if no workspace exists yet. Provide parameter "+
 			"values (from read_template) only if necessary or "+
 			"explicitly requested by the user. Provide a preset_id "+
-			"(from read_template) when starting with a new template "+
-			"version that requires a preset.",
+			"(from read_template) to apply preset parameters.",
 		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.StartFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil

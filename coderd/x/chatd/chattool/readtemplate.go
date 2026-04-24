@@ -29,9 +29,9 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
-			"configurable parameters. Use this after finding a "+
-			"template with list_templates and before creating a "+
-			"workspace with create_workspace.",
+			"configurable parameters and available presets. Use this "+
+			"after finding a template with list_templates and before "+
+			"creating a workspace with create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if db == nil {
 				return fantasy.NewTextErrorResponse("database is not configured"), nil
@@ -77,13 +77,6 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("failed to get template presets: %w", err).Error(),
-				), nil
-			}
-
-			presetParams, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("failed to get preset parameters: %w", err).Error(),
 				), nil
 			}
 
@@ -151,6 +144,13 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			// Include presets only when the template has them
 			// to avoid cluttering responses.
 			if len(presets) > 0 {
+				presetParams, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("failed to get preset parameters: %w", err).Error(),
+					), nil
+				}
+
 				// Index preset parameters by preset ID for
 				// efficient lookup.
 				paramsByPreset := make(map[uuid.UUID][]map[string]any)
@@ -165,20 +165,20 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 				}
 
 				presetList := make([]map[string]any, 0, len(presets))
-				for _, pr := range presets {
+				for _, p := range presets {
 					preset := map[string]any{
-						"id":      pr.ID.String(),
-						"name":    pr.Name,
-						"default": pr.IsDefault,
+						"id":      p.ID.String(),
+						"name":    p.Name,
+						"default": p.IsDefault,
 					}
-					if desc := strings.TrimSpace(pr.Description); desc != "" {
+					if desc := strings.TrimSpace(p.Description); desc != "" {
 						preset["description"] = desc
 					}
-					if icon := strings.TrimSpace(pr.Icon); icon != "" {
+					if icon := strings.TrimSpace(p.Icon); icon != "" {
 						preset["icon"] = icon
 					}
-					if pp, ok := paramsByPreset[pr.ID]; ok {
-						preset["parameters"] = pp
+					if params, ok := paramsByPreset[p.ID]; ok {
+						preset["parameters"] = params
 					} else {
 						preset["parameters"] = []map[string]any{}
 					}

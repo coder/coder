@@ -3126,6 +3126,11 @@ func (api *API) chatStartWorkspace(
 
 			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
 			req.TemplateVersionID = template.ActiveVersionID
+			// Clear any stale preset ID from the previous
+			// version. The wsbuilder will run
+			// FindMatchingPresetID against the new version's
+			// parameters if applicable.
+			req.TemplateVersionPresetID = uuid.Nil
 		}
 	}
 
