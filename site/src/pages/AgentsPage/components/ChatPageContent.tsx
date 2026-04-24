@@ -437,7 +437,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 					if (isEditing) {
 						editAttachments.resetAttachments();
-						composeAttachments.resetAttachments();
 					} else {
 						composeAttachments.resetAttachments();
 					}
