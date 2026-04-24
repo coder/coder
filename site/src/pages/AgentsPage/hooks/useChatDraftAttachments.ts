@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { UploadState } from "../components/AgentChatInput";
 import { getChatFileURL } from "../utils/chatAttachments";
 import {
@@ -13,6 +12,7 @@ import {
 } from "../utils/chatDraftAttachmentStorage";
 import {
 	formatAgentAttachmentTooLargeError,
+	formatAgentAttachmentUploadError,
 	maxAgentAttachmentSize,
 	readAgentAttachmentText,
 } from "../utils/fileAttachmentLimits";
@@ -180,12 +180,6 @@ const createRegistryEntry = (
 	return entry;
 };
 
-const formatUploadError = (error: unknown) => {
-	const message = getErrorMessage(error, "Upload failed");
-	const detail = getErrorDetail(error);
-	return detail ? `${message}. ${detail}` : message;
-};
-
 const persistUploadPayload = async (
 	entry: UploadRegistryEntry,
 	generation: number,
@@ -279,7 +273,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 				return;
 			}
 			entry.status = "error";
-			entry.error = formatUploadError(error);
+			entry.error = formatAgentAttachmentUploadError(error);
 			notifySubscribers(entry);
 		}
 	})();
@@ -377,6 +371,11 @@ const isSameScope = (
 	entry.organizationId === organizationId &&
 	entry.chatId === chatId;
 
+const getDraftScopeKey = (
+	organizationId: string | undefined,
+	chatId: string | undefined,
+) => (organizationId && chatId ? `${organizationId}:${chatId}` : undefined);
+
 const hydrateViews = (
 	organizationId: string | undefined,
 	chatId: string | undefined,
@@ -426,6 +425,7 @@ type SetDraftAttachmentViews = (
 const queueTextContentReads = (
 	candidateViews: readonly DraftAttachmentView[],
 	setDraftViews: SetDraftAttachmentViews,
+	shouldApplyResult: () => boolean,
 ) => {
 	for (const view of candidateViews) {
 		if (
@@ -439,13 +439,20 @@ const queueTextContentReads = (
 		}
 		void readAgentAttachmentText(view.file)
 			.then((content) => {
-				setDraftViews((prev) =>
-					prev.map((current) =>
-						current.clientId === view.clientId
-							? { ...current, textContent: content }
-							: current,
-					),
-				);
+				if (!shouldApplyResult()) {
+					return;
+				}
+				setDraftViews((prev) => {
+					let updated = false;
+					const next = prev.map((current) => {
+						if (current.clientId !== view.clientId) {
+							return current;
+						}
+						updated = true;
+						return { ...current, textContent: content };
+					});
+					return updated ? next : prev;
+				});
 			})
 			.catch((error) => {
 				console.error("Failed to read text file content:", error);
@@ -462,6 +469,7 @@ export function useChatDraftAttachments(
 	);
 	const viewsRef = useRef(views);
 	const subscriptionsRef = useRef(new Map<string, () => void>());
+	const scopeRef = useRef(getDraftScopeKey(organizationId, chatId));
 	const [subscriber] = useState<UploadRegistrySubscriber>(
 		() =>
 			function handleUploadRegistrySnapshot(snapshot: UploadRegistrySnapshot) {
@@ -475,6 +483,7 @@ export function useChatDraftAttachments(
 
 	useEffect(() => {
 		return () => {
+			scopeRef.current = undefined;
 			unsubscribeAllEntries(subscriptionsRef);
 			for (const view of viewsRef.current) {
 				revokeBlobPreview(view);
@@ -483,8 +492,10 @@ export function useChatDraftAttachments(
 	}, []);
 
 	useEffect(() => {
+		const scopeKey = getDraftScopeKey(organizationId, chatId);
+		scopeRef.current = scopeKey;
 		unsubscribeAllEntries(subscriptionsRef);
-		if (!organizationId || !chatId) {
+		if (!organizationId || !chatId || !scopeKey) {
 			setViews([]);
 			return;
 		}
@@ -516,13 +527,18 @@ export function useChatDraftAttachments(
 			revokeBlobPreview(view);
 		}
 		setViews(nextViews);
-		queueTextContentReads(nextViews, setViews);
+		queueTextContentReads(
+			nextViews,
+			setViews,
+			() => scopeRef.current === scopeKey,
+		);
 		for (const entry of restoredEntriesToStart) {
 			beginUpload(entry);
 		}
 	}, [organizationId, chatId, subscriber]);
 
 	const handleAttach = (files: File[]) => {
+		const scopeKey = getDraftScopeKey(organizationId, chatId);
 		const entriesToStart: UploadRegistryEntry[] = [];
 		const nextViews: DraftAttachmentView[] = [];
 		for (const file of files) {
@@ -540,7 +556,7 @@ export function useChatDraftAttachments(
 				});
 				continue;
 			}
-			if (!organizationId || !chatId) {
+			if (!organizationId || !chatId || !scopeKey) {
 				nextViews.push({
 					...baseView,
 					status: "error",
@@ -558,7 +574,11 @@ export function useChatDraftAttachments(
 		for (const entry of entriesToStart) {
 			beginUpload(entry);
 		}
-		queueTextContentReads(nextViews, setViews);
+		queueTextContentReads(
+			nextViews,
+			setViews,
+			() => scopeRef.current === scopeKey,
+		);
 	};
 
 	const handleRemoveAttachment = (attachment: number | File) => {
@@ -596,6 +616,8 @@ export function useChatDraftAttachments(
 		setViews([]);
 	};
 
+	// React Compiler memoizes pure derived values in this directory.
+	// Keep these inline rather than adding manual memoization.
 	const attachments = views.map((view) => view.file);
 	const uploadStates = new Map<File, UploadState>();
 	const previewUrls = new Map<File, string>();
