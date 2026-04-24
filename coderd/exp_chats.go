@@ -2460,13 +2460,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelConfigID := uuid.Nil
+	if req.ModelConfigID != nil {
+		modelConfigID = *req.ModelConfigID
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
 			ChatID:        chatID,
 			CreatedBy:     apiKey.UserID,
 			Content:       contentBlocks,
-			ModelConfigID: req.ModelConfigID,
+			ModelConfigID: modelConfigID,
 			BusyBehavior:  busyBehavior,
 			PlanMode:      sendPlanMode,
 			MCPServerIDs:  req.MCPServerIDs,

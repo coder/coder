@@ -952,7 +952,7 @@ type SendMessageOptions struct {
 	ChatID        uuid.UUID
 	CreatedBy     uuid.UUID
 	Content       []codersdk.ChatMessagePart
-	ModelConfigID *uuid.UUID
+	ModelConfigID uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
 	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
@@ -985,11 +985,6 @@ type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
 	QueuedMessageID int64
-	// Deprecated: ModelConfigID is no longer used. Promotion reads
-	// model_config_id from the queued row, falling back to
-	// chats.last_model_config_id for legacy NULL rows. Remove this field
-	// once all callers are updated.
-	ModelConfigID uuid.NullUUID
 }
 
 // PromoteQueuedResult contains post-promotion message metadata.
@@ -1393,31 +1388,28 @@ func resolveSendMessageModelConfigID(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	requested *uuid.UUID,
+	requested uuid.UUID,
 ) (uuid.UUID, error) {
-	chatdCtx := chatdModelConfigLookupContext(ctx)
-	if requested != nil {
-		if *requested == uuid.Nil {
-			return uuid.Nil, ErrInvalidModelConfigID
-		}
-		if _, err := store.GetChatModelConfigByID(chatdCtx, *requested); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return uuid.Nil, xerrors.Errorf(
-					"%w: %s",
-					ErrInvalidModelConfigID,
-					*requested,
-				)
-			}
-			return uuid.Nil, xerrors.Errorf(
-				"get requested model config %s: %w",
-				*requested,
-				err,
-			)
-		}
-		return *requested, nil
+	if requested == uuid.Nil {
+		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
 	}
 
-	return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+	chatdCtx := chatdModelConfigLookupContext(ctx)
+	if _, err := store.GetChatModelConfigByID(chatdCtx, requested); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"%w: %s",
+				ErrInvalidModelConfigID,
+				requested,
+			)
+		}
+		return uuid.Nil, xerrors.Errorf(
+			"get requested model config %s: %w",
+			requested,
+			err,
+		)
+	}
+	return requested, nil
 }
 
 func resolveQueuedMessageModelConfigID(

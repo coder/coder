@@ -2069,7 +2069,7 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		ModelConfigID: &invalidModelConfigID,
+		ModelConfigID: invalidModelConfigID,
 	})
 	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
 
@@ -2674,73 +2674,6 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 	}
 }
 
-func TestPromoteQueuedMessageIgnoresInternalModelOverride(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
-	modelConfigB := insertChatModelConfigWithCallConfig(
-		ctx,
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o-mini-promote-b-"+uuid.NewString(),
-		codersdk.ChatModelCallConfig{},
-	)
-	modelConfigC := insertChatModelConfigWithCallConfig(
-		ctx,
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o-mini-promote-c-"+uuid.NewString(),
-		codersdk.ChatModelCallConfig{},
-	)
-
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfigA.ID,
-		Title:             "promote queued ignores override",
-	})
-	require.NoError(t, err)
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with model b")})
-	require.NoError(t, err)
-	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  modelConfigB.ID,
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedMessage.ID,
-		CreatedBy:       user.ID,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  modelConfigC.ID,
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, result.PromotedMessage.ModelConfigID.UUID)
-
-	storedChat, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
-}
-
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
@@ -2813,7 +2746,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	queuedB, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued b")},
-		ModelConfigID: &modelConfigB.ID,
+		ModelConfigID: modelConfigB.ID,
 		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
@@ -2822,7 +2755,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	queuedC, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued c")},
-		ModelConfigID: &modelConfigC.ID,
+		ModelConfigID: modelConfigC.ID,
 		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
@@ -2981,16 +2914,6 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfigA := seedChatDependencies(ctx, t, db)
-	modelConfigB := insertChatModelConfigWithCallConfig(
-		ctx,
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o-mini-fallback-"+uuid.NewString(),
-		codersdk.ChatModelCallConfig{},
-	)
-
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
@@ -3013,10 +2936,6 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedMessage.ID,
 		CreatedBy:       user.ID,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  modelConfigB.ID,
-			Valid: true,
-		},
 	})
 	require.NoError(t, err)
 	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
