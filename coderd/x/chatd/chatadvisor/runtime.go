@@ -21,6 +21,13 @@ type RuntimeConfig struct {
 
 // Runtime executes nested, tool-less advisor runs against the configured
 // language model.
+//
+// Each Runtime instance is scoped to a single outer chat run. The
+// MaxUsesPerRun counter increments on every successful advisor call and
+// is never reset, so callers must construct a fresh Runtime (via
+// NewRuntime) for each outer run. There is intentionally no Reset method:
+// the per-run quota is a safety bound on a single run, not a rolling
+// window.
 type Runtime struct {
 	cfg  RuntimeConfig
 	used atomic.Int64
