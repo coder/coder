@@ -92,8 +92,9 @@ type chatConfigCache struct {
 	userPromptFetches singleflight.Group[string, string]
 
 	// Advisor configuration (singleton).
-	advisorConfig        *cachedAdvisorConfig
-	advisorConfigFetches singleflight.Group[string, codersdk.AdvisorConfig]
+	advisorConfig           *cachedAdvisorConfig
+	advisorConfigGeneration uint64
+	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
@@ -428,10 +429,13 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 // ChatConfigEvent subscriber after an admin writes
 // PUT /api/experimental/chats/config/advisor; without this the cache
 // could serve stale enabled/model/limits for up to
-// chatConfigAdvisorConfigTTL.
+// chatConfigAdvisorConfigTTL. Bumping the generation counter also
+// discards any in-flight fill started before the invalidation, so a
+// stale DB read cannot re-cache the pre-update value.
 func (c *chatConfigCache) InvalidateAdvisorConfig() {
 	c.mu.Lock()
 	c.advisorConfig = nil
+	c.advisorConfigGeneration++
 	c.mu.Unlock()
 }
 
@@ -445,10 +449,11 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 		return config, nil
 	}
 
+	generation := c.advisorConfigGenerationSnapshot()
 	config, err := singleflightDoChan(
 		ctx,
 		&c.advisorConfigFetches,
-		"advisor",
+		fmt.Sprintf("%d:advisor", generation),
 		func() (codersdk.AdvisorConfig, error) {
 			if cached, ok := c.cachedAdvisorConfig(); ok {
 				return cached, nil
@@ -462,7 +467,7 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 				return codersdk.AdvisorConfig{}, err
 			}
-			c.storeAdvisorConfig(cfg)
+			c.storeAdvisorConfig(generation, cfg)
 			return cfg, nil
 		},
 	)
@@ -492,9 +497,20 @@ func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
 	return codersdk.AdvisorConfig{}, false
 }
 
-func (c *chatConfigCache) storeAdvisorConfig(config codersdk.AdvisorConfig) {
+func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
+	c.mu.RLock()
+	generation := c.advisorConfigGeneration
+	c.mu.RUnlock()
+	return generation
+}
+
+func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.AdvisorConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.advisorConfigGeneration != generation {
+		return
+	}
 
 	c.advisorConfig = &cachedAdvisorConfig{
 		config:    config,

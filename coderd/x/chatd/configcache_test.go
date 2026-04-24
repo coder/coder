@@ -1128,3 +1128,75 @@ func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
 		"invalidation must force a refetch without waiting for TTL expiry")
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
 }
+
+// Guards against the invalidation-during-singleflight race. A stale
+// in-flight fill started before InvalidateAdvisorConfig must not
+// re-cache its pre-update value, which would defeat the pubsub
+// invalidation path for up to chatConfigAdvisorConfigTTL.
+func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	staleConfig := `{"max_uses_per_run":1}`
+	freshConfig := `{"max_uses_per_run":2}`
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getChatAdvisorConfig = func(context.Context) (string, error) {
+		switch call := store.advisorConfigCalls.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return staleConfig, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshConfig, nil
+		default:
+			return "", xerrors.Errorf("unexpected advisor config call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		config codersdk.AdvisorConfig
+		err    error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		config, err := cache.AdvisorConfig(ctx)
+		firstResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateAdvisorConfig()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		config, err := cache.AdvisorConfig(ctx)
+		secondResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.EqualValues(t, 1, first.config.MaxUsesPerRun)
+	require.Nil(t, cache.advisorConfig,
+		"stale fill must not re-cache after invalidation")
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.EqualValues(t, 2, second.config.MaxUsesPerRun)
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+
+	third, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, third.MaxUsesPerRun)
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+}
