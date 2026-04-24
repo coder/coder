@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -56,6 +57,245 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	)
 	require.NoError(t, err)
 	return prompt
+}
+
+func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
+	t.Parallel()
+
+	textPart := fantasy.TextPart{Text: "Here is a summary."}
+	webSearchCall := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_search",
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+	matchedResult := fantasy.ToolResultPart{
+		ToolCallID:       "srvtoolu_search",
+		Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+		ProviderExecuted: true,
+	}
+	codeExecutionCall := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_code",
+		ToolName:         "code_execution",
+		Input:            `{"code":"print(1)"}`,
+		ProviderExecuted: true,
+	}
+	localCall := fantasy.ToolCallPart{
+		ToolCallID: "toolu_local",
+		ToolName:   "read_file",
+		Input:      `{"path":"main.go"}`,
+	}
+	unpairedWebSearchCall := webSearchCall
+	unpairedWebSearchCall.ToolCallID = "srvtoolu_unpaired"
+	disableParallelToolUse := true
+	providerOptions := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &disableParallelToolUse,
+		},
+	}
+	enableParallelToolUse := false
+	providerOptionsAllowParallel := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &enableParallelToolUse,
+		},
+	}
+
+	testCases := []struct {
+		name        string
+		provider    string
+		messages    []fantasy.Message
+		want        []fantasy.Message
+		wantRemoved int
+		wantDropped int
+	}{
+		{
+			name:     "removes unpaired call and keeps text",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "drops assistant message when only part is removed",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+			want:        []fantasy.Message{},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "coalesces adjacent roles after dropping empty message",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search for coder"},
+					},
+				},
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{webSearchCall},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "now summarize"},
+					},
+					ProviderOptions: providerOptions,
+				},
+			},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "search for coder"},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
+				},
+			}},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "coalesces adjacent provider options without flattening boundaries",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search for coder"},
+					},
+					ProviderOptions: providerOptionsAllowParallel,
+				},
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{webSearchCall},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "now summarize"},
+					},
+					ProviderOptions: providerOptions,
+				},
+			},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{
+						Text:            "search for coder",
+						ProviderOptions: providerOptionsAllowParallel,
+					},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
+				},
+			}},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "keeps matched call and result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+		},
+		{
+			name:     "removes only unpaired call from mixed message",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+					matchedResult,
+					unpairedWebSearchCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "removes unpaired provider call and keeps local call",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					codeExecutionCall,
+					localCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					localCall,
+				},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "leaves other providers unchanged",
+			provider: "fake",
+			messages: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sanitized, stats := chatprompt.SanitizeAnthropicProviderToolCalls(
+				tc.provider,
+				tc.messages,
+			)
+			require.Equal(t, tc.wantRemoved, stats.RemovedToolCalls)
+			require.Equal(t, tc.wantDropped, stats.DroppedMessages)
+			require.Equal(t, tc.want, sanitized)
+		})
+	}
 }
 
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
@@ -508,6 +748,15 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"toolu_local"}, resultIDs)
+	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(
+		fantasyanthropic.Name,
+		prompt,
+	)
+	require.Equal(t, 1, sanitizeStats.RemovedToolCalls)
+	require.Len(t, sanitized, 2)
+	remainingToolCalls := chatprompt.ExtractToolCalls(sanitized[0].Content)
+	require.Len(t, remainingToolCalls, 1)
+	require.Equal(t, "toolu_local", remainingToolCalls[0].ToolCallID)
 }
 
 // TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
@@ -694,7 +943,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	t.Parallel()
 
 	// The assistant message contains a PE tool call, a PE tool result,
-	// and a text block — mimicking a web_search step where persistStep
+	// and a text block, mimicking a web_search step where persistStep
 	// keeps the PE result inline.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
@@ -750,7 +999,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 // TestProviderExecutedResult_LegacyToolRow verifies backward
 // compatibility: PE tool results that were stored as separate
 // tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes — orphaned PE results are dropped, and
+// by the repair passes, orphaned PE results are dropped, and
 // matching PE results in the same step work via the existing
 // injectMissingToolUses logic.
 func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
@@ -1902,10 +2151,10 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),                     // empty — filtered
-			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),                // empty — filtered
-			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText(""),                     // empty, filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),                // empty, filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace, filtered
 			codersdk.ChatMessageText("hello"),                // kept
 			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
 			codersdk.ChatMessageReasoning("thinking deeply"), // kept
@@ -1929,7 +2178,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected TextPart at index 0")
 		require.Equal(t, "hello", textPart.Text)
 
-		// Leading/trailing whitespace is preserved — only
+		// Leading/trailing whitespace is preserved, only
 		// all-whitespace parts are dropped.
 		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
 		require.True(t, ok, "expected TextPart at index 1")
@@ -1952,9 +2201,9 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),          // empty — filtered
-			codersdk.ChatMessageText(" "),         // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText(""),          // empty, filtered
+			codersdk.ChatMessageText(" "),         // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),     // empty, filtered
 			codersdk.ChatMessageText("  reply  "), // kept with whitespace
 			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
 		}
@@ -2779,5 +3028,217 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 		t.Parallel()
 		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
 		assert.Nil(t, part.CreatedAt)
+	})
+}
+
+func TestToolResultAntivenom(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	t.Run("PoisonedTextResultSanitized", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate raw binary bytes stored as json.RawMessage.
+		// This reproduces the crash where tool output containing
+		// invalid UTF-8 was passed verbatim to the LLM provider.
+		poisonedBytes := json.RawMessage(string([]byte{0xFF, 0xD8, 0xFF}))
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-1",
+			ToolName:   "test_tool",
+			Result:     poisonedBytes,
+			IsError:    false,
+			IsMedia:    false,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		textOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
+		require.True(t, ok, "expected text output, got %T", result.Output)
+		require.True(t, utf8.ValidString(textOutput.Text), "output text must be valid UTF-8")
+		require.NotEmpty(t, textOutput.Text)
+	})
+
+	t.Run("PoisonedMediaResultDegradesToText", func(t *testing.T) {
+		t.Parallel()
+
+		// Simulate raw JPEG bytes stored where base64 is expected.
+		// The base64 validation guard should reject this and fall
+		// through to the text path.
+		corruptedData := string([]byte{0xFF, 0xD8, 0xFF, 0xE0})
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     corruptedData,
+			MimeType: "image/jpeg",
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-2",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		// Should degrade to text since the data is not valid base64.
+		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.False(t, isMedia, "corrupted media should not be returned as media")
+
+		textOutput, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
+		require.True(t, isText, "should fall through to text, got %T", result.Output)
+		require.True(t, utf8.ValidString(textOutput.Text), "fallback text must be valid UTF-8")
+	})
+
+	t.Run("ValidMediaResultRoundTrips", func(t *testing.T) {
+		t.Parallel()
+
+		// Valid base64 media should pass through the guard and
+		// be returned as ToolResultOutputContentMedia.
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     validBase64,
+			MimeType: "image/png",
+			Text:     "screenshot",
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-3",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.True(t, ok, "valid media should round-trip as media, got %T", result.Output)
+		require.Equal(t, validBase64, mediaOutput.Data)
+		require.Equal(t, "image/png", mediaOutput.MediaType)
+		require.Equal(t, "screenshot", mediaOutput.Text)
+	})
+
+	t.Run("MediaWithInvalidUTF8TextSanitized", func(t *testing.T) {
+		t.Parallel()
+
+		// Valid base64 data with an invalid UTF-8 text annotation.
+		// The media should survive but the text field must be
+		// sanitized to valid UTF-8.
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		invalidText := "hello" + string([]byte{0xFF, 0xFE}) + "world"
+		media := struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text,omitempty"`
+		}{
+			Data:     validBase64,
+			MimeType: "image/png",
+			Text:     invalidText,
+		}
+		mediaJSON, err := json.Marshal(media)
+		require.NoError(t, err)
+
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-4",
+			ToolName:   "computer",
+			Result:     json.RawMessage(mediaJSON),
+			IsError:    false,
+			IsMedia:    true,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output)
+		require.True(t, ok, "media with valid base64 should stay as media, got %T", result.Output)
+		require.Equal(t, validBase64, mediaOutput.Data)
+		require.True(t, utf8.ValidString(mediaOutput.Text), "text must be sanitized to valid UTF-8")
+		require.Contains(t, mediaOutput.Text, "hello")
+		require.Contains(t, mediaOutput.Text, "world")
+	})
+
+	t.Run("PoisonedErrorResultSanitized", func(t *testing.T) {
+		t.Parallel()
+		// Simulate invalid UTF-8 in an error tool result.
+		poisonedError := json.RawMessage(`{"error":"fail` + string([]byte{0xFF, 0xFE}) + `ed"}`)
+		part := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: "call-5",
+			ToolName:   "broken_tool",
+			Result:     poisonedError,
+			IsError:    true,
+			IsMedia:    false,
+		}
+
+		result := chatprompt.ToolResultPartToMessagePartForTest(logger, part)
+
+		errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
+		require.True(t, ok, "expected error output, got %T", result.Output)
+		require.True(t, utf8.ValidString(errOutput.Error.Error()),
+			"error message must be valid UTF-8")
+		require.Contains(t, errOutput.Error.Error(), "fail")
+		require.Contains(t, errOutput.Error.Error(), "ed")
+	})
+}
+
+func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	t.Run("TextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-1",
+			ToolName:   "test",
+			Result: fantasy.ToolResultOutputContentText{
+				Text: "hello\xffworld",
+			},
+		})
+
+		require.True(t, utf8.Valid(part.Result),
+			"persisted result must be valid UTF-8, got: %q", string(part.Result))
+	})
+
+	t.Run("MediaTextWithInvalidUTF8", func(t *testing.T) {
+		t.Parallel()
+		validBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-2",
+			ToolName:   "computer",
+			Result: fantasy.ToolResultOutputContentMedia{
+				Data:      validBase64,
+				MediaType: "image/png",
+				Text:      "screenshot\xfe\xffdone",
+			},
+		})
+
+		require.True(t, part.IsMedia)
+		// Unmarshal the persisted media and check Text field.
+		var media struct {
+			Data     string `json:"data"`
+			MimeType string `json:"mime_type"`
+			Text     string `json:"text"`
+		}
+		err := json.Unmarshal(part.Result, &media)
+		require.NoError(t, err)
+		require.True(t, utf8.ValidString(media.Text),
+			"persisted media text must be valid UTF-8")
+		require.Contains(t, media.Text, "screenshot")
+		require.Contains(t, media.Text, "done")
 	})
 }

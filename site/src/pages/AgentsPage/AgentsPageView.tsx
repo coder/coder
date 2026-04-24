@@ -165,7 +165,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 						: isSettingsDetail || isAnalytics
 							? "hidden md:block shrink-0"
-							: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
+							: "order-2 md:order-none flex-1 min-h-0 border-b border-border-default md:flex-none md:border-t-0 md:border-b-0",
 					isSidebarCollapsed && "md:hidden",
 				)}
 			>
@@ -207,7 +207,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					!agentId &&
 						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
-						"order-1 md:order-none flex-none md:flex-1",
+						"contents md:flex md:flex-1 md:flex-col",
 				)}
 			>
 				<Outlet context={outletContextValue} />

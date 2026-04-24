@@ -143,7 +143,7 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
-func RoleAgentsAccess() RoleIdentifier  { return RoleIdentifier{Name: agentsAccess} }
+func RoleAgentsAccess() string          { return agentsAccess }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -197,6 +197,10 @@ func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
+}
+
+func ScopedRoleAgentsAccess(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleAgentsAccess(), OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -404,21 +408,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
-	agentsAccessRole := Role{
-		Identifier:  RoleAgentsAccess(),
-		DisplayName: "Coder Agents User",
-		Site:        []Permission{},
-		User: Permissions(map[string][]policy.Action{
-			ResourceChat.Type: {
-				policy.ActionCreate,
-				policy.ActionRead,
-				policy.ActionUpdate,
-				policy.ActionDelete,
-			},
-		}),
-		ByOrgID: map[string]OrgPermissions{},
-	}.withCachedRegoValue()
-
 	builtInRoles = map[string]func(orgID uuid.UUID) Role{
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
@@ -447,14 +436,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// and organization membership.
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
-		},
-
-		// agentsAccess grants all actions on chat resources owned
-		// by the user. Without this role, members can still read,
-		// update, and delete their own chats via org membership,
-		// but cannot create chats or trigger AI inference.
-		agentsAccess: func(_ uuid.UUID) Role {
-			return agentsAccessRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
@@ -606,6 +587,30 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		// agentsAccess grants org members permission to create, read, and
+		// update chats. ActionDelete is intentionally excluded: no dbauthz
+		// function checks it on ResourceChat. Hard-deletion goes through
+		// ResourceSystem (dbpurge).
+		agentsAccess: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
+				DisplayName: "Coder Agents User",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org: []Permission{},
+						Member: Permissions(map[string][]policy.Action{
+							ResourceChat.Type: {
+								policy.ActionCreate,
+								policy.ActionRead,
+								policy.ActionUpdate,
+							},
+						}),
+					},
+				},
+			}
+		},
 	}
 }
 
@@ -660,10 +665,13 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	orgUserAdmin: {
-		orgMember: true,
+		orgMember:    true,
+		agentsAccess: true,
 	},
+
 	prebuildsOrchestrator: {
 		orgMember: true,
 	},
@@ -886,18 +894,11 @@ func SiteBuiltInRoles() []Role {
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
-		if !role.Identifier.IsOrgRole() && role.Identifier != RoleAgentsAccess() {
+		if !role.Identifier.IsOrgRole() {
 			roles = append(roles, role)
 		}
 	}
 	return roles
-}
-
-// AgentsAccessRole returns the agents-access role for use by callers
-// that need to include it conditionally (e.g. when the agents
-// experiment is enabled).
-func AgentsAccessRole() Role {
-	return builtInRoles[agentsAccess](uuid.Nil)
 }
 
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
@@ -1041,7 +1042,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
+			// Chat access requires the agents-access role.
+			ResourceChat,
 		),
+
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.
@@ -1123,7 +1127,10 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
+			// Chat access requires the agents-access role.
+			ResourceChat,
 		),
+
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.

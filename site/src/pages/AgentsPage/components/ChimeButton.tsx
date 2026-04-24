@@ -8,12 +8,23 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
-export const ChimeButton: FC = () => {
-	const [enabled, setEnabled] = useState(getChimeEnabled);
+interface ChimeButtonProps {
+	enabled?: boolean;
+	onToggle?: () => void;
+}
+
+export const ChimeButton: FC<ChimeButtonProps> = ({ enabled, onToggle }) => {
+	const [internalEnabled, setInternalEnabled] = useState(getChimeEnabled);
+	const isControlled = enabled !== undefined && onToggle !== undefined;
+	const isEnabled = isControlled ? enabled : internalEnabled;
 
 	const handleClick = () => {
-		const next = !enabled;
-		setEnabled(next);
+		if (isControlled) {
+			onToggle();
+			return;
+		}
+		const next = !internalEnabled;
+		setInternalEnabled(next);
 		setChimeEnabled(next);
 	};
 
@@ -25,11 +36,11 @@ export const ChimeButton: FC = () => {
 					size="icon"
 					onClick={handleClick}
 					aria-label={
-						enabled ? "Mute completion chime" : "Enable completion chime"
+						isEnabled ? "Mute completion chime" : "Enable completion chime"
 					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
-					{enabled ? (
+					{isEnabled ? (
 						<Volume2Icon className="text-content-success" />
 					) : (
 						<VolumeOffIcon className="text-content-secondary" />
@@ -37,7 +48,7 @@ export const ChimeButton: FC = () => {
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				{enabled ? "Disable completion sound" : "Enable completion sound"}
+				{isEnabled ? "Disable completion sound" : "Enable completion sound"}
 			</TooltipContent>
 		</Tooltip>
 	);

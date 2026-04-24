@@ -331,6 +331,62 @@ func TestStartWithParameters(t *testing.T) {
 	})
 }
 
+func TestStartUseParameterDefaults(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Create a template with no parameters and a workspace that
+	// auto-updates so `start` picks up the new active version.
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+	workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the workspace.
+	coderdtest.MustTransitionWorkspace(t, member, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	// Push a new template version that adds a parameter with a default.
+	version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID,
+		prepareEchoResponses([]*proto.RichParameter{
+			{Name: "new_param", Type: "string", Mutable: true, DefaultValue: "foobar"},
+		}), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+	require.NoError(t, err)
+
+	// Start the workspace with --use-parameter-defaults.
+	// The new parameter should be auto-accepted.
+	inv, root := clitest.New(t, "start", workspace.Name, "--use-parameter-defaults")
+	clitest.SetupConfig(t, member, root)
+	pty := ptytest.New(t).Attach(inv)
+	doneChan := make(chan struct{})
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatchContext(ctx, "workspace has been started")
+	_ = testutil.TryReceive(ctx, t, doneChan)
+
+	// Verify the new parameter was resolved to its default.
+	ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
+	require.NoError(t, err)
+	buildParams, err := member.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+	require.NoError(t, err)
+	assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "new_param", Value: "foobar"})
+}
+
 // TestStartAutoUpdate also tests restart since the flows are virtually identical.
 func TestStartAutoUpdate(t *testing.T) {
 	t.Parallel()

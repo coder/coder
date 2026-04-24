@@ -71,6 +71,7 @@ type OpenAIToolFunction struct {
 // OpenAITool represents a tool definition in an OpenAI request.
 type OpenAITool struct {
 	Type     string             `json:"type"`
+	Name     string             `json:"name,omitempty"`
 	Function OpenAIToolFunction `json:"function"`
 }
 

@@ -49,11 +49,6 @@ func TestBuiltInRoles(t *testing.T) {
 			require.NoError(t, r.Valid(), "invalid role")
 		})
 	}
-
-	t.Run("agents-access", func(t *testing.T) {
-		t.Parallel()
-		require.NoError(t, rbac.AgentsAccessRole().Valid(), "invalid role")
-	})
 }
 
 // permissionGranted checks whether a permission list contains a
@@ -204,7 +199,21 @@ func TestRolePermissions(t *testing.T) {
 	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
-	agentsAccessUser := authSubject{Name: "chat_access", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAgentsAccess()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	agentsAccessUser := func() authSubject {
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		agentsRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+		require.NoError(t, err)
+		return authSubject{
+			Name: "agents_access",
+			Actor: rbac.Subject{
+				ID:    currentUser.String(),
+				Roles: rbac.Roles{memberRole, agentsRole},
+				Scope: rbac.ScopeAll,
+			}.WithCachedASTValue(),
+		}
+	}()
+
 	orgMemberMe := func() authSubject {
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
@@ -580,8 +589,8 @@ func TestRolePermissions(t *testing.T) {
 				}),
 
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, templateAdmin, orgUserAdmin, orgTemplateAdmin, orgAuditor},
-				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin},
+				true:  {owner, orgAdmin, templateAdmin, orgUserAdmin, orgTemplateAdmin, orgAuditor, agentsAccessUser},
+				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
 		{
@@ -1096,12 +1105,21 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatUsage",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Name:     "ChatUsageCRU",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				true:  {owner, orgAdmin, agentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:     "ChatUsageDelete",
+			Actions:  []policy.Action{policy.ActionDelete},
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 	}
@@ -1258,6 +1276,7 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
+		fmt.Sprintf("agents-access:%s", orgID.String()),
 	},
 		orgRoleNames)
 }

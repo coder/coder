@@ -140,6 +140,40 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
+export async function submitEditAndScroll({
+	editMessage,
+	editArgs,
+	scrollToBottom,
+	onError,
+}: {
+	editMessage: (args: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	}) => Promise<unknown>;
+	editArgs: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	};
+	scrollToBottom: (() => void) | null | undefined;
+	onError: (error: unknown) => void;
+}): Promise<void> {
+	try {
+		await editMessage(editArgs);
+	} catch (error) {
+		onError(error);
+		throw error;
+	}
+	// Scroll after the mutation resolves so the optimistic
+	// truncation and server reconciliation have already been
+	// applied to the DOM. Scrolling before this point causes
+	// the sticky user message to cycle through prior messages
+	// as the IntersectionObserver reacts to rapid layout
+	// shifts between the old and truncated content.
+	scrollToBottom?.();
+}
+
 /** @internal Exported for testing. */
 export const waitForPendingChatSettingsSyncs = async (
 	pendingSyncs: readonly (Promise<unknown> | null | undefined)[],
@@ -1226,18 +1260,19 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			scrollToBottomRef.current?.();
-			try {
-				await editMessage({
+			await submitEditAndScroll({
+				editMessage,
+				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
-				});
-			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				handleUsageLimitError(error);
-				throw error;
-			}
+				},
+				scrollToBottom: scrollToBottomRef.current,
+				onError: (error) => {
+					restoreOptimisticRequestSnapshot(store, previousSnapshot);
+					handleUsageLimitError(error);
+				},
+			});
 			return;
 		}
 
@@ -1427,6 +1462,7 @@ const AgentChatPage: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}
