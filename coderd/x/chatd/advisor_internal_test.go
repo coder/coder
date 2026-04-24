@@ -368,5 +368,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		require.NotNil(t, rt,
 			"zero max output tokens must default to defaultAdvisorMaxOutputTokens, not disable the advisor")
 		require.Equal(t, 3, rt.RemainingUses())
+		require.Equal(t, int64(defaultAdvisorMaxOutputTokens), rt.MaxOutputTokens(),
+			"zero max output tokens must be replaced with defaultAdvisorMaxOutputTokens")
 	})
 }

@@ -121,6 +121,17 @@ func (rt *Runtime) RemainingUses() int {
 	return int(remaining)
 }
 
+// MaxOutputTokens reports the resolved output-token cap applied to each
+// advisor call. NewRuntime validates that this value is positive and that
+// it matches ModelConfig.MaxOutputTokens when both are set, so the
+// accessor always returns the value the runtime will actually send.
+func (rt *Runtime) MaxOutputTokens() int64 {
+	if rt == nil {
+		return 0
+	}
+	return rt.cfg.MaxOutputTokens
+}
+
 func (rt *Runtime) tryAcquire() bool {
 	for {
 		used := rt.used.Load()
