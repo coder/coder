@@ -167,7 +167,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 		logger:       c.Logger,
 		errChan:      make(chan error, 1),
 		coordinatee:  c.Coordinatee,
-		Client:       client,
+		client:       client,
 		respLoopDone: make(chan struct{}),
 		sendAcks:     c.SendAcks,
 	}
@@ -185,7 +185,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 			b.logger.Debug(context.Background(), "ignored node update because coordination is closed")
 			return
 		}
-		err = b.Client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
+		err = b.client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
 		if err != nil {
 			b.SendErr(xerrors.Errorf("write: %w", err))
 		}
@@ -218,9 +218,16 @@ type BasicCoordination struct {
 	errChan      chan error
 	coordinatee  Coordinatee
 	logger       slog.Logger
-	Client       CoordinatorClient
+	client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
+}
+
+// CloseClient forcibly closes the underlying coordinator client connection
+// without sending a graceful Disconnect message. Use this when you need to
+// tear down the connection immediately, for example after a send error.
+func (c *BasicCoordination) CloseClient() error {
+	return c.client.Close()
 }
 
 // SendRequest sends a coordinate request on the client connection, holding
@@ -231,7 +238,7 @@ func (c *BasicCoordination) SendRequest(req *proto.CoordinateRequest) error {
 	if c.closed {
 		return xerrors.New("coordination is closed")
 	}
-	return c.Client.Send(req)
+	return c.client.Send(req)
 }
 
 // Close the coordination gracefully. If the context expires before the remote API server has hung
@@ -243,7 +250,7 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 		return nil
 	}
 	c.closed = true
-	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	err := c.client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		// Log but don't return early; we must still clean up below.
@@ -265,7 +272,7 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
 	}
 	// forcefully close the stream
-	protoErr := c.Client.Close()
+	protoErr := c.client.Close()
 	<-c.respLoopDone
 	if retErr == nil {
 		retErr = protoErr
@@ -290,7 +297,7 @@ func (c *BasicCoordination) SendErr(err error) {
 
 func (c *BasicCoordination) respLoop() {
 	defer func() {
-		cErr := c.Client.Close()
+		cErr := c.client.Close()
 		if cErr != nil {
 			c.logger.Debug(context.Background(),
 				"failed to close coordinate client after respLoop exit", slog.Error(cErr))
@@ -299,7 +306,7 @@ func (c *BasicCoordination) respLoop() {
 		close(c.respLoopDone)
 	}()
 	for {
-		resp, err := c.Client.Recv()
+		resp, err := c.client.Recv()
 		if err != nil {
 			c.logger.Debug(context.Background(),
 				"failed to read from protocol", slog.Error(err))
@@ -418,7 +425,7 @@ func (c *TunnelSrcCoordController) AddDestination(dest uuid.UUID) {
 		})
 	if err != nil {
 		c.coordination.SendErr(err)
-		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		cErr := c.coordination.client.Close() // close the client so we don't gracefully disconnect
 		if cErr != nil {
 			c.Logger.Debug(context.Background(),
 				"failed to close coordinator client after add tunnel failure",
@@ -441,7 +448,7 @@ func (c *TunnelSrcCoordController) RemoveDestination(dest uuid.UUID) {
 		})
 	if err != nil {
 		c.coordination.SendErr(err)
-		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		cErr := c.coordination.client.Close() // close the client so we don't gracefully disconnect
 		if cErr != nil {
 			c.Logger.Debug(context.Background(),
 				"failed to close coordinator client after remove tunnel failure",
@@ -472,7 +479,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 	defer func() {
 		if err != nil {
 			c.coordination.SendErr(err)
-			cErr := c.coordination.Client.Close() // don't gracefully disconnect
+			cErr := c.coordination.client.Close() // don't gracefully disconnect
 			if cErr != nil {
 				c.Logger.Debug(context.Background(),
 					"failed to close coordinator client during sync destinations",
