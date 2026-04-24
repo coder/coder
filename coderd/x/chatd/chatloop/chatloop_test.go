@@ -1019,39 +1019,80 @@ func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
 	}
 }
 
-func requireNoProviderExecutedWebSearchContent(t *testing.T, content []fantasy.Content) {
+func requireNoProviderExecutedToolCallContent(t *testing.T, content []fantasy.Content) {
 	t.Helper()
 
 	for i, block := range content {
 		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-		if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
-			t.Fatalf("content[%d]: unexpected provider-executed web_search call", i)
+		if ok && toolCall.ProviderExecuted {
+			t.Fatalf("content[%d]: unexpected provider-executed call", i)
 		}
 	}
 }
 
-func requireNoProviderExecutedWebSearchResult(t *testing.T, content []fantasy.Content) {
+func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.Content) {
 	t.Helper()
 
 	for i, block := range content {
 		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
-		if ok && toolResult.ProviderExecuted && toolResult.ToolName == "web_search" {
-			t.Fatalf("content[%d]: unexpected provider-executed web_search result", i)
+		if ok && toolResult.ProviderExecuted {
+			t.Fatalf("content[%d]: unexpected provider-executed result", i)
 		}
 	}
 }
 
-func requireNoProviderExecutedWebSearchPrompt(t *testing.T, prompt []fantasy.Message) {
+func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 
 	for i, message := range prompt {
 		for j, part := range message.Content {
 			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
-			if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
-				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed web_search call", i, j)
+			if ok && toolCall.ProviderExecuted {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed call", i, j)
 			}
 		}
 	}
+}
+
+func requireToolCallContent(t *testing.T, content []fantasy.Content, id, name string) fantasy.ToolCallContent {
+	t.Helper()
+
+	for _, block := range content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && toolCall.ToolCallID == id && toolCall.ToolName == name {
+			return toolCall
+		}
+	}
+	t.Fatalf("missing tool call %q", id)
+	return fantasy.ToolCallContent{}
+}
+
+func requireToolResultContent(t *testing.T, content []fantasy.Content, id, name string) fantasy.ToolResultContent {
+	t.Helper()
+
+	for _, block := range content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if ok && toolResult.ToolCallID == id && toolResult.ToolName == name {
+			return toolResult
+		}
+	}
+	t.Fatalf("missing tool result %q", id)
+	return fantasy.ToolResultContent{}
+}
+
+func requireToolResultPrompt(t *testing.T, prompt []fantasy.Message, id string) fantasy.ToolResultPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if ok && toolResult.ToolCallID == id {
+				return toolResult
+			}
+		}
+	}
+	t.Fatalf("missing prompt tool result %q", id)
+	return fantasy.ToolResultPart{}
 }
 
 func containsPromptSentinel(prompt []fantasy.Message) bool {
@@ -1448,7 +1489,7 @@ func TestRun_PersistStepErrorPropagates(t *testing.T) {
 
 // TestRun_ShutdownDuringToolExecutionReturnsContextCanceled verifies that
 // when the parent context is canceled (simulating server shutdown) while
-// a tool is blocked, Run returns context.Canceled — not ErrInterrupted.
+// a tool is blocked, Run returns context.Canceled, not ErrInterrupted.
 // This matters because the caller uses the error type to decide whether
 // to set chat status to "pending" (retryable on another worker) vs
 // "waiting" (stuck forever).
@@ -1530,7 +1571,7 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	<-serverCancelDone
 
 	require.Error(t, err)
-	// The error must NOT be ErrInterrupted — it should propagate
+	// The error must NOT be ErrInterrupted, it should propagate
 	// as context.Canceled so the caller can distinguish shutdown
 	// from user interruption. Use assert (not require) so both
 	// checks are evaluated even if the first fails.
@@ -1550,7 +1591,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"query":"coder"}`,
 				ProviderExecuted: true,
 			},
-			// Provider-executed tool result — must stay in
+			// Provider-executed tool result, must stay in
 			// assistant message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "provider-tc-1",
@@ -1565,7 +1606,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"path":"main.go"}`,
 				ProviderExecuted: false,
 			},
-			// Local tool result — should go into tool message.
+			// Local tool result, should go into tool message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "local-tc-1",
 				ToolName:         "read_file",
@@ -1619,28 +1660,28 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 
 	sr := stepResult{
 		content: []fantasy.Content{
-			// Empty text — should be filtered.
+			// Empty text, should be filtered.
 			fantasy.TextContent{Text: ""},
-			// Whitespace-only text — should be filtered.
+			// Whitespace-only text, should be filtered.
 			fantasy.TextContent{Text: "   \t\n"},
-			// Empty reasoning — should be filtered.
+			// Empty reasoning, should be filtered.
 			fantasy.ReasoningContent{Text: ""},
-			// Whitespace-only reasoning — should be filtered.
+			// Whitespace-only reasoning, should be filtered.
 			fantasy.ReasoningContent{Text: "  \n"},
-			// Non-empty text — should pass through.
+			// Non-empty text, should pass through.
 			fantasy.TextContent{Text: "hello world"},
-			// Leading/trailing whitespace with content — kept
+			// Leading/trailing whitespace with content, kept
 			// with the original value (not trimmed).
 			fantasy.TextContent{Text: "  hello  "},
-			// Non-empty reasoning — should pass through.
+			// Non-empty reasoning, should pass through.
 			fantasy.ReasoningContent{Text: "let me think"},
-			// Tool call — should be unaffected by filtering.
+			// Tool call, should be unaffected by filtering.
 			fantasy.ToolCallContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
 				Input:      `{"path":"main.go"}`,
 			},
-			// Local tool result — should be unaffected by filtering.
+			// Local tool result, should be unaffected by filtering.
 			fantasy.ToolResultContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
@@ -1665,7 +1706,7 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 	require.True(t, ok, "part 0 should be TextPart")
 	assert.Equal(t, "hello world", textPart.Text)
 
-	// Part 1: padded text — original whitespace preserved.
+	// Part 1: padded text, original whitespace preserved.
 	paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](assistantMsg.Content[1])
 	require.True(t, ok, "part 1 should be TextPart")
 	assert.Equal(t, "  hello  ", paddedPart.Text)
@@ -1831,7 +1872,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			// Simulate a provider-executed tool call and result
 			// (e.g. Anthropic web search) followed by a text
-			// response — all in a single stream.
+			// response, all in a single stream.
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
 				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
@@ -1843,7 +1884,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 					ToolCallInput:    `{"query":"coder"}`,
 					ProviderExecuted: true,
 				},
-				// Provider-executed tool result — emitted by
+				// Provider-executed tool result, emitted by
 				// the provider, not our tool runner.
 				{
 					Type:             fantasy.StreamPartTypeToolResult,
@@ -1890,45 +1931,65 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 		"tool-result timestamp must be >= tool-call timestamp")
 }
 
-func TestRun_AnthropicDropsUnpairedWebSearchBeforePersist(t *testing.T) {
+func TestRun_AnthropicDropsUnpairedProviderToolBeforePersist(t *testing.T) {
 	t.Parallel()
 
-	model := &chattest.FakeModel{
-		ProviderName: fantasyanthropic.Name,
-		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-			return streamFromParts([]fantasy.StreamPart{
-				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
-				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
-				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
-				{
-					Type:             fantasy.StreamPartTypeToolCall,
-					ID:               "ws-1",
-					ToolCallName:     "web_search",
-					ToolCallInput:    `{"query":"coder"}`,
-					ProviderExecuted: true,
-				},
-				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-			}), nil
+	testCases := []struct {
+		name      string
+		toolName  string
+		toolInput string
+	}{
+		{
+			name:      "web_search",
+			toolName:  "web_search",
+			toolInput: `{"query":"coder"}`,
+		},
+		{
+			name:      "code_execution",
+			toolName:  "code_execution",
+			toolInput: `{"code":"print(1)"}`,
 		},
 	}
 
-	var persistedSteps []PersistedStep
-	err := Run(context.Background(), RunOptions{
-		Model: model,
-		Messages: []fantasy.Message{
-			textMessage(fantasy.MessageRoleUser, "search for coder"),
-		},
-		MaxSteps: 1,
-		PersistStep: func(_ context.Context, step PersistedStep) error {
-			persistedSteps = append(persistedSteps, step)
-			return nil
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, persistedSteps, 1)
-	require.Empty(t, persistedSteps[0].Content)
-	requireNoProviderExecutedWebSearchContent(t, persistedSteps[0].Content)
-	requireNoProviderExecutedWebSearchResult(t, persistedSteps[0].Content)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &chattest.FakeModel{
+				ProviderName: fantasyanthropic.Name,
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "pt-1", ToolCallName: tc.toolName, ProviderExecuted: true},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "pt-1", Delta: tc.toolInput, ProviderExecuted: true},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "pt-1"},
+						{
+							Type:             fantasy.StreamPartTypeToolCall,
+							ID:               "pt-1",
+							ToolCallName:     tc.toolName,
+							ToolCallInput:    tc.toolInput,
+							ProviderExecuted: true,
+						},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					}), nil
+				},
+			}
+
+			persistCalls := 0
+			err := Run(context.Background(), RunOptions{
+				Model: model,
+				Messages: []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "run provider tool"),
+				},
+				MaxSteps: 1,
+				PersistStep: func(_ context.Context, _ PersistedStep) error {
+					persistCalls++
+					return nil
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, 0, persistCalls)
+		})
+	}
 }
 
 func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
@@ -2055,6 +2116,86 @@ func TestRun_AnthropicInterruptedWebSearchDoesNotPersistSyntheticResult(t *testi
 	require.Equal(t, 0, persistCalls)
 }
 
+func TestRun_AnthropicInterruptedProviderToolKeepsLocalSyntheticResult(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputStart,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputDelta,
+					ID:               "ws-1",
+					Delta:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:         fantasy.StreamPartTypeToolInputStart,
+					ID:           "tc-1",
+					ToolCallName: "read_file",
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeToolInputDelta,
+					ID:    "tc-1",
+					Delta: `{"path":"main.go"}`,
+				}) {
+					return
+				}
+				close(started)
+				<-ctx.Done()
+				_ = yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: ctx.Err(),
+				})
+			}), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		<-started
+		cancel(ErrInterrupted)
+	}()
+
+	var persistedSteps []PersistedStep
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search and read"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+	require.Len(t, persistedSteps, 1)
+	requireNoProviderExecutedToolCallContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedToolResultContent(t, persistedSteps[0].Content)
+
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolResult.ProviderExecuted)
+	_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+	require.True(t, isErr)
+}
+
 func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
 	t.Parallel()
 
@@ -2125,8 +2266,15 @@ func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, streamCalls)
 	require.Len(t, persistedSteps, 2)
-	requireNoProviderExecutedWebSearchContent(t, persistedSteps[0].Content)
-	requireNoProviderExecutedWebSearchPrompt(t, secondCallPrompt)
+	requireNoProviderExecutedToolCallContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedToolCallPrompt(t, secondCallPrompt)
+
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolResult.ProviderExecuted)
+	promptResult := requireToolResultPrompt(t, secondCallPrompt, "tc-1")
+	require.False(t, promptResult.ProviderExecuted)
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal
@@ -2292,7 +2440,7 @@ func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
 				}
 			}
 			if !inserted {
-				// No system messages — prepend.
+				// No system messages, prepend.
 				result = append([]fantasy.Message{{
 					Role: fantasy.MessageRoleSystem,
 					Content: []fantasy.MessagePart{

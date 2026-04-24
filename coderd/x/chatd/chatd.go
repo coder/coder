@@ -6162,8 +6162,8 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
-	prompt, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(model.Provider(), prompt)
-	chatprompt.LogAnthropicWebSearchSanitization(
+	prompt, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(model.Provider(), prompt)
+	chatprompt.LogAnthropicProviderToolSanitization(
 		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), sanitizeStats,
 	)
 	subagentInstruction := ""
@@ -6789,8 +6789,8 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
-			reloadedPrompt, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(model.Provider(), reloadedPrompt)
-			chatprompt.LogAnthropicWebSearchSanitization(
+			reloadedPrompt, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(model.Provider(), reloadedPrompt)
+			chatprompt.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
 			)
 			// Re-derive instruction and skills from the reloaded

@@ -35,22 +35,22 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
-// AnthropicWebSearchSanitizationStats describes prompt changes made
-// while removing unpaired Anthropic web_search provider-executed calls.
-type AnthropicWebSearchSanitizationStats struct {
+// AnthropicProviderToolSanitizationStats describes prompt changes made
+// while removing unpaired Anthropic provider-executed tool calls.
+type AnthropicProviderToolSanitizationStats struct {
 	RemovedToolCalls int
 	DroppedMessages  int
 }
 
-// LogAnthropicWebSearchSanitization logs prompt changes made while removing
-// unpaired Anthropic web_search provider-executed calls.
-func LogAnthropicWebSearchSanitization(
+// LogAnthropicProviderToolSanitization logs prompt changes made while removing
+// unpaired Anthropic provider-executed tool calls.
+func LogAnthropicProviderToolSanitization(
 	ctx context.Context,
 	logger slog.Logger,
 	phase string,
 	provider string,
 	modelName string,
-	stats AnthropicWebSearchSanitizationStats,
+	stats AnthropicProviderToolSanitizationStats,
 	extra ...slog.Field,
 ) {
 	if stats.RemovedToolCalls == 0 {
@@ -58,23 +58,23 @@ func LogAnthropicWebSearchSanitization(
 	}
 	fields := []slog.Field{
 		slog.F("phase", phase),
-		slog.F("tool_name", "web_search"),
+		slog.F("tool_type", "provider_executed"),
 		slog.F("provider", provider),
 		slog.F("model", modelName),
 		slog.F("removed_tool_calls", stats.RemovedToolCalls),
 		slog.F("dropped_messages", stats.DroppedMessages),
 	}
 	fields = append(fields, extra...)
-	logger.Warn(ctx, "removed unpaired provider-executed web_search tool calls", fields...)
+	logger.Warn(ctx, "removed unpaired provider-executed tool calls", fields...)
 }
 
-// SanitizeAnthropicWebSearchToolCalls removes Anthropic web_search
-// provider-executed calls that do not have a same-message provider result.
-func SanitizeAnthropicWebSearchToolCalls(
+// SanitizeAnthropicProviderToolCalls removes Anthropic provider-executed
+// calls that do not have a same-message provider result.
+func SanitizeAnthropicProviderToolCalls(
 	provider string,
 	messages []fantasy.Message,
-) ([]fantasy.Message, AnthropicWebSearchSanitizationStats) {
-	var stats AnthropicWebSearchSanitizationStats
+) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
+	var stats AnthropicProviderToolSanitizationStats
 	if provider != fantasyanthropic.Name || len(messages) == 0 {
 		return messages, stats
 	}
@@ -83,25 +83,25 @@ func SanitizeAnthropicWebSearchToolCalls(
 	changed := false
 	for _, msg := range messages {
 		if msg.Role != fantasy.MessageRoleAssistant {
-			out = append(out, msg)
+			out = appendSanitizedMessage(out, msg)
 			continue
 		}
 
-		providedResultIDs := make(map[string]struct{})
+		matchedResultIDs := make(map[string]struct{})
 		for _, part := range msg.Content {
 			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
 			if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
 				continue
 			}
-			providedResultIDs[result.ToolCallID] = struct{}{}
+			matchedResultIDs[result.ToolCallID] = struct{}{}
 		}
 
 		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
 		removedFromMessage := 0
 		for _, part := range msg.Content {
 			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
-			if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
-				if _, hasResult := providedResultIDs[toolCall.ToolCallID]; !hasResult {
+			if ok && toolCall.ProviderExecuted {
+				if _, hasResult := matchedResultIDs[toolCall.ToolCallID]; !hasResult {
 					stats.RemovedToolCalls++
 					removedFromMessage++
 					changed = true
@@ -118,12 +118,25 @@ func SanitizeAnthropicWebSearchToolCalls(
 			}
 			msg.Content = parts
 		}
-		out = append(out, msg)
+		out = appendSanitizedMessage(out, msg)
 	}
 	if !changed {
 		return messages, stats
 	}
 	return out, stats
+}
+
+func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
+	if len(out) == 0 || out[len(out)-1].Role != msg.Role {
+		return append(out, msg)
+	}
+
+	last := &out[len(out)-1]
+	content := make([]fantasy.MessagePart, 0, len(last.Content)+len(msg.Content))
+	content = append(content, last.Content...)
+	content = append(content, msg.Content...)
+	last.Content = content
+	return out
 }
 
 // FileData holds resolved file content for LLM prompt building.
@@ -1066,12 +1079,11 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		}
 
 		// Build synthetic results for any unanswered tool calls.
-		// Provider-executed tool calls (e.g. web_search) are
-		// handled server-side by the LLM provider. Their results
-		// may arrive in a later step and end up stored out of
-		// position, so we must not inject synthetic error results
-		// for them. The provider will re-execute the tool when it
-		// sees the server_tool_use without a matching result.
+		// Provider-executed tool calls are handled server-side by
+		// the LLM provider, and their result blocks contain
+		// provider-owned metadata. We cannot synthesize a valid
+		// provider result if one is missing, so provider-specific
+		// sanitization removes unpaired calls before replay.
 		var missing []fantasy.MessagePart
 		for _, tc := range toolCalls {
 			if tc.ProviderExecuted {
@@ -1120,13 +1132,12 @@ func injectMissingToolUses(
 			continue
 		}
 
-		// Provider-executed tool results (e.g. web_search) may be
-		// persisted in a later step than the assistant message that
-		// initiated the tool call. When that happens they appear as
-		// orphans after the wrong assistant message. Filter them
-		// out before matching — the provider will re-execute the
-		// tool, and the search results are already captured in the
-		// subsequent assistant message's sources/text.
+		// Provider-executed tool results may be persisted in a
+		// later step than the assistant message that initiated the
+		// tool call. When that happens they appear as orphans after
+		// the wrong assistant message. Filter them out before
+		// matching because they cannot be converted into local
+		// tool-use pairs safely.
 		toolResults := make([]fantasy.ToolResultPart, 0, len(allToolResults))
 		for _, tr := range allToolResults {
 			if !tr.ProviderExecuted {
@@ -1724,7 +1735,7 @@ func decodeNulInString(s string) string {
 				_, _ = b.WriteRune(0)
 				i++
 			default:
-				// Unpaired sentinel — preserve as-is.
+				// Unpaired sentinel, preserve as-is.
 				_, _ = b.WriteRune(runes[i])
 			}
 		} else {
