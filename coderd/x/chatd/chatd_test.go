@@ -2586,7 +2586,13 @@ func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
-	require.Equal(t, database.ChatStatusPending, storedChat.Status)
+	// The processor can pick up the pending chat immediately after
+	// promotion, so this test only requires that promotion moved it out of
+	// waiting and preserved the queued model configuration.
+	require.Contains(t, []database.ChatStatus{
+		database.ChatStatusPending,
+		database.ChatStatusRunning,
+	}, storedChat.Status)
 }
 
 func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *testing.T) {
