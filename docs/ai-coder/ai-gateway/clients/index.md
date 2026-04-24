@@ -1,5 +1,10 @@
 # Client Configuration
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Once AI Gateway is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Gateway.
 
 There are two ways to connect AI tools to AI Gateway:

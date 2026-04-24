@@ -1,5 +1,12 @@
 # MCP
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
+<!-- -->
+
 > [!WARNING]
 > Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 
