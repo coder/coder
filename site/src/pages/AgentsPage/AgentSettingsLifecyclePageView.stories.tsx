@@ -583,5 +583,44 @@ export const RetentionExceedsMax: Story = {
 			expect(retentionInput).toBeInvalid();
 			expect(saveButton).toBeDisabled();
 		});
+
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/must not exceed 3650 days/i),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const RetentionBelowMin: Story = {
+	args: {
+		retentionDaysData: { retention_days: 30 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const retentionInput = await canvas.findByLabelText(
+			"Conversation retention period in days",
+		);
+		const retentionForm = retentionInput.closest("form");
+		if (!(retentionForm instanceof HTMLFormElement)) {
+			throw new Error("Expected retention period input to live inside a form.");
+		}
+
+		await userEvent.clear(retentionInput);
+		await userEvent.type(retentionInput, "0");
+
+		const saveButton = within(retentionForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(retentionInput).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+		});
+
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(canvas.getByText(/at least 1 day/i)).toBeInTheDocument();
+		});
 	},
 };
