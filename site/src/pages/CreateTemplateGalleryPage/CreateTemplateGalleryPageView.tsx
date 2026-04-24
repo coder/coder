@@ -44,7 +44,7 @@ export const CreateTemplateGalleryPageView: FC<
 						</Button>
 						<Button asChild size="sm" variant="outline">
 							<a
-								href="https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md"
+								href="https://registry.coder.com/skills/coder-templates"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="flex items-center"
