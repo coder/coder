@@ -15,28 +15,32 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		keys []string
+		name         string
+		keys         []string
+		expectedKeys []string
+		expectedErr  error
 	}{
-		{"nil_keys", nil},
-		{"empty_keys", []string{}},
-		{"single_key", []string{"key-0"}},
-		{"multiple_keys", []string{"key-0", "key-1", "key-2"}},
+		{"nil_keys", nil, nil, keypool.ErrNoKeys},
+		{"empty_keys", []string{}, nil, keypool.ErrNoKeys},
+		{"single_key", []string{"key-0"}, []string{"key-0"}, nil},
+		{"multiple_keys", []string{"key-0", "key-1", "key-2"}, []string{"key-0", "key-1", "key-2"}, nil},
+		{"duplicate_keys", []string{"key-0", "key-1", "key-0"}, nil, keypool.ErrDuplicateKey},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pool := keypool.New(tc.keys, quartz.NewMock(t))
-			if len(tc.keys) == 0 {
-				assert.Nil(t, pool)
+			pool, err := keypool.New(tc.keys, quartz.NewMock(t))
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
 				return
 			}
+			require.NoError(t, err)
 			require.NotNil(t, pool)
 
 			// Verify all keys are returned in order and valid.
 			walker := pool.Walker()
-			for _, expected := range tc.keys {
+			for _, expected := range tc.expectedKeys {
 				key, err := walker.Next()
 				require.NoError(t, err)
 				assert.Equal(t, expected, key.Value())
@@ -44,13 +48,13 @@ func TestNew(t *testing.T) {
 			}
 
 			// No more keys available.
-			_, err := walker.Next()
+			_, err = walker.Next()
 			require.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 		})
 	}
 }
 
-func TestMarkValid(t *testing.T) {
+func TestState(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -59,8 +63,8 @@ func TestMarkValid(t *testing.T) {
 		expectedState keypool.KeyState
 	}{
 		{
-			// valid -> valid: no-op, key stays available.
-			name: "valid_to_valid",
+			// Fresh key is valid.
+			name: "fresh_key_is_valid",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
 				key, err := pool.Walker().Next()
 				require.NoError(t, err)
@@ -69,24 +73,8 @@ func TestMarkValid(t *testing.T) {
 			expectedState: keypool.KeyStateValid,
 		},
 		{
-			// temporary -> valid: cooldown has expired, so
-			// MarkValid transitions the key back to valid.
-			name: "temporary_to_valid_cooldown_expired",
-			setup: func(t *testing.T, pool *keypool.Pool, clk *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
-				key.MarkTemporary(30 * time.Second)
-				clk.Advance(31 * time.Second)
-				return key
-			},
-			expectedState: keypool.KeyStateValid,
-		},
-		{
-			// temporary -> temporary: cooldown is still active,
-			// so MarkValid is a no-op. This prevents a stale
-			// successful response from clearing a longer cooldown
-			// set by a concurrent request.
-			name: "temporary_with_active_cooldown_is_no_op",
+			// Active cooldown makes the key temporary.
+			name: "active_cooldown_is_temporary",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
 				key, err := pool.Walker().Next()
 				require.NoError(t, err)
@@ -96,11 +84,35 @@ func TestMarkValid(t *testing.T) {
 			expectedState: keypool.KeyStateTemporary,
 		},
 		{
-			// permanent -> permanent: no-op, permanent is irreversible.
-			name: "permanent_to_valid_is_no_op",
+			// Expired cooldown returns the key to valid.
+			name: "expired_cooldown_is_valid",
+			setup: func(t *testing.T, pool *keypool.Pool, clk *quartz.Mock) *keypool.Key {
+				key, err := pool.Walker().Next()
+				require.NoError(t, err)
+				key.MarkTemporary(30 * time.Second)
+				clk.Advance(35 * time.Second)
+				return key
+			},
+			expectedState: keypool.KeyStateValid,
+		},
+		{
+			// Permanent key is permanent.
+			name: "permanent_key",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
 				key, err := pool.Walker().Next()
 				require.NoError(t, err)
+				key.MarkPermanent()
+				return key
+			},
+			expectedState: keypool.KeyStatePermanent,
+		},
+		{
+			// Permanent takes precedence over active cooldown.
+			name: "permanent_with_cooldown_is_permanent",
+			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
+				key, err := pool.Walker().Next()
+				require.NoError(t, err)
+				key.MarkTemporary(60 * time.Second)
 				key.MarkPermanent()
 				return key
 			},
@@ -112,10 +124,10 @@ func TestMarkValid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool := keypool.New([]string{"key-0", "key-1"}, clk)
+			pool, err := keypool.New([]string{"key-0"}, clk)
+			require.NoError(t, err)
 
 			key := tc.setup(t, pool, clk)
-			key.MarkValid()
 
 			assert.Equal(t, tc.expectedState, key.State())
 		})
@@ -186,7 +198,8 @@ func TestMarkTemporary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool := keypool.New([]string{"key-0", "key-1"}, clk)
+			pool, err := keypool.New([]string{"key-0", "key-1"}, clk)
+			require.NoError(t, err)
 
 			key := tc.setup(t, pool, clk)
 			key.MarkTemporary(tc.cooldown)
@@ -243,7 +256,8 @@ func TestMarkPermanent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool := keypool.New([]string{"key-0", "key-1"}, clk)
+			pool, err := keypool.New([]string{"key-0", "key-1"}, clk)
+			require.NoError(t, err)
 
 			key := tc.setup(t, pool)
 			key.MarkPermanent()
@@ -442,11 +456,12 @@ func TestWalkerNext(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool := keypool.New(tc.keys, clk)
+			pool, err := keypool.New(tc.keys, clk)
+			require.NoError(t, err)
 
 			tc.setup(t, pool)
 
-			// Simulate time passing between setup (when keys are marked) and the walker walk.
+			// Simulate time passing between setup and the walk.
 			if tc.advance > 0 {
 				clk.Advance(tc.advance)
 			}
@@ -459,7 +474,7 @@ func TestWalkerNext(t *testing.T) {
 			}
 
 			// After all expected keys, the walker should be exhausted.
-			_, err := walker.Next()
+			_, err = walker.Next()
 			require.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 		})
 	}
@@ -473,7 +488,8 @@ func TestWalkerIndependence(t *testing.T) {
 	t.Parallel()
 
 	clk := quartz.NewMock(t)
-	pool := keypool.New([]string{"key-0", "key-1", "key-2"}, clk)
+	pool, err := keypool.New([]string{"key-0", "key-1", "key-2"}, clk)
+	require.NoError(t, err)
 
 	walker := pool.Walker()
 
