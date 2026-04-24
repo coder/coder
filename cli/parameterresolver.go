@@ -329,9 +329,9 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			}
 
 			parameterValue := tvp.DefaultValue
-			_, cliDefaultProvided := pr.richParametersDefaults[tvp.Name]
+			cliDefault, cliDefaultProvided := pr.richParametersDefaults[tvp.Name]
 			if cliDefaultProvided {
-				parameterValue = pr.richParametersDefaults[tvp.Name]
+				parameterValue = cliDefault
 			}
 
 			// Auto-accept the default value when one exists.
