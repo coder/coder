@@ -241,6 +241,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			"success path must return the override model, not the fallback")
 		require.NotNil(t, gotModel)
 		require.Equal(t, "openai", gotModel.Provider())
+		// Guard against ModelFromConfig silently ignoring the model field
+		// and returning a default. The override is only useful if the
+		// model name from the config row actually propagates.
+		require.Equal(t, "gpt-5.2", gotModel.Model())
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
 	})
