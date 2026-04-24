@@ -210,12 +210,15 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// that no longer exists, the backend rejects the stale ID with a
 			// 400. When disabling, clear the override so a simple disable
 			// stays reliable in that edge case; the override is unusable
-			// anyway and the admin will reselect one on re-enable.
+			// anyway and the admin will reselect one on re-enable. This also
+			// covers a failing model-configs fetch: cached entries still
+			// validate the override, and when nothing is cached the clear
+			// keeps disable reliable instead of forwarding an ID we cannot
+			// verify.
 			if (
 				!source.enabled &&
 				!isUnsetModelConfigId(source.model_config_id) &&
 				!isLoadingModelConfigs &&
-				!modelConfigsError &&
 				!modelConfigs.some((config) => config.id === source.model_config_id)
 			) {
 				source = { ...source, model_config_id: "" };
