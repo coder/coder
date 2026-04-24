@@ -65,11 +65,15 @@ jobs:
 
   osv-scanner:
     permissions:
+      id-token: write
       security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     env:
       IMAGE_REF: ghcr.io/coder/coder:latest
-      OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner:v2.3.5
+      OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner@sha256:4d3d1a42ba435ac706286fec518c044f049c9753d21260b5bae60bab8740ed97 # v2.3.5
+      OSV_SCANNER_REPORT_SERVICE_ACCOUNT: ${{ secrets.GCP_OSV_SCANNER_REPORT_SERVICE_ACCOUNT }}
+      OSV_SCANNER_REPORT_UPLOAD_URL: ${{ secrets.OSV_SCANNER_REPORT_UPLOAD_URL }}
+      OSV_SCANNER_REPORT_WORKLOAD_ID_PROVIDER: ${{ secrets.GCP_OSV_SCANNER_REPORT_WORKLOAD_ID_PROVIDER }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
@@ -79,11 +83,20 @@ jobs:
       - name: Pull released Coder image
         run: docker pull "$IMAGE_REF"
 
-      - name: Export released Coder image
+      - name: Save released Coder image as archive
         run: docker save "$IMAGE_REF" -o coder-image.tar
 
-      - name: Run OSV-Scanner vulnerability scanner
-        id: scan
+      - name: Check OSV-Scanner report publishing configuration
+        id: publish-config
+        run: |
+          enabled=false
+          if [[ "${GITHUB_REF}" == "refs/heads/main" && -n "${OSV_SCANNER_REPORT_UPLOAD_URL}" && -n "${OSV_SCANNER_REPORT_WORKLOAD_ID_PROVIDER}" && -n "${OSV_SCANNER_REPORT_SERVICE_ACCOUNT}" ]]; then
+            enabled=true
+          fi
+
+          echo "enabled=${enabled}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run OSV-Scanner vulnerability scan
         run: |
           set +e
           docker run --rm \
@@ -94,20 +107,38 @@ jobs:
             --archive /workspace/coder-image.tar \
             --format sarif \
             --output-file /workspace/osv-results.sarif
-          scan_exit_code=$?
+          sarif_exit_code=$?
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" \
+            "$OSV_SCANNER_IMAGE" \
+            scan image \
+            --archive /workspace/coder-image.tar \
+            --format html \
+            --output-file /workspace/osv-results.html
+          html_exit_code=$?
           set -e
 
-          if [[ "${scan_exit_code}" -eq 1 ]]; then
+          failed=0
+          if [[ "${sarif_exit_code}" -gt 1 ]]; then
+            echo "::error::OSV-Scanner SARIF generation failed with exit code ${sarif_exit_code}"
+            failed="${sarif_exit_code}"
+          fi
+
+          if [[ "${html_exit_code}" -gt 1 ]]; then
+            echo "::error::OSV-Scanner HTML generation failed with exit code ${html_exit_code}"
+            failed="${html_exit_code}"
+          fi
+
+          if [[ "${failed}" -gt 0 ]]; then
+            exit "${failed}"
+          fi
+
+          if [[ "${sarif_exit_code}" -eq 1 || "${html_exit_code}" -eq 1 ]]; then
             echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
-            echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            echo "Results will be uploaded to GitHub Security, stored as artifacts, and published as HTML on main when upload credentials are configured."
           fi
-
-          if [[ "${scan_exit_code}" -gt 1 ]]; then
-            echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
-            exit "${scan_exit_code}"
-          fi
-
-          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload OSV-Scanner scan results to GitHub Security tab
         if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
@@ -116,18 +147,65 @@ jobs:
           sarif_file: osv-results.sarif
           category: "OSV-Scanner"
 
-      - name: Upload OSV-Scanner scan results as an artifact
+      - name: Upload OSV-Scanner SARIF results as an artifact
         if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: osv-scanner
+          name: osv-scanner-sarif
           path: osv-results.sarif
           retention-days: 7
 
-      - name: Send Slack notification on failure
-        if: ${{ failure() }}
+      - name: Upload OSV-Scanner HTML report as an artifact
+        if: ${{ always() && hashFiles('osv-results.html') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osv-scanner-html
+          path: osv-results.html
+          retention-days: 7
+
+      - name: Authenticate to Google Cloud for report publishing
+        id: report-auth
+        if: ${{ steps.publish-config.outputs.enabled == 'true' && hashFiles('osv-results.html') != '' }}
+        continue-on-error: true
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.OSV_SCANNER_REPORT_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ env.OSV_SCANNER_REPORT_SERVICE_ACCOUNT }}
+
+      - name: Setup GCloud SDK
+        id: report-gcloud
+        if: ${{ steps.publish-config.outputs.enabled == 'true' && hashFiles('osv-results.html') != '' }}
+        continue-on-error: true
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Publish OSV-Scanner HTML report
+        id: report-publish
+        if: ${{ steps.publish-config.outputs.enabled == 'true' && hashFiles('osv-results.html') != '' }}
+        continue-on-error: true
+        run: gcloud storage cp osv-results.html "$OSV_SCANNER_REPORT_UPLOAD_URL"
+
+      - name: Fail if OSV-Scanner HTML report publishing failed
+        id: report-publish-failure
+        if: ${{ steps.publish-config.outputs.enabled == 'true' && (steps.report-auth.outcome == 'failure' || steps.report-gcloud.outcome == 'failure' || steps.report-publish.outcome == 'failure') }}
+        run: |
+          echo "::error::OSV-Scanner HTML report publishing failed."
+          exit 1
+
+      - name: Send Slack notification on OSV-Scanner failure
+        if: ${{ failure() && steps.report-publish-failure.outcome != 'failure' }}
         run: |
           msg="❌ OSV-Scanner Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+
+      - name: Send Slack notification on OSV-Scanner HTML report publish failure
+        if: ${{ steps.report-publish-failure.outcome == 'failure' }}
+        run: |
+          msg="❌ OSV-Scanner HTML Report Publish Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl \
             -qfsSL \
             -X POST \
