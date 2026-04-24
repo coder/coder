@@ -871,6 +871,8 @@ func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
 const MaxQueueSize = 20
 
 var (
+	// ErrInvalidModelConfigID indicates the requested model config does not exist.
+	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
 	// ErrMessageQueueFull indicates the per-chat queue limit was reached.
 	ErrMessageQueueFull = xerrors.New("chat message queue is full")
 	// ErrEditedMessageNotFound indicates the edited message does not exist
@@ -1221,9 +1223,14 @@ func (p *Server) SendMessage(
 			}
 		}
 
-		modelConfigID := lockedChat.LastModelConfigID
-		if opts.ModelConfigID != nil {
-			modelConfigID = *opts.ModelConfigID
+		modelConfigID, err := resolveSendMessageModelConfigID(
+			ctx,
+			tx,
+			lockedChat,
+			opts.ModelConfigID,
+		)
+		if err != nil {
+			return err
 		}
 
 		// Update MCP server IDs on the chat when explicitly provided.
@@ -1374,6 +1381,84 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 		}
 	}
 	return nil
+}
+
+func resolveSendMessageModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	requested *uuid.UUID,
+) (uuid.UUID, error) {
+	if requested != nil {
+		if *requested == uuid.Nil {
+			return uuid.Nil, ErrInvalidModelConfigID
+		}
+		if _, err := store.GetChatModelConfigByID(ctx, *requested); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return uuid.Nil, xerrors.Errorf(
+					"%w: %s",
+					ErrInvalidModelConfigID,
+					*requested,
+				)
+			}
+			return uuid.Nil, xerrors.Errorf(
+				"get requested model config %s: %w",
+				*requested,
+				err,
+			)
+		}
+		return *requested, nil
+	}
+
+	return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+}
+
+func resolveQueuedMessageModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	queuedModelConfigID uuid.NullUUID,
+) (uuid.UUID, error) {
+	if queuedModelConfigID.Valid && queuedModelConfigID.UUID != uuid.Nil {
+		if _, err := store.GetChatModelConfigByID(ctx, queuedModelConfigID.UUID); err == nil {
+			return queuedModelConfigID.UUID, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"get queued model config %s: %w",
+				queuedModelConfigID.UUID,
+				err,
+			)
+		}
+	}
+
+	return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+}
+
+func resolveFallbackModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	modelConfigID uuid.UUID,
+) (uuid.UUID, error) {
+	if modelConfigID != uuid.Nil {
+		if _, err := store.GetChatModelConfigByID(ctx, modelConfigID); err == nil {
+			return modelConfigID, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.Errorf(
+				"get chat model config %s: %w",
+				modelConfigID,
+				err,
+			)
+		}
+	}
+
+	defaultConfig, err := store.GetDefaultChatModelConfig(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, xerrors.New("no default chat model config is available")
+		}
+		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
+	}
+	return defaultConfig.ID, nil
 }
 
 // EditMessage marks the old user message as deleted, soft-deletes all
@@ -1782,22 +1867,30 @@ func (p *Server) PromoteQueued(
 		}
 
 		var (
-			targetContent          json.RawMessage
-			effectiveModelConfigID = lockedChat.LastModelConfigID
-			found                  bool
+			targetContent       json.RawMessage
+			targetModelConfigID uuid.NullUUID
+			found               bool
 		)
 		for _, qm := range queuedMessages {
 			if qm.ID == opts.QueuedMessageID {
 				targetContent = qm.Content
-				if qm.ModelConfigID.Valid {
-					effectiveModelConfigID = qm.ModelConfigID.UUID
-				}
+				targetModelConfigID = qm.ModelConfigID
 				found = true
 				break
 			}
 		}
 		if !found {
 			return xerrors.New("queued message not found")
+		}
+
+		effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
+			ctx,
+			tx,
+			lockedChat,
+			targetModelConfigID,
+		)
+		if err != nil {
+			return err
 		}
 
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
@@ -4770,17 +4863,30 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 ) (*database.ChatMessage, []database.ChatQueuedMessage, bool, error) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 
-	nextQueued, err := tx.PopNextQueuedMessage(ctx, chat.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	queuedMessages, err := tx.GetChatQueuedMessages(ctx, chat.ID)
+	if err != nil {
+		return nil, nil, false, xerrors.Errorf("get queued messages: %w", err)
+	}
+	if len(queuedMessages) == 0 {
 		return nil, nil, false, nil
 	}
+	nextQueued := queuedMessages[0]
+	effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
+		ctx,
+		tx,
+		chat,
+		nextQueued.ModelConfigID,
+	)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	poppedQueued, err := tx.PopNextQueuedMessage(ctx, chat.ID)
 	if err != nil {
 		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
 	}
-
-	effectiveModelConfigID := chat.LastModelConfigID
-	if nextQueued.ModelConfigID.Valid {
-		effectiveModelConfigID = nextQueued.ModelConfigID.UUID
+	if poppedQueued.ID != nextQueued.ID {
+		return nil, nil, false, xerrors.New("popped queued message out of order")
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.

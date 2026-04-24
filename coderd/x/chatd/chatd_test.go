@@ -2046,6 +2046,38 @@ func TestSendMessageQueuesWhenWaitingWithQueuedBacklog(t *testing.T) {
 	require.Len(t, messages, 1)
 }
 
+func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelConfig := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "reject invalid queued model config",
+	})
+	require.NoError(t, err)
+
+	invalidModelConfigID := uuid.New()
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		ModelConfigID: &invalidModelConfigID,
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
+}
+
 func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	t.Parallel()
 
@@ -2837,6 +2869,19 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 func TestAutoPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 	t.Parallel()
 
+	testAutoPromoteQueuedMessageFallback(t, uuid.NullUUID{})
+}
+
+func TestAutoPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	testAutoPromoteQueuedMessageFallback(t, uuid.NullUUID{
+		UUID:  uuid.New(),
+		Valid: true,
+	})
+}
+
+func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid.NullUUID) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -2883,8 +2928,9 @@ func TestAutoPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("legacy queued row")})
 	require.NoError(t, err)
 	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
+		ChatID:        chat.ID,
+		Content:       queuedContent,
+		ModelConfigID: queuedModelConfigID,
 	})
 	require.NoError(t, err)
 
@@ -2979,6 +3025,51 @@ func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID)
+}
+
+func TestPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelConfig := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "promote queued invalid fallback",
+	})
+	require.NoError(t, err)
+
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("invalid queued model")})
+	require.NoError(t, err)
+	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  chat.ID,
+		Content: queuedContent,
+		ModelConfigID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
+	require.Equal(t, modelConfig.ID, result.PromotedMessage.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelConfig.ID, storedChat.LastModelConfigID)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
