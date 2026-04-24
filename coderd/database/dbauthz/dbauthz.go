@@ -2569,7 +2569,7 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	// Chat auto-archive is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context. The HTTP GET handler
 	// allows any authenticated user; the PUT handler enforces admin
@@ -2577,7 +2577,7 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
 	if _, ok := ActorFromContext(ctx); !ok {
 		return 0, ErrNoActor
 	}
-	return q.db.GetChatAutoArchiveDays(ctx)
+	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {

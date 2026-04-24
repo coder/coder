@@ -2057,18 +2057,18 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, 
 }
 
 // GetChatAutoArchiveDays mocks base method.
-func (m *MockStore) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+func (m *MockStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAutoArchiveDays", ctx)
+	ret := m.ctrl.Call(m, "GetChatAutoArchiveDays", ctx, defaultAutoArchiveDays)
 	ret0, _ := ret[0].(int32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetChatAutoArchiveDays indicates an expected call of GetChatAutoArchiveDays.
-func (mr *MockStoreMockRecorder) GetChatAutoArchiveDays(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDays), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDays), ctx, defaultAutoArchiveDays)
 }
 
 // GetChatByID mocks base method.

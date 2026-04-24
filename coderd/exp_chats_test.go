@@ -10793,10 +10793,11 @@ func TestChatAutoArchiveDays(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	// Default value is 90 (days) when nothing has been configured.
+	// Default value is DefaultChatAutoArchiveDays (0, disabled) when
+	// nothing has been configured.
 	resp, err := adminClient.GetChatAutoArchiveDays(ctx)
 	require.NoError(t, err, "get default")
-	require.Equal(t, int32(90), resp.AutoArchiveDays, "default should be 90")
+	require.Equal(t, database.DefaultChatAutoArchiveDays, resp.AutoArchiveDays, "default should match DefaultChatAutoArchiveDays")
 
 	// Admin can set auto-archive days to 45.
 	err = adminClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{

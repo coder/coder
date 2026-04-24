@@ -296,11 +296,11 @@ ON CONFLICT (key) DO UPDATE SET value = CAST(@retention_days AS integer)::text
 WHERE site_configs.key = 'agents_chat_retention_days';
 
 -- name: GetChatAutoArchiveDays :one
--- Auto-archive window in days; 90 by default, 0 disables.
+-- Auto-archive window in days. 0 disables.
 SELECT COALESCE(
     (SELECT value::integer FROM site_configs
      WHERE key = 'agents_chat_auto_archive_days'),
-    90
+    @default_auto_archive_days::integer
 ) :: integer AS auto_archive_days;
 
 -- name: UpsertChatAutoArchiveDays :exec

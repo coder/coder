@@ -1120,9 +1120,9 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
+func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatAutoArchiveDays(ctx)
+	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
 	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDays").Inc()
 	return r0, r1

@@ -57,7 +57,7 @@ func TestPurge(t *testing.T) {
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
-	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), database.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
 	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry(), nopAuditorPtr(t))
 	<-done // wait for doTick() to run.
@@ -154,7 +154,7 @@ func TestMetrics(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
 		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
-		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), database.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -2340,7 +2340,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
-				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(0)))
+				require.Zero(t, database.DefaultChatAutoArchiveDays)
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, database.DefaultChatAutoArchiveDays))
 
 				// Chat older than any reasonable cutoff.
 				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale-chat", now.Add(-365*24*time.Hour))

@@ -30,15 +30,18 @@ root.
 
 Auto-archive and deletion are two independent controls:
 
-| Control             | What it does                                                              | Default |
-|---------------------|---------------------------------------------------------------------------|---------|
-| Auto-archive window | Moves inactive chats to the archived state                                | 90 days |
-| Retention window    | Deletes chats that have been archived long enough and orphaned chat files | 30 days |
+| Control             | What it does                                                              | Default           |
+|---------------------|---------------------------------------------------------------------------|-------------------|
+| Auto-archive window | Moves inactive chats to the archived state                                | 0 days (disabled) |
+| Retention window    | Deletes chats that have been archived long enough and orphaned chat files | 30 days           |
 
 A conversation needs to be inactive for `auto_archive_days`, then
 archived for `retention_days`, before it is deleted. The two windows
-stack additively, so with defaults a conversation lives for at least
-120 days from its last message before it is permanently removed.
+stack additively. With auto-archive disabled by default, inactive
+chats are never auto-archived; once an admin opts in by setting a
+non-zero `auto_archive_days`, a conversation lives for at least
+`auto_archive_days + retention_days` from its last message before it
+is permanently removed.
 
 Auto-archive (like manual archive) resets the per-chat retention
 clock, so the full `retention_days` runs from the tick that archived
@@ -53,7 +56,8 @@ auto-archived (users still archive manually). Setting
 
 The auto-archive window is stored as the
 `agents_chat_auto_archive_days` key in the `site_configs` table.
-The default is 90 days; set to `0` to disable.
+The default is `0` (disabled); set to a positive number of days to
+enable auto-archiving.
 
 Use the admin API to read or update the value:
 
@@ -62,14 +66,14 @@ Use the admin API to read or update the value:
 
 ## Rollout advice
 
-The first tick after enabling auto-archive on a deployment with a
-long history will process up to 1,000 root chats (and their
-children). If your deployment has a large backlog, the initial rollout
-will span many ticks. This is intentional and avoids stalling the
-rest of `dbpurge` during the first run. If you need to prevent the
-initial backfill entirely during a migration window, set
-`auto_archive_days = 0` before upgrading and re-enable it when you
-are ready.
+Auto-archive is disabled by default, so upgrading to a release that
+includes this feature will not archive any existing chats until an
+admin opts in. The first tick after enabling auto-archive on a
+deployment with a long history will process up to 1,000 root chats
+(and their children). If your deployment has a large backlog, the
+initial rollout will span many ticks. This is intentional and avoids
+stalling the rest of `dbpurge` during the first run. To disable,
+set `auto_archive_days` back to `0`.
 
 ## Audit trail
 

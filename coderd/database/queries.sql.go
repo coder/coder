@@ -20512,13 +20512,13 @@ const getChatAutoArchiveDays = `-- name: GetChatAutoArchiveDays :one
 SELECT COALESCE(
     (SELECT value::integer FROM site_configs
      WHERE key = 'agents_chat_auto_archive_days'),
-    90
+    $1::integer
 ) :: integer AS auto_archive_days
 `
 
-// Auto-archive window in days; 90 by default, 0 disables.
-func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getChatAutoArchiveDays)
+// Auto-archive window in days. 0 disables.
+func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getChatAutoArchiveDays, defaultAutoArchiveDays)
 	var auto_archive_days int32
 	err := row.Scan(&auto_archive_days)
 	return auto_archive_days, err

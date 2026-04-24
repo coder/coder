@@ -4215,7 +4215,7 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	autoArchiveDays, err := api.Database.GetChatAutoArchiveDays(ctx)
+	autoArchiveDays, err := api.Database.GetChatAutoArchiveDays(ctx, database.DefaultChatAutoArchiveDays)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat auto-archive days.",

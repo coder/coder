@@ -271,8 +271,8 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	// Auto-archive window in days; 90 by default, 0 disables.
-	GetChatAutoArchiveDays(ctx context.Context) (int32, error)
+	// Auto-archive window in days. 0 disables.
+	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
