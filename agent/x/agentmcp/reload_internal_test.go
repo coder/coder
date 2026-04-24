@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -220,11 +221,10 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	// Tools from both files should be present.
 	tools := m.Tools()
 	require.Len(t, tools, 2, "should have tools from both config files")
-	names := []string{tools[0].Name, tools[1].Name}
-	assert.Contains(t, names[0]+names[1], "srv1",
-		"should contain tool from first config")
-	assert.Contains(t, names[0]+names[1], "srv2b",
-		"should contain tool from second config")
+	assert.Contains(t, tools[0].Name, "srv1",
+		"first tool should be from first config")
+	assert.Contains(t, tools[1].Name, "srv2b",
+		"second tool should be from second config")
 }
 
 func TestReload(t *testing.T) {
@@ -501,6 +501,12 @@ func TestDifferentialReload(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, m.Tools(), 2)
 
+		// Capture srvB's client before removal.
+		m.mu.RLock()
+		oldClientB := m.servers["srvB"].client
+		m.mu.RUnlock()
+		require.NotNil(t, oldClientB)
+
 		// Remove srvB from the config.
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srvA": entryA})
 
@@ -510,6 +516,13 @@ func TestDifferentialReload(t *testing.T) {
 		tools := m.Tools()
 		require.Len(t, tools, 1)
 		assert.Contains(t, tools[0].Name, "srvA")
+
+		// The old client for srvB should be closed.
+		// ListTools on a closed client returns an error.
+		listCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		defer cancel()
+		_, listErr := oldClientB.ListTools(listCtx, mcp.ListToolsRequest{})
+		assert.Error(t, listErr, "ListTools on closed client should fail")
 	})
 
 	t.Run("ConnectFailureRetainsOldClient", func(t *testing.T) {
@@ -553,7 +566,7 @@ func TestDifferentialReload(t *testing.T) {
 		require.Len(t, tools, 1)
 	})
 
-	t.Run("InFlightToolCallSurvivesReload", func(t *testing.T) {
+	t.Run("PostReloadToolCallReachesKeptServer", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -567,8 +580,6 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-
-		// Capture tool list before reload.
 		tools := m.Tools()
 		require.Len(t, tools, 1)
 		toolName := tools[0].Name
@@ -582,9 +593,8 @@ func TestDifferentialReload(t *testing.T) {
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 
-		// The original server's tool should still be callable.
-		// This confirms in-flight compatibility: the client pointer
-		// for "srv" was reused.
+		// A tool call to the kept server should reach it.
+		// The client pointer for "srv" was reused, not replaced.
 		_, err = m.CallTool(ctx, workspacesdk.CallMCPToolRequest{
 			ToolName: toolName,
 		})
