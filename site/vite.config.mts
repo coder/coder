@@ -4,7 +4,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
-import type { PluginOption, ProxyOptions } from "vite";
+import type { Plugin, PluginOption, ProxyOptions } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
@@ -19,7 +19,57 @@ compilerPreset.rolldown.filter = {
 	id: { include: [/src\/pages\/AgentsPage\//] },
 };
 
+// Path-app iframe HTML can point to root-absolute assets like /main.js
+// because the upstream app expects a subdomain. In dev, rewrite those
+// requests under the referring path-app base before Vite serves the SPA.
+const coderPathAppAssetRewrite = (): Plugin => ({
+	name: "coder-path-app-asset-rewrite",
+	configureServer(server) {
+		if (process.env.NODE_ENV === "production") {
+			return;
+		}
+
+		server.middlewares.use((req, _res, next) => {
+			const referer = req.headers.referer;
+			if (!referer || !req.url) {
+				return next();
+			}
+
+			let refPath: string;
+			try {
+				refPath = new URL(referer).pathname;
+			} catch {
+				return next();
+			}
+
+			const match = refPath.match(/^(\/@[^/]+\/[^/]+\/apps\/[^/]+\/)/);
+			if (!match) {
+				return next();
+			}
+			const prefix = match[1];
+			const url = req.url;
+
+			if (
+				url.startsWith("/@") ||
+				url.startsWith("/src/") ||
+				url.startsWith("/node_modules/") ||
+				url.startsWith("/api/") ||
+				url.startsWith("/healthz") ||
+				url.startsWith("/swagger") ||
+				url.startsWith("/serviceWorker.js") ||
+				url.startsWith(prefix)
+			) {
+				return next();
+			}
+
+			req.url = prefix + url.replace(/^\//, "");
+			next();
+		});
+	},
+});
+
 const plugins: PluginOption[] = [
+	coderPathAppAssetRewrite(),
 	react(),
 	babel({ presets: [compilerPreset] }),
 	checker({
