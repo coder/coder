@@ -18,7 +18,7 @@ const baseArgs: AgentSettingsLifecyclePageViewProps = {
 	onSaveRetentionDays: fn(),
 	isSavingRetentionDays: false,
 	isSaveRetentionDaysError: false,
-	autoArchiveDaysData: { auto_archive_days: 90 },
+	autoArchiveDaysData: { auto_archive_days: 0 },
 	isAutoArchiveDaysLoading: false,
 	isAutoArchiveDaysLoadError: false,
 	onSaveAutoArchiveDays: fn(),
@@ -247,24 +247,24 @@ export const AutoArchiveDefault: Story = {
 		const toggle = await canvas.findByRole("switch", {
 			name: "Enable auto-archive",
 		});
-		expect(toggle).toBeChecked();
-
-		const input = await canvas.findByLabelText("Auto-archive period in days");
-		expect(input).toHaveValue(90);
+		expect(toggle).not.toBeChecked();
+		expect(canvas.queryByLabelText("Auto-archive period in days")).toBeNull();
 	},
 };
 
-export const AutoArchiveDisabled: Story = {
+export const AutoArchiveEnabled: Story = {
 	args: {
-		autoArchiveDaysData: { auto_archive_days: 0 },
+		autoArchiveDaysData: { auto_archive_days: 90 },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
 			name: "Enable auto-archive",
 		});
-		expect(toggle).not.toBeChecked();
-		expect(canvas.queryByLabelText("Auto-archive period in days")).toBeNull();
+		expect(toggle).toBeChecked();
+
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		expect(input).toHaveValue(90);
 	},
 };
 
@@ -368,12 +368,6 @@ export const AutoArchiveBelowMin: Story = {
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
-		});
-
-		await waitFor(() => {
-			expect(
-				canvas.getByText("Auto-archive period must be at least 1 day."),
-			).toBeInTheDocument();
 		});
 	},
 };

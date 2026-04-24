@@ -3,6 +3,7 @@ import type { FC } from "react";
 import { useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { DefaultChatAutoArchiveDays } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -38,6 +39,10 @@ const validationSchema = Yup.object({
 		.required("Auto-archive days is required."),
 });
 
+// Sensible default offered when an admin enables auto-archive for
+// the first time. Distinct from the server default (0 = disabled).
+const ENABLE_DEFAULT_DAYS = 90;
+
 export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 	autoArchiveDaysData,
 	isAutoArchiveDaysLoading,
@@ -49,7 +54,8 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 	const [archiveToggled, setArchiveToggled] = useState<boolean | null>(null);
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
-	const serverAutoArchiveDays = autoArchiveDaysData?.auto_archive_days ?? 90;
+	const serverAutoArchiveDays =
+		autoArchiveDaysData?.auto_archive_days ?? DefaultChatAutoArchiveDays;
 	const isAutoArchiveEnabled = archiveToggled ?? serverAutoArchiveDays > 0;
 
 	const form = useFormik({
@@ -77,7 +83,8 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 
 	const handleToggleAutoArchive = (checked: boolean) => {
 		if (checked) {
-			const days = serverAutoArchiveDays > 0 ? serverAutoArchiveDays : 90;
+			const days =
+				serverAutoArchiveDays > 0 ? serverAutoArchiveDays : ENABLE_DEFAULT_DAYS;
 			setArchiveToggled(true);
 			void form.setFieldValue("auto_archive_days", days);
 			onSaveAutoArchiveDays(
@@ -133,12 +140,11 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 						disabled={isSavingAutoArchiveDays || isAutoArchiveDaysLoading}
 						className="w-full"
 					/>
-					{form.errors.auto_archive_days &&
-						(form.touched.auto_archive_days || form.dirty) && (
-							<p className="m-0 text-xs text-content-destructive">
-								{form.errors.auto_archive_days}
-							</p>
-						)}
+					{form.errors.auto_archive_days && form.touched.auto_archive_days && (
+						<p className="m-0 text-xs text-content-destructive">
+							{form.errors.auto_archive_days}
+						</p>
+					)}
 					<div className="mt-2 flex min-h-6 justify-end">
 						{(form.dirty || isSavedVisible || isSavingAutoArchiveDays) &&
 							(isSavedVisible ? (
