@@ -347,9 +347,8 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf(
-				"Invalid shared filter %q. Valid values are %q, %q, or %q.",
+				"Invalid shared filter %q. Valid values are %q or %q, or omit the parameter to exclude shared chats.",
 				sharedFilter,
-				codersdk.ChatSharedFilterNo,
 				codersdk.ChatSharedFilterInclude,
 				codersdk.ChatSharedFilterOnly,
 			),
@@ -2916,8 +2915,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// Mark the chat as read when the stream connects and again
 	// when it disconnects so we avoid per-message API calls while
 	// messages are actively streaming.
-	api.markChatAsRead(ctx, chatID)
-	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	// Skip for non-owner viewers: UpdateChatLastReadMessageID requires
+	// ActionUpdate, which a shared viewer does not hold, so the call
+	// would always fail and emit a warn log on every stream connect.
+	apiKey := httpmw.APIKey(r)
+	if apiKey.UserID == chat.OwnerID {
+		api.markChatAsRead(ctx, chatID)
+		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	}
 
 	encoder := json.NewEncoder(wsNetConn)
 

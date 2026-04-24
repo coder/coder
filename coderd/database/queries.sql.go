@@ -6965,40 +6965,36 @@ FROM
     chats
 WHERE
     CASE
-        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = $1
+        WHEN $1::boolean THEN chats.owner_id = $2::uuid
         ELSE true
     END
     AND CASE
-        WHEN $2::boolean THEN chats.owner_id = $3::uuid
+        WHEN $3::boolean THEN chats.owner_id != $2::uuid
         ELSE true
     END
     AND CASE
-        WHEN $4::boolean THEN chats.owner_id != $3::uuid
-        ELSE true
-    END
-    AND CASE
-        WHEN $5 :: boolean IS NULL THEN true
-        ELSE chats.archived = $5 :: boolean
+        WHEN $4 :: boolean IS NULL THEN true
+        ELSE chats.archived = $4 :: boolean
     END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN pin_order > 0 THEN 1 ELSE 0 END, -pin_order, updated_at, id) < (
                 SELECT
                     CASE WHEN c2.pin_order > 0 THEN 1 ELSE 0 END, -c2.pin_order, c2.updated_at, c2.id
                 FROM
                     chats c2
                 WHERE
-                    c2.id = $6
+                    c2.id = $5
             )
         )
         ELSE true
     END
     AND CASE
-        WHEN $7::jsonb IS NOT NULL THEN chats.labels @> $7::jsonb
+        WHEN $6::jsonb IS NOT NULL THEN chats.labels @> $6::jsonb
         ELSE true
     END
     -- Paginate over root chats only. Children are fetched
@@ -7017,15 +7013,14 @@ ORDER BY
     -pin_order DESC,
     updated_at DESC,
     id DESC
-OFFSET $8
+OFFSET $7
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($9 :: int, 0), 50)
+    COALESCE(NULLIF($8 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnerID     uuid.UUID             `db:"owner_id" json:"owner_id"`
 	OwnedOnly   bool                  `db:"owned_only" json:"owned_only"`
 	ViewerID    uuid.UUID             `db:"viewer_id" json:"viewer_id"`
 	SharedOnly  bool                  `db:"shared_only" json:"shared_only"`
@@ -7043,7 +7038,6 @@ type GetChatsRow struct {
 
 func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
-		arg.OwnerID,
 		arg.OwnedOnly,
 		arg.ViewerID,
 		arg.SharedOnly,

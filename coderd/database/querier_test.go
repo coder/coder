@@ -1378,20 +1378,6 @@ func TestGetAuthorizedChats(t *testing.T) {
 		sameOrgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSameOrgAdmin)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
-
-		// OwnerID filter: member queries their own chats.
-		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: member.ID,
-		}, preparedMember)
-		require.NoError(t, err)
-		require.Len(t, memberFilterSelf, 2)
-
-		// OwnerID filter: member queries owner's chats → sees 0.
-		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
-		}, preparedMember)
-		require.NoError(t, err)
-		require.Len(t, memberFilterOwner, 0)
 	})
 
 	t.Run("dbauthz", func(t *testing.T) {
@@ -11517,7 +11503,6 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err := json.Marshal(database.StringMap{"env": "prod"})
 		require.NoError(t, err)
 		results, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11537,7 +11522,6 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err = json.Marshal(database.StringMap{"env": "prod", "team": "backend"})
 		require.NoError(t, err)
 		results, err = db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11547,9 +11531,7 @@ func TestChatLabels(t *testing.T) {
 		require.Len(t, results, 1)
 		require.Equal(t, "filter-a", results[0].Chat.Title)
 		// No filter — should return all chats for this owner.
-		allChats, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
-		})
+		allChats, err := db.GetChats(ctx, database.GetChatsParams{})
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(allChats), 3)
 	})
@@ -12849,9 +12831,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	getHasUnread := func() bool {
-		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID: user.ID,
-		})
+		rows, err := store.GetChats(ctx, database.GetChatsParams{})
 		require.NoError(t, err)
 		for _, row := range rows {
 			if row.Chat.ID == chat.ID {

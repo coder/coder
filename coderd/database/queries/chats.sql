@@ -407,10 +407,6 @@ FROM
     chats
 WHERE
     CASE
-        WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
-        ELSE true
-    END
-    AND CASE
         WHEN @owned_only::boolean THEN chats.owner_id = @viewer_id::uuid
         ELSE true
     END

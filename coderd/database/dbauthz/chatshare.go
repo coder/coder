@@ -496,6 +496,9 @@ func redactChatMessageParts(
 			if !flags.shareAttachments {
 				continue
 			}
+		default:
+			// Text, reasoning, and any future part types are always visible
+			// to anyone with read access, so they pass through unchanged.
 		}
 		redacted = append(redacted, part)
 	}

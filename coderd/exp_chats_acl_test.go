@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -467,7 +469,7 @@ func TestPatchChatACL_Operations(t *testing.T) {
 					},
 				})
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-				require.Contains(t, sdkErr.Message, "cannot change your own chat sharing role")
+				require.Contains(t, sdkErr.Message, "Cannot change your own chat sharing role")
 			},
 		},
 		{
@@ -699,10 +701,11 @@ func TestGetChatMessages_Sharing(t *testing.T) {
 
 	cases := []chatVisibilityCase{
 		{
-			name:             "OwnerSeesEverything",
-			asOwner:          true,
-			wantMessageParts: allAssistantParts,
-			wantFiles:        1,
+			name:                    "OwnerSeesEverything",
+			asOwner:                 true,
+			wantMessageParts:        allAssistantParts,
+			wantFiles:               1,
+			wantLastInjectedContext: toolAndFileLastInjectedContext,
 		},
 		{
 			name:                    "SharedViewer_NothingExtra",
@@ -778,6 +781,8 @@ func TestStreamChat_SharedViewerFiltersToolParts(t *testing.T) {
 			}
 
 			types := partTypes(event.Message.Content)
+			require.Contains(t, types, string(codersdk.ChatMessagePartTypeText))
+			require.Contains(t, types, string(codersdk.ChatMessagePartTypeReasoning))
 			require.NotContains(t, types, string(codersdk.ChatMessagePartTypeToolCall))
 			require.NotContains(t, types, string(codersdk.ChatMessagePartTypeToolResult))
 			require.NotContains(t, types, string(codersdk.ChatMessagePartTypeFile))
@@ -819,6 +824,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
 		t.Cleanup(func() {
 			rbac.ReloadBuiltinRoles(nil)
+			rbac.SetChatACLDisabled(false)
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -851,7 +857,76 @@ func TestChatSharingDisabled(t *testing.T) {
 
 		_, err = viewerClient.GetChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+
+		sharedList, err := viewerClient.ListChats(ctx, &codersdk.ListChatsOptions{Shared: codersdk.ChatSharedFilterInclude})
+		require.NoError(t, err)
+		for _, listed := range sharedList {
+			require.NotEqual(t, chat.ID, listed.ID, "shared chat must not appear in list when sharing is disabled")
+		}
 	})
+}
+
+func TestChatACL_MixedCaseOwnerIDIsRejected(t *testing.T) {
+	t.Parallel()
+
+	env := newChatACLTestEnv(t)
+	chat := createSharedChat(env.ctx, t, env.ownerClient, env.orgID, t.Name())
+
+	upper := strings.ToUpper(env.ownerID.String())
+	require.NotEqual(t, env.ownerID.String(), upper, "owner UUID must differ from uppercase form")
+
+	err := env.ownerClient.UpdateChatACL(env.ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatShareEntry{
+			upper: {Role: codersdk.ChatRoleRead},
+		},
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Contains(t, sdkErr.Message, "Cannot change your own chat sharing role")
+
+	acl := mustChatACL(env.ctx, t, env.ownerClient, chat.ID)
+	require.Empty(t, acl.Users, "owner entry must not have been stored under a non-canonical key")
+}
+
+func TestChatACL_PatchConcurrent(t *testing.T) {
+	t.Parallel()
+
+	env := newChatACLTestEnv(t)
+	chat := createSharedChat(env.ctx, t, env.ownerClient, env.orgID, t.Name())
+	viewerA := env.viewerID
+	_, viewerBUser := coderdtest.CreateAnotherUser(t, env.ownerClient.Client, env.orgID)
+	viewerB := viewerBUser.ID
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	results := make(chan error, 2)
+
+	patch := func(userID uuid.UUID) {
+		defer wg.Done()
+		<-start
+		results <- env.ownerClient.UpdateChatACL(env.ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatShareEntry{
+				userID.String(): {Role: codersdk.ChatRoleRead},
+			},
+		})
+	}
+
+	wg.Add(2)
+	go patch(viewerA)
+	go patch(viewerB)
+	close(start)
+	wg.Wait()
+	close(results)
+	for err := range results {
+		require.NoError(t, err)
+	}
+
+	acl := mustChatACL(env.ctx, t, env.ownerClient, chat.ID)
+	userIDs := make(map[uuid.UUID]struct{}, len(acl.Users))
+	for _, u := range acl.Users {
+		userIDs[u.ID] = struct{}{}
+	}
+	require.Contains(t, userIDs, viewerA, "first concurrent update must survive")
+	require.Contains(t, userIDs, viewerB, "second concurrent update must survive")
 }
 
 func TestChatACL_NonOwnerForbidden(t *testing.T) {

@@ -747,7 +747,11 @@ type chatQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]GetChatsRow, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
+	cfg := rbac.ConfigChats()
+	if rbac.ChatACLDisabled() {
+		cfg = rbac.ConfigWithoutACL()
+	}
+	authorizedFilter, err := prepared.CompileToSQL(ctx, cfg)
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
@@ -760,7 +764,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedChats :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
-		arg.OwnerID,
 		arg.OwnedOnly,
 		arg.ViewerID,
 		arg.SharedOnly,

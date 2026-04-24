@@ -35,6 +35,10 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 
 	chatACL, err := api.Database.GetChatACLByID(ctx, chat.ID)
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -143,10 +147,13 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.UserRoles = canonicalChatACLKeys(req.UserRoles)
+	req.GroupRoles = canonicalChatACLKeys(req.GroupRoles)
+
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "You cannot change your own chat sharing role.",
+			Message: "Cannot change your own chat sharing role.",
 		})
 		return
 	}
@@ -160,7 +167,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := api.Database.InTx(func(tx database.Store) error {
-		current, err := tx.GetChatByID(ctx, chat.ID)
+		current, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat by ID: %w", err)
 		}
@@ -194,7 +201,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 			GroupACL: current.GroupACL,
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("update chat ACL: %w", err)
 		}
 
 		updatedChat, err := tx.GetChatByID(ctx, chat.ID)
@@ -274,17 +281,13 @@ func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat 
 	if !chat.IsSubChat() {
 		panic("developer error: writeChatACLSubChatError called on non-sub-chat")
 	}
-	var rootID uuid.UUID
-	switch {
-	case chat.RootChatID.Valid:
-		rootID = chat.RootChatID.UUID
-	case chat.ParentChatID.Valid:
-		rootID = chat.ParentChatID.UUID
-	}
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	resp := codersdk.Response{
 		Message: "Chat ACLs can only be set on root chats.",
-		Detail:  "Target the root chat (id: " + rootID.String() + ") instead.",
-	})
+	}
+	if chat.RootChatID.Valid {
+		resp.Detail = "Target the root chat (id: " + chat.RootChatID.UUID.String() + ") instead."
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 }
 
 type ChatACLUpdateValidator codersdk.UpdateChatACL
@@ -327,4 +330,19 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 		return codersdk.ChatRoleRead
 	}
 	return codersdk.ChatRoleDeleted
+}
+
+func canonicalChatACLKeys(entries map[string]codersdk.ChatShareEntry) map[string]codersdk.ChatShareEntry {
+	if len(entries) == 0 {
+		return entries
+	}
+	out := make(map[string]codersdk.ChatShareEntry, len(entries))
+	for id, entry := range entries {
+		key := id
+		if parsed, err := uuid.Parse(id); err == nil {
+			key = parsed.String()
+		}
+		out[key] = entry
+	}
+	return out
 }
