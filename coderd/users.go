@@ -1239,20 +1239,17 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user preference settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		thinkingMode = string(codersdk.ThinkingDisplayModeAuto)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
-		ThinkingDisplayMode:            codersdk.ThinkingDisplayMode(thinkingMode),
+		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 	})
 }
 
@@ -1336,17 +1333,21 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			})
 			return
 		}
-		if stored != "" {
-			resolvedThinkingMode = codersdk.ThinkingDisplayMode(stored)
-		} else {
-			resolvedThinkingMode = codersdk.ThinkingDisplayModeAuto
-		}
+		resolvedThinkingMode = sanitizeThinkingDisplayMode(stored)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
 		ThinkingDisplayMode:            resolvedThinkingMode,
 	})
+}
+
+func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
+	mode := codersdk.ThinkingDisplayMode(raw)
+	if slices.Contains(codersdk.ValidThinkingDisplayModes, mode) {
+		return mode
+	}
+	return codersdk.ThinkingDisplayModeAuto
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {
