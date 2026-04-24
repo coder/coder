@@ -14,6 +14,24 @@ import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
+// Fake options for the "Cost controls" section. These are not real
+// deployment options; they exist only for the presentation mockup.
+const COST_CONTROLS_OPTIONS: readonly SerpentOption[] = [
+	{
+		name: "Group AI budget options",
+		description:
+			"A user's budget is determined by their group membership. " +
+			"If set to high, the user inherits the highest budget across all " +
+			"group memberships. If set to low, the user inherits the lowest budget.",
+		flag: "aigov-groupbudget-high",
+		env: "CODER_AIGOV_GROUPBUDGET_HIGH",
+		yaml: "groupbudget_high",
+		value: "High",
+		value_source: "default",
+		group: { name: "Cost Controls", parent: { name: "AI Governance" } },
+	},
+];
+
 type AIGovernanceSettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAIBridgeEntitled: boolean;
@@ -25,21 +43,41 @@ export const AIGovernanceSettingsPageView: FC<
 > = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (
 		<Stack direction="column" spacing={6}>
-			<SettingsHeader>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+				}
+			>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Monitor and manage AI requests across your deployment.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
+			{/* Cost controls section (mockup). */}
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
-						AI Bridge
+						Cost controls
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitor and manage AI requests across your deployment.
+						Set budgets and spending limits per group to control AI
+						costs across your organization.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<OptionsTable options={COST_CONTROLS_OPTIONS} />
+			</div>
+
+			{/* AI Gateway section (renamed from AI Bridge). */}
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						AI Gateway
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Configure the AI gateway to route, authenticate, and
+						audit LLM traffic for your deployment.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

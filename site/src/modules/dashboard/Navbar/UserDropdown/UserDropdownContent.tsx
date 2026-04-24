@@ -19,7 +19,13 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
+import { cn } from "#/utils/cn";
 import { SupportIcon } from "../SupportIcon";
+
+// Mock AI spend data for the cost controls presentation.
+// Add ?overspend to the URL to demo the over-90% red bar state.
+const MOCK_AI_SPEND_NORMAL = { spentUSD: 819, limitUSD: 1200 };
+const MOCK_AI_SPEND_OVER = { spentUSD: 1140, limitUSD: 1200 };
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -28,6 +34,36 @@ interface UserDropdownContentProps {
 	onSignOut: () => void;
 }
 
+const AISpendBar: FC<{ spent: number; limit: number }> = ({
+	spent,
+	limit,
+}) => {
+	const pct = Math.min((spent / limit) * 100, 100);
+	const isOver = pct >= 90;
+	return (
+		<div className="flex flex-col gap-1.5 px-3 py-2">
+			<span
+				className={cn(
+					"text-xs",
+					isOver ? "text-content-destructive" : "text-content-secondary",
+				)}
+			>
+				AI spend - ${spent.toLocaleString("en-US")} / $
+				{limit.toLocaleString("en-US")} USD
+			</span>
+			<div className="h-3 w-full rounded bg-surface-secondary overflow-hidden">
+				<div
+					className={cn(
+						"h-full rounded transition-all",
+						isOver ? "bg-highlight-red" : "bg-content-secondary",
+					)}
+					style={{ width: `${pct}%` }}
+				/>
+			</div>
+		</div>
+	);
+};
+
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	user,
 	buildInfo,
@@ -35,6 +71,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	onSignOut,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const isOverSpendDemo = window.location.search.includes("overspend");
+	const mockSpend = isOverSpendDemo ? MOCK_AI_SPEND_OVER : MOCK_AI_SPEND_NORMAL;
 
 	return (
 		<>
@@ -49,6 +87,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					</div>
 				</Link>
 			</DropdownMenuItem>
+
+			<DropdownMenuSeparator />
+
+			<AISpendBar
+				spent={mockSpend.spentUSD}
+				limit={mockSpend.limitUSD}
+			/>
+
 			<DropdownMenuSeparator />
 			<DropdownMenuItem asChild>
 				<Link to="/install">

@@ -1,13 +1,16 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { isEveryoneGroup } from "#/modules/groups";
+import { cn } from "#/utils/cn";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -41,6 +44,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	onCancel,
 	isLoading,
 }) => {
+	const [aiAccessEnabled, setAiAccessEnabled] = useState(true);
+	const [aiBudgetValue, setAiBudgetValue] = useState("1000");
 	const form = useFormik<FormData>({
 		initialValues: {
 			name: group.name,
@@ -60,6 +65,9 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 		helperText: `This group gives ${form.values.quota_allowance} quota credits to each
             of its members.`,
 	});
+
+	// Mock member count for the AI budget helper text.
+	const memberCount = group.total_member_count || 7;
 
 	return (
 		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
@@ -98,7 +106,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 					{!isEveryoneGroup(group) && (
 						<>
 							<div className="flex flex-col items-start gap-2">
-								<Label htmlFor={displayNameField.id}>Display name</Label>
+								<Label htmlFor={displayNameField.id}>Display Name</Label>
 								<Input
 									id={displayNameField.id}
 									name={displayNameField.name}
@@ -132,6 +140,78 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 					)}
 				</div>
 			</section>
+
+			{/* AI governance add-on section (mockup). */}
+			<section className="flex flex-col gap-4 max-w-md">
+				<div className="flex items-center gap-2">
+					<h2 className="text-xl font-semibold text-content-primary m-0">
+						AI governance add-on
+					</h2>
+					<Badge size="sm" variant="purple">
+						AI add-on
+					</Badge>
+				</div>
+				<div className="flex items-start gap-3">
+					<Checkbox
+							id="ai-access"
+						checked={aiAccessEnabled}
+							onCheckedChange={(v) => setAiAccessEnabled(v === true)}
+						/>
+						<div className="flex flex-col gap-0.5">
+							<Label
+								htmlFor="ai-access"
+								className="text-sm font-medium text-content-primary cursor-pointer"
+							>
+								All users in this group can access AI resources
+							</Label>
+							<span className="text-xs text-content-secondary">
+								(AI bridge, AI boundaries, Agent workspaces, etc.)
+							</span>
+						</div>
+					</div>
+				</section>
+
+				{/* AI budget section (mockup). Disabled when AI access is off. */}
+				<section
+					className={cn(
+						"flex flex-col gap-4 max-w-md transition-opacity",
+					!aiAccessEnabled && "opacity-50 pointer-events-none",
+				)}
+				>
+						<div className="flex items-center gap-2">
+							<h2 className="text-xl font-semibold text-content-primary m-0">
+								AI budget
+							</h2>
+						</div>
+						<div className="flex flex-col items-start gap-2">
+						<Input
+							id="ai-budget"
+							value={aiAccessEnabled ? aiBudgetValue : ""}
+							onChange={(e) => setAiBudgetValue(e.target.value)}
+							placeholder="unlimited"
+							type="number"
+							className="w-40 placeholder:text-content-disabled"
+							disabled={!aiAccessEnabled}
+						/>
+					{aiAccessEnabled && (
+						<span className="text-xs text-content-secondary">
+							{aiBudgetValue && Number(aiBudgetValue) > 0 ? (
+								<>
+										<span className="font-semibold text-content-primary">
+											${(Number(aiBudgetValue) * memberCount).toLocaleString("en-US")}
+									</span>
+									/month maximum, based on {memberCount} members.
+								</>
+							) : aiBudgetValue === "0" ? (
+								"No budget allocated for this group."
+							) : (
+								"Unlimited budget for this group."
+							)}
+						</span>
+					)}
+				</div>
+			</section>
+
 			<section className="flex flex-col gap-8">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
@@ -143,7 +223,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</div>
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-col items-start gap-2">
-						<Label htmlFor={quotaField.id}>Quota Allowance</Label>
+						<Label htmlFor={quotaField.id}>Terraform Resources</Label>
 						<Input
 							id={quotaField.id}
 							name={quotaField.name}
