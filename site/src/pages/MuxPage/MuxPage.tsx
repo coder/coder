@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useMemo } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { workspaces } from "#/api/queries/workspaces";
@@ -18,7 +18,10 @@ const WORKSPACES_REQUEST = { q: "owner:me", limit: 0 } as const;
 const MuxPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const searchParamsKey = searchParams.toString();
-	const selectedWorkspaceId = searchParams.get("workspace");
+	const launchedWorkspaceId = searchParams.get("workspace");
+	const [launcherWorkspaceId, setLauncherWorkspaceId] = useState<
+		string | undefined
+	>();
 	const workspacesQueryOptions = workspaces(WORKSPACES_REQUEST);
 	const workspacesQuery = useQuery({
 		...workspacesQueryOptions,
@@ -42,15 +45,15 @@ const MuxPage: FC = () => {
 			}
 
 			const muxWorkspaces = filterMuxWorkspaces(state.data.workspaces);
-			const selectedWorkspace = getSelectedWorkspace(
+			const launchedWorkspace = getSelectedWorkspace(
 				muxWorkspaces,
-				selectedWorkspaceId,
+				launchedWorkspaceId,
 			);
-			const selectedMuxCandidate = selectedWorkspace
-				? pickPreferredMuxApp(getMuxCandidatesFromWorkspace(selectedWorkspace))
+			const launchedMuxCandidate = launchedWorkspace
+				? pickPreferredMuxApp(getMuxCandidatesFromWorkspace(launchedWorkspace))
 				: undefined;
 
-			return selectedMuxCandidate?.app.health === "initializing"
+			return launchedMuxCandidate?.app.health === "initializing"
 				? ACTIVE_MUX_REFRESH_INTERVAL
 				: IDLE_MUX_REFRESH_INTERVAL;
 		},
@@ -67,20 +70,11 @@ const MuxPage: FC = () => {
 			return;
 		}
 
-		const selectedParamIsValid =
-			selectedWorkspaceId !== null &&
-			muxWorkspaces.some((workspace) => workspace.id === selectedWorkspaceId);
-		const onlyMuxWorkspace =
-			muxWorkspaces.length === 1 ? muxWorkspaces[0] : undefined;
+		const launchedParamIsValid =
+			launchedWorkspaceId !== null &&
+			muxWorkspaces.some((workspace) => workspace.id === launchedWorkspaceId);
 
-		if (onlyMuxWorkspace && selectedWorkspaceId !== onlyMuxWorkspace.id) {
-			const nextParams = new URLSearchParams(searchParamsKey);
-			nextParams.set("workspace", onlyMuxWorkspace.id);
-			setSearchParams(nextParams, { replace: true });
-			return;
-		}
-
-		if (selectedWorkspaceId !== null && !selectedParamIsValid) {
+		if (launchedWorkspaceId !== null && !launchedParamIsValid) {
 			const nextParams = new URLSearchParams(searchParamsKey);
 			nextParams.delete("workspace");
 			setSearchParams(nextParams, { replace: true });
@@ -88,38 +82,92 @@ const MuxPage: FC = () => {
 	}, [
 		muxWorkspaces,
 		searchParamsKey,
-		selectedWorkspaceId,
+		launchedWorkspaceId,
 		setSearchParams,
 		workspacesQuery.data,
 	]);
 
-	const selectedWorkspace = useMemo(
-		() => getSelectedWorkspace(muxWorkspaces, selectedWorkspaceId),
-		[muxWorkspaces, selectedWorkspaceId],
+	useEffect(() => {
+		if (!workspacesQuery.data || !launcherWorkspaceId) {
+			return;
+		}
+
+		const launcherSelectionIsValid = muxWorkspaces.some(
+			(workspace) => workspace.id === launcherWorkspaceId,
+		);
+		if (!launcherSelectionIsValid) {
+			setLauncherWorkspaceId(undefined);
+		}
+	}, [launcherWorkspaceId, muxWorkspaces, workspacesQuery.data]);
+
+	const launchedWorkspace = useMemo(
+		() => getSelectedWorkspace(muxWorkspaces, launchedWorkspaceId),
+		[muxWorkspaces, launchedWorkspaceId],
 	);
-	const selectedMuxCandidate = useMemo(() => {
-		if (!selectedWorkspace) {
+	const launchedMuxCandidate = useMemo(() => {
+		if (!launchedWorkspace) {
 			return undefined;
 		}
 
 		return pickPreferredMuxApp(
-			getMuxCandidatesFromWorkspace(selectedWorkspace),
+			getMuxCandidatesFromWorkspace(launchedWorkspace),
 		);
-	}, [selectedWorkspace]);
+	}, [launchedWorkspace]);
+	const isLaunched =
+		launchedWorkspaceId !== null &&
+		launchedWorkspace !== undefined &&
+		launchedWorkspace.latest_build.status !== "stopped" &&
+		launchedMuxCandidate !== undefined;
+
+	const launcherSelectedWorkspaceId =
+		launcherWorkspaceId ??
+		(isLaunched ? undefined : (launchedWorkspaceId ?? undefined));
+	const launcherWorkspace = useMemo(
+		() => getSelectedWorkspace(muxWorkspaces, launcherSelectedWorkspaceId),
+		[muxWorkspaces, launcherSelectedWorkspaceId],
+	);
+	const launcherMuxCandidate = useMemo(() => {
+		if (!launcherWorkspace) {
+			return undefined;
+		}
+
+		return pickPreferredMuxApp(
+			getMuxCandidatesFromWorkspace(launcherWorkspace),
+		);
+	}, [launcherWorkspace]);
 
 	const handleSelectWorkspace = useCallback(
 		(workspaceId: string | undefined) => {
-			const nextParams = new URLSearchParams(searchParamsKey);
-			if (workspaceId) {
-				nextParams.set("workspace", workspaceId);
-			} else {
-				nextParams.delete("workspace");
+			setLauncherWorkspaceId(workspaceId);
+
+			if (launchedWorkspaceId === null) {
+				return;
 			}
 
+			const nextParams = new URLSearchParams(searchParamsKey);
+			nextParams.delete("workspace");
 			setSearchParams(nextParams);
 		},
-		[searchParamsKey, setSearchParams],
+		[launchedWorkspaceId, searchParamsKey, setSearchParams],
 	);
+
+	const handleLaunchWorkspace = useCallback(() => {
+		if (!launcherSelectedWorkspaceId) {
+			return;
+		}
+
+		const nextParams = new URLSearchParams(searchParamsKey);
+		nextParams.set("workspace", launcherSelectedWorkspaceId);
+		setSearchParams(nextParams);
+	}, [launcherSelectedWorkspaceId, searchParamsKey, setSearchParams]);
+
+	const handleChangeWorkspace = useCallback(() => {
+		setLauncherWorkspaceId(undefined);
+
+		const nextParams = new URLSearchParams(searchParamsKey);
+		nextParams.delete("workspace");
+		setSearchParams(nextParams);
+	}, [searchParamsKey, setSearchParams]);
 
 	return (
 		<MuxPageView
@@ -127,16 +175,21 @@ const MuxPage: FC = () => {
 			error={workspacesQuery.error}
 			ownedWorkspaceCount={workspacesQuery.data?.count}
 			muxWorkspaces={muxWorkspaces}
-			selectedWorkspace={selectedWorkspace}
-			selectedMuxCandidate={selectedMuxCandidate}
+			selectedWorkspace={isLaunched ? launchedWorkspace : launcherWorkspace}
+			selectedMuxCandidate={
+				isLaunched ? launchedMuxCandidate : launcherMuxCandidate
+			}
+			isLaunched={isLaunched}
 			onSelectWorkspace={handleSelectWorkspace}
+			onLaunchWorkspace={handleLaunchWorkspace}
+			onChangeWorkspace={handleChangeWorkspace}
 		/>
 	);
 };
 
 const getSelectedWorkspace = (
 	muxWorkspaces: readonly Workspace[],
-	selectedWorkspaceId: string | null,
+	selectedWorkspaceId: string | null | undefined,
 ): Workspace | undefined => {
 	if (!selectedWorkspaceId) {
 		return undefined;

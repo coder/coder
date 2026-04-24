@@ -24,6 +24,15 @@ import {
 import MuxPage from "./MuxPage";
 import { getMuxCandidatesFromWorkspace, pickPreferredMuxApp } from "./muxApps";
 
+const muxRouteParameters = (searchParams?: Record<string, string>) =>
+	reactRouterParameters({
+		location: { path: "/mux", searchParams },
+		routing: { path: "/mux" },
+	});
+
+const routeWithWorkspace = (workspace: Workspace) =>
+	muxRouteParameters({ workspace: workspace.id });
+
 const meta = {
 	title: "pages/MuxPage/MuxPage",
 	component: MuxPage,
@@ -34,10 +43,7 @@ const meta = {
 		permissions: {
 			viewDeploymentConfig: false,
 		},
-		reactRouter: reactRouterParameters({
-			location: { path: "/mux" },
-			routing: { path: "/mux" },
-		}),
+		reactRouter: muxRouteParameters(),
 	},
 } satisfies Meta<typeof MuxPage>;
 
@@ -136,6 +142,13 @@ const secondHealthyWorkspace = workspaceWithApps({
 	apps: [muxApp({ id: "mux-beta", display_name: "Mux Beta" })],
 });
 
+const stoppedWorkspace = workspaceWithApps({
+	id: "workspace-stopped",
+	name: "stopped",
+	status: "stopped",
+	apps: [muxApp({ id: "mux-stopped" })],
+});
+
 export const LoadingWorkspaces: Story = {
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockImplementation(() => new Promise(() => {}));
@@ -188,25 +201,59 @@ export const MultipleMuxCandidates: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const user = userEvent.setup();
 
-		await step("Select the first workspace", async () => {
+		await step("Show launcher until a workspace is selected", async () => {
+			const launchButton = await canvas.findByRole("button", {
+				name: /^launch$/i,
+			});
+			expect(launchButton).toBeDisabled();
+			expect(await canvas.findByText("Select a workspace")).toBeVisible();
+		});
+
+		await step("Select the first workspace and launch", async () => {
 			await user.click(
 				await canvas.findByRole("button", { name: /select workspace/i }),
 			);
 			await user.click(await body.findByText(healthyWorkspace.name));
 
+			const launchButton = await canvas.findByRole("button", {
+				name: /^launch$/i,
+			});
+			expect(launchButton).toBeEnabled();
+			expect(
+				await canvas.findByRole("button", { name: /select workspace/i }),
+			).toHaveTextContent(`${MockUserOwner.username}/${healthyWorkspace.name}`);
+
+			await user.click(launchButton);
+
 			const frame = await canvas.findByTestId("mux-iframe");
 			expect(frame).toHaveAttribute("title", "Mux Alpha");
 			expect(frame).toHaveAttribute("src", expectedMuxHref(healthyWorkspace));
 			expect(
-				await canvas.findByRole("button", { name: /select workspace/i }),
-			).toHaveTextContent(`${MockUserOwner.username}/${healthyWorkspace.name}`);
+				await canvas.findByRole("button", { name: /change workspace/i }),
+			).toBeVisible();
+			expect(
+				await canvas.findByRole("link", { name: /open in new tab/i }),
+			).toHaveAttribute("href", expectedMuxHref(healthyWorkspace));
+			expect(
+				canvas.queryByRole("button", { name: /select workspace/i }),
+			).not.toBeInTheDocument();
 		});
 
-		await step("Select the second workspace", async () => {
+		await step("Change workspace and launch the second workspace", async () => {
+			await user.click(
+				await canvas.findByRole("button", { name: /change workspace/i }),
+			);
+			expect(
+				await canvas.findByRole("button", { name: /^launch$/i }),
+			).toBeDisabled();
+
 			await user.click(
 				await canvas.findByRole("button", { name: /select workspace/i }),
 			);
 			await user.click(await body.findByText(secondHealthyWorkspace.name));
+			await user.click(
+				await canvas.findByRole("button", { name: /^launch$/i }),
+			);
 
 			await waitFor(() => {
 				const frame = canvas.getByTestId("mux-iframe");
@@ -215,17 +262,21 @@ export const MultipleMuxCandidates: Story = {
 					"src",
 					expectedMuxHref(secondHealthyWorkspace),
 				);
-				expect(
-					canvas.getByRole("button", { name: /select workspace/i }),
-				).toHaveTextContent(
-					`${MockUserOwner.username}/${secondHealthyWorkspace.name}`,
-				);
 			});
 		});
 	},
 };
 
 export const MultipleMuxAppsPreferDefaultSlug: Story = {
+	parameters: {
+		reactRouter: routeWithWorkspace(
+			workspaceWithApps({
+				id: "workspace-multiple-apps",
+				name: "multiple-apps",
+				apps: [muxApp()],
+			}),
+		),
+	},
 	beforeEach: () => {
 		mockWorkspaces([
 			workspaceWithApps({
@@ -257,7 +308,10 @@ export const MultipleMuxAppsPreferDefaultSlug: Story = {
 	},
 };
 
-export const SelectedRunningHealthyMuxApp: Story = {
+export const Launched: Story = {
+	parameters: {
+		reactRouter: routeWithWorkspace(healthyWorkspace),
+	},
 	beforeEach: () => {
 		mockWorkspaces([healthyWorkspace]);
 	},
@@ -271,35 +325,50 @@ export const SelectedRunningHealthyMuxApp: Story = {
 		expect(frame).toHaveAttribute("title", "Mux Alpha");
 		expect(frame).toHaveAttribute("src", expectedMuxHref(healthyWorkspace));
 		expect(openLink).toHaveAttribute("href", expectedMuxHref(healthyWorkspace));
+		expect(
+			await canvas.findByRole("button", { name: /change workspace/i }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: /select workspace/i }),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/open the mux app/i)).not.toBeInTheDocument();
 	},
 };
 
 export const SelectedStoppedWorkspace: Story = {
 	beforeEach: () => {
-		mockWorkspaces([
-			workspaceWithApps({
-				id: "workspace-stopped",
-				name: "stopped",
-				status: "stopped",
-				apps: [muxApp({ id: "mux-stopped" })],
-			}),
-		]);
+		mockWorkspaces([stoppedWorkspace]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const startLink = await canvas.findByRole("link", {
-			name: /start workspace/i,
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: /select workspace/i }),
+		);
+		await user.click(await body.findByText(stoppedWorkspace.name));
+
+		const workspaceLink = await canvas.findByRole("link", {
+			name: /open workspace/i,
 		});
 
-		expect(startLink).toHaveAttribute(
+		expect(workspaceLink).toHaveAttribute(
 			"href",
 			`/@${MockUserOwner.username}/stopped`,
 		);
 		expect(canvas.queryByTestId("mux-iframe")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /^launch$/i }),
+		).not.toBeInTheDocument();
+		expect(await canvas.findByText("Start workspace to launch")).toBeVisible();
 	},
 };
 
 export const MuxAppInitializing: Story = {
+	parameters: {
+		reactRouter: muxRouteParameters({ workspace: "workspace-initializing" }),
+	},
 	beforeEach: () => {
 		mockWorkspaces([
 			workspaceWithApps({
@@ -319,6 +388,9 @@ export const MuxAppInitializing: Story = {
 };
 
 export const MuxAppUnhealthy: Story = {
+	parameters: {
+		reactRouter: muxRouteParameters({ workspace: "workspace-unhealthy" }),
+	},
 	beforeEach: () => {
 		mockWorkspaces([
 			workspaceWithApps({
@@ -350,6 +422,9 @@ export const MuxAppUnhealthy: Story = {
 };
 
 export const SubdomainMissingWildcardHostname: Story = {
+	parameters: {
+		reactRouter: muxRouteParameters({ workspace: "workspace-subdomain" }),
+	},
 	beforeEach: () => {
 		mockWorkspaces([
 			workspaceWithApps({
