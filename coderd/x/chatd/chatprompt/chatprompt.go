@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -33,6 +34,71 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
+
+// AnthropicWebSearchSanitizationStats describes prompt changes made
+// while removing unpaired Anthropic web_search server-tool calls.
+type AnthropicWebSearchSanitizationStats struct {
+	RemovedToolCalls int
+	DroppedMessages  int
+}
+
+// SanitizeAnthropicWebSearchToolCalls removes Anthropic web_search
+// server-tool calls that do not have a same-message provider result.
+func SanitizeAnthropicWebSearchToolCalls(
+	provider string,
+	messages []fantasy.Message,
+) ([]fantasy.Message, AnthropicWebSearchSanitizationStats) {
+	var stats AnthropicWebSearchSanitizationStats
+	if provider != fantasyanthropic.Name || len(messages) == 0 {
+		return messages, stats
+	}
+
+	out := make([]fantasy.Message, 0, len(messages))
+	changed := false
+	for _, msg := range messages {
+		if msg.Role != fantasy.MessageRoleAssistant {
+			out = append(out, msg)
+			continue
+		}
+
+		providerResults := make(map[string]struct{})
+		for _, part := range msg.Content {
+			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
+				continue
+			}
+			providerResults[result.ToolCallID] = struct{}{}
+		}
+
+		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		removedFromMessage := 0
+		for _, part := range msg.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
+				if _, hasResult := providerResults[toolCall.ToolCallID]; !hasResult {
+					stats.RemovedToolCalls++
+					removedFromMessage++
+					changed = true
+					continue
+				}
+			}
+			parts = append(parts, part)
+		}
+
+		if removedFromMessage > 0 {
+			if len(parts) == 0 {
+				stats.DroppedMessages++
+				continue
+			}
+			msg.Content = parts
+		}
+		out = append(out, msg)
+	}
+	if !changed {
+		return messages, stats
+	}
+	return out, stats
+}
 
 // FileData holds resolved file content for LLM prompt building.
 type FileData struct {

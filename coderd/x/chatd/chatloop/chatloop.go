@@ -391,6 +391,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
+			prepared, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(provider, prepared)
+			logAnthropicWebSearchSanitization(
+				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+				slog.F("step_index", step),
+				slog.F("total_step", totalSteps),
+			)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
@@ -526,6 +532,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 						}
 					}
 
+					result.content = sanitizeAnthropicWebSearchStepContent(
+						ctx, opts.Logger, provider, modelName,
+						"dynamic_tool_persist", step, result.finishReason, result.content,
+					)
+
 					if err := opts.PersistStep(ctx, PersistedStep{
 						Content:                 result.content,
 						Usage:                   result.usage,
@@ -567,6 +578,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
+			result.content = sanitizeAnthropicWebSearchStepContent(
+				ctx, opts.Logger, provider, modelName,
+				"normal_persist", step, result.finishReason, result.content,
+			)
+
 			// Persist the step. If persistence fails because
 			// the chat was interrupted between the previous
 			// check and here, fall back to the interrupt-safe
@@ -712,6 +728,93 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+func sanitizeAnthropicWebSearchStepContent(
+	ctx context.Context,
+	logger slog.Logger,
+	provider string,
+	modelName string,
+	phase string,
+	step int,
+	finishReason fantasy.FinishReason,
+	content []fantasy.Content,
+) []fantasy.Content {
+	sanitized, stats := sanitizeAnthropicWebSearchContent(provider, content)
+	logAnthropicWebSearchSanitization(
+		ctx, logger, phase, provider, modelName, stats,
+		slog.F("step_index", step),
+		slog.F("finish_reason", finishReason),
+	)
+	return sanitized
+}
+
+func sanitizeAnthropicWebSearchContent(
+	provider string,
+	content []fantasy.Content,
+) ([]fantasy.Content, chatprompt.AnthropicWebSearchSanitizationStats) {
+	var stats chatprompt.AnthropicWebSearchSanitizationStats
+	if provider != fantasyanthropic.Name || len(content) == 0 {
+		return content, stats
+	}
+
+	providerResults := make(map[string]struct{})
+	for _, block := range content {
+		result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
+			continue
+		}
+		providerResults[result.ToolCallID] = struct{}{}
+	}
+
+	out := make([]fantasy.Content, 0, len(content))
+	for _, block := range content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && isAnthropicProviderExecutedWebSearch(provider, toolCall) {
+			if _, hasResult := providerResults[toolCall.ToolCallID]; !hasResult {
+				stats.RemovedToolCalls++
+				continue
+			}
+		}
+		out = append(out, block)
+	}
+	if stats.RemovedToolCalls == 0 {
+		return content, stats
+	}
+	return out, stats
+}
+
+func isAnthropicProviderExecutedWebSearch(
+	provider string,
+	toolCall fantasy.ToolCallContent,
+) bool {
+	return provider == fantasyanthropic.Name &&
+		toolCall.ProviderExecuted &&
+		toolCall.ToolName == "web_search"
+}
+
+func logAnthropicWebSearchSanitization(
+	ctx context.Context,
+	logger slog.Logger,
+	phase string,
+	provider string,
+	modelName string,
+	stats chatprompt.AnthropicWebSearchSanitizationStats,
+	extra ...slog.Field,
+) {
+	if stats.RemovedToolCalls == 0 {
+		return
+	}
+	fields := []slog.Field{
+		slog.F("phase", phase),
+		slog.F("tool_name", "web_search"),
+		slog.F("provider", provider),
+		slog.F("model", modelName),
+		slog.F("removed_tool_calls", stats.RemovedToolCalls),
+		slog.F("dropped_messages", stats.DroppedMessages),
+	}
+	fields = append(fields, extra...)
+	logger.Warn(ctx, "removed unpaired provider-executed web_search tool calls", fields...)
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
@@ -1293,6 +1396,18 @@ func persistInterruptedStep(
 		return
 	}
 
+	provider := ""
+	modelName := ""
+	if opts.Model != nil {
+		provider = opts.Model.Provider()
+		modelName = opts.Model.Model()
+	}
+	var sanitizeStats chatprompt.AnthropicWebSearchSanitizationStats
+	result.content, sanitizeStats = sanitizeAnthropicWebSearchContent(provider, result.content)
+	logAnthropicWebSearchSanitization(
+		ctx, opts.Logger, "interrupted_persist", provider, modelName, sanitizeStats,
+	)
+
 	// Track which tool calls already have results in the content.
 	answeredToolCalls := make(map[string]struct{})
 	for _, c := range result.content {
@@ -1327,6 +1442,9 @@ func persistInterruptedStep(
 		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
 			continue
 		}
+		if isAnthropicProviderExecutedWebSearch(provider, tc) {
+			continue
+		}
 		content = append(content, fantasy.ToolResultContent{
 			ToolCallID:       tc.ToolCallID,
 			ToolName:         tc.ToolName,
@@ -1342,6 +1460,10 @@ func persistInterruptedStep(
 			toolResultCreatedAt[tc.ToolCallID] = interruptedAt
 		}
 		answeredToolCalls[tc.ToolCallID] = struct{}{}
+	}
+
+	if len(content) == 0 {
+		return
 	}
 
 	persistCtx := context.WithoutCancel(ctx)

@@ -1019,6 +1019,41 @@ func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
 	}
 }
 
+func requireNoProviderExecutedWebSearchContent(t *testing.T, content []fantasy.Content) {
+	t.Helper()
+
+	for i, block := range content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
+			t.Fatalf("content[%d]: unexpected provider-executed web_search call", i)
+		}
+	}
+}
+
+func requireNoProviderExecutedWebSearchResult(t *testing.T, content []fantasy.Content) {
+	t.Helper()
+
+	for i, block := range content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if ok && toolResult.ProviderExecuted && toolResult.ToolName == "web_search" {
+			t.Fatalf("content[%d]: unexpected provider-executed web_search result", i)
+		}
+	}
+}
+
+func requireNoProviderExecutedWebSearchPrompt(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+
+	for i, message := range prompt {
+		for j, part := range message.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ProviderExecuted && toolCall.ToolName == "web_search" {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed web_search call", i, j)
+			}
+		}
+	}
+}
+
 func containsPromptSentinel(prompt []fantasy.Message) bool {
 	for _, message := range prompt {
 		if message.Role != fantasy.MessageRoleUser || len(message.Content) != 1 {
@@ -1853,6 +1888,245 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 	require.False(t,
 		step.ToolResultCreatedAt["ws-1"].Before(step.ToolCallCreatedAt["ws-1"]),
 		"tool-result timestamp must be >= tool-call timestamp")
+}
+
+func TestRun_AnthropicDropsUnpairedWebSearchBeforePersist(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+				{
+					Type:             fantasy.StreamPartTypeToolCall,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ToolCallInput:    `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+	require.Empty(t, persistedSteps[0].Content)
+	requireNoProviderExecutedWebSearchContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedWebSearchResult(t, persistedSteps[0].Content)
+}
+
+func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+				{
+					Type:             fantasy.StreamPartTypeToolCall,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ToolCallInput:    `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				{
+					Type:             fantasy.StreamPartTypeToolResult,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				},
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+
+	var foundToolCall, foundToolResult, foundText bool
+	for _, block := range persistedSteps[0].Content {
+		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
+			foundToolCall = toolCall.ToolCallID == "ws-1" &&
+				toolCall.ToolName == "web_search" &&
+				toolCall.ProviderExecuted
+		}
+		if toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+			foundToolResult = toolResult.ToolCallID == "ws-1" &&
+				toolResult.ToolName == "web_search" &&
+				toolResult.ProviderExecuted
+		}
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			foundText = text.Text == "search done"
+		}
+	}
+	require.True(t, foundToolCall)
+	require.True(t, foundToolResult)
+	require.True(t, foundText)
+}
+
+func TestRun_AnthropicInterruptedWebSearchDoesNotPersistSyntheticResult(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputStart,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputDelta,
+					ID:               "ws-1",
+					Delta:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				close(started)
+				<-ctx.Done()
+				_ = yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: ctx.Err(),
+				})
+			}), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		<-started
+		cancel(ErrInterrupted)
+	}()
+
+	persistCalls := 0
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			persistCalls++
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+	require.Equal(t, 0, persistCalls)
+}
+
+func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+					{
+						Type:             fantasy.StreamPartTypeToolCall,
+						ID:               "ws-1",
+						ToolCallName:     "web_search",
+						ToolCallInput:    `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"main.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"main.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search and read"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+		},
+		MaxSteps: 2,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+	requireNoProviderExecutedWebSearchContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedWebSearchPrompt(t, secondCallPrompt)
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal

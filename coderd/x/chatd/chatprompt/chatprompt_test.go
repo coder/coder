@@ -59,6 +59,95 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	return prompt
 }
 
+func TestSanitizeAnthropicWebSearchToolCalls(t *testing.T) {
+	t.Parallel()
+
+	textPart := fantasy.TextPart{Text: "Here is a summary."}
+	webSearchCall := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_search",
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+	matchedResult := fantasy.ToolResultPart{
+		ToolCallID:       "srvtoolu_search",
+		Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+		ProviderExecuted: true,
+	}
+
+	t.Run("removes unpaired call and keeps text", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []fantasy.Message{{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				textPart,
+				webSearchCall,
+			},
+		}}
+		sanitized, stats := chatprompt.SanitizeAnthropicWebSearchToolCalls(
+			fantasyanthropic.Name,
+			messages,
+		)
+		require.Equal(t, 1, stats.RemovedToolCalls)
+		require.Equal(t, 0, stats.DroppedMessages)
+		require.Len(t, sanitized, 1)
+		require.Equal(t, []fantasy.MessagePart{textPart}, sanitized[0].Content)
+	})
+
+	t.Run("drops assistant message when only part is removed", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []fantasy.Message{{
+			Role:    fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{webSearchCall},
+		}}
+		sanitized, stats := chatprompt.SanitizeAnthropicWebSearchToolCalls(
+			fantasyanthropic.Name,
+			messages,
+		)
+		require.Equal(t, 1, stats.RemovedToolCalls)
+		require.Equal(t, 1, stats.DroppedMessages)
+		require.Empty(t, sanitized)
+	})
+
+	t.Run("keeps matched call and result", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []fantasy.Message{{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				webSearchCall,
+				matchedResult,
+			},
+		}}
+		sanitized, stats := chatprompt.SanitizeAnthropicWebSearchToolCalls(
+			fantasyanthropic.Name,
+			messages,
+		)
+		require.Zero(t, stats.RemovedToolCalls)
+		require.Equal(t, messages, sanitized)
+		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](sanitized[0].Content[0])
+		require.True(t, ok)
+		require.True(t, toolCall.ProviderExecuted)
+		toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](sanitized[0].Content[1])
+		require.True(t, ok)
+		require.True(t, toolResult.ProviderExecuted)
+	})
+
+	t.Run("leaves other providers unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []fantasy.Message{{
+			Role:    fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{webSearchCall},
+		}}
+		sanitized, stats := chatprompt.SanitizeAnthropicWebSearchToolCalls("fake", messages)
+		require.Zero(t, stats.RemovedToolCalls)
+		require.Equal(t, messages, sanitized)
+	})
+}
+
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
@@ -509,6 +598,15 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"toolu_local"}, resultIDs)
+	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(
+		fantasyanthropic.Name,
+		prompt,
+	)
+	require.Equal(t, 1, sanitizeStats.RemovedToolCalls)
+	require.Len(t, sanitized, 2)
+	remainingToolCalls := chatprompt.ExtractToolCalls(sanitized[0].Content)
+	require.Len(t, remainingToolCalls, 1)
+	require.Equal(t, "toolu_local", remainingToolCalls[0].ToolCallID)
 }
 
 // TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
@@ -682,6 +780,14 @@ func TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage(t *testing.T) {
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	for i, msg := range prompt {
+		for _, part := range msg.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ToolCallID == "srvtoolu_orphan" {
+				t.Fatalf("message[%d]: unexpected synthetic tool call for srvtoolu_orphan", i)
+			}
+		}
+	}
 }
 
 // TestProviderExecutedResultInAssistantContent verifies the

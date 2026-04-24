@@ -6162,6 +6162,17 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
+	prompt, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(model.Provider(), prompt)
+	if sanitizeStats.RemovedToolCalls > 0 {
+		logger.Warn(ctx, "removed unpaired provider-executed web_search tool calls",
+			slog.F("phase", "persisted_history_replay"),
+			slog.F("tool_name", "web_search"),
+			slog.F("provider", model.Provider()),
+			slog.F("model", model.Model()),
+			slog.F("removed_tool_calls", sanitizeStats.RemovedToolCalls),
+			slog.F("dropped_messages", sanitizeStats.DroppedMessages),
+		)
+	}
 	subagentInstruction := ""
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
@@ -6784,6 +6795,17 @@ func (p *Server) runChat(
 			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(), logger)
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
+			}
+			reloadedPrompt, sanitizeStats := chatprompt.SanitizeAnthropicWebSearchToolCalls(model.Provider(), reloadedPrompt)
+			if sanitizeStats.RemovedToolCalls > 0 {
+				logger.Warn(reloadCtx, "removed unpaired provider-executed web_search tool calls",
+					slog.F("phase", "reload_messages"),
+					slog.F("tool_name", "web_search"),
+					slog.F("provider", model.Provider()),
+					slog.F("model", model.Model()),
+					slog.F("removed_tool_calls", sanitizeStats.RemovedToolCalls),
+					slog.F("dropped_messages", sanitizeStats.DroppedMessages),
+				)
 			}
 			// Re-derive instruction and skills from the reloaded
 			// messages so that any context added during the
