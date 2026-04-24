@@ -548,6 +548,50 @@ export const DisableAdvisorWithDeletedModel: Story = {
 	},
 };
 
+export const DisableAdvisorWithDeletedModelWhileModelConfigsLoading: Story = {
+	args: {
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: "22222222-2222-2222-2222-222222222222",
+		},
+		modelConfigs: [],
+		isLoadingModelConfigs: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const enableAdvisorSwitch = await canvas.findByRole("switch", {
+			name: /Enable advisor/i,
+		});
+
+		await userEvent.click(enableAdvisorSwitch);
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+
+		// Racing a disable against the in-flight model-configs fetch must
+		// still scrub the stale override. Otherwise the backend rejects
+		// the unknown ID with a 400 and blocks a simple disable.
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request).toEqual({
+			enabled: false,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: nilUUID,
+		});
+	},
+};
+
 export const DisableAdvisorWithDeletedModelAndModelConfigsError: Story = {
 	args: {
 		advisorConfigData: {
