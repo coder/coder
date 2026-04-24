@@ -12,6 +12,7 @@ import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
+	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
@@ -306,9 +307,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setAttachments: setEditAttachments,
 		setPreviewUrls: setEditPreviewUrls,
 		setUploadStates: setEditUploadStates,
+		resetAttachments: resetEditAttachments,
 	} = editAttachments;
 	const wasEditingRef = useRef(isEditing);
-	const activeAttachments = isEditing ? editAttachments : composeAttachments;
+	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
 		textContents,
@@ -316,7 +318,19 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
-	} = activeAttachments;
+	} = modeAttachments;
+
+	const editScopeRef = useRef({ organizationId, chatId });
+
+	useEffect(() => {
+		const previous = editScopeRef.current;
+		const scopeChanged =
+			previous.organizationId !== organizationId || previous.chatId !== chatId;
+		editScopeRef.current = { organizationId, chatId };
+		if (scopeChanged) {
+			resetEditAttachments();
+		}
+	}, [organizationId, chatId, resetEditAttachments]);
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
@@ -367,10 +381,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	useEffect(() => {
 		if (wasEditingRef.current && !isEditing) {
-			editAttachments.resetAttachments();
+			resetEditAttachments();
 		}
 		wasEditingRef.current = isEditing;
-	}, [isEditing, editAttachments]);
+	}, [isEditing, resetEditAttachments]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
@@ -379,10 +393,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
-					const hasActiveUploads = attachments.some((file) => {
-						const status = uploadStates.get(file)?.status;
-						return status === "pending" || status === "uploading";
-					});
+					const hasActiveUploads = attachments.some((file) =>
+						isUploadInProgress(uploadStates.get(file)),
+					);
 					if (hasActiveUploads) {
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;

@@ -65,13 +65,27 @@ type UploadRegistryEntry = {
 	subscribers: Set<UploadRegistrySubscriber>;
 };
 
+// Uploads outlive one chat page instance. The registry lets a remount rejoin
+// an in-flight upload by clientId instead of starting a duplicate server
+// upload. Async completions must check generation so removed drafts cannot
+// write storage or notify UI again.
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
+let fallbackClientIdCounter = 0;
+
 const createClientId = () => {
-	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-		return crypto.randomUUID();
+	const cryptoObject =
+		typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
+	if (cryptoObject?.randomUUID) {
+		return cryptoObject.randomUUID();
 	}
-	return `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	if (cryptoObject?.getRandomValues) {
+		const values = new Uint32Array(2);
+		cryptoObject.getRandomValues(values);
+		return `draft-${Date.now()}-${Array.from(values, (value) => value.toString(36)).join("-")}`;
+	}
+	fallbackClientIdCounter += 1;
+	return `draft-${Date.now()}-${fallbackClientIdCounter}`;
 };
 
 const createBlobPreview = (file: File): string | undefined => {
@@ -186,8 +200,11 @@ const persistUploadPayload = async (
 	}
 };
 
-const persistUploadedRecord = (entry: UploadRegistryEntry) => {
-	if (!entry.fileId) {
+const persistUploadedRecord = (
+	entry: UploadRegistryEntry,
+	generation: number,
+) => {
+	if (!entry.fileId || !isCurrentGeneration(entry, generation)) {
 		return;
 	}
 	const result = upsertChatDraftAttachmentRecord({
@@ -231,9 +248,9 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			entry.status = "uploaded";
 			entry.fileId = result.id;
 			entry.error = undefined;
-			persistUploadedRecord(entry);
+			persistUploadedRecord(entry, generation);
 			if (entry.file.type.startsWith("image/")) {
-				void fetch(getChatFileURL(result.id));
+				void fetch(getChatFileURL(result.id)).catch(() => undefined);
 			}
 			notifySubscribers(entry);
 		} catch (error) {
@@ -390,7 +407,7 @@ const subscribeToEntry = (
 	subscriptions: { current: Map<string, () => void> },
 	subscriber: UploadRegistrySubscriber,
 ) => {
-	if (subscriptions.current.has(entry.clientId)) {
+	if (entry.removed || subscriptions.current.has(entry.clientId)) {
 		return;
 	}
 	entry.subscribers.add(subscriber);
@@ -416,9 +433,10 @@ export function useChatDraftAttachments(
 	const viewsRef = useRef(views);
 	const subscriptionsRef = useRef(new Map<string, () => void>());
 	const [subscriber] = useState<UploadRegistrySubscriber>(
-		() => (snapshot: UploadRegistrySnapshot) => {
-			setViews((prev) => applySnapshot(prev, snapshot));
-		},
+		() =>
+			function handleUploadRegistrySnapshot(snapshot: UploadRegistrySnapshot) {
+				setViews((prev) => applySnapshot(prev, snapshot));
+			},
 	);
 
 	useEffect(() => {
@@ -603,4 +621,5 @@ export const resetChatDraftAttachmentRegistryForTest = () => {
 		notifySubscribers(entry);
 	}
 	activeDraftUploads.clear();
+	fallbackClientIdCounter = 0;
 };

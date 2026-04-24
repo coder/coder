@@ -210,7 +210,7 @@ const readRecords = (
 	return deduped;
 };
 
-const metadataForRecord = (record: ChatDraftAttachmentRecord) => ({
+const getRecordMetadata = (record: ChatDraftAttachmentRecord) => ({
 	fileName: record.fileName,
 	fileType: record.fileType,
 	lastModified: record.lastModified,
@@ -243,6 +243,14 @@ const fileFromDataURL = (
 	if (!header.toLowerCase().includes(";base64")) {
 		return null;
 	}
+	const payloadMediaType = header.slice("data:".length).split(";")[0];
+	if (
+		metadata.fileType &&
+		payloadMediaType &&
+		payloadMediaType.toLowerCase() !== metadata.fileType.toLowerCase()
+	) {
+		return null;
+	}
 	try {
 		const binary = atob(payload.slice(commaIndex + 1));
 		const bytes = new Uint8Array(binary.length);
@@ -265,7 +273,7 @@ const fileForRecord = (record: ChatDraftAttachmentRecord): File | null => {
 			lastModified: record.lastModified,
 		});
 	}
-	return fileFromDataURL(record.payload, metadataForRecord(record));
+	return fileFromDataURL(record.payload, getRecordMetadata(record));
 };
 
 export const restoreChatDraftAttachments = (

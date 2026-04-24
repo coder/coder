@@ -122,6 +122,56 @@ describe("useChatDraftAttachments", () => {
 		restored.unmount();
 	});
 
+	it("shares an active upload across simultaneous hook instances", async () => {
+		const upload = createDeferred<{ id: string }>();
+		const uploadSpy = vi
+			.spyOn(API.experimental, "uploadChatFile")
+			.mockReturnValue(upload.promise);
+		const first = renderHook(() => useChatDraftAttachments(orgID, chatID));
+		const file = new File(["hello"], "shared.txt", {
+			type: "text/plain",
+			lastModified: 11,
+		});
+
+		act(() => {
+			first.result.current.handleAttach([file]);
+		});
+
+		await vi.waitFor(() => {
+			expect(parseStoredDrafts()).toHaveLength(1);
+		});
+		const second = renderHook(() => useChatDraftAttachments(orgID, chatID));
+
+		await vi.waitFor(() => {
+			expect(first.result.current.attachments).toHaveLength(1);
+			expect(second.result.current.attachments).toHaveLength(1);
+		});
+		expect(uploadSpy).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			upload.resolve({ id: "file-shared" });
+		});
+		await vi.waitFor(() => {
+			const firstState = first.result.current.uploadStates.get(
+				first.result.current.attachments[0],
+			);
+			const secondState = second.result.current.uploadStates.get(
+				second.result.current.attachments[0],
+			);
+			expect(firstState).toMatchObject({
+				status: "uploaded",
+				fileId: "file-shared",
+			});
+			expect(secondState).toMatchObject({
+				status: "uploaded",
+				fileId: "file-shared",
+			});
+		});
+
+		first.unmount();
+		second.unmount();
+	});
+
 	it("does not resurrect removed in-flight attachments after upload completion", async () => {
 		const upload = createDeferred<{ id: string }>();
 		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
@@ -236,6 +286,17 @@ describe("useChatDraftAttachments", () => {
 					size: 10,
 					organizationId: "org-2",
 					chatId: chatID,
+				},
+				{
+					status: "pending",
+					clientId: "mismatched-payload",
+					fileName: "bad.txt",
+					fileType: "text/plain",
+					lastModified: 5,
+					size: 10,
+					organizationId: orgID,
+					chatId: chatID,
+					payload: "data:text/html;base64,PGgxPkhlbGxvPC9oMT4=",
 				},
 				{ status: "uploaded", clientId: "bad" },
 			]),

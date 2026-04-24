@@ -23,6 +23,9 @@ export type UploadState = {
 	draftWarning?: string;
 };
 
+export const isUploadInProgress = (state: UploadState | undefined): boolean =>
+	state?.status === "pending" || state?.status === "uploading";
+
 /** Renders an image thumbnail from a pre-created preview URL. */
 export const ImageThumbnail: FC<{
 	previewUrl: string;
