@@ -4,6 +4,7 @@ type ChatDraftAttachmentRecord = {
 	fileType: string;
 	lastModified: number;
 	size: number;
+	updatedAt?: number;
 	organizationId: string;
 	chatId: string;
 } & (
@@ -27,6 +28,7 @@ type ChatDraftAttachmentPersistResult =
 	| { ok: false; reason: "quota" | "unavailable" };
 
 const storageKeyPrefix = "agents.chat-draft-attachments";
+const maxStoredDraftAgeMs = 30 * 24 * 60 * 60 * 1000;
 
 export const chatDraftAttachmentStorageKey = (
 	organizationId: string,
@@ -85,6 +87,7 @@ const validateRecord = (
 		fileType,
 		lastModified,
 		size,
+		updatedAt,
 		organizationId: recordOrganizationId,
 		chatId: recordChatId,
 		status,
@@ -102,6 +105,7 @@ const validateRecord = (
 	) {
 		return null;
 	}
+	const recordUpdatedAt = isFiniteNumber(updatedAt) ? updatedAt : Date.now();
 	if (status === "pending" || status === "uploading") {
 		const { payload } = value;
 		if (!isString(payload)) {
@@ -114,6 +118,7 @@ const validateRecord = (
 			fileType,
 			lastModified,
 			size,
+			updatedAt: recordUpdatedAt,
 			organizationId: recordOrganizationId,
 			chatId: recordChatId,
 			payload,
@@ -132,6 +137,7 @@ const validateRecord = (
 			fileType,
 			lastModified,
 			size,
+			updatedAt: recordUpdatedAt,
 			organizationId: recordOrganizationId,
 			chatId: recordChatId,
 		};
@@ -172,6 +178,44 @@ const writeRecords = (
 		return { ok: true };
 	}
 	return safeSetItem(key, JSON.stringify(deduped));
+};
+
+const pruneExpiredChatDraftAttachmentStorageKeys = () => {
+	const now = Date.now();
+	try {
+		for (let index = localStorage.length - 1; index >= 0; index--) {
+			const key = localStorage.key(index);
+			if (!key?.startsWith(`${storageKeyPrefix}.`)) {
+				continue;
+			}
+			const stored = localStorage.getItem(key);
+			if (!stored) {
+				continue;
+			}
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(stored);
+			} catch {
+				continue;
+			}
+			if (!Array.isArray(parsed)) {
+				continue;
+			}
+			const activeRecords = parsed.filter((entry) => {
+				if (!isRecordObject(entry) || !isFiniteNumber(entry.updatedAt)) {
+					return true;
+				}
+				return now - entry.updatedAt <= maxStoredDraftAgeMs;
+			});
+			if (activeRecords.length === 0) {
+				safeRemoveItem(key);
+			} else if (activeRecords.length !== parsed.length) {
+				safeSetItem(key, JSON.stringify(activeRecords));
+			}
+		}
+	} catch {
+		// Ignore storage sweep failures. The active chat restore still runs below.
+	}
 };
 
 const readRecords = (
@@ -283,6 +327,7 @@ export const restoreChatDraftAttachments = (
 	if (!organizationId || !chatId) {
 		return [];
 	}
+	pruneExpiredChatDraftAttachmentStorageKeys();
 	const restored: RestoredChatDraftAttachment[] = [];
 	const validRecords: ChatDraftAttachmentRecord[] = [];
 	for (const record of readRecords(organizationId, chatId)) {
@@ -300,6 +345,7 @@ export const restoreChatDraftAttachments = (
 export const upsertChatDraftAttachmentRecord = (
 	record: ChatDraftAttachmentRecord,
 ): ChatDraftAttachmentPersistResult => {
+	const recordWithTimestamp = { ...record, updatedAt: Date.now() };
 	const records = readRecords(record.organizationId, record.chatId).filter(
 		(existing) => {
 			if (existing.clientId === record.clientId) {
@@ -307,14 +353,14 @@ export const upsertChatDraftAttachmentRecord = (
 			}
 			return !(
 				existing.status === "uploaded" &&
-				record.status === "uploaded" &&
-				existing.fileId === record.fileId
+				recordWithTimestamp.status === "uploaded" &&
+				existing.fileId === recordWithTimestamp.fileId
 			);
 		},
 	);
 	return writeRecords(record.organizationId, record.chatId, [
 		...records,
-		record,
+		recordWithTimestamp,
 	]);
 };
 

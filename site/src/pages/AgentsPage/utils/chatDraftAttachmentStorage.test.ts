@@ -7,6 +7,7 @@ import {
 	restoreChatDraftAttachments,
 	upsertChatDraftAttachmentRecord,
 } from "./chatDraftAttachmentStorage";
+import { readAgentAttachmentText } from "./fileAttachmentLimits";
 
 const organizationId = "org-1";
 const chatId = "chat-1";
@@ -43,7 +44,7 @@ describe("chatDraftAttachmentStorage", () => {
 		expect(restored).toHaveLength(1);
 		expect(restored[0].file.name).toBe("note.txt");
 		expect(restored[0].file.type).toBe("text/plain");
-		expect(await restored[0].file.text()).toBe("hello");
+		expect(await readAgentAttachmentText(restored[0].file)).toBe("hello");
 	});
 
 	it("prunes malformed records and data URLs that do not match metadata", () => {
@@ -139,6 +140,31 @@ describe("chatDraftAttachmentStorage", () => {
 				expect.objectContaining({ clientId: "client-b", fileId: "file-1" }),
 			]),
 		);
+	});
+
+	it("prunes expired draft records from older chat keys", () => {
+		const oldKey = chatDraftAttachmentStorageKey(organizationId, "old-chat");
+		localStorage.setItem(
+			oldKey,
+			JSON.stringify([
+				{
+					status: "uploaded",
+					clientId: "expired",
+					fileId: "file-expired",
+					fileName: "expired.png",
+					fileType: "image/png",
+					lastModified: 10,
+					size: 10,
+					updatedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+					organizationId,
+					chatId: "old-chat",
+				},
+			]),
+		);
+
+		restoreChatDraftAttachments(organizationId, chatId);
+
+		expect(localStorage.getItem(oldKey)).toBeNull();
 	});
 
 	it("removes individual records and clears a chat scope", () => {

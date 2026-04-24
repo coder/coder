@@ -11,12 +11,16 @@ import {
 	restoreChatDraftAttachments,
 	upsertChatDraftAttachmentRecord,
 } from "../utils/chatDraftAttachmentStorage";
+import {
+	formatAgentAttachmentTooLargeError,
+	maxAgentAttachmentSize,
+	readAgentAttachmentText,
+} from "../utils/fileAttachmentLimits";
 
 const maxTextPreviewSize = 1024 * 1024;
-const maxAttachmentSize = 10 * 1024 * 1024;
 
 const pendingDraftWarning =
-	"This file is attached for now, but it is too large to save as a draft. If you leave this chat before it uploads or sends, it may be lost.";
+	"This file is attached for now, but it could not be saved as a draft. If you leave this chat before it uploads or sends, it may be lost.";
 const uploadedDraftWarning =
 	"This file is usable in this session, but it could not be saved as a draft.";
 
@@ -32,7 +36,6 @@ type DraftAttachmentView = {
 	previewUrl?: string;
 	previewUrlKind?: "blob" | "chatFile";
 	textContent?: string;
-	memoryOnly?: boolean;
 };
 
 type UploadRegistrySnapshot = {
@@ -44,7 +47,6 @@ type UploadRegistrySnapshot = {
 	status: DraftUploadStatus;
 	error?: string;
 	draftWarning?: string;
-	memoryOnly?: boolean;
 	removed: boolean;
 };
 
@@ -60,7 +62,6 @@ type UploadRegistryEntry = {
 	fileId?: string;
 	error?: string;
 	draftWarning?: string;
-	memoryOnly?: boolean;
 	removed: boolean;
 	uploadStarted: boolean;
 	subscribers: Set<UploadRegistrySubscriber>;
@@ -106,6 +107,30 @@ const revokeBlobPreview = (view: DraftAttachmentView) => {
 	}
 };
 
+type DraftAttachmentPreview = Pick<
+	DraftAttachmentView,
+	"previewUrl" | "previewUrlKind"
+>;
+
+const computePreview = (
+	file: File,
+	status: DraftUploadStatus,
+	fileId?: string,
+	current?: DraftAttachmentPreview,
+): DraftAttachmentPreview => {
+	if (status === "uploaded") {
+		if (fileId && file.type.startsWith("image/")) {
+			return { previewUrl: getChatFileURL(fileId), previewUrlKind: "chatFile" };
+		}
+		return {};
+	}
+	if (current) {
+		return current;
+	}
+	const previewUrl = createBlobPreview(file);
+	return { previewUrl, previewUrlKind: previewUrl ? "blob" : undefined };
+};
+
 const snapshotFromEntry = (
 	entry: UploadRegistryEntry,
 ): UploadRegistrySnapshot => ({
@@ -117,7 +142,6 @@ const snapshotFromEntry = (
 	status: entry.status,
 	error: entry.error,
 	draftWarning: entry.draftWarning,
-	memoryOnly: entry.memoryOnly,
 	removed: entry.removed,
 });
 
@@ -159,7 +183,7 @@ const createRegistryEntry = (
 const formatUploadError = (error: unknown) => {
 	const message = getErrorMessage(error, "Upload failed");
 	const detail = getErrorDetail(error);
-	return detail ? `${message} ${detail}` : message;
+	return detail ? `${message}. ${detail}` : message;
 };
 
 const persistUploadPayload = async (
@@ -188,14 +212,12 @@ const persistUploadPayload = async (
 		if (result.ok || !isCurrentGeneration(entry, generation)) {
 			return;
 		}
-		entry.memoryOnly = true;
 		entry.draftWarning = pendingDraftWarning;
 		notifySubscribers(entry);
 	} catch {
 		if (!isCurrentGeneration(entry, generation)) {
 			return;
 		}
-		entry.memoryOnly = true;
 		entry.draftWarning = pendingDraftWarning;
 		notifySubscribers(entry);
 	}
@@ -220,11 +242,9 @@ const persistUploadedRecord = (
 		chatId: entry.chatId,
 	});
 	if (result.ok) {
-		entry.memoryOnly = false;
 		entry.draftWarning = undefined;
 		return;
 	}
-	entry.memoryOnly = true;
 	entry.draftWarning = uploadedDraftWarning;
 };
 
@@ -279,22 +299,17 @@ const removeRegistryEntry = (clientId: string) => {
 const viewsFromRestored = (
 	restored: readonly RestoredChatDraftAttachment[],
 ): DraftAttachmentView[] =>
-	restored.map(({ record, file }) => ({
-		clientId: record.clientId,
-		file,
-		fileId: record.status === "uploaded" ? record.fileId : undefined,
-		status: record.status === "uploaded" ? "uploaded" : record.status,
-		previewUrl:
-			record.status === "uploaded" && file.type.startsWith("image/")
-				? getChatFileURL(record.fileId)
-				: createBlobPreview(file),
-		previewUrlKind:
-			record.status === "uploaded" && file.type.startsWith("image/")
-				? "chatFile"
-				: file.type !== "text/plain"
-					? "blob"
-					: undefined,
-	}));
+	restored.map(({ record, file }) => {
+		const status = record.status === "uploaded" ? "uploaded" : record.status;
+		const fileId = record.status === "uploaded" ? record.fileId : undefined;
+		return {
+			clientId: record.clientId,
+			file,
+			fileId,
+			status,
+			...computePreview(file, status, fileId),
+		};
+	});
 
 const viewFromSnapshot = (
 	snapshot: UploadRegistrySnapshot,
@@ -305,17 +320,7 @@ const viewFromSnapshot = (
 	status: snapshot.status,
 	error: snapshot.error,
 	draftWarning: snapshot.draftWarning,
-	memoryOnly: snapshot.memoryOnly,
-	previewUrl:
-		snapshot.status === "uploaded" && snapshot.fileId
-			? getChatFileURL(snapshot.fileId)
-			: createBlobPreview(snapshot.file),
-	previewUrlKind:
-		snapshot.status === "uploaded" && snapshot.fileId
-			? "chatFile"
-			: snapshot.file.type !== "text/plain"
-				? "blob"
-				: undefined,
+	...computePreview(snapshot.file, snapshot.status, snapshot.fileId),
 });
 
 const applySnapshot = (
@@ -337,15 +342,13 @@ const applySnapshot = (
 			return view;
 		}
 		found = true;
-		const nextPreviewUrl =
-			snapshot.status === "uploaded" && snapshot.fileId
-				? getChatFileURL(snapshot.fileId)
-				: view.previewUrl;
-		const nextPreviewUrlKind =
-			snapshot.status === "uploaded" && snapshot.fileId
-				? "chatFile"
-				: view.previewUrlKind;
-		if (view.previewUrl !== nextPreviewUrl) {
+		const nextPreview = computePreview(
+			snapshot.file,
+			snapshot.status,
+			snapshot.fileId,
+			{ previewUrl: view.previewUrl, previewUrlKind: view.previewUrlKind },
+		);
+		if (view.previewUrl !== nextPreview.previewUrl) {
 			revokeBlobPreview(view);
 		}
 		return {
@@ -355,9 +358,8 @@ const applySnapshot = (
 			status: snapshot.status,
 			error: snapshot.error,
 			draftWarning: snapshot.draftWarning,
-			memoryOnly: snapshot.memoryOnly,
-			previewUrl: nextPreviewUrl,
-			previewUrlKind: nextPreviewUrlKind,
+			previewUrl: nextPreview.previewUrl,
+			previewUrlKind: nextPreview.previewUrlKind,
 		};
 	});
 	if (found) {
@@ -417,11 +419,38 @@ const subscribeToEntry = (
 	});
 };
 
-const readTextContent = async (file: File): Promise<string> => {
-	if (typeof file.text === "function") {
-		return file.text();
+type SetDraftAttachmentViews = (
+	updater: (prev: DraftAttachmentView[]) => DraftAttachmentView[],
+) => void;
+
+const queueTextContentReads = (
+	candidateViews: readonly DraftAttachmentView[],
+	setDraftViews: SetDraftAttachmentViews,
+) => {
+	for (const view of candidateViews) {
+		if (
+			view.status === "error" ||
+			view.status === "uploaded" ||
+			view.textContent !== undefined ||
+			view.file.type !== "text/plain" ||
+			view.file.size > maxTextPreviewSize
+		) {
+			continue;
+		}
+		void readAgentAttachmentText(view.file)
+			.then((content) => {
+				setDraftViews((prev) =>
+					prev.map((current) =>
+						current.clientId === view.clientId
+							? { ...current, textContent: content }
+							: current,
+					),
+				);
+			})
+			.catch((error) => {
+				console.error("Failed to read text file content:", error);
+			});
 	}
-	return new Response(file).text();
 };
 
 export function useChatDraftAttachments(
@@ -459,6 +488,7 @@ export function useChatDraftAttachments(
 			setViews([]);
 			return;
 		}
+		const previousViews = viewsRef.current;
 		const restored = restoreChatDraftAttachments(organizationId, chatId);
 		let nextViews = viewsFromRestored(restored);
 		for (const entry of activeDraftUploads.values()) {
@@ -482,7 +512,11 @@ export function useChatDraftAttachments(
 			subscribeToEntry(entry, subscriptionsRef, subscriber);
 			restoredEntriesToStart.push(entry);
 		}
+		for (const view of previousViews) {
+			revokeBlobPreview(view);
+		}
 		setViews(nextViews);
+		queueTextContentReads(nextViews, setViews);
 		for (const entry of restoredEntriesToStart) {
 			beginUpload(entry);
 		}
@@ -493,19 +527,16 @@ export function useChatDraftAttachments(
 		const nextViews: DraftAttachmentView[] = [];
 		for (const file of files) {
 			const clientId = createClientId();
-			const previewUrl = createBlobPreview(file);
 			const baseView: DraftAttachmentView = {
 				clientId,
 				file,
 				status: "pending",
-				previewUrl,
-				previewUrlKind: previewUrl ? "blob" : undefined,
 			};
-			if (file.size > maxAttachmentSize) {
+			if (file.size > maxAgentAttachmentSize) {
 				nextViews.push({
 					...baseView,
 					status: "error",
-					error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+					error: formatAgentAttachmentTooLargeError(file.size),
 				});
 				continue;
 			}
@@ -517,37 +548,17 @@ export function useChatDraftAttachments(
 				});
 				continue;
 			}
+			const view = { ...baseView, ...computePreview(file, "pending") };
 			const entry = createRegistryEntry(clientId, organizationId, chatId, file);
 			subscribeToEntry(entry, subscriptionsRef, subscriber);
-			nextViews.push(baseView);
+			nextViews.push(view);
 			entriesToStart.push(entry);
 		}
 		setViews((prev) => [...prev, ...nextViews]);
 		for (const entry of entriesToStart) {
 			beginUpload(entry);
 		}
-		for (const view of nextViews) {
-			if (
-				view.status === "error" ||
-				view.file.type !== "text/plain" ||
-				view.file.size > maxTextPreviewSize
-			) {
-				continue;
-			}
-			void readTextContent(view.file)
-				.then((content) => {
-					setViews((prev) =>
-						prev.map((current) =>
-							current.clientId === view.clientId
-								? { ...current, textContent: content }
-								: current,
-						),
-					);
-				})
-				.catch((error) => {
-					console.error("Failed to read text file content:", error);
-				});
-		}
+		queueTextContentReads(nextViews, setViews);
 	};
 
 	const handleRemoveAttachment = (attachment: number | File) => {
@@ -575,7 +586,7 @@ export function useChatDraftAttachments(
 	};
 
 	const resetAttachments = () => {
-		for (const view of views) {
+		for (const view of viewsRef.current) {
 			revokeBlobPreview(view);
 			removeRegistryEntry(view.clientId);
 		}

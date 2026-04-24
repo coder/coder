@@ -102,7 +102,7 @@ export const DraftWarning: Story = {
 	args: (() => {
 		const file = createMockFile("large-draft.txt", "text/plain");
 		const warning =
-			"This file is attached for now, but it is too large to save as a draft.";
+			"This file is attached for now, but it could not be saved as a draft.";
 		return {
 			attachments: [file],
 			uploadStates: new Map<File, UploadState>([
@@ -113,7 +113,7 @@ export const DraftWarning: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findByText(/too large to save as a draft/i),
+			await canvas.findByText(/could not be saved as a draft/i),
 		).toBeInTheDocument();
 	},
 };

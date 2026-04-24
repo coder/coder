@@ -104,6 +104,13 @@ describe("useChatDraftAttachments", () => {
 		const restored = renderHook(() => useChatDraftAttachments(orgID, chatID));
 		expect(restored.result.current.attachments).toHaveLength(1);
 		expect(restored.result.current.attachments[0].name).toBe("note.txt");
+		await vi.waitFor(() => {
+			expect(
+				restored.result.current.textContents.get(
+					restored.result.current.attachments[0],
+				),
+			).toBe("hello");
+		});
 		expect(uploadSpy).toHaveBeenCalledTimes(1);
 
 		await act(async () => {
@@ -232,7 +239,7 @@ describe("useChatDraftAttachments", () => {
 		await vi.waitFor(() => {
 			const state = result.current.uploadStates.get(file);
 			expect(state).toMatchObject({ status: "error" });
-			expect(state?.error).toContain("Upload failed");
+			expect(state?.error).toContain("network down");
 		});
 		expect(result.current.attachments).toHaveLength(1);
 
@@ -269,7 +276,7 @@ describe("useChatDraftAttachments", () => {
 
 		await vi.waitFor(() => {
 			const state = result.current.uploadStates.get(file);
-			expect(state?.draftWarning).toContain("too large to save as a draft");
+			expect(state?.draftWarning).toContain("could not be saved as a draft");
 		});
 		expect(localStorage.getItem(storageKey)).toBeNull();
 
@@ -338,6 +345,64 @@ describe("useChatDraftAttachments", () => {
 		});
 		expect(parseStoredDrafts()[0].payload).toEqual(expect.any(String));
 
+		unmount();
+	});
+
+	it("rejects files over the attachment size limit without uploading", () => {
+		const uploadSpy = vi.spyOn(API.experimental, "uploadChatFile");
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "huge.txt", {
+			type: "text/plain",
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+
+		expect(uploadSpy).not.toHaveBeenCalled();
+		expect(result.current.attachments).toHaveLength(1);
+		expect(result.current.uploadStates.get(file)).toMatchObject({
+			status: "error",
+			error: expect.stringContaining("Maximum is 10 MB"),
+		});
+		expect(localStorage.getItem(storageKey)).toBeNull();
+		unmount();
+	});
+
+	it("resetAttachments clears storage, registry entries, and previews", async () => {
+		const upload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			upload.promise,
+		);
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File(["hello"], "reset.png", {
+			type: "image/png",
+			lastModified: 14,
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+		await vi.waitFor(() => {
+			expect(parseStoredDrafts()).toHaveLength(1);
+		});
+
+		act(() => {
+			result.current.resetAttachments();
+		});
+		expect(result.current.attachments).toHaveLength(0);
+		expect(localStorage.getItem(storageKey)).toBeNull();
+		expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:attachment-preview");
+
+		await act(async () => {
+			upload.resolve({ id: "file-reset" });
+		});
+		expect(result.current.attachments).toHaveLength(0);
+		expect(localStorage.getItem(storageKey)).toBeNull();
 		unmount();
 	});
 
