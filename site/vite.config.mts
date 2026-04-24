@@ -4,7 +4,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
-import type { PluginOption } from "vite";
+import type { PluginOption, ProxyOptions } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
@@ -26,6 +26,24 @@ const plugins: PluginOption[] = [
 		typescript: true,
 	}),
 ];
+
+type ProxyServer = Parameters<NonNullable<ProxyOptions["configure"]>>[0];
+
+// Dev-only convenience for remote CODER_HOST sessions. Stripping CSP
+// frame-ancestors lets path-app iframes render through the Vite dev server
+// when the backend is a remote deployment like dev.coder.com. Production
+// builds are unaffected.
+const stripDevIframeHeaders = (proxy: ProxyServer) => {
+	proxy.on("proxyRes", (proxyRes) => {
+		if (process.env.NODE_ENV === "production") {
+			return;
+		}
+
+		delete proxyRes.headers["content-security-policy"];
+		delete proxyRes.headers["content-security-policy-report-only"];
+		delete proxyRes.headers["x-frame-options"];
+	});
+};
 
 if (process.env.STATS !== undefined) {
 	plugins.push(
@@ -108,6 +126,7 @@ export default defineConfig({
 						target: process.env.CODER_HOST || "http://localhost:3000",
 						secure: process.env.NODE_ENV === "production",
 						configure: (proxy) => {
+							stripDevIframeHeaders(proxy);
 							if (process.env.CODER_SESSION_TOKEN) {
 								proxy.on("proxyReq", (proxyReq) => {
 									proxyReq.setHeader(
@@ -137,6 +156,23 @@ export default defineConfig({
 									console.error(error);
 								});
 							});
+						},
+					},
+					"/@": {
+						ws: true,
+						changeOrigin: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+						configure: (proxy) => {
+							stripDevIframeHeaders(proxy);
+							if (process.env.CODER_SESSION_TOKEN) {
+								proxy.on("proxyReq", (proxyReq) => {
+									proxyReq.setHeader(
+										"Coder-Session-Token",
+										process.env.CODER_SESSION_TOKEN!,
+									);
+								});
+							}
 						},
 					},
 					"/swagger": {

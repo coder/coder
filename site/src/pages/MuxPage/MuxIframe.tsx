@@ -7,6 +7,7 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
+import { getAppHref } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import type { MuxAppCandidate } from "./muxApps";
 
@@ -19,6 +20,12 @@ export const MuxIframe: FC<MuxIframeProps> = ({ workspace, candidate }) => {
 	const { agent, app } = candidate;
 	const link = useAppLink(app, { agent, workspace });
 	const proxy = useProxy();
+	// In production, the app's preferred mode is used for isolation. In dev,
+	// the frontend can be on a different origin than the backend, so force
+	// path-app mode so the Vite dev proxy can strip CSP frame-ancestors.
+	const src = import.meta.env.DEV
+		? getAppHref(app, { agent, workspace, path: "", host: "" })
+		: link.href;
 	const workspacePath = `/@${workspace.owner_name}/${workspace.name}`;
 	const shouldDisplayWildcardWarning =
 		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
@@ -51,7 +58,7 @@ export const MuxIframe: FC<MuxIframeProps> = ({ workspace, candidate }) => {
 				) : shouldDisplayWildcardWarning ? (
 					<MissingWildcardHostnameWarning />
 				) : app.health === "healthy" || app.health === "disabled" ? (
-					<MuxAppFrame src={link.href} title={link.label} />
+					<MuxAppFrame src={src} title={link.label} />
 				) : app.health === "initializing" ? (
 					<InitializingMuxApp />
 				) : app.health === "unhealthy" ? (
