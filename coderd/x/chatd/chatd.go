@@ -1383,17 +1383,24 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 	return nil
 }
 
+func chatdModelConfigLookupContext(ctx context.Context) context.Context {
+	//nolint:gocritic // Chat message admission needs daemon-scoped
+	// deployment-config reads for model config validation.
+	return dbauthz.AsChatd(ctx)
+}
+
 func resolveSendMessageModelConfigID(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	requested *uuid.UUID,
 ) (uuid.UUID, error) {
+	chatdCtx := chatdModelConfigLookupContext(ctx)
 	if requested != nil {
 		if *requested == uuid.Nil {
 			return uuid.Nil, ErrInvalidModelConfigID
 		}
-		if _, err := store.GetChatModelConfigByID(ctx, *requested); err != nil {
+		if _, err := store.GetChatModelConfigByID(chatdCtx, *requested); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return uuid.Nil, xerrors.Errorf(
 					"%w: %s",
@@ -1419,8 +1426,9 @@ func resolveQueuedMessageModelConfigID(
 	chat database.Chat,
 	queuedModelConfigID uuid.NullUUID,
 ) (uuid.UUID, error) {
+	chatdCtx := chatdModelConfigLookupContext(ctx)
 	if queuedModelConfigID.Valid && queuedModelConfigID.UUID != uuid.Nil {
-		if _, err := store.GetChatModelConfigByID(ctx, queuedModelConfigID.UUID); err == nil {
+		if _, err := store.GetChatModelConfigByID(chatdCtx, queuedModelConfigID.UUID); err == nil {
 			return queuedModelConfigID.UUID, nil
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.Errorf(
@@ -1439,8 +1447,9 @@ func resolveFallbackModelConfigID(
 	store database.Store,
 	modelConfigID uuid.UUID,
 ) (uuid.UUID, error) {
+	chatdCtx := chatdModelConfigLookupContext(ctx)
 	if modelConfigID != uuid.Nil {
-		if _, err := store.GetChatModelConfigByID(ctx, modelConfigID); err == nil {
+		if _, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID); err == nil {
 			return modelConfigID, nil
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.Errorf(
@@ -1451,7 +1460,7 @@ func resolveFallbackModelConfigID(
 		}
 	}
 
-	defaultConfig, err := store.GetDefaultChatModelConfig(ctx)
+	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.New("no default chat model config is available")
