@@ -745,45 +745,79 @@ func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.P
 	}
 }
 
+func strptr(value string) *string {
+	return &value
+}
+
 type param struct {
-	name    string
-	ptype   string
-	value   string
-	mutable bool
+	name  string
+	ptype string
+	// pdefault is equivalent to setting `default` in the Terraform, so
+	// omitting it means the parameter is required.
+	pdefault *string
+	mutable  bool
+}
+
+type resolvedParam struct {
+	name  string
+	value string
 }
 
 func TestCreateWithRichParameters(t *testing.T) {
 	t.Parallel()
 
-	// Default parameters and their expected values.
+	// Base shared test parameters.
 	params := []param{
 		{
-			name:    "number_param",
-			ptype:   "number",
-			value:   "777",
-			mutable: true,
+			name:     "number_param",
+			ptype:    "number",
+			pdefault: strptr("777"),
+			mutable:  true,
 		},
 		{
-			name:    "string_param",
-			ptype:   "string",
-			value:   "qux",
-			mutable: true,
+			name:     "string_param",
+			ptype:    "string",
+			pdefault: strptr("qux"),
+			mutable:  true,
 		},
 		{
 			name: "bool_param",
 			// TODO: Setting the type breaks booleans.  It claims the default is false
 			// but when you then accept this default it errors saying that the value
 			// must be true or false.  For now, use a string.
-			ptype:   "string",
-			value:   "false",
-			mutable: true,
+			ptype:    "string",
+			pdefault: strptr("false"),
+			mutable:  true,
 		},
 		{
-			name:    "immutable_string_param",
-			ptype:   "string",
-			value:   "i am eternal",
-			mutable: false,
+			name:     "immutable_string_param",
+			ptype:    "string",
+			pdefault: strptr("i am eternal"),
+			mutable:  false,
 		},
+		{
+			name:     "empty_string_param",
+			ptype:    "string",
+			pdefault: strptr(""),
+			mutable:  false,
+		},
+	}
+
+	// expect creates the expected params from the input params with an optional
+	// suffix to differentiate it from the defaults.  Only works if the input
+	// parameters all have defaults from which to derive expected values.
+	expect := func(input []param) []resolvedParam {
+		expected := make([]resolvedParam, len(input))
+		for i, param := range input {
+			if param.pdefault == nil {
+				t.Fatal("input has no default, cannot derive expected")
+			}
+			expected[i] = resolvedParam{
+				name:  param.name,
+				value: *param.pdefault,
+			}
+		}
+		return expected
 	}
 
 	type testContext struct {
@@ -811,10 +845,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 		errors []string
 		// inputParameters overrides the default parameters.
 		inputParameters []param
-		// expectedParameters defaults to inputParameters.
-		expectedParameters []param
-		// withDefaults sets DefaultValue to each parameter's value.
-		withDefaults bool
+		// expectedParameters are derived from inputParameters by default.  If any
+		// input parameters are required, expected parameters must be explicitly
+		// provided since there would be no default value from which to derive them.
+		expectedParameters []resolvedParam
 	}{
 		{
 			name: "ValuesFromPrompt",
@@ -822,7 +856,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Enter the value for each parameter as prompted.
 				for _, param := range params {
 					pty.ExpectMatch(param.name)
-					pty.WriteLine(param.value)
+					pty.WriteLine(*param.pdefault)
 				}
 				// Confirm the creation.
 				pty.ExpectMatch("Confirm create?")
@@ -835,7 +869,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Provide the defaults on the command line.
 				args := []string{}
 				for _, param := range params {
-					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, param.value))
+					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 				}
 				return args
 			},
@@ -843,7 +877,12 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Simply accept the defaults.
 				for _, param := range params {
 					pty.ExpectMatch(param.name)
-					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
+					// Empty defaults do not appear in the prompt.
+					if *param.pdefault == "" {
+						pty.ExpectMatch(`Enter a value:`)
+					} else {
+						pty.ExpectMatch(`Enter a value (default: "` + *param.pdefault + `"):`)
+					}
 					pty.WriteLine("")
 				}
 				// Confirm the creation.
@@ -859,7 +898,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				removeTmpDirUntilSuccessAfterTest(t, tempDir)
 				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 				for _, param := range params {
-					_, err := parameterFile.WriteString(fmt.Sprintf("%s: %s\n", param.name, param.value))
+					_, err := parameterFile.WriteString(fmt.Sprintf("%s: %q\n", param.name, *param.pdefault))
 					require.NoError(t, err)
 				}
 
@@ -877,7 +916,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Provide the values on the command line.
 				var args []string
 				for _, param := range params {
-					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, param.value))
+					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 				}
 				return args
 			},
@@ -895,9 +934,9 @@ func TestCreateWithRichParameters(t *testing.T) {
 				for i, param := range params {
 					if i == 0 {
 						// Slightly misspell the first parameter with an extra character.
-						args = append(args, "--parameter", fmt.Sprintf("n%s=%s", param.name, param.value))
+						args = append(args, "--parameter", fmt.Sprintf("n%s=%s", param.name, *param.pdefault))
 					} else {
-						args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, param.value))
+						args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 					}
 				}
 				return args
@@ -913,7 +952,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Provide the values on the command line.
 				args := []string{"-y"}
 				for _, param := range params {
-					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, param.value))
+					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 				}
 				return args
 			},
@@ -934,7 +973,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Provide the values on the command line.
 				args := []string{"-y"}
 				for _, param := range params {
-					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, param.value))
+					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 				}
 				return args
 			},
@@ -966,14 +1005,18 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Simply accept the defaults.
 				for _, param := range params {
 					pty.ExpectMatch(param.name)
-					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
+					// Empty defaults do not appear in the prompt.
+					if *param.pdefault == "" {
+						pty.ExpectMatch(`Enter a value:`)
+					} else {
+						pty.ExpectMatch(`Enter a value (default: "` + *param.pdefault + `"):`)
+					}
 					pty.WriteLine("")
 				}
 				// Confirm the creation.
 				pty.ExpectMatch("Confirm create?")
 				pty.WriteLine("yes")
 			},
-			withDefaults: true,
 		},
 		{
 			name: "ValuesFromTemplateDefaultsNoPrompt",
@@ -983,13 +1026,12 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(pty *ptytest.PTY) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, *param.pdefault))
 				}
 				// No prompts, we only need to confirm.
 				pty.ExpectMatch("Confirm create?")
 				pty.WriteLine("yes")
 			},
-			withDefaults: true,
 		},
 		{
 			name: "ValuesFromDefaultFlagsNoPrompt",
@@ -997,14 +1039,14 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Provide the defaults on the command line.
 				args := []string{"--use-parameter-defaults"}
 				for _, param := range params {
-					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, param.value))
+					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, *param.pdefault))
 				}
 				return args
 			},
 			handlePty: func(pty *ptytest.PTY) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, *param.pdefault))
 				}
 				// No prompts, we only need to confirm.
 				pty.ExpectMatch("Confirm create?")
@@ -1013,7 +1055,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 		},
 		{
 			// File and flags should override template defaults.  Additionally, if a
-			// value has no default value we should still get a prompt for it.
+			// value has no default value (and therefore is required) we should still
+			// get a prompt for it.
 			name: "ValuesFromMultipleSources",
 			setup: func() []string {
 				tempDir := t.TempDir()
@@ -1033,32 +1076,35 @@ cli_param: from file`)
 			},
 			handlePty: func(pty *ptytest.PTY) {
 				// Should get prompted for the input param since it has no default.
-				pty.ExpectMatch("input_param")
+				pty.ExpectMatch("required_input_param")
 				pty.WriteLine("from input")
 
 				// Confirm the creation.
 				pty.ExpectMatch("Confirm create?")
 				pty.WriteLine("yes")
 			},
-			withDefaults: true,
 			inputParameters: []param{
 				{
-					name:  "template_param",
-					value: "from template default",
+					name:     "template_param",
+					pdefault: strptr("from template default"),
 				},
 				{
-					name:  "file_param",
-					value: "from template default",
+					name:     "file_param",
+					pdefault: strptr("from template default"),
 				},
 				{
-					name:  "cli_param",
-					value: "from template default",
+					name:     "cli_param",
+					pdefault: strptr("from template default"),
 				},
 				{
-					name: "input_param",
+					name:     "input_param",
+					pdefault: strptr(""),
+				},
+				{
+					name: "required_input_param",
 				},
 			},
-			expectedParameters: []param{
+			expectedParameters: []resolvedParam{
 				{
 					name:  "template_param",
 					value: "from template default",
@@ -1073,6 +1119,10 @@ cli_param: from file`)
 				},
 				{
 					name:  "input_param",
+					value: "",
+				},
+				{
+					name:  "required_input_param",
 					value: "from input",
 				},
 			},
@@ -1092,14 +1142,17 @@ cli_param: from file`)
 			var rparams []*proto.RichParameter
 			for i, param := range parameters {
 				defaultValue := ""
-				if tt.withDefaults {
-					defaultValue = param.value
+				hasDefault := false
+				if param.pdefault != nil {
+					defaultValue = *param.pdefault
+					hasDefault = true
 				}
 				rparams = append(rparams, &proto.RichParameter{
 					Name:         param.name,
 					Type:         param.ptype,
 					Mutable:      param.mutable,
 					DefaultValue: defaultValue,
+					Required:     !hasDefault,
 					Order:        int32(i), //nolint:gosec
 				})
 			}
@@ -1167,11 +1220,12 @@ cli_param: from file`)
 
 				buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
 				require.NoError(t, err)
-				if len(tt.expectedParameters) > 0 {
-					parameters = tt.expectedParameters
+				expected := tt.expectedParameters
+				if len(expected) == 0 {
+					expected = expect(parameters)
 				}
-				require.Len(t, buildParameters, len(parameters))
-				for _, param := range parameters {
+				require.Len(t, buildParameters, len(expected))
+				for _, param := range expected {
 					require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: param.name, Value: param.value})
 				}
 			}

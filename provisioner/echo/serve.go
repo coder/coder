@@ -654,7 +654,18 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 			// Emit default when the value is explicitly non-empty,
 			// or when the parameter is ephemeral (ephemeral params
 			// always need a default, even if it's an empty string).
-			return v.DefaultValue != "" || v.Ephemeral
+			if v.DefaultValue != "" || v.Ephemeral {
+				return true
+			}
+
+			// Otherwise, rely on the required property but only for string types
+			// since for other types an empty string is invalid (setting non-required
+			// for those would technically be developer error).
+			switch v.Type {
+			case "string", "list(string)", "":
+				return !v.Required
+			}
+			return false
 		},
 	}).Parse(`
 data "coder_parameter" "{{ .Name }}" {
