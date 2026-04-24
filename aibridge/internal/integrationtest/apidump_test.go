@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 )
 
+const osSep = string(filepath.Separator)
+
 func TestAPIDump(t *testing.T) {
 	t.Parallel()
 
@@ -164,9 +166,9 @@ func TestAPIDump(t *testing.T) {
 			require.NotEmpty(t, respDumpFile, "response dump file should exist")
 
 			// Verify dump files are in the correct provider subdirectory.
-			require.Contains(t, reqDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+"/",
+			require.Contains(t, reqDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+osSep,
 				"request dump should be in the %s provider directory", tc.expectProviderDir)
-			require.Contains(t, respDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+"/",
+			require.Contains(t, respDumpFile, filepath.Join(dumpDir, tc.expectProviderDir)+osSep,
 				"response dump should be in the %s provider directory", tc.expectProviderDir)
 
 			// Verify request dump contains expected HTTP request format.
@@ -284,12 +286,12 @@ func TestAPIDumpPassthrough(t *testing.T) {
 
 			require.NotEmpty(t, reqDumpFile, "request dump file should exist")
 			require.FileExists(t, reqDumpFile)
-			require.Contains(t, reqDumpFile, "/passthrough/")
+			require.Contains(t, reqDumpFile, osSep+"passthrough"+osSep)
 			require.Contains(t, reqDumpFile, tc.expectDumpName)
 
 			require.NotEmpty(t, respDumpFile, "response dump file should exist")
 			require.FileExists(t, respDumpFile)
-			require.Contains(t, respDumpFile, "/passthrough/")
+			require.Contains(t, respDumpFile, osSep+"passthrough"+osSep)
 			require.Contains(t, respDumpFile, tc.expectDumpName)
 
 			// Verify request dump.
