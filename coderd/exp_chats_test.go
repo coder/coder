@@ -11381,6 +11381,26 @@ func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
 	require.JSONEq(t, stored, raw)
 }
 
+// TestChatAdvisorConfig_CorruptStoredJSONReturnsError pins that the GET
+// handler surfaces a 500 when the stored site_configs row contains bytes
+// that are not valid JSON. Unlike the neighboring chat config endpoints,
+// this handler unmarshals the raw string client-side, so DB corruption
+// must not present as a default-valued 200.
+func TestChatAdvisorConfig_CorruptStoredJSONReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), "not-json")
+	require.NoError(t, err)
+
+	_, err = adminClient.GetChatAdvisorConfig(ctx)
+	sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+	require.Contains(t, sdkErr.Message, "invalid")
+}
+
 // TestChatAdvisorConfig_UnauthenticatedFails pins that the advisor config
 // endpoints are gated by apiKeyMiddleware at the /chats route level. The
 // handler itself has no auth check, so this test protects against a future
