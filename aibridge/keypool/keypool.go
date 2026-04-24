@@ -40,10 +40,10 @@ const defaultCooldown = 60 * time.Second
 
 // Key holds a key value and its runtime state.
 type Key struct {
-	pool        *Pool
-	value       string
-	isPermanent bool
-	expiresAt   time.Time
+	pool          *Pool
+	value         string
+	isPermanent   bool
+	cooldownUntil time.Time
 }
 
 // Pool manages a set of keys with state tracking and
@@ -96,7 +96,7 @@ func (k *Key) State() KeyState {
 		return KeyStatePermanent
 	}
 	// Cooldown still active: key is temporarily unavailable.
-	if k.pool.clock.Now().Before(k.expiresAt) {
+	if k.pool.clock.Now().Before(k.cooldownUntil) {
 		return KeyStateTemporary
 	}
 	return KeyStateValid
@@ -121,11 +121,11 @@ func (k *Key) MarkTemporary(cooldown time.Duration) {
 	newDeadline := k.pool.clock.Now().Add(cooldown)
 
 	// In case the key has a later expiry, keep it.
-	if k.expiresAt.After(newDeadline) {
+	if k.cooldownUntil.After(newDeadline) {
 		return
 	}
 
-	k.expiresAt = newDeadline
+	k.cooldownUntil = newDeadline
 }
 
 // MarkPermanent marks the key as permanently unavailable. This
@@ -173,7 +173,7 @@ func (w *Walker) Next() (*Key, error) {
 			continue
 		}
 		// Cooldown still active, skip.
-		if pool.clock.Now().Before(key.expiresAt) {
+		if pool.clock.Now().Before(key.cooldownUntil) {
 			continue
 		}
 		// Key is available.
