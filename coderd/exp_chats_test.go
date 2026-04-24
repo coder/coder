@@ -5575,6 +5575,36 @@ func TestChatPinOrder(t *testing.T) {
 		chat = getChat(ctx, t, client, chat.ID)
 		require.Zero(t, chat.PinOrder)
 	})
+
+	t.Run("RejectsChildChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		parentChat := createChat(ctx, t, client, firstUser.OrganizationID, "parent chat")
+
+		child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child chat",
+			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot pin a child chat.", sdkErr.Message)
+
+		result := getChat(ctx, t, client, child.ID)
+		require.Zero(t, result.PinOrder)
+	})
 }
 
 func TestPostChatMessages(t *testing.T) {

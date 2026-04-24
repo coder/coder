@@ -2,6 +2,7 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"iter"
 	"strings"
@@ -9,13 +10,16 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -2114,4 +2118,142 @@ func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
 	require.Equal(t, 3, streamCalls)
 	// PrepareMessages is called before each of the 3 steps.
 	require.Equal(t, 3, int(prepareCalls.Load()))
+}
+
+func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
+	t.Parallel()
+
+	originalBytes := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+
+	t.Run("EncodesRawBytesToBase64", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "image",
+					Data:      originalBytes,
+					MediaType: "image/jpeg",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"screenshot": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-1",
+			ToolName:   "screenshot",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			map[string]struct{}{},
+		)
+
+		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected ToolResultOutputContentMedia")
+		require.Equal(t, "image/jpeg", media.MediaType)
+
+		decoded, err := base64.StdEncoding.DecodeString(media.Data)
+		require.NoError(t, err, "Data should be valid base64")
+		require.Equal(t, originalBytes, decoded)
+	})
+
+	t.Run("SanitizesInvalidUTF8InContent", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "image",
+					Data:      originalBytes,
+					MediaType: "image/png",
+					Content:   "hello\xffworld",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"screenshot": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-2",
+			ToolName:   "screenshot",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			map[string]struct{}{},
+		)
+
+		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected ToolResultOutputContentMedia")
+		require.True(t, utf8.ValidString(media.Text), "Text should be valid UTF-8")
+		require.Contains(t, media.Text, "hello")
+		require.Contains(t, media.Text, "world")
+	})
+
+	t.Run("SanitizesInvalidUTF8InTextResult", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"echo",
+			"echoes input",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "hello\xffworld",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"echo": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-3",
+			ToolName:   "echo",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"echo"},
+			map[string]struct{}{},
+		)
+
+		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected ToolResultOutputContentText, got %T", result.Result)
+		require.True(t, utf8.ValidString(textOutput.Text), "Text should be valid UTF-8")
+		require.Contains(t, textOutput.Text, "hello")
+		require.Contains(t, textOutput.Text, "world")
+	})
 }

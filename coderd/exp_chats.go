@@ -2208,6 +2208,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if pinOrder > 0 && chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin a child chat.",
+			})
+			return
+		}
+
 		// The behavior depends on current pin state:
 		// - pinOrder == 0: unpin.
 		// - pinOrder > 0 && already pinned: reorder (shift
@@ -2232,10 +2239,21 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			err = api.Database.PinChatByID(ctx, chat.ID)
 		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: errMsg,
-				Detail:  err.Error(),
-			})
+			switch {
+			case database.IsCheckViolation(err, database.CheckChatsPinOrderParentCheck):
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot pin a child chat.",
+				})
+			case database.IsCheckViolation(err, database.CheckChatsPinOrderArchivedCheck):
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot pin an archived chat.",
+				})
+			default:
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: errMsg,
+					Detail:  err.Error(),
+				})
+			}
 			return
 		}
 	}

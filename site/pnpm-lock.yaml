@@ -193,6 +193,9 @@ importers:
       react-dom:
         specifier: 19.2.2
         version: 19.2.2(react@19.2.2)
+      react-infinite-scroll-component:
+        specifier: 7.1.0
+        version: 7.1.0(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       react-markdown:
         specifier: 9.1.0
         version: 9.1.0(@types/react@19.2.7)(react@19.2.2)
@@ -5233,6 +5236,13 @@ packages:
 
   react-fast-compare@2.0.4:
     resolution: {integrity: sha512-suNP+J1VU1MWFKcyt7RtjiSWUjvidmQSlqu+eHslq+342xCbGTYmC0mEhPCOHxlW0CywylOC1u2DFAT+bv4dBw==, tarball: https://registry.npmjs.org/react-fast-compare/-/react-fast-compare-2.0.4.tgz}
+
+  react-infinite-scroll-component@7.1.0:
+    resolution: {integrity: sha512-EPUMyOnpmJDqI1aoUi9uR/TSUfJCUN77ZkpzYSshGwrC2NTaH6p+rxaP/2DZJWygOZmZcAieZk4VciF8q9H/tw==, tarball: https://registry.npmjs.org/react-infinite-scroll-component/-/react-infinite-scroll-component-7.1.0.tgz}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=17.0.0'
+      react-dom: '>=17.0.0'
 
   react-inspector@6.0.2:
     resolution: {integrity: sha512-x+b7LxhmHXjHoU/VrFAzw5iutsILRoYyDq97EDYdFpPLcvqtEzk4ZSZSQjnFPbr5T57tLXnHcqFYoN1pI6u8uQ==, tarball: https://registry.npmjs.org/react-inspector/-/react-inspector-6.0.2.tgz}
@@ -11677,6 +11687,11 @@ snapshots:
       react: 19.2.2
 
   react-fast-compare@2.0.4: {}
+
+  react-infinite-scroll-component@7.1.0(react-dom@19.2.2(react@19.2.2))(react@19.2.2):
+    dependencies:
+      react: 19.2.2
+      react-dom: 19.2.2(react@19.2.2)
 
   react-inspector@6.0.2(react@19.2.2):
     dependencies:

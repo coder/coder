@@ -11151,6 +11151,95 @@ func TestChatPinOrderQueries(t *testing.T) {
 	})
 }
 
+func TestChatPinOrderConstraints(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+	bg := context.Background()
+	_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(bg, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	t.Run("ChildChatCannotBePinned", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		parent, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "parent",
+		})
+		require.NoError(t, err)
+
+		child, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "child",
+			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		err = db.PinChatByID(ctx, child.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatsPinOrderParentCheck))
+	})
+
+	t.Run("ArchivedChatCannotBePinned", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusCompleted,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "will be archived",
+		})
+		require.NoError(t, err)
+
+		_, err = db.ArchiveChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		err = db.PinChatByID(ctx, chat.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatsPinOrderArchivedCheck))
+	})
+}
+
 func TestChatLabels(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
