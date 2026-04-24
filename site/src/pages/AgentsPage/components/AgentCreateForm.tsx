@@ -412,7 +412,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:pb-8">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center sm:pb-4">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
