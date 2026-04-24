@@ -461,7 +461,7 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
-	insertEnabledAnthropicProvider(ctx, t, db, parentChat.OwnerID)
+	insertEnabledAnthropicProvider(t, db, parentChat.OwnerID)
 	// The direct DB insert above bypasses the pubsub event that
 	// production uses to invalidate the provider cache. Explicitly
 	// invalidate here so the background processing goroutine does

@@ -200,24 +200,18 @@ func seedInternalChatDeps(
 // the current test user so computer_use flows keep Anthropic credentials
 // after provider-key pruning.
 func insertEnabledAnthropicProvider(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
 ) {
 	t.Helper()
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		APIKey:               "test-anthropic-key",
-		BaseUrl:              "",
-		ApiKeyKeyID:          sql.NullString{},
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
+		APIKey:      "test-anthropic-key",
+		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
 	})
-	require.NoError(t, err)
 }
 
 func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testing.T) {
@@ -231,7 +225,7 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(ctx, t, db)
-		insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+		insertEnabledAnthropicProvider(t, db, user.ID)
 
 		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
 		require.NoError(t, err)
@@ -261,18 +255,14 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 }
 
 func insertInternalChatModelConfig(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	userID uuid.UUID,
 	model string,
 	enabled bool,
 ) database.ChatModelConfig {
 	return insertInternalChatModelConfigForProvider(
-		ctx,
 		t,
 		db,
-		userID,
 		"openai",
 		model,
 		enabled,
@@ -280,7 +270,6 @@ func insertInternalChatModelConfig(
 }
 
 func insertInternalChatProvider(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
@@ -292,36 +281,31 @@ func insertInternalChatProvider(
 ) database.ChatProvider {
 	t.Helper()
 
-	providerConfig, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:                   provider,
-		DisplayName:                provider,
-		APIKey:                     apiKey,
-		CreatedBy:                  uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:                    true,
-		CentralApiKeyEnabled:       centralAPIKeyEnabled,
-		AllowUserApiKey:            allowUserAPIKey,
-		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    provider,
+		DisplayName: provider,
+		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
+	}, func(p *database.InsertChatProviderParams) {
+		p.APIKey = apiKey
+		p.CentralApiKeyEnabled = centralAPIKeyEnabled
+		p.AllowUserApiKey = allowUserAPIKey
+		p.AllowCentralApiKeyFallback = allowCentralAPIKeyFallback
 	})
-	require.NoError(t, err)
 
 	return providerConfig
 }
 
 func insertInternalChatModelConfigForProvider(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	userID uuid.UUID,
 	provider string,
 	model string,
 	enabled bool,
 ) database.ChatModelConfig {
 	t.Helper()
 	return insertInternalChatModelConfigWithOptions(
-		ctx,
 		t,
 		db,
-		userID,
 		provider,
 		model,
 		enabled,
@@ -330,10 +314,8 @@ func insertInternalChatModelConfigForProvider(
 }
 
 func insertInternalChatModelConfigWithOptions(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	userID uuid.UUID,
 	provider string,
 	model string,
 	enabled bool,
@@ -341,19 +323,14 @@ func insertInternalChatModelConfigWithOptions(
 ) database.ChatModelConfig {
 	t.Helper()
 
-	// Use raw insert instead of dbgen.ChatModelConfig because
-	// takeFirst treats false as zero, making it impossible to
-	// seed Enabled=false through the generator.
-	modelConfig, err := db.InsertChatModelConfig(dbauthz.AsSystemRestricted(context.Background()), database.InsertChatModelConfigParams{
-		Provider:             provider,
-		Model:                model,
-		DisplayName:          model,
-		Enabled:              enabled,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              options,
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:    provider,
+		Model:       model,
+		DisplayName: model,
+		Options:     options,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = enabled
 	})
-	require.NoError(t, err, "insert chat model config")
 
 	return modelConfig
 }
@@ -672,7 +649,7 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	overrideModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "general-override-"+uuid.NewString(), true,
+		t, db, "general-override-"+uuid.NewString(), true,
 	)
 	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, overrideModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -702,7 +679,6 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	insertInternalChatProvider(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -712,11 +688,10 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 		true,
 		false,
 	)
+
 	overrideModel := insertInternalChatModelConfigForProvider(
-		ctx,
 		t,
 		db,
-		user.ID,
 		"openai-compat",
 		"gpt-4o-mini",
 		true,
@@ -771,22 +746,21 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:                   "openai-compat",
-		DisplayName:                "openai-compat",
-		APIKey:                     "",
-		CreatedBy:                  uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:                    false,
-		CentralApiKeyEnabled:       false,
-		AllowUserApiKey:            true,
-		AllowCentralApiKeyFallback: false,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai-compat",
+		DisplayName: "openai-compat",
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+	}, func(p *database.InsertChatProviderParams) {
+		p.APIKey = ""
+		p.Enabled = false
+		p.CentralApiKeyEnabled = false
+		p.AllowUserApiKey = true
+		p.AllowCentralApiKeyFallback = false
 	})
-	require.NoError(t, err)
+
 	overrideModel := insertInternalChatModelConfigForProvider(
-		ctx,
 		t,
 		db,
-		user.ID,
 		"openai-compat",
 		"gpt-4o-mini",
 		true,
@@ -879,7 +853,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	overrideModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "override-no-parent-model-"+uuid.NewString(), true,
+		t, db, "override-no-parent-model-"+uuid.NewString(), true,
 	)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-no-model",
@@ -911,7 +885,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
 	overrideModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-override-"+uuid.NewString(), true,
+		t, db, "explore-override-"+uuid.NewString(), true,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -949,7 +923,7 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-current-turn-"+uuid.NewString(), true,
+		t, db, "explore-current-turn-"+uuid.NewString(), true,
 	)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-fallback",
@@ -1221,7 +1195,7 @@ func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-invalid-override-"+uuid.NewString(), true,
+		t, db, "explore-invalid-override-"+uuid.NewString(), true,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
 	parentChat := createInternalParentChat(
@@ -1253,10 +1227,10 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-fallback-current-"+uuid.NewString(), true,
+		t, db, "explore-fallback-current-"+uuid.NewString(), true,
 	)
 	disabledModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-disabled-"+uuid.NewString(), false,
+		t, db, "explore-disabled-"+uuid.NewString(), false,
 	)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, disabledModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -1288,20 +1262,18 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	ctx := chatdTestContext(t)
 	user, org, parentModel := seedInternalChatDeps(ctx, t, db)
 	currentTurnModel := insertInternalChatModelConfig(
-		ctx, t, db, user.ID, "explore-missing-user-key-current-"+uuid.NewString(), true,
+		t, db, "explore-missing-user-key-current-"+uuid.NewString(), true,
 	)
-	// Use raw insert because takeFirst treats false/"" as zero,
-	// overriding CentralApiKeyEnabled and APIKey to defaults.
-	_, err := db.InsertChatProvider(dbauthz.AsSystemRestricted(context.Background()), database.InsertChatProviderParams{
-		Provider:                   "openai-compat",
-		DisplayName:                "OpenAI Compat",
-		APIKey:                     "",
-		CentralApiKeyEnabled:       false,
-		AllowUserApiKey:            true,
-		AllowCentralApiKeyFallback: false,
-		Enabled:                    true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai-compat",
+		DisplayName: "OpenAI Compat",
+	}, func(p *database.InsertChatProviderParams) {
+		p.APIKey = ""
+		p.CentralApiKeyEnabled = false
+		p.AllowUserApiKey = true
+		p.AllowCentralApiKeyFallback = false
 	})
-	require.NoError(t, err)
+
 	overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider:    "openai-compat",
 		Model:       "gpt-4o-mini",
@@ -1629,7 +1601,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			ctx := chatdTestContext(t)
 			user, org, model := seedInternalChatDeps(ctx, t, db)
 			if tt.variant == subagentTypeComputerUse {
-				insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+				insertEnabledAnthropicProvider(t, db, user.ID)
 			}
 			parentChat := createInternalParentChat(
 				ctx,
@@ -1764,7 +1736,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+	insertEnabledAnthropicProvider(t, db, user.ID)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
@@ -1821,7 +1793,7 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(ctx, t, db)
-	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
+	insertEnabledAnthropicProvider(t, db, user.ID)
 
 	mcpCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName: "MCP Test",

@@ -140,9 +140,9 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	return msgs[0]
 }
 
-func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig) database.ChatModelConfig {
+func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
-	cfg, err := db.InsertChatModelConfig(genCtx, database.InsertChatModelConfigParams{
+	params := database.InsertChatModelConfigParams{
 		Provider:             takeFirst(seed.Provider, "openai"),
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -153,14 +153,18 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		ContextLimit:         takeFirst(seed.ContextLimit, 128000),
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, 70),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
-	})
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	cfg, err := db.InsertChatModelConfig(genCtx, params)
 	require.NoError(t, err, "insert chat model config")
 	return cfg
 }
 
-func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider) database.ChatProvider {
+func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, munge ...func(*database.InsertChatProviderParams)) database.ChatProvider {
 	t.Helper()
-	provider, err := db.InsertChatProvider(genCtx, database.InsertChatProviderParams{
+	params := database.InsertChatProviderParams{
 		Provider:                   takeFirst(seed.Provider, "openai"),
 		DisplayName:                takeFirst(seed.DisplayName, seed.Provider, "openai"),
 		APIKey:                     takeFirst(seed.APIKey, "test-key"),
@@ -171,7 +175,11 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider) d
 		CentralApiKeyEnabled:       takeFirst(seed.CentralApiKeyEnabled, true),
 		AllowUserApiKey:            seed.AllowUserApiKey,
 		AllowCentralApiKeyFallback: seed.AllowCentralApiKeyFallback,
-	})
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	provider, err := db.InsertChatProvider(genCtx, params)
 	require.NoError(t, err, "insert chat provider")
 	return provider
 }

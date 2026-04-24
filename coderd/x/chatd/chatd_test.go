@@ -767,7 +767,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	// OpenAI only serializes web_search through the Responses API.
 	// Store=true routes there only for supported Responses models.
 	webSearchModel := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -999,7 +998,6 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 	// OpenAI only serializes web_search through the Responses API.
 	// Store=true routes there only for supported Responses models.
 	webSearchModel := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -2448,7 +2446,6 @@ func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfigA := seedChatDependencies(t, db)
 	modelConfigB := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -2506,7 +2503,6 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, modelConfigA := seedChatDependencies(t, db)
 	modelConfigB := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -2634,7 +2630,6 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	})
 	user, org, modelConfigA := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	modelConfigB := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -2643,7 +2638,6 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 		codersdk.ChatModelCallConfig{},
 	)
 	modelConfigC := insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		user.ID,
@@ -5665,20 +5659,18 @@ func seedChatDependenciesWithProviderPolicy(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	// Use raw insert because dbgen.ChatProvider uses takeFirst,
-	// which treats false/"" as zero values and overrides them
-	// with defaults (e.g. CentralApiKeyEnabled becomes true).
-	providerConfig, err := db.InsertChatProvider(dbauthz.AsSystemRestricted(context.Background()), database.InsertChatProviderParams{
-		Provider:                   provider,
-		DisplayName:                provider,
-		APIKey:                     apiKey,
-		BaseUrl:                    baseURL,
-		CentralApiKeyEnabled:       centralAPIKeyEnabled,
-		AllowUserApiKey:            allowUserAPIKey,
-		AllowCentralApiKeyFallback: allowCentralAPIKeyFallback,
-		Enabled:                    true,
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    provider,
+		DisplayName: provider,
+		BaseUrl:     baseURL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     true,
+	}, func(p *database.InsertChatProviderParams) {
+		p.APIKey = apiKey
+		p.CentralApiKeyEnabled = centralAPIKeyEnabled
+		p.AllowUserApiKey = allowUserAPIKey
+		p.AllowCentralApiKeyFallback = allowCentralAPIKeyFallback
 	})
-	require.NoError(t, err)
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider:  provider,
@@ -5741,7 +5733,6 @@ func waitForTerminalChat(
 }
 
 func insertChatModelConfigWithCallConfig(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
@@ -5754,20 +5745,14 @@ func insertChatModelConfigWithCallConfig(
 	options, err := json.Marshal(callConfig)
 	require.NoError(t, err)
 
-	modelConfig, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             provider,
-		Model:                model,
-		DisplayName:          model,
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		IsDefault:            false,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              options,
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:    provider,
+		Model:       model,
+		DisplayName: model,
+		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
+		Options:     options,
 	})
-	require.NoError(t, err)
-	return modelConfig
 }
 
 // seedWorkspaceWithAgent creates a full workspace chain with a connected
