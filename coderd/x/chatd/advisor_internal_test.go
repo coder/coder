@@ -23,21 +23,24 @@ import (
 )
 
 // advisorOverrideStubStore stubs only the database methods that
-// resolveAdvisorModelOverride exercises via the chatConfigCache.
+// resolveAdvisorModelOverride exercises. The prod code calls
+// GetEnabledChatModelConfigByID so the query joins chat_providers and
+// filters both enabled flags atomically; tests simulate that by returning
+// configs the stub treats as enabled.
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getChatModelConfigByID func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getEnabledChatModelConfigByID func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
 }
 
-func (s *advisorOverrideStubStore) GetChatModelConfigByID(
+func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
 	ctx context.Context,
 	id uuid.UUID,
 ) (database.ChatModelConfig, error) {
-	if s.getChatModelConfigByID == nil {
-		return database.ChatModelConfig{}, xerrors.New("unexpected GetChatModelConfigByID call")
+	if s.getEnabledChatModelConfigByID == nil {
+		return database.ChatModelConfig{}, xerrors.New("unexpected GetEnabledChatModelConfigByID call")
 	}
-	return s.getChatModelConfigByID(ctx, id)
+	return s.getEnabledChatModelConfigByID(ctx, id)
 }
 
 func newAdvisorTestServer(
@@ -47,7 +50,10 @@ func newAdvisorTestServer(
 ) *Server {
 	t.Helper()
 	clock := quartz.NewMock(t)
-	return &Server{configCache: newChatConfigCache(ctx, store, clock)}
+	return &Server{
+		db:          store,
+		configCache: newChatConfigCache(ctx, store, clock),
+	}
 }
 
 // TestResolveAdvisorModelOverride covers the early-return, each fallback
@@ -84,7 +90,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &advisorOverrideStubStore{
-			getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{}, xerrors.New("lookup failed")
 			},
 		}
@@ -108,7 +114,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
 					Provider:    "openai",
@@ -141,7 +147,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
 		store := &advisorOverrideStubStore{
-			getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
 					Provider:    "openai",
@@ -177,7 +183,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		})
 		require.NoError(t, err)
 		store := &advisorOverrideStubStore{
-			getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
 					Provider:    "openai",

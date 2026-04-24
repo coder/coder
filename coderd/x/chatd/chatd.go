@@ -280,11 +280,26 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig
 	}
 
-	overrideConfig, err := p.configCache.ModelConfigByID(
+	// GetEnabledChatModelConfigByID joins on chat_providers.enabled = TRUE
+	// and chat_model_configs.enabled = TRUE, so it returns sql.ErrNoRows
+	// the moment an admin disables either the model config or its provider.
+	// Using the cached ModelConfigByID here would keep resolving an override
+	// whose provider was just disabled, and an env or central fallback key
+	// would let ModelFromConfig succeed, silently routing advisor prompts
+	// to a provider the admin expects to be off.
+	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(
 		ctx,
 		advisorCfg.ModelConfigID,
 	)
 	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			logger.Warn(
+				ctx,
+				"advisor model config is disabled or unavailable, continuing with chat model",
+				slog.F("model_config_id", advisorCfg.ModelConfigID),
+			)
+			return fallbackModel, fallbackCallConfig
+		}
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor model config, continuing with chat model",
@@ -6243,7 +6258,14 @@ func (p *Server) runChat(
 	// the prompt mutates at each of them and the advisor must snapshot
 	// the post-mutation state. Removing any of those calls would leave
 	// the advisor with a stale view of the conversation.
+	//
+	// The no-op guard keeps the common disabled/filtered paths (advisor
+	// off, plan mode, explore, child chats) from paying an O(n) prompt
+	// clone per step for a snapshot that is never consumed.
 	setAdvisorPromptSnapshot := func(msgs []fantasy.Message) {
+		if advisorRuntime == nil {
+			return
+		}
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
 
