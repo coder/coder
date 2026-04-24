@@ -43,8 +43,6 @@ export const AgentSettingsAgentsPageView: FC<
 	const enabledModelConfigs = (modelConfigsData ?? []).filter(
 		(modelConfig) => modelConfig.enabled,
 	);
-	const generalModelDescription =
-		"Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace.";
 	const showGeneralModelSection =
 		onSaveGeneralModelOverride !== undefined ||
 		generalModelOverrideData !== undefined ||
@@ -61,12 +59,12 @@ export const AgentSettingsAgentsPageView: FC<
 				<section aria-label="General model" className="flex flex-col gap-3">
 					<SectionHeader
 						label="General model"
-						description={generalModelDescription}
+						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
 						level="section"
 					/>
 					<SubagentModelOverrideSettings
 						title="General model"
-						description={generalModelDescription}
+						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
 						modelOverrideData={generalModelOverrideData}
 						enabledModelConfigs={enabledModelConfigs}
 						modelConfigsError={modelConfigsError}
