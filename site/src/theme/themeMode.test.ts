@@ -1,5 +1,6 @@
 import { DEFAULT_THEME } from ".";
 import {
+	draftFromState,
 	migrateLegacyPreference,
 	resolveActiveThemeName,
 	stateToUpdate,
@@ -267,5 +268,85 @@ describe("stateToUpdate", () => {
 			theme_dark: "dark-tritan",
 			terminal_font: "",
 		});
+	});
+});
+
+describe("draftFromState", () => {
+	it("preserves sync slots and seeds single from the dark slot", () => {
+		expect(
+			draftFromState({
+				mode: "sync",
+				light: "light-protan-deuter",
+				dark: "dark-tritan",
+			}),
+		).toEqual({
+			mode: "sync",
+			single: "dark-tritan",
+			light: "light-protan-deuter",
+			dark: "dark-tritan",
+		});
+	});
+
+	it("falls back to the FAMILY_PAIR of the single theme when no slots persist", () => {
+		expect(draftFromState({ mode: "single", theme: "dark-tritan" })).toEqual({
+			mode: "single",
+			single: "dark-tritan",
+			light: "light-tritan",
+			dark: "dark-tritan",
+		});
+	});
+
+	it("reuses persisted sync slots when the user is currently in single mode", () => {
+		// Scenario: user previously saved a sync-mode pair of
+		// light-tritan + dark-protan-deuter, then switched to single
+		// mode. Reopening the page must restore those slot picks so
+		// toggling back to sync does not overwrite them with the
+		// family pair of the single theme.
+		expect(
+			draftFromState(
+				{ mode: "single", theme: "dark" },
+				{ light: "light-tritan", dark: "dark-protan-deuter" },
+			),
+		).toEqual({
+			mode: "single",
+			single: "dark",
+			light: "light-tritan",
+			dark: "dark-protan-deuter",
+		});
+	});
+
+	it("falls back to the family pair when persisted slots are garbage", () => {
+		expect(
+			draftFromState(
+				{ mode: "single", theme: "light-protan-deuter" },
+				{ light: "garbage", dark: "" },
+			),
+		).toEqual({
+			mode: "single",
+			single: "light-protan-deuter",
+			light: "light-protan-deuter",
+			dark: "dark-protan-deuter",
+		});
+	});
+
+	it("round-trips every concrete theme as a single-mode draft", () => {
+		// Guards against a future theme being added to CONCRETE_THEMES
+		// without a matching FAMILY_PAIR entry. Mirrors the
+		// SingleModeSection module-load assertion at the unit level.
+		const concreteThemes = [
+			"light",
+			"dark",
+			"light-protan-deuter",
+			"dark-protan-deuter",
+			"light-tritan",
+			"dark-tritan",
+		] as const;
+		for (const theme of concreteThemes) {
+			const draft = draftFromState({ mode: "single", theme });
+			expect(draft.mode).toBe("single");
+			expect(draft.single).toBe(theme);
+			expect(draft.light.startsWith("light")).toBe(true);
+			expect(draft.dark.startsWith("dark")).toBe(true);
+		}
 	});
 });

@@ -7985,6 +7985,16 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
+/**
+ * UpdateUserAppearanceSettingsRequest is the payload for updating a
+ * user's theme and terminal-font preferences. Theme names
+ * (ThemePreference, ThemeLight, ThemeDark) are intentionally not
+ * validated against a server-side allowlist: the client resolves
+ * unknown names to the active OS color scheme via resolveThemeName at
+ * render time, and migrateLegacyPreference sanitizes stale database
+ * values on read. See site/src/theme/colorblind.ts and
+ * site/src/theme/themeMode.ts.
+ */
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	/**

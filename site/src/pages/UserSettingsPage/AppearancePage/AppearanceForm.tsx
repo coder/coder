@@ -27,7 +27,6 @@ import {
 	migrateLegacyPreference,
 	stateToUpdate,
 	switchToSingle,
-	switchToSync,
 	type ThemeModeDraft,
 } from "#/theme/themeMode";
 import { Section } from "../Section";
@@ -71,7 +70,10 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	// user can switch the dropdown without losing their other-mode
 	// selection mid-interaction.
 	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
-		draftFromState(migrateLegacyPreference(initialValues)),
+		draftFromState(migrateLegacyPreference(initialValues), {
+			light: initialValues.theme_light,
+			dark: initialValues.theme_dark,
+		}),
 	);
 
 	const currentTerminalFont = useMemo(
@@ -91,32 +93,27 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		if (mode === draft.mode) {
 			return;
 		}
-		const state =
-			mode === "single"
-				? switchToSingle(
-						draft.mode === "sync"
-							? { mode: "sync", light: draft.light, dark: draft.dark }
-							: { mode: "single", theme: draft.single },
-						activeScheme,
-					)
-				: switchToSync(
-						draft.mode === "single"
-							? { mode: "single", theme: draft.single }
-							: { mode: "sync", light: draft.light, dark: draft.dark },
-					);
-		// Merge the resolved state back into the draft so slot values
-		// the user had chosen in the other mode survive the switch.
+		// Preserve every slot the user has already picked across the
+		// toggle. Switching sync <-> single is a reversible UI choice;
+		// the user's sync pair must survive a detour through single
+		// mode, and vice versa.
 		const next: ThemeModeDraft =
-			state.mode === "sync"
+			mode === "single"
 				? {
-						mode: "sync",
-						single: draft.single,
-						light: state.light,
-						dark: state.dark,
+						mode: "single",
+						// switchToSingle picks the slot that matches
+						// the active OS scheme so the rendered theme
+						// does not flip when the dropdown changes.
+						single: switchToSingle(
+							{ mode: "sync", light: draft.light, dark: draft.dark },
+							activeScheme,
+						).theme,
+						light: draft.light,
+						dark: draft.dark,
 					}
 				: {
-						mode: "single",
-						single: state.theme,
+						mode: "sync",
+						single: draft.single,
 						light: draft.light,
 						dark: draft.dark,
 					};

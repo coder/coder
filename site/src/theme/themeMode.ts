@@ -226,8 +226,19 @@ export const stateToUpdate = (
  * Seeds a form draft from decoded persisted state. Slots the user
  * isn't actively using are filled with sensible defaults so switching
  * modes later feels continuous rather than destructive.
+ *
+ * `persistedSlots` is the raw `theme_light` / `theme_dark` from storage.
+ * When the user is currently in single mode but previously persisted
+ * sync slots (i.e. they had sync-mode selections before switching),
+ * those slots are reused verbatim so toggling the dropdown back to
+ * sync restores their prior pair. Unknown or empty slot values fall
+ * back to the `FAMILY_PAIR` of the single theme so the slots are
+ * always populated with concrete names.
  */
-export const draftFromState = (state: ThemeModeState): ThemeModeDraft => {
+export const draftFromState = (
+	state: ThemeModeState,
+	persistedSlots?: { light?: string; dark?: string },
+): ThemeModeDraft => {
 	if (state.mode === "sync") {
 		// Seed the "single" slot from the dark slot since historical
 		// default behavior preferred dark. If the user later switches
@@ -244,7 +255,7 @@ export const draftFromState = (state: ThemeModeState): ThemeModeDraft => {
 	return {
 		mode: "single",
 		single: state.theme,
-		light: pair.light,
-		dark: pair.dark,
+		light: coerceConcrete(persistedSlots?.light, pair.light),
+		dark: coerceConcrete(persistedSlots?.dark, pair.dark),
 	};
 };

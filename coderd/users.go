@@ -1224,61 +1224,71 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		themeMode = codersdk.ThemeModeSingle
 	}
 
-	updatedThemePreference, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
-		UserID:          user.ID,
-		ThemePreference: params.ThemePreference,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme preference.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	var (
+		updatedThemePreference database.UserConfig
+		updatedThemeMode       database.UserConfig
+		updatedThemeLight      database.UserConfig
+		updatedThemeDark       database.UserConfig
+		updatedTerminalFont    database.UserConfig
+	)
 
-	updatedThemeMode, err := api.Database.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
-		UserID:    user.ID,
-		ThemeMode: string(themeMode),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme mode.",
-			Detail:  err.Error(),
+	// Wrap every appearance write in a single transaction so a mid-batch
+	// failure cannot leave the user's settings half-applied. Without this
+	// the client could see an error response while, for example,
+	// theme_light has already been persisted and theme_dark has not,
+	// breaking the sync-mode invariant that mode + both slots move
+	// together. The frontend in stateToUpdate mirrors theme_preference
+	// from the single theme (or the dark slot in sync mode) so older
+	// clients that only read theme_preference still see a plausible
+	// value; the transaction keeps that mirror consistent with the new
+	// fields on the wire.
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		updatedThemePreference, err = tx.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+			UserID:          user.ID,
+			ThemePreference: params.ThemePreference,
 		})
-		return
-	}
+		if err != nil {
+			return xerrors.Errorf("update user theme preference: %w", err)
+		}
 
-	updatedThemeLight, err := api.Database.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
-		UserID:     user.ID,
-		ThemeLight: params.ThemeLight,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme light.",
-			Detail:  err.Error(),
+		updatedThemeMode, err = tx.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+			UserID:    user.ID,
+			ThemeMode: string(themeMode),
 		})
-		return
-	}
+		if err != nil {
+			return xerrors.Errorf("update user theme mode: %w", err)
+		}
 
-	updatedThemeDark, err := api.Database.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
-		UserID:    user.ID,
-		ThemeDark: params.ThemeDark,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme dark.",
-			Detail:  err.Error(),
+		updatedThemeLight, err = tx.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+			UserID:     user.ID,
+			ThemeLight: params.ThemeLight,
 		})
-		return
-	}
+		if err != nil {
+			return xerrors.Errorf("update user theme light: %w", err)
+		}
 
-	updatedTerminalFont, err := api.Database.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
-		UserID:       user.ID,
-		TerminalFont: string(params.TerminalFont),
-	})
+		updatedThemeDark, err = tx.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+			UserID:    user.ID,
+			ThemeDark: params.ThemeDark,
+		})
+		if err != nil {
+			return xerrors.Errorf("update user theme dark: %w", err)
+		}
+
+		updatedTerminalFont, err = tx.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+			UserID:       user.ID,
+			TerminalFont: string(params.TerminalFont),
+		})
+		if err != nil {
+			return xerrors.Errorf("update user terminal font: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user terminal font.",
+			Message: "Internal error updating user appearance settings.",
 			Detail:  err.Error(),
 		})
 		return

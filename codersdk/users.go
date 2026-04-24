@@ -280,6 +280,14 @@ type UserAppearanceSettings struct {
 	TerminalFont TerminalFontName `json:"terminal_font"`
 }
 
+// UpdateUserAppearanceSettingsRequest is the payload for updating a
+// user's theme and terminal-font preferences. Theme names
+// (ThemePreference, ThemeLight, ThemeDark) are intentionally not
+// validated against a server-side allowlist: the client resolves
+// unknown names to the active OS color scheme via resolveThemeName at
+// render time, and migrateLegacyPreference sanitizes stale database
+// values on read. See site/src/theme/colorblind.ts and
+// site/src/theme/themeMode.ts.
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 	// ThemeMode is optional for backward compatibility. An empty value is
