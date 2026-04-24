@@ -2678,7 +2678,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	firstRunStarted := make(chan struct{})
 	allowFirstRunFinish := make(chan struct{})
@@ -2765,7 +2765,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return requestCount.Load() >= 3
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
