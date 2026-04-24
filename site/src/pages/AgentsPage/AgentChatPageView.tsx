@@ -159,6 +159,7 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messageCount: number;
 
 	urlTransform?: UrlTransform;
 
@@ -229,6 +230,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -454,6 +456,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
+							messageCount={messageCount}
 						>
 							<div className="px-4">
 								<ChatPageTimeline

@@ -1462,6 +1462,7 @@ const AgentChatPage: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

@@ -97,6 +97,7 @@
 		"react-confetti": "6.4.0",
 		"react-day-picker": "9.14.0",
 		"react-dom": "19.2.2",
+		"react-infinite-scroll-component": "7.1.0",
 		"react-markdown": "9.1.0",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
 		"react-resizable-panels": "3.0.6",
