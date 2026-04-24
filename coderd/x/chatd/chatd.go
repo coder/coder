@@ -249,8 +249,9 @@ func (p *Server) loadCachedWorkspaceContext(
 	}
 
 	var tools []fantasy.AgentTool
+	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
 	for _, t := range entry.tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
 	}
 
 	return tools
@@ -6291,8 +6292,9 @@ func (p *Server) runChat(
 			}
 
 			for _, t := range toolsResp.Tools {
+				invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
 				workspaceMCPTools = append(workspaceMCPTools,
-					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
 				)
 			}
 			return nil
