@@ -111,7 +111,7 @@ type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 export function getPersistedDraftInputValue(
 	chatID: string | undefined,
 ): string {
-	if (typeof window === "undefined" || !chatID) {
+	if (!chatID) {
 		return "";
 	}
 	return parseStoredDraft(
@@ -126,7 +126,7 @@ export function getPersistedDraftInputValue(
 export function getPersistedSidebarTabId(
 	chatID: string | undefined,
 ): string | null {
-	if (typeof window === "undefined" || !chatID) {
+	if (!chatID) {
 		return null;
 	}
 	return localStorage.getItem(
@@ -142,7 +142,7 @@ export function savePersistedSidebarTabId(
 	chatID: string | undefined,
 	tabID: string,
 ): void {
-	if (typeof window === "undefined" || !chatID) {
+	if (!chatID) {
 		return;
 	}
 	localStorage.setItem(
@@ -156,7 +156,7 @@ export function savePersistedSidebarTabId(
  * when a chat is archived so a future unarchive starts fresh.
  */
 export function clearPersistedSidebarTabId(chatID: string | undefined): void {
-	if (typeof window === "undefined" || !chatID) {
+	if (!chatID) {
 		return;
 	}
 	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
