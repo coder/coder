@@ -432,7 +432,7 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 			if err != nil {
 				err = xerrors.Errorf("subscribe agent: %w", err)
 				m.coordination.SendErr(err)
-				_ = m.coordination.Client.Close()
+				_ = m.coordination.CloseClient()
 				m.coordination = nil
 				return err
 			}
@@ -502,7 +502,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					m.coordination.SendErr(xerrors.Errorf("unsubscribe expired agent: %w", err))
 					// close the client because we do not want to do a graceful disconnect by
 					// closing the coordination.
-					_ = m.coordination.Client.Close()
+					_ = m.coordination.CloseClient()
 					m.coordination = nil
 					// Here we continue deleting any inactive agents: there is no point in
 					// re-establishing tunnels to expired agents when we eventually reconnect.
