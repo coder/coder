@@ -272,25 +272,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const effectiveScrollToBottomRef =
 		scrollToBottomRef ?? internalScrollToBottomRef;
 
-	// State for programmatically switching the sidebar tab (e.g. when
-	// the user clicks the inline desktop preview card). The initial
-	// value is restored from localStorage so the tab survives session
-	// switches.
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
 	);
 
-	// The Vite config compiles this directory with
-	// babel-plugin-react-compiler (see site/vite.config.mts), which
-	// auto-memoizes closures. A plain arrow is sufficient.
 	const setSidebarTabId = (tabId: string) => {
 		setSidebarTabIdState(tabId);
-		// Do not persist for archived chats. The archive flow clears the
-		// stored tab on purpose so a future unarchive starts from the
-		// default tab. Persisting here would immediately recreate the
-		// entry for any tab the user clicks while viewing the read-only
-		// archived view. React local state still switches for immediate
-		// visual feedback.
 		if (!isArchived) {
 			savePersistedSidebarTabId(agentId, tabId);
 		}

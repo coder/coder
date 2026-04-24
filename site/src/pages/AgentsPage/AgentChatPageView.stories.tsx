@@ -1013,10 +1013,6 @@ export const TerminalFocusOnTabSwitch: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// Per-session sidebar tab persistence stories
-// ---------------------------------------------------------------------------
-
 const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}`;
 
 /**
@@ -1042,14 +1038,11 @@ export const RestoresPersistedSidebarTab: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The Terminal tab should be selected because of the
-		// persisted localStorage value.
 		await waitFor(() => {
 			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
 			expect(terminalTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// The Git tab should not be selected.
 		const gitTab = canvas.getByRole("tab", { name: "Git" });
 		expect(gitTab).toHaveAttribute("aria-selected", "false");
 	},
@@ -1077,22 +1070,18 @@ export const PersistsSidebarTabClick: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for the sidebar to render with the default Git tab selected.
 		await waitFor(() => {
 			const gitTab = canvas.getByRole("tab", { name: "Git" });
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// Click the Terminal tab.
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
 		await userEvent.click(terminalTab);
 
-		// The Terminal tab should now be selected.
 		await waitFor(() => {
 			expect(terminalTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// localStorage should now contain the persisted tab ID.
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
 	},
 };
@@ -1115,24 +1104,17 @@ export const PreservesUnavailableSidebarTab: Story = {
 			localStorage.removeItem(sidebarTabStorageKey);
 		};
 	},
-	// Render without a workspace or workspace agent so the Terminal tab
-	// is not in the sidebar's tab list.
 	render: () => <StoryAgentChatPageView showSidebarPanel />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Git is the only available tab, so it should be selected by
-		// the getEffectiveTabId fallback.
 		await waitFor(() => {
 			const gitTab = canvas.getByRole("tab", { name: "Git" });
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// The Terminal tab must not be rendered at all.
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
-		// The stored value must still be "terminal" so that when the
-		// workspace returns, the user's choice is honoured.
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
 	},
 };
@@ -1166,15 +1148,11 @@ export const DoesNotPersistForArchivedChat: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for the sidebar to render with the default Git tab selected.
 		await waitFor(() => {
 			const gitTab = canvas.getByRole("tab", { name: "Git" });
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// Click the Terminal tab. The tab still switches visually (React
-		// local state), but the persist-to-localStorage step must be
-		// skipped.
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
 		await userEvent.click(terminalTab);
 
@@ -1182,9 +1160,6 @@ export const DoesNotPersistForArchivedChat: Story = {
 			expect(terminalTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		// localStorage must NOT hold an entry for this chat. If it did,
-		// a future unarchive would restore Terminal instead of the
-		// default Git tab.
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
 	},
 };
