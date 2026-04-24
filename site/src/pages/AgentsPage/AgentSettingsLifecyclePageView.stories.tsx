@@ -268,6 +268,23 @@ export const AutoArchiveEnabled: Story = {
 	},
 };
 
+export const AutoArchiveSaveDisabled: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		const archiveForm = input.closest("form");
+		if (!(archiveForm instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive input to live inside a form.");
+		}
+		expect(
+			within(archiveForm).queryByRole("button", { name: "Save" }),
+		).toBeNull();
+	},
+};
+
 export const AutoArchiveToggleOnSavesDefault: Story = {
 	args: {
 		autoArchiveDaysData: { auto_archive_days: 0 },
@@ -316,6 +333,38 @@ export const AutoArchiveToggleOffSavesDisabled: Story = {
 		await waitFor(() => {
 			expect(args.onSaveAutoArchiveDays).toHaveBeenCalledWith(
 				{ auto_archive_days: 0 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AutoArchiveEditDaysAndSave: Story = {
+	args: {
+		autoArchiveDaysData: { auto_archive_days: 90 },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText("Auto-archive period in days");
+		const archiveForm = input.closest("form");
+		if (!(archiveForm instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive input to live inside a form.");
+		}
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "120");
+
+		const saveButton = within(archiveForm).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAutoArchiveDays).toHaveBeenCalledWith(
+				{ auto_archive_days: 120 },
 				expect.anything(),
 			);
 		});
@@ -392,6 +441,11 @@ export const AutoArchiveLoadError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		expect(toggle).not.toBeChecked();
+		expect(canvas.queryByLabelText("Auto-archive period in days")).toBeNull();
 		expect(
 			await canvas.findByText("Failed to load auto-archive setting."),
 		).toBeInTheDocument();

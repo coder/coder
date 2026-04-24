@@ -137,6 +137,8 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 						aria-label="Auto-archive period in days"
 						value={form.values.auto_archive_days}
 						onChange={form.handleChange}
+						onBlur={form.handleBlur}
+						aria-invalid={Boolean(form.errors.auto_archive_days)}
 						disabled={isSavingAutoArchiveDays || isAutoArchiveDaysLoading}
 						className="w-full"
 					/>
