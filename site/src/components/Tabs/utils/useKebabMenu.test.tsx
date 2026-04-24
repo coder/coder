@@ -93,6 +93,7 @@ describe("useKebabMenu", () => {
 	afterEach(() => {
 		// Keep tests isolated when other suites spy on globals.
 		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 	});
 
 	it("shows all tabs when the available width is enough", async () => {
