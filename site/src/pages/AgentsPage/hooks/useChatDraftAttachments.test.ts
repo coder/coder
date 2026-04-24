@@ -206,6 +206,39 @@ describe("useChatDraftAttachments", () => {
 		unmount();
 	});
 
+	it("keeps failed uploads attached with an error state", async () => {
+		const upload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			upload.promise,
+		);
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File(["hello"], "failed.txt", {
+			type: "text/plain",
+			lastModified: 12,
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+		await vi.waitFor(() => {
+			expect(result.current.attachments).toHaveLength(1);
+		});
+
+		await act(async () => {
+			upload.reject(new Error("network down"));
+		});
+		await vi.waitFor(() => {
+			const state = result.current.uploadStates.get(file);
+			expect(state).toMatchObject({ status: "error" });
+			expect(state?.error).toContain("Upload failed");
+		});
+		expect(result.current.attachments).toHaveLength(1);
+
+		unmount();
+	});
+
 	it("keeps quota-limited attachments in memory and clears the warning after metadata persists", async () => {
 		const upload = createDeferred<{ id: string }>();
 		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
@@ -258,6 +291,53 @@ describe("useChatDraftAttachments", () => {
 			fileId: "file-lightweight",
 		});
 		expect(stored[0].payload).toBeUndefined();
+		unmount();
+	});
+
+	it("keeps uploaded attachments usable when metadata cannot be persisted", async () => {
+		const upload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			upload.promise,
+		);
+		const realSetItem = Storage.prototype.setItem;
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+			this: Storage,
+			key: string,
+			value: string,
+		) {
+			if (key === storageKey && String(value).includes("file-unpersisted")) {
+				throw new DOMException("Quota exceeded", "QuotaExceededError");
+			}
+			return realSetItem.call(this, key, value);
+		});
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File(["hello"], "metadata-fails.txt", {
+			type: "text/plain",
+			lastModified: 13,
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+		await vi.waitFor(() => {
+			expect(parseStoredDrafts()).toHaveLength(1);
+		});
+
+		await act(async () => {
+			upload.resolve({ id: "file-unpersisted" });
+		});
+		await vi.waitFor(() => {
+			const state = result.current.uploadStates.get(file);
+			expect(state).toMatchObject({
+				status: "uploaded",
+				fileId: "file-unpersisted",
+			});
+			expect(state?.draftWarning).toContain("could not be saved as a draft");
+		});
+		expect(parseStoredDrafts()[0].payload).toEqual(expect.any(String));
+
 		unmount();
 	});
 

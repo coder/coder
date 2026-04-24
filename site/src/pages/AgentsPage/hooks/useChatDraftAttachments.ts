@@ -527,6 +527,7 @@ export function useChatDraftAttachments(
 		}
 		for (const view of nextViews) {
 			if (
+				view.status === "error" ||
 				view.file.type !== "text/plain" ||
 				view.file.size > maxAttachmentSize
 			) {

@@ -320,6 +320,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleRemoveAttachment,
 	} = modeAttachments;
 
+	// Edit attachments are scoped to the chat being edited, not the compose
+	// draft. Clear them when navigation changes the chat scope.
 	const editScopeRef = useRef({ organizationId, chatId });
 
 	useEffect(() => {
@@ -379,6 +381,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setEditUploadStates,
 	]);
 
+	// Exiting edit mode should only clear the edit bucket. Compose draft
+	// attachments must survive canceling or completing an edit.
 	useEffect(() => {
 		if (wasEditingRef.current && !isEditing) {
 			resetEditAttachments();
