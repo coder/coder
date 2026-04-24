@@ -83,8 +83,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7
-// See: https://github.com/coder/fantasy/commits/959aa39579d2
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260416152503-959aa39579d2
+// See: https://github.com/coder/fantasy/commits/5ab464a305f4
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260424191546-5ab464a305f4
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.
