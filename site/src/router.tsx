@@ -95,6 +95,7 @@ const WorkspaceSharingPage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
+const MuxPage = lazy(() => import("./pages/MuxPage/MuxPage"));
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
 const TemplatePermissionsPage = lazy(
 	() =>
@@ -538,6 +539,8 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+
+					<Route path="/mux" element={<MuxPage />} />
 
 					<Route path="/tasks" element={<TasksPage />} />
 
