@@ -387,15 +387,7 @@ export const OrgPickerTightSpacing: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const orgTrigger = await canvas.findByTestId("compact-org-selector");
-		const input = await canvas.findByTestId("chat-message-input");
-
-		// The composer is the rounded-border wrapper around the chat
-		// input. Measuring from its top includes the border instead of
-		// just the inner textarea.
-		const composer = input.closest(".rounded-2xl") as HTMLElement | null;
-		if (!composer) {
-			throw new Error("Expected composer wrapper to exist");
-		}
+		const composer = await canvas.findByTestId("chat-composer");
 
 		const orgRect = orgTrigger.getBoundingClientRect();
 		const composerRect = composer.getBoundingClientRect();

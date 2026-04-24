@@ -716,6 +716,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			<div
 				ref={setComposerElement}
+				data-testid="chat-composer"
 				className={cn(
 					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
@@ -924,6 +925,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										)}
 										{workspaceOptions &&
 											onWorkspaceChange &&
+											// isBelowMdViewport() intentionally uses the md:
+											// breakpoint (768 px) to match the full-width
+											// dropdown CSS in index.css. The AgentsPage layout
+											// uses sm: (640 px) so that 200% zoom on common
+											// desktops stays on the desktop branch. See
+											// PR #24699 for the rationale before unifying these.
 											(isBelowMdViewport() ? (
 												<button
 													type="button"

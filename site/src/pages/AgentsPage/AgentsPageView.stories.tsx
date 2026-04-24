@@ -472,29 +472,13 @@ export const EmptyStateZoom200Desktop: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const input = await canvas.findByTestId("chat-message-input");
+		const outer = await canvas.findByTestId("agents-page-outer");
 
-		// Walk up from the chat input to find the outer agents page
-		// container. It is the closest ancestor with flex-direction
-		// set at a responsive breakpoint. We then assert the exact
-		// Tailwind class so the test fails if somebody reintroduces
-		// the md: breakpoint that caused the 200% zoom regression.
-		let el: HTMLElement | null = input;
-		let outer: HTMLElement | null = null;
-		while (el && el !== canvasElement) {
-			if (el.className.includes("flex-row")) {
-				outer = el;
-				break;
-			}
-			el = el.parentElement;
-		}
-
-		await expect(outer).not.toBeNull();
 		// The sm: breakpoint (640 px) keeps the layout horizontal at
 		// 720 px (1440 px desktop at 200% zoom). The previous md:
 		// breakpoint (768 px) collapsed the layout to the mobile stack.
-		await expect(outer?.className).toContain("sm:flex-row");
-		await expect(outer?.className).not.toContain("md:flex-row");
+		await expect(outer.className).toContain("sm:flex-row");
+		await expect(outer.className).not.toContain("md:flex-row");
 	},
 };
 
