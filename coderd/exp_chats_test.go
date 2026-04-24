@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12229,7 +12230,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		compressed := make([]bool, count)
 		totalCost := make([]int64, count)
 		runtime := make([]int64, count)
-		for i := 0; i < count; i++ {
+		for i := range count {
 			part, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 				codersdk.ChatMessageText(fmt.Sprintf("msg %d", i)),
 			})
@@ -12345,7 +12346,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
-	t.Run("AfterIDReturnsNewerAndSuppressesQueued", func(t *testing.T) {
+	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -12363,7 +12364,9 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.False(t, resp.HasMore)
 		require.Empty(t, resp.QueuedMessages)
 
-		want := []int64{ids[4], ids[3], ids[2]}
+		// ASC order so a polling caller can advance its cursor to
+		// max(returned_ids) without gaps.
+		want := []int64{ids[2], ids[3], ids[4]}
 		got := make([]int64, len(resp.Messages))
 		for i, m := range resp.Messages {
 			got[i] = m.ID
@@ -12398,7 +12401,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
-	t.Run("LimitCapsPageAndSetsHasMore", func(t *testing.T) {
+	t.Run("LimitCapsAfterIDPageToOldestAndSetsHasMore", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -12407,6 +12410,9 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		// Seed a queued message so the Empty assertion below verifies
+		// the cursor suppresses queued rows, not just that none exist.
+		seedQueuedMessage(ctx, t, db, chat.ID)
 
 		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
 			AfterID: ids[0],
@@ -12416,7 +12422,10 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.True(t, resp.HasMore)
 		require.Empty(t, resp.QueuedMessages)
 
-		want := []int64{ids[4], ids[3]}
+		// The ASC polling path returns the OLDEST unseen messages
+		// first. A burst larger than `limit` would otherwise silently
+		// drop the oldest rows between polls on the DESC path.
+		want := []int64{ids[1], ids[2]}
 		got := make([]int64, len(resp.Messages))
 		for i, m := range resp.Messages {
 			got[i] = m.ID
@@ -12447,14 +12456,12 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		var sdkResp codersdk.Response
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
 		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
-		foundAfterID := false
-		for _, v := range sdkResp.Validations {
-			if v.Field == "after_id" {
-				foundAfterID = true
-				break
-			}
-		}
-		require.True(t, foundAfterID, "expected validation error for after_id field")
+		require.True(t,
+			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
+				return v.Field == "after_id"
+			}),
+			"expected validation error for after_id field",
+		)
 	})
 
 	t.Run("NonNumericAfterIDReturns400", func(t *testing.T) {
@@ -12479,14 +12486,120 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 
 		var sdkResp codersdk.Response
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
-		foundAfterID := false
-		for _, v := range sdkResp.Validations {
-			if v.Field == "after_id" {
-				foundAfterID = true
+		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
+		require.True(t,
+			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
+				return v.Field == "after_id"
+			}),
+			"expected validation error for after_id field",
+		)
+	})
+
+	t.Run("AfterIDAtOrAboveMaxReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		// Seed a queued message to prove the cursor path suppresses
+		// it even when nothing else comes back.
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		// The steady-state polling case: the caller already has every
+		// message, so after_id equals the largest seen id. The server
+		// must return an empty page, not the last row again.
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID: ids[len(ids)-1],
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.Messages)
+		require.False(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+	})
+
+	t.Run("AfterIDGreaterThanOrEqualBeforeIDReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+
+		// Transposed cursors: after >= before. Fail loudly rather
+		// than return an empty page indistinguishable from
+		// "no messages in this range."
+		for _, tc := range []struct {
+			name   string
+			after  int64
+			before int64
+		}{
+			{"Transposed", ids[2], ids[0]},
+			{"Equal", ids[1], ids[1]},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				_, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+					AfterID:  tc.after,
+					BeforeID: tc.before,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "after_id must be less than before_id.", sdkErr.Message)
+			})
+		}
+	})
+
+	t.Run("AfterIDPollingWalksBurstWithoutGaps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Simulate a polling client that has already acknowledged the
+		// first message (cursor = ids[0]) when a burst of
+		// `burstSize` new messages arrives. With `limit=pageSize` and
+		// `burstSize > pageSize`, the naive DESC-ordered path would
+		// silently drop the oldest rows between polls. The ASC
+		// dispatch lets the client walk the whole burst by advancing
+		// after_id to max(returned_ids) on each tick.
+		const burstSize = 60
+		const pageSize = 25
+		// Seed burstSize+1 rows; ids[0] is the "already acknowledged"
+		// message the client saw before the burst.
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, burstSize+1)
+
+		var seen []int64
+		cursor := ids[0]
+		maxPages := (burstSize / pageSize) + 2
+		for range maxPages {
+			resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+				AfterID: cursor,
+				Limit:   pageSize,
+			})
+			require.NoError(t, err)
+			if len(resp.Messages) == 0 {
+				require.False(t, resp.HasMore)
+				break
+			}
+			for _, m := range resp.Messages {
+				seen = append(seen, m.ID)
+			}
+			// Advance to max(returned). On the ASC path this is the
+			// last element of the returned slice.
+			cursor = resp.Messages[len(resp.Messages)-1].ID
+			if !resp.HasMore {
 				break
 			}
 		}
-		require.True(t, foundAfterID, "expected validation error for after_id field")
+		require.Equal(t, ids[1:], seen,
+			"polling walk must return every burst row exactly once in ascending order")
 	})
 }
 

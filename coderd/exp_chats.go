@@ -1717,13 +1717,41 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Fetch limit+1 rows to detect whether more pages exist.
-	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
-		ChatID:   chatID,
-		BeforeID: beforeID,
-		AfterID:  afterID,
-		LimitVal: limit + 1,
-	})
+	// When both cursors are set, reject the transposed or equal case.
+	// The strict `id > after AND id < before` predicate would silently
+	// return an empty page if a client bug swapped the two, which is
+	// indistinguishable from "no messages in this range." Fail loudly
+	// instead.
+	if beforeID > 0 && afterID > 0 && afterID >= beforeID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "after_id must be less than before_id.",
+		})
+		return
+	}
+
+	// Dispatch by access shape. A polling caller that sets only
+	// after_id needs the OLDEST new messages first so it can advance
+	// its cursor monotonically. Returning the newest-N from a
+	// DESC-limited query would silently drop rows in between when a
+	// burst larger than `limit` lands between polls. Fetch limit+1 in
+	// both paths to detect whether more pages exist.
+	var messages []database.ChatMessage
+	var err error
+	switch {
+	case afterID > 0 && beforeID == 0:
+		messages, err = api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			AfterID:  afterID,
+			LimitVal: limit + 1,
+		})
+	default:
+		messages, err = api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: beforeID,
+			AfterID:  afterID,
+			LimitVal: limit + 1,
+		})
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat messages.",
