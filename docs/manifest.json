@@ -1022,13 +1022,13 @@
 					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
-					"state": ["premium"],
+					"state": ["ai governance add-on"],
 					"children": [
 						{
 							"title": "Agent Firewall",
 							"description": "Understanding Agent Firewall in Coder Tasks",
 							"path": "./ai-coder/agent-firewall/index.md",
-							"state": ["premium"],
+							"state": ["ai governance add-on"],
 							"children": [
 								{
 									"title": "NS Jail",
@@ -1074,7 +1074,7 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-gateway/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": ["premium"],
+							"state": ["ai governance add-on"],
 							"children": [
 								{
 									"title": "Setup",
@@ -1158,7 +1158,7 @@
 									"title": "AI Gateway Proxy",
 									"description": "Proxy for AI coding tools without base URL override support",
 									"path": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md",
-									"state": ["premium"],
+									"state": ["ai governance add-on"],
 									"children": [
 										{
 											"title": "Setup",

@@ -1,4 +1,4 @@
-# AI Governance Add-On (Premium)
+# AI Governance Add-On
 
 Coder Workspaces already lets teams run AI tools like
 [Cursor](https://registry.coder.com/modules/coder/cursor) and
@@ -81,9 +81,9 @@ rates, and usage patterns to inform decisions about AI strategy.
 Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
 generally available as part of the AI Governance Add-On.
 
-The AI Governance add-on is required to use AI Gateway and Agent Firewall.
-If your deployment does not have the add-on, you'll see a notification banner
-reminding you to enable it.
+As of Coder v2.32, the AI Governance Add-On is required to use AI Gateway and
+Agent Firewall. Deployments without the add-on will not be able to access
+these features.
 
 To learn more about enabling the AI Governance Add-On, pricing, or trial
 options, reach out to your
