@@ -5614,7 +5614,8 @@ func seedChatDependencies(
 	db database.Store,
 ) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
-	return seedChatDependenciesWithProvider(t, db, "openai", "")
+	openAIURL := chattest.OpenAI(t)
+	return seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 }
 
 // seedChatDependenciesWithProvider creates a user, organization,
