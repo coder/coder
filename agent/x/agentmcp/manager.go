@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"reflect"
 	"slices"
 	"strings"
@@ -21,6 +22,8 @@ import (
 	tailscalesingleflight "tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -59,15 +62,8 @@ type fileSnapshot struct {
 // workspace's .mcp.json file. It caches the aggregated tool list
 // and proxies tool calls to the appropriate server.
 type Manager struct {
-	// ctx is the Manager's lifetime context (typically the
-	// agent's gracefulCtx). Subprocess lifetime is bound to
-	// this context.
-	ctx context.Context
-	// updateEnv enriches the base process environment with
-	// agent-level variables (CODER_*, manifest env, secrets)
-	// and prepends ScriptBinDir to PATH. This is the same
-	// callback the SSH server uses so MCP subprocesses see
-	// the same environment as interactive sessions.
+	ctx       context.Context
+	execer    agentexec.Execer
 	updateEnv func(current []string) ([]string, error)
 
 	mu          sync.RWMutex
@@ -87,13 +83,19 @@ type serverEntry struct {
 }
 
 // NewManager creates a new MCP client manager. The ctx bounds
-// subprocess lifetime and outlives individual requests. The
-// updateEnv callback enriches the subprocess environment the
-// same way the SSH server does for interactive sessions.
-func NewManager(ctx context.Context, logger slog.Logger, updateEnv func([]string) ([]string, error)) *Manager {
+// subprocess lifetime. The execer applies resource limits to
+// MCP server subprocesses. The updateEnv callback enriches the
+// subprocess environment to match interactive sessions.
+func NewManager(
+	ctx context.Context,
+	logger slog.Logger,
+	execer agentexec.Execer,
+	updateEnv func([]string) ([]string, error),
+) *Manager {
 	return &Manager{
 		ctx:       ctx,
 		logger:    logger,
+		execer:    execer,
 		updateEnv: updateEnv,
 		servers:   make(map[string]*serverEntry),
 		snapshot:  make(map[string]fileSnapshot),
@@ -463,10 +465,16 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.
 func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transport.Interface, error) {
 	switch cfg.Transport {
 	case "stdio":
-		return transport.NewStdio(
+		env := m.buildEnv(ctx, cfg.Env)
+		return transport.NewStdioWithOptions(
 			cfg.Command,
-			m.buildEnv(ctx, cfg.Env),
-			cfg.Args...,
+			env,
+			cfg.Args,
+			transport.WithCommandFunc(func(ctx context.Context, command string, cmdEnv []string, args []string) (*exec.Cmd, error) {
+				cmd := m.execer.CommandContext(ctx, command, args...)
+				cmd.Env = cmdEnv
+				return cmd, nil
+			}),
 		), nil
 	case "http", "":
 		return transport.NewStreamableHTTP(
@@ -487,7 +495,7 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 // updateCommandEnv callback, then merges explicit overrides
 // from the server config on top.
 func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
-	env := os.Environ()
+	env := usershell.SystemEnvInfo{}.Environ()
 	if m.updateEnv != nil {
 		var err error
 		env, err = m.updateEnv(env)
@@ -495,7 +503,7 @@ func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []st
 			m.logger.Warn(ctx, "failed to enrich MCP server environment",
 				slog.Error(err),
 			)
-			env = os.Environ()
+			env = usershell.SystemEnvInfo{}.Environ()
 		}
 	}
 	if len(explicit) == 0 {
