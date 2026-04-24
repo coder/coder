@@ -112,6 +112,8 @@ jobs:
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           test-count: "1"
+          # TEMP: narrow to aibridge to verify the .gitattributes LF fix. WIll be reveted.
+          test-packages: "./aibridge/..."
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
