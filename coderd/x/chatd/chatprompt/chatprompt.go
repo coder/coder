@@ -132,11 +132,74 @@ func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantas
 	}
 
 	last := &out[len(out)-1]
-	content := make([]fantasy.MessagePart, 0, len(last.Content)+len(msg.Content))
-	content = append(content, last.Content...)
-	content = append(content, msg.Content...)
+	lastContent := applyMessageProviderOptionsToLastPart(last.Content, last.ProviderOptions)
+	msgContent := applyMessageProviderOptionsToLastPart(msg.Content, msg.ProviderOptions)
+	content := make([]fantasy.MessagePart, 0, len(lastContent)+len(msgContent))
+	content = append(content, lastContent...)
+	content = append(content, msgContent...)
 	last.Content = content
-	last.ProviderOptions = mergeProviderOptions(last.ProviderOptions, msg.ProviderOptions)
+	last.ProviderOptions = nil
+	return out
+}
+
+func applyMessageProviderOptionsToLastPart(
+	parts []fantasy.MessagePart,
+	options fantasy.ProviderOptions,
+) []fantasy.MessagePart {
+	if len(options) == 0 || len(parts) == 0 {
+		return parts
+	}
+
+	out := make([]fantasy.MessagePart, len(parts))
+	copy(out, parts)
+	lastIndex := len(out) - 1
+	switch part := out[lastIndex].(type) {
+	case fantasy.TextPart:
+		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
+		out[lastIndex] = part
+	case *fantasy.TextPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ReasoningPart:
+		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
+		out[lastIndex] = part
+	case *fantasy.ReasoningPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
+			out[lastIndex] = &clone
+		}
+	case fantasy.FilePart:
+		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
+		out[lastIndex] = part
+	case *fantasy.FilePart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ToolCallPart:
+		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
+		out[lastIndex] = part
+	case *fantasy.ToolCallPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ToolResultPart:
+		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
+		out[lastIndex] = part
+	case *fantasy.ToolResultPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
+			out[lastIndex] = &clone
+		}
+	}
 	return out
 }
 

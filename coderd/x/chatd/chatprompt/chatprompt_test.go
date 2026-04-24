@@ -161,15 +161,17 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 				Role: fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{
 					fantasy.TextPart{Text: "search for coder"},
-					fantasy.TextPart{Text: "now summarize"},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
 				},
-				ProviderOptions: providerOptions,
 			}},
 			wantRemoved: 1,
 			wantDropped: 1,
 		},
 		{
-			name:     "coalesces adjacent provider options with second wins",
+			name:     "coalesces adjacent provider options without flattening boundaries",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{
 				{
@@ -194,10 +196,15 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 			want: []fantasy.Message{{
 				Role: fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "search for coder"},
-					fantasy.TextPart{Text: "now summarize"},
+					fantasy.TextPart{
+						Text:            "search for coder",
+						ProviderOptions: providerOptionsAllowParallel,
+					},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
 				},
-				ProviderOptions: providerOptions,
 			}},
 			wantRemoved: 1,
 			wantDropped: 1,

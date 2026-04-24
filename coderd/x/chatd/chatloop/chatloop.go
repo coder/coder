@@ -583,11 +583,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if len(result.content) == 0 {
 				lastUsage = result.usage
 				lastProviderMetadata = result.providerMetadata
-				if !result.shouldContinue {
-					stoppedByModel = true
-					break
-				}
-				continue
+				stoppedByModel = true
+				break
 			}
 
 			// Persist the step. If persistence fails because
