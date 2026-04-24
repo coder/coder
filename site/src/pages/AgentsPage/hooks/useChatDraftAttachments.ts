@@ -12,6 +12,7 @@ import {
 	upsertChatDraftAttachmentRecord,
 } from "../utils/chatDraftAttachmentStorage";
 
+const maxTextPreviewSize = 1024 * 1024;
 const maxAttachmentSize = 10 * 1024 * 1024;
 
 const pendingDraftWarning =
@@ -529,7 +530,7 @@ export function useChatDraftAttachments(
 			if (
 				view.status === "error" ||
 				view.file.type !== "text/plain" ||
-				view.file.size > maxAttachmentSize
+				view.file.size > maxTextPreviewSize
 			) {
 				continue;
 			}
