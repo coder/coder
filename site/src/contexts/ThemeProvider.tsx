@@ -23,10 +23,29 @@ import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { DEFAULT_THEME, type Theme } from "#/theme";
-import { CONCRETE_THEMES, resolveThemeName } from "#/theme/colorblind";
+import {
+	baseModeFor,
+	CONCRETE_THEMES,
+	resolveThemeName,
+} from "#/theme/colorblind";
 
 /**
+ * Root theme provider for the web UI.
  *
+ * Resolves the stored `theme_preference` (including the legacy `auto`
+ * value and the four colorblind-friendly variants) into a concrete theme
+ * via `resolveThemeName`, then:
+ *
+ * - Applies the concrete theme class to `<html>` (e.g. `dark-tritan`)
+ *   plus its base mode class (`dark` or `light`) so Tailwind `dark:`
+ *   utilities and any selector-based theming (`.dark` in `Chart.tsx`)
+ *   continue to match when a colorblind variant is active.
+ * - Watches `prefers-color-scheme` so `auto` preferences follow the
+ *   OS.
+ * - Skips class manipulation when an embed page has claimed
+ *   `<html>` via `data-embed-theme`.
+ * - Selects the matching MUI/Emotion theme object and delegates to
+ *   the MUI/Emotion providers.
  */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
@@ -76,12 +95,17 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 			return;
 		}
 		root.classList.add(concreteName);
+		// Also apply the base mode class (`dark` or `light`) so Tailwind's
+		// `dark:` variant (configured as `darkMode: ["selector"]`) and any
+		// selector-based theming keyed on `.dark`/`.light` continue to match
+		// when a colorblind variant is the concrete theme.
+		root.classList.add(baseModeFor(concreteName));
 
 		return () => {
 			if (!root.dataset.embedTheme) {
 				// Remove every theme class we might have applied so switching
 				// between two concrete themes never leaves both classes on the
-				// root.
+				// root. This also removes the base mode class we added above.
 				root.classList.remove(...CONCRETE_THEMES);
 			}
 		};

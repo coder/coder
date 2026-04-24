@@ -15,14 +15,21 @@ test("adjust user theme preference", async ({ page }) => {
 	await page.getByText("Light", { exact: true }).click();
 	await expect(page.getByLabel("Light")).toBeChecked();
 
-	// Make sure the page is actually updated to use the light theme
+	// Make sure the page is actually updated to use the light theme. Assert
+	// against a class-list token so a colorblind variant such as
+	// `light-tritan` (introduced alongside the colorblind palettes) cannot
+	// satisfy the check.
 	const [root] = await page.$$("html");
-	expect(await root.evaluate((it) => it.className)).toContain("light");
+	expect(await root.evaluate((it) => it.classList.contains("light"))).toBe(
+		true,
+	);
 
 	await page.goto("/", { waitUntil: "domcontentloaded" });
 
 	// Make sure the page is still using the light theme after reloading and
 	// navigating away from the settings page.
 	const [homeRoot] = await page.$$("html");
-	expect(await homeRoot.evaluate((it) => it.className)).toContain("light");
+	expect(await homeRoot.evaluate((it) => it.classList.contains("light"))).toBe(
+		true,
+	);
 });

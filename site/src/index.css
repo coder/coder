@@ -204,7 +204,6 @@
 		--border-destructive: 24 95% 53%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
-		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 201 94% 36%;
 		--highlight-orange: 30 100% 32%;
@@ -234,9 +233,6 @@
 		--muted-foreground: var(--content-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
-		--avatar-lg: 2.5rem;
-		--avatar-default: 2rem;
-		--avatar-sm: 1.5rem;
 	}
 	.dark-protan-deuter {
 		--content-primary: 0 0% 100%;
@@ -334,7 +330,6 @@
 		--border-destructive: 0 84% 60%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
-		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
 		--highlight-orange: 322 81% 43%;
@@ -364,9 +359,6 @@
 		--muted-foreground: var(--content-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
-		--avatar-lg: 2.5rem;
-		--avatar-default: 2rem;
-		--avatar-sm: 1.5rem;
 	}
 	.dark-tritan {
 		--content-primary: 0 0% 100%;

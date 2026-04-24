@@ -3,11 +3,11 @@ import colors from "../tailwindColors";
 
 // Protanopia and deuteranopia compress the red/green channel, so semantic
 // "good/bad" pairs that rely on green vs red need a different axis. We
-// base the accents on the Okabe-Ito CVD-safe palette: vermilion
-// (orange-500 / #f97316 is close) for destructive states, sky blue for
-// positive/active states, and violet for preview so no two roles share
-// an indistinguishable hue. Warning stays amber because it reads as
-// clearly different from blue under protan/deuter.
+// shift destructive states onto a vermilion/orange hue (Tailwind orange
+// scale, inspired by the Okabe-Ito CVD-safe scheme) and positive/active
+// states onto sky-blue. Warning stays amber because it reads as clearly
+// different from blue under protan/deuter, and preview stays on violet
+// so no two roles share an indistinguishable hue.
 const roles: Roles = {
 	danger: {
 		background: colors.orange[950],

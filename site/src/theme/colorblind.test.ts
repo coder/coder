@@ -1,5 +1,6 @@
 import themes from ".";
 import {
+	baseModeFor,
 	CONCRETE_THEMES,
 	isConcreteThemeName,
 	resolveThemeName,
@@ -85,5 +86,29 @@ describe("isConcreteThemeName", () => {
 		expect(isConcreteThemeName(null)).toBe(false);
 		expect(isConcreteThemeName(42)).toBe(false);
 		expect(isConcreteThemeName({})).toBe(false);
+	});
+});
+
+describe("baseModeFor", () => {
+	// ThemeProvider applies both the concrete theme class and the base
+	// mode class to `<html>` so Tailwind's `dark:` variant keeps matching
+	// on colorblind variants. Assert the mapping for every concrete
+	// theme so a new variant whose name does not start with `dark` or
+	// `light` is caught by this test instead of silently regressing the
+	// UI.
+	it("maps every concrete theme to its base mode", () => {
+		for (const name of CONCRETE_THEMES) {
+			const expected = name.startsWith("dark") ? "dark" : "light";
+			expect(baseModeFor(name)).toBe(expected);
+		}
+	});
+
+	it("returns the expected mode for the documented concrete names", () => {
+		expect(baseModeFor("dark")).toBe("dark");
+		expect(baseModeFor("dark-protan-deuter")).toBe("dark");
+		expect(baseModeFor("dark-tritan")).toBe("dark");
+		expect(baseModeFor("light")).toBe("light");
+		expect(baseModeFor("light-protan-deuter")).toBe("light");
+		expect(baseModeFor("light-tritan")).toBe("light");
 	});
 });
