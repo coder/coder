@@ -806,7 +806,7 @@ func TestSubChatAccess_ViewerViaRootACL(t *testing.T) {
 	require.NoError(t, err)
 	msgs, err := env.viewerClient.GetChatMessages(env.ctx, subChat.ID, nil)
 	require.NoError(t, err)
-	_ = findAssistantMessage(t, msgs.Messages)
+	require.Equal(t, textOnlyAssistantParts, partTypes(findAssistantMessage(t, msgs.Messages).Content))
 	assertSubChatACLUpdateRejected(t, env, subChat.ID)
 }
 

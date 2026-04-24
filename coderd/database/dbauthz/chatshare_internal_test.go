@@ -1,6 +1,7 @@
 package dbauthz
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -97,6 +99,57 @@ func TestParseMessagePartsForRedaction(t *testing.T) {
 	})
 }
 
+func TestParseQueuedMessagePartsForRedaction(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyContent", func(t *testing.T) {
+		t.Parallel()
+		_, ok := parseQueuedMessagePartsForRedaction(database.ChatQueuedMessage{})
+		require.False(t, ok, "empty content must not parse")
+	})
+
+	t.Run("StructuredParts", func(t *testing.T) {
+		t.Parallel()
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+			codersdk.ChatMessageReasoning("thinking"),
+		}
+		got, ok := parseQueuedMessagePartsForRedaction(database.ChatQueuedMessage{
+			Content: toNullRawMessage(t, parts).RawMessage,
+		})
+		require.True(t, ok)
+		require.Len(t, got, 2)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, got[0].Type)
+		require.Equal(t, codersdk.ChatMessagePartTypeReasoning, got[1].Type)
+	})
+
+	t.Run("BareStringFallback", func(t *testing.T) {
+		t.Parallel()
+		got, ok := parseQueuedMessagePartsForRedaction(database.ChatQueuedMessage{
+			Content: toNullRawMessage(t, "hello world").RawMessage,
+		})
+		require.True(t, ok)
+		require.Len(t, got, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, got[0].Type)
+	})
+
+	t.Run("BareStringEmptyRejected", func(t *testing.T) {
+		t.Parallel()
+		_, ok := parseQueuedMessagePartsForRedaction(database.ChatQueuedMessage{
+			Content: toNullRawMessage(t, "   ").RawMessage,
+		})
+		require.False(t, ok, "whitespace-only bare string must not parse")
+	})
+
+	t.Run("UnrecognizedJSONRejected", func(t *testing.T) {
+		t.Parallel()
+		_, ok := parseQueuedMessagePartsForRedaction(database.ChatQueuedMessage{
+			Content: toNullRawMessage(t, map[string]string{"unexpected": "shape"}).RawMessage,
+		})
+		require.False(t, ok)
+	})
+}
+
 func TestRedactChatMessageParts(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +216,66 @@ func TestRedactChatMessageParts(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, unknown.Type, got[0].Type)
 	})
+}
+
+func TestFilterChatStreamEvents_ActionRequired(t *testing.T) {
+	t.Parallel()
+
+	viewerID := uuid.New()
+
+	cases := []struct {
+		name           string
+		shareToolCalls bool
+		wantEvents     int
+	}{
+		{
+			name:           "ViewerWithoutToolCallAccessDropsEvent",
+			shareToolCalls: false,
+			wantEvents:     0,
+		},
+		{
+			name:           "ViewerWithToolCallAccessKeepsEvent",
+			shareToolCalls: true,
+			wantEvents:     1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := As(context.Background(), rbac.Subject{
+				ID:   viewerID.String(),
+				Type: rbac.SubjectTypeUser,
+			})
+			chat := database.Chat{
+				OwnerID: uuid.New(),
+				UserACL: database.ChatACL{
+					viewerID.String(): {ShareToolCalls: tc.shareToolCalls},
+				},
+			}
+			events := []codersdk.ChatStreamEvent{{
+				Type: codersdk.ChatStreamEventTypeActionRequired,
+				ActionRequired: &codersdk.ChatStreamActionRequired{
+					ToolCalls: []codersdk.ChatStreamToolCall{{
+						ToolCallID: "call-1",
+						ToolName:   "demo_tool",
+						Args:       `{"arg":"value"}`,
+					}},
+				},
+			}}
+
+			filtered, err := FilterChatStreamEvents(ctx, nil, chat, events)
+			require.NoError(t, err)
+			require.Len(t, filtered, tc.wantEvents)
+			if tc.wantEvents == 0 {
+				return
+			}
+
+			require.NotNil(t, filtered[0].ActionRequired)
+			require.Equal(t, events[0].ActionRequired.ToolCalls, filtered[0].ActionRequired.ToolCalls)
+		})
+	}
 }
 
 func TestChatShareFlagsFromACL(t *testing.T) {
