@@ -187,6 +187,36 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+const parseUpdatedAtInstant = (updatedAt: string) => {
+	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
+	if (!match) {
+		const epochMs = Date.parse(updatedAt);
+		return Number.isNaN(epochMs) ? undefined : { epochMs, fractionalNanos: 0 };
+	}
+
+	const [, timestampWithoutFraction, fractionalSeconds = "", timezone] = match;
+	const epochMs = Date.parse(`${timestampWithoutFraction}${timezone}`);
+	if (Number.isNaN(epochMs)) {
+		return undefined;
+	}
+	return {
+		epochMs,
+		fractionalNanos: Number(fractionalSeconds.slice(0, 9).padEnd(9, "0")),
+	};
+};
+
+const compareUpdatedAtInstants = (a: string, b: string): number => {
+	const parsedA = parseUpdatedAtInstant(a);
+	const parsedB = parseUpdatedAtInstant(b);
+	if (!parsedA || !parsedB) {
+		return a.localeCompare(b);
+	}
+	if (parsedA.epochMs !== parsedB.epochMs) {
+		return parsedA.epochMs - parsedB.epochMs;
+	}
+	return parsedA.fractionalNanos - parsedB.fractionalNanos;
+};
+
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
 	readonly activeChatId?: string;
@@ -231,7 +261,11 @@ export const mergeWatchedChatSummary = (
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
-	const isFreshEnough = cachedChat.updated_at <= watchedChat.updated_at;
+	const updatedAtComparison = compareUpdatedAtInstants(
+		cachedChat.updated_at,
+		watchedChat.updated_at,
+	);
+	const isFreshEnough = updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
 	const nextTitle =
@@ -256,9 +290,7 @@ export const mergeWatchedChatSummary = (
 			? true
 			: cachedChat.has_unread;
 	const nextUpdatedAt =
-		cachedChat.updated_at > watchedChat.updated_at
-			? cachedChat.updated_at
-			: watchedChat.updated_at;
+		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough

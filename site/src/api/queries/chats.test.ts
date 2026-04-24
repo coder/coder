@@ -1938,6 +1938,29 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe("22222222-2222-4222-8222-222222222222");
 	});
 
+	it("compares updated_at values as instants instead of strings", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.12Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:00:00.1203Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:00:00.1203Z",
+		});
+	});
+
 	it("merges fresh title updates without clobbering a newer status snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
