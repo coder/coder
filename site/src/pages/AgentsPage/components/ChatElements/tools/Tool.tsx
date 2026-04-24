@@ -713,9 +713,10 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
 	const rec = asRecord(result);
 	const rawResultType = rec ? asString(rec.type) : "";
+	const hasError = status === "error" || isError;
 	const advice = rec
 		? asString(rec.advice)
-		: typeof result === "string" && !isError
+		: typeof result === "string" && !hasError
 			? result
 			: undefined;
 	const adviceText = (advice ?? "").trim();
@@ -729,7 +730,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 				: undefined;
 	const errorMessage =
 		(rec ? asString(rec.error || rec.message) : "") ||
-		(typeof result === "string" && (isError || resolvedResultType === "error")
+		(typeof result === "string" && (hasError || resolvedResultType === "error")
 			? result
 			: "");
 	const advisorModel = rec ? asString(rec.advisor_model) : "";
@@ -741,7 +742,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 		<AdvisorTool
 			question={question}
 			status={status}
-			isError={isError}
+			isError={hasError}
 			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}

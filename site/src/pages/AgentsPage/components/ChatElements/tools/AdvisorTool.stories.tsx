@@ -221,6 +221,25 @@ export const BlankError: Story = {
 	},
 };
 
+// Mirrors the backend path where a tool call is marked execution-failed
+// (status === "error") without a structured result payload. The renderer
+// must fold the error status into the error signal so the card surfaces
+// the failure instead of falling through to "Advisor returned no guidance".
+export const StatusErrorWithoutResult: Story = {
+	args: {
+		status: "error",
+		args: { question: sampleQuestion },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Advisor request failed.")).toBeInTheDocument();
+		expect(
+			canvas.getByText("Advisor could not return guidance."),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("alert")).toBeInTheDocument();
+	},
+};
+
 // Exercises the plain-string result branch in AdvisorRenderer (Tool.tsx),
 // where a non-object `result` is treated as raw advice text when
 // `isError` is false.
