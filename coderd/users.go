@@ -1287,17 +1287,30 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	var err error
 
-	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-		UserID:                         user.ID,
-		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user task notification alert dismissed.",
-			Detail:  err.Error(),
+	var updatedTaskAlertDismissed bool
+	if params.TaskNotificationAlertDismissed != nil {
+		updatedTaskAlertDismissed, err = api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+			UserID:                         user.ID,
+			TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
 		})
-		return
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating user task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		updatedTaskAlertDismissed, err = api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	var resolvedThinkingMode codersdk.ThinkingDisplayMode

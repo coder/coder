@@ -1852,7 +1852,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// When: user dismisses the task notification alert
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
@@ -1870,14 +1870,14 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// Given: user has dismissed the task notification alert
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
 		// When: the task notification alert dismissal is cleared
 		// (e.g., when user enables a task notification in the UI settings)
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: false,
+			TaskNotificationAlertDismissed: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 
@@ -1956,7 +1956,7 @@ func TestThinkingDisplayMode(t *testing.T) {
 
 		// Send an update that omits thinking_display_mode (zero value).
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)

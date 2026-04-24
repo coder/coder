@@ -8030,8 +8030,8 @@ export interface UpdateUserPasswordRequest {
 
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
-	readonly task_notification_alert_dismissed: boolean;
-	readonly thinking_display_mode: ThinkingDisplayMode;
+	readonly task_notification_alert_dismissed?: boolean;
+	readonly thinking_display_mode?: ThinkingDisplayMode;
 }
 
 // From codersdk/users.go

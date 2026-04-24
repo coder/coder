@@ -266,8 +266,8 @@ type UserPreferenceSettings struct {
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
-	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
+	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
 }
 
 type ThinkingDisplayMode string
