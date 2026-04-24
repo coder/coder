@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps, FC } from "react";
+import { type ComponentProps, type FC, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -14,13 +14,17 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { createChatStore } from "./components/ChatConversation/chatStore";
+import {
+	createChatStore,
+	useChatSelector,
+} from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -85,6 +89,7 @@ const buildGitWatcher = (): ComponentProps<
 	typeof AgentChatPageView
 >["gitWatcher"] => ({
 	repositories: new Map(),
+	everDirty: new Set(),
 	refresh: fn().mockReturnValue(true),
 });
 
@@ -113,6 +118,15 @@ type StoryProps = Omit<
 };
 
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
+	const defaultStoreRef = useRef(createChatStore());
+	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
+	const store = overrides.store ?? defaultStoreRef.current;
+	const messageCount = useChatSelector(
+		store,
+		(state) => state.messagesByID.size,
+	);
+
 	const props = {
 		agentId: AGENT_ID,
 		organizationId: "test-org-id",
@@ -120,7 +134,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
-		store: createChatStore(),
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -149,7 +162,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
 		handleRegenerateTitle: fn(),
-		scrollContainerRef: { current: null },
+		scrollContainerRef:
+			overrides.scrollContainerRef ?? defaultScrollContainerRef,
+		scrollToBottomRef: overrides.scrollToBottomRef ?? defaultScrollToBottomRef,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		onFetchMoreMessages: fn(),
@@ -160,6 +175,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		...overrides,
+		store,
+		messageCount: overrides.messageCount ?? messageCount,
 		editing: buildEditing(editing),
 	};
 	return <AgentChatPageView {...props} />;
@@ -601,7 +618,7 @@ export const NotFoundSidebarCollapsed: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Scroll-to-bottom button stories
+// Infinite scroll stories
 // ---------------------------------------------------------------------------
 
 /** Generate a long conversation so the scroll container overflows. */
@@ -642,17 +659,56 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 	});
 };
 
-const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
-	// Dispatch a wheel event first so the scroll handler treats
-	// this as user-initiated scrolling and disables follow mode.
-	// A bare scrollTop assignment fires a scroll event but the
-	// handler only re-pins (never disables autoScroll) unless
-	// a user-interaction event (wheel/touch/pointer) is active.
-	scrollContainer.dispatchEvent(
-		new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
-	);
+const scrollToHistoryTop = (scrollContainer: HTMLElement) => {
+	// In the library's documented column-reverse layout, older history is
+	// reached by driving the scroll offset toward the negative extreme.
+	scrollContainer.scrollTop = -scrollContainer.scrollHeight;
+	scrollContainer.dispatchEvent(new Event("scroll"));
+};
+
+const scrollToLatestMessages = (scrollContainer: HTMLElement) => {
 	scrollContainer.scrollTop = 0;
 	scrollContainer.dispatchEvent(new Event("scroll"));
+};
+
+const waitForFetchCount = async (
+	fetchSpy: ReturnType<typeof fn>,
+	count: number,
+) => {
+	await waitFor(() => {
+		expect(fetchSpy).toHaveBeenCalledTimes(count);
+	});
+};
+
+const waitForVisibleText = async (
+	canvas: ReturnType<typeof within>,
+	text: string,
+) => {
+	await waitFor(() => {
+		// The chat timeline renders hidden measurement copies for some message
+		// layouts, so pick any visible match instead of assuming the first node is
+		// the one a user sees.
+		const matches = canvas.queryAllByText(text);
+		const hasVisibleMatch = matches.some((element: Element) => {
+			const style = window.getComputedStyle(element);
+			return (
+				style.display !== "none" &&
+				style.visibility !== "hidden" &&
+				element.getClientRects().length > 0
+			);
+		});
+		expect(hasVisibleMatch).toBe(true);
+	});
+};
+
+const waitForIntersectionObserverTick = async () => {
+	await new Promise<void>((resolve) => {
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				resolve();
+			});
+		});
+	});
 };
 
 /** Helper that extracts the current messages array from a store. */
@@ -670,479 +726,288 @@ const getStoreMessages = (
 	return messages;
 };
 
-/** Scroll-to-bottom button appears after scrolling up in a long
- *  conversation, and clicking it returns to the bottom. */
-export const ScrollToBottomButton: Story = {
+const prependOlderMessages = (
+	store: ReturnType<typeof createChatStore>,
+	count: number,
+) => {
+	const existing = getStoreMessages(store);
+	const oldestMessage = existing[0];
+	const oldestID = oldestMessage?.id ?? 1;
+	const olderMessages = Array.from({ length: count }, (_, index) => {
+		const id = oldestID - count + index;
+		const role: TypesGen.ChatMessageRole = id % 2 === 0 ? "assistant" : "user";
+		const text =
+			role === "user"
+				? `Older question ${Math.abs(id)}.`
+				: `Older answer ${Math.abs(id)}.`;
+		return buildMessage(id, role, text);
+	});
+	store.replaceMessages([...olderMessages, ...existing]);
+};
+
+const resetScrollStoryStore = (
+	store: ReturnType<typeof createChatStore>,
+	// Default to a transcript long enough to overflow the 600px decorator so the
+	// inverse-scroll stories exercise the fetch threshold immediately.
+	count = 80,
+) => {
+	store.replaceMessages(buildLongConversation(count));
+	store.setChatStatus("completed");
+};
+
+const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
+const inverseScrollFetchSpy = fn(() => {
+	prependOlderMessages(inverseScrollStore, 10);
+});
+
+/**
+ * Scrolling upward in the library's inverse mode loads older messages into the
+ * top of the transcript.
+ */
+export const InverseScrollLoadsOlderMessages: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
-			store={buildStoreWithMessages(buildLongConversation(40))}
+			store={inverseScrollStore}
+			hasMoreMessages
+			onFetchMoreMessages={inverseScrollFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(inverseScrollStore);
+		inverseScrollFetchSpy.mockClear();
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		expect(inverseScrollFetchSpy).not.toHaveBeenCalled();
+
+		scrollToHistoryTop(scrollContainer);
+
+		await waitForFetchCount(inverseScrollFetchSpy, 1);
+		await waitForVisibleText(canvas, "Older question 9.");
+	},
+};
+
+const multiPageScrollStore = buildStoreWithMessages(buildLongConversation(80));
+const multiPageFetchSpy = fn(() => {
+	prependOlderMessages(multiPageScrollStore, 10);
+});
+
+/**
+ * The library resets its one-shot load guard when dataLength changes, so a
+ * second upward reveal can load another page.
+ */
+export const InverseScrollCanLoadMultiplePages: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView
+			store={multiPageScrollStore}
+			hasMoreMessages
+			onFetchMoreMessages={multiPageFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(multiPageScrollStore);
+		multiPageFetchSpy.mockClear();
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		scrollToHistoryTop(scrollContainer);
+		await waitForFetchCount(multiPageFetchSpy, 1);
+		await waitForVisibleText(canvas, "Older question 9.");
+
+		scrollToLatestMessages(scrollContainer);
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBe(0);
+		});
+		await waitForIntersectionObserverTick();
+		scrollToHistoryTop(scrollContainer);
+
+		await waitForFetchCount(multiPageFetchSpy, 2);
+		await waitForVisibleText(canvas, "Older answer 10.");
+	},
+};
+
+const scrollToBottomButtonStoryStore = buildStoreWithMessages(
+	buildLongConversation(80),
+);
+
+/**
+ * The replacement container should keep the floating affordance that returns a
+ * user from older history to the newest messages.
+ */
+export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView store={scrollToBottomButtonStoryStore} />
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(scrollToBottomButtonStoryStore);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		expect(
+			canvas.queryByRole("button", { name: /scroll to bottom/i }),
+		).toBeNull();
+
+		scrollToHistoryTop(scrollContainer);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: /scroll to bottom/i }),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /scroll to bottom/i }),
+		);
+
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBe(0);
+			expect(
+				canvas.queryByRole("button", { name: /scroll to bottom/i }),
+			).toBeNull();
+		});
+	},
+};
+
+const scrollToBottomStoryStore = buildStoreWithMessages(
+	buildLongConversation(80),
+);
+// Story objects live at module scope, so use a ref-shaped object instead of a
+// hook to capture the imperative callback across the render and play phases.
+const scrollToBottomStoryRef: { current: (() => void) | null } = {
+	current: null,
+};
+
+/**
+ * Page-level send and edit flows still rely on an imperative scroll-to-bottom
+ * hook, so the replacement container must keep that contract working.
+ */
+export const ScrollToBottomRefStillWorks: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView
+			store={scrollToBottomStoryStore}
+			scrollToBottomRef={scrollToBottomStoryRef}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(scrollToBottomStoryStore);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		scrollToHistoryTop(scrollContainer);
+
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBeLessThan(0);
+			expect(typeof scrollToBottomStoryRef.current).toBe("function");
+		});
+
+		const scrollToBottom = scrollToBottomStoryRef.current;
+		if (!scrollToBottom) {
+			throw new Error("Expected scrollToBottomRef to be available.");
+		}
+		scrollToBottom();
+
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBe(0);
+		});
+	},
+};
+
+const messageOrderStore = buildStoreWithMessages([
+	buildMessage(1, "user", "Oldest message"),
+	buildMessage(2, "assistant", "Older response"),
+	buildMessage(3, "user", "Newer question"),
+	buildMessage(4, "assistant", "Newest reply"),
+]);
+
+/**
+ * The reversed container layout must not invert the transcript's visible order.
+ */
+export const MessageOrderIsStillCorrect: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={messageOrderStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const oldest = canvas.getByText("Oldest message");
+		const newer = canvas.getByText("Newest reply");
+
+		await waitFor(() => {
+			expect(oldest.getBoundingClientRect().top).toBeLessThan(
+				newer.getBoundingClientRect().top,
+			);
+		});
+	},
+};
+
+/**
+ * Selecting the Terminal tab in the sidebar must move keyboard focus into
+ * the terminal so typing goes there, not the chat input.
+ */
+export const TerminalFocusOnTabSwitch: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+	},
+	decorators: [withWebSocket],
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The button should be hidden initially — it has aria-hidden="true"
-		// when not shown, so queryByRole correctly returns null.
-		expect(
-			canvas.queryByRole("button", { name: "Scroll to bottom" }),
-		).toBeNull();
+		// The sidebar should open on the Git tab by default.
+		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
-		// Find the scroll container via data-testid.
-		const scrollContainer = canvas.getByTestId("scroll-container");
+		// 1. Click the Terminal tab.
+		await userEvent.click(terminalTab);
 
-		// Wait for content to render and create overflow.
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle before scrolling away.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Scroll to the top (away from bottom). In normal top-to-bottom
-		// flow, scrollTop = 0 is at the top and the user is farthest
-		// from the bottom of the conversation.
-		scrollAwayFromBottom(scrollContainer);
-
-		// Button should become visible (enters the accessibility tree).
-		const button = await waitFor(() => {
-			const btn = canvas.getByRole("button", { name: "Scroll to bottom" });
-			expect(btn).toBeVisible();
-			return btn;
+		// Wait for the terminal container to appear.
+		const terminalContainer = await waitFor(() => {
+			const el = canvas.getByTestId("agents-sidebar-terminal");
+			expect(el).toBeVisible();
+			return el;
 		});
 
-		// Click the button to scroll back to the bottom.
-		await userEvent.click(button);
-
-		// Button should be hidden again. The click handler immediately
-		// hides it, so this doesn't depend on smooth scroll completing.
-		await waitFor(() => {
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
-		});
-	},
-};
-
-// Each scroll story that mutates the store in its play function
-// creates the store at module scope so the play closure can reach
-// it. Stories in a file execute sequentially, so there is no
-// cross-contamination.
-const preservedScrollStore = buildStoreWithMessages(buildLongConversation(30));
-
-/** When scrolled away from bottom, new content preserves scroll position. */
-export const ScrollPositionPreservedOnNewContent: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={preservedScrollStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle before scrolling away.
+		// The xterm focus target is a textarea inside the terminal container.
 		await waitFor(
 			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
 			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
+			{ timeout: 3000 },
 		);
 
-		// Scroll away from bottom.
-		scrollAwayFromBottom(scrollContainer);
+		// 2. Switch to Git, then back to Terminal.
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
+		await userEvent.click(terminalTab);
 
-		// Wait for the button to confirm we are away from the bottom.
+		// Focus should return to the terminal textarea.
 		await waitFor(
 			() => {
-				expect(
-					canvas.getByRole("button", { name: "Scroll to bottom" }),
-				).toBeVisible();
+				const textarea = terminalContainer.querySelector("textarea");
+				expect(textarea).not.toBeNull();
+				expect(document.activeElement).toBe(textarea);
 			},
-			{ timeout: 2000 },
+			{ timeout: 3000 },
 		);
-
-		// Record position while clearly away from the bottom.
-		const distFromBottom =
-			scrollContainer.scrollHeight -
-			scrollContainer.scrollTop -
-			scrollContainer.clientHeight;
-		expect(distFromBottom).toBeGreaterThan(50);
-
-		const existing = getStoreMessages(preservedScrollStore);
-		preservedScrollStore.replaceMessages(
-			existing.concat([
-				buildMessage(
-					31,
-					"user",
-					"Follow-up question about the implementation.",
-				),
-				buildMessage(
-					32,
-					"assistant",
-					"Here is a detailed response about the implementation details you asked about.",
-				),
-			]),
-		);
-
-		// Wait for ResizeObserver + RAF compensation to settle.
-		// We should remain significantly away from the bottom.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeGreaterThan(50);
-			},
-			{ timeout: 2000 },
-		);
-
-		expect(
-			canvas.getByRole("button", { name: "Scroll to bottom" }),
-		).toBeVisible();
-	},
-};
-
-const pinnedScrollStore = buildStoreWithMessages(buildLongConversation(30));
-
-/** When at bottom, new content keeps the user pinned to bottom. */
-export const ScrollPinnedToBottomOnNewContent: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={pinnedScrollStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin (double-RAF) to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		expect(
-			canvas.queryByRole("button", { name: "Scroll to bottom" }),
-		).toBeNull();
-
-		const existing = getStoreMessages(pinnedScrollStore);
-		pinnedScrollStore.replaceMessages(
-			existing.concat([
-				buildMessage(31, "user", "Another question."),
-				buildMessage(32, "assistant", "Here is the answer with full details."),
-				buildMessage(33, "user", "Thanks, one more thing."),
-				buildMessage(
-					34,
-					"assistant",
-					"Sure, here is the additional information you requested.",
-				),
-			]),
-		);
-
-		// Wait for the double-RAF pin to complete.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-
-		expect(
-			canvas.queryByRole("button", { name: "Scroll to bottom" }),
-		).toBeNull();
-	},
-};
-
-const dispatchTouchEvent = (
-	scrollContainer: HTMLElement,
-	type: "touchstart" | "touchend",
-	changedTouchesLength: number,
-) => {
-	const event = new Event(type, { bubbles: true });
-	Object.defineProperty(event, "changedTouches", {
-		configurable: true,
-		value: Array.from({ length: changedTouchesLength }, (_, index) => ({
-			identifier: index,
-		})),
-	});
-	scrollContainer.dispatchEvent(event);
-};
-
-const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
-
-/** During an active touch gesture, the container ResizeObserver must not
- *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
-export const ScrollNotJumpedDuringTouch: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={touchGuardScrollStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Simulate a multi-touch gesture starting with two fingers down.
-		dispatchTouchEvent(scrollContainer, "touchstart", 2);
-
-		// Scroll partway up, within the 100px threshold but not at the
-		// absolute bottom. This simulates the user dragging up slightly
-		// during a touch.
-		const offsetFromBottom = 50;
-		const targetScrollTop =
-			scrollContainer.scrollHeight -
-			scrollContainer.clientHeight -
-			offsetFromBottom;
-		scrollContainer.scrollTop = targetScrollTop;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
-		const originalHeight = scrollContainer.clientHeight;
-		const shrunkHeight = originalHeight - 10;
-
-		// Record the scroll position before the first resize.
-		const scrollTopBeforeFirstResize = scrollContainer.scrollTop;
-
-		// Simulate a container resize that models the mobile URL bar
-		// appearing. Shrink the container height slightly to trigger
-		// the ResizeObserver.
-		scrollContainer.style.height = `${shrunkHeight}px`;
-
-		// Give the ResizeObserver a chance to fire.
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-		);
-
-		// During an active touch, the resize guard should prevent the
-		// container observer from snapping to the absolute bottom.
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeFirstResize + 1,
-		);
-
-		// Lift one finger, leaving a second touch active. The guard should
-		// still block resize snaps until the final finger is lifted.
-		dispatchTouchEvent(scrollContainer, "touchend", 1);
-		const scrollTopBeforeSecondResize = scrollContainer.scrollTop;
-		scrollContainer.style.height = `${originalHeight}px`;
-
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-		);
-
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeSecondResize + 1,
-		);
-
-		// End the remaining touch.
-		dispatchTouchEvent(scrollContainer, "touchend", 1);
-
-		// After touch ends, normal scroll tracking should resume.
-		// Scroll to the very bottom and verify the button disappears.
-		scrollContainer.scrollTop =
-			scrollContainer.scrollHeight - scrollContainer.clientHeight;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
-		await waitFor(() => {
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
-		});
-	},
-};
-
-const wheelGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
-
-/** During active wheel/trackpad scrolling, the container ResizeObserver
- *  must not snap scroll to bottom. This prevents desktop scroll jump. */
-export const ScrollNotJumpedDuringWheel: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={wheelGuardScrollStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Simulate a wheel event (trackpad/mouse scroll).
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
-		);
-
-		// Scroll partway up, within the 100px threshold but not at
-		// the absolute bottom. This simulates the user scrolling up
-		// slightly with a trackpad.
-		const offsetFromBottom = 25;
-		const targetScrollTop =
-			scrollContainer.scrollHeight -
-			scrollContainer.clientHeight -
-			offsetFromBottom;
-		scrollContainer.scrollTop = targetScrollTop;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
-		const scrollHeightBeforeAppend = scrollContainer.scrollHeight;
-
-		// Simulate new assistant content arriving while the wheel guard is
-		// active. Keep the append small enough to remain within the
-		// near-bottom threshold so auto-follow should resume.
-		const existing = getStoreMessages(wheelGuardScrollStore);
-		wheelGuardScrollStore.replaceMessages(
-			existing.concat([buildMessage(31, "assistant", "Short update.")]),
-		);
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollHeight).toBeGreaterThan(
-				scrollHeightBeforeAppend,
-			);
-		});
-
-		// After wheeling up, the user has expressed intent to
-		// disengage auto-follow. Content growth should NOT yank
-		// them back to the bottom — they keep their position.
-		await waitFor(() => {
-			const dist =
-				scrollContainer.scrollHeight -
-				scrollContainer.scrollTop -
-				scrollContainer.clientHeight;
-			// The user should NOT have been yanked to the absolute
-			// bottom. They may still be within the "near bottom"
-			// visual threshold, but scrollTop must not have been
-			// forced to maxScrollTop.
-			expect(dist).toBeGreaterThan(5);
-		});
-	},
-};
-
-const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
-
-/**
- * Regression: when content grows during a wheel burst (so
- * ResizeObserver pins are deferred), the transcript must recover
- * auto-follow after the wheel debounce expires instead of getting
- * stuck in a jumped-up position.
- */
-export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={wheelDeferredStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Simulate a wheel event (no debounce guard in the new code).
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
-		);
-
-		// Append content while a wheel event is active. The new
-		// implementation pins immediately via ResizeObserver rather
-		// than deferring through a wheel guard.
-		const existing = getStoreMessages(wheelDeferredStore);
-		wheelDeferredStore.replaceMessages(
-			existing.concat([
-				buildMessage(31, "assistant", "A ".repeat(200)),
-				buildMessage(32, "assistant", "B ".repeat(200)),
-			]),
-		);
-
-		// Fire a second wheel tick. The new code processes this
-		// as a downward wheel event and does not disengage
-		// follow mode.
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
-		);
-
-		// The new code pins synchronously via ResizeObserver.
-		// Verify the scroll position settled at the bottom.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-
-		// Scroll-to-bottom button should not be visible.
-		expect(
-			canvas.queryByRole("button", { name: "Scroll to bottom" }),
-		).toBeNull();
 	},
 };

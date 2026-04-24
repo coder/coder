@@ -261,11 +261,29 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
+}
+
+type ThinkingDisplayMode string
+
+const (
+	ThinkingDisplayModeAuto            ThinkingDisplayMode = "auto"
+	ThinkingDisplayModePreview         ThinkingDisplayMode = "preview"
+	ThinkingDisplayModeAlwaysExpanded  ThinkingDisplayMode = "always_expanded"
+	ThinkingDisplayModeAlwaysCollapsed ThinkingDisplayMode = "always_collapsed"
+)
+
+var ValidThinkingDisplayModes = []ThinkingDisplayMode{
+	ThinkingDisplayModeAuto,
+	ThinkingDisplayModePreview,
+	ThinkingDisplayModeAlwaysExpanded,
+	ThinkingDisplayModeAlwaysCollapsed,
 }
 
 type UpdateUserPasswordRequest struct {

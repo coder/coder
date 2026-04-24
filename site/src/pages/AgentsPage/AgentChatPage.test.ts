@@ -7,6 +7,7 @@ import {
 	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
 	restoreOptimisticRequestSnapshot,
+	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
@@ -850,5 +851,64 @@ describe("useConversationEditingState", () => {
 		expect(result.current.initialEditorState).toBeUndefined();
 		expect(result.current.editorInitialValue).toBe("plain text draft");
 		unmount();
+	});
+});
+
+describe("submitEditAndScroll", () => {
+	const dummyArgs = {
+		messageId: 42,
+		req: { content: [{ type: "text" as const, text: "edited" }] },
+	};
+
+	it("calls scrollToBottom after editMessage resolves", async () => {
+		const callOrder: string[] = [];
+		const editMessage = vi.fn(async () => {
+			callOrder.push("editMessage");
+		});
+		const scrollToBottom = vi.fn(() => {
+			callOrder.push("scrollToBottom");
+		});
+
+		await submitEditAndScroll({
+			editMessage,
+			editArgs: dummyArgs,
+			scrollToBottom,
+			onError: vi.fn(),
+		});
+
+		expect(callOrder).toEqual(["editMessage", "scrollToBottom"]);
+	});
+
+	it("does not call scrollToBottom when editMessage throws", async () => {
+		const scrollToBottom = vi.fn();
+		const onError = vi.fn();
+		const editMessage = vi.fn().mockRejectedValue(new Error("boom"));
+
+		await expect(
+			submitEditAndScroll({
+				editMessage,
+				editArgs: dummyArgs,
+				scrollToBottom,
+				onError,
+			}),
+		).rejects.toThrow("boom");
+
+		expect(scrollToBottom).not.toHaveBeenCalled();
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "boom" }),
+		);
+	});
+
+	it("tolerates null scrollToBottom", async () => {
+		const editMessage = vi.fn().mockResolvedValue(undefined);
+
+		await submitEditAndScroll({
+			editMessage,
+			editArgs: dummyArgs,
+			scrollToBottom: null,
+			onError: vi.fn(),
+		});
+
+		expect(editMessage).toHaveBeenCalled();
 	});
 });

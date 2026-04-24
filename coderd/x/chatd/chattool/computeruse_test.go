@@ -70,7 +70,9 @@ func TestComputerUseTool_Run_Screenshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image", resp.Type)
 	assert.Equal(t, "image/png", resp.MediaType)
-	assert.Equal(t, []byte("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg=="), resp.Data)
+	expectedBinary, decErr := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==")
+	require.NoError(t, decErr)
+	assert.Equal(t, expectedBinary, resp.Data)
 	assert.False(t, resp.IsError)
 }
 
@@ -118,7 +120,9 @@ func TestComputerUseTool_Run_Screenshot_PersistsAttachment(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image", resp.Type)
 	assert.Equal(t, "image/png", resp.MediaType)
-	assert.Equal(t, []byte(screenshotPNG), resp.Data)
+	expectedBinary, decErr := base64.StdEncoding.DecodeString(screenshotPNG)
+	require.NoError(t, decErr)
+	assert.Equal(t, expectedBinary, resp.Data)
 	assert.Contains(t, storedName, "screenshot-")
 	assert.Equal(t, "image/png", storedType)
 	expectedPNG, decodeErr := base64.StdEncoding.DecodeString(screenshotPNG)
@@ -200,7 +204,9 @@ func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *t
 	assert.Equal(t, "image", resp.Type)
 	assert.Equal(t, "image/png", resp.MediaType)
 	assert.False(t, resp.IsError)
-	require.Len(t, resp.Data, len(oversizedScreenshot))
+	expectedOversized, decErr := base64.StdEncoding.DecodeString(oversizedScreenshot)
+	require.NoError(t, decErr)
+	require.Len(t, resp.Data, len(expectedOversized))
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
@@ -260,7 +266,9 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 	resp, err := tool.Run(context.Background(), call)
 	require.NoError(t, err)
 	assert.Equal(t, "image", resp.Type)
-	assert.Equal(t, []byte(followUpScreenshot), resp.Data)
+	expectedBinary, decErr := base64.StdEncoding.DecodeString(followUpScreenshot)
+	require.NoError(t, decErr)
+	assert.Equal(t, expectedBinary, resp.Data)
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
@@ -307,11 +315,71 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image", resp.Type)
 	assert.Equal(t, "image/png", resp.MediaType)
-	assert.Equal(t, []byte(followUpScreenshot), resp.Data)
+	expectedBinary, decErr := base64.StdEncoding.DecodeString(followUpScreenshot)
+	require.NoError(t, decErr)
+	assert.Equal(t, expectedBinary, resp.Data)
 	assert.False(t, resp.IsError)
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+
+	// A known base64 string (1x1 red PNG).
+	const screenshotBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8BQDwAEgAF/pooBPQAAAABJRU5ErkJggg=="
+
+	mockConn.EXPECT().ExecuteDesktopAction(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).Return(workspacesdk.DesktopActionResponse{
+		Output:           "screenshot",
+		ScreenshotData:   screenshotBase64,
+		ScreenshotWidth:  geometry.DeclaredWidth,
+		ScreenshotHeight: geometry.DeclaredHeight,
+	}, nil)
+
+	tool := chattool.NewComputerUseTool(
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+		nil,
+		quartz.NewReal(),
+		slogtest.Make(t, nil),
+	)
+
+	call := fantasy.ToolCall{
+		ID:    "test-decode-1",
+		Name:  "computer",
+		Input: `{"action":"screenshot"}`,
+	}
+
+	resp, err := tool.Run(context.Background(), call)
+	require.NoError(t, err)
+
+	assert.Equal(t, "image", resp.Type)
+	assert.Equal(t, "image/png", resp.MediaType)
+
+	// Data must contain decoded binary, not the base64 string
+	// reinterpreted as bytes.
+	expectedBinary, err := base64.StdEncoding.DecodeString(screenshotBase64)
+	require.NoError(t, err)
+	assert.Equal(t, expectedBinary, resp.Data,
+		"ToolResponse.Data should contain decoded binary, not base64-as-bytes")
+
+	// Verify that re-encoding produces the original base64 string.
+	// This is the round-trip that the chat loop performs when
+	// building the API response.
+	reEncoded := base64.StdEncoding.EncodeToString(resp.Data)
+	assert.Equal(t, screenshotBase64, reEncoded,
+		"re-encoding Data should produce the original base64 string (no double-encode)")
 }
 
 func TestComputerUseTool_Run_ConnError(t *testing.T) {

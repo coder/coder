@@ -1137,14 +1137,13 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 	// Create a second (non-default) org via the API.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
-	// Create a member in the default org, then add them to the second org.
+	// Create a member with agents-access in both orgs.
 	memberClientRaw, member := coderdtest.CreateAnotherUser(
-		t, client, firstUser.OrganizationID, rbac.RoleAgentsAccess(),
+		t, client, firstUser.OrganizationID,
+		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+		rbac.ScopedRoleAgentsAccess(secondOrg.ID),
 	)
-	_, err = client.PostOrganizationMember(ctx, secondOrg.ID, member.Username)
-	require.NoError(t, err)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
 	// Create a chat in the non-default org.
 	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: secondOrg.ID,
@@ -1215,14 +1214,13 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	// Create a second (non-default) org.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
-	// Create a regular member with agents access in the second org.
-	memberClientRaw, member := coderdtest.CreateAnotherUser(
-		t, client, firstUser.OrganizationID, rbac.RoleAgentsAccess(),
+	// Create a member with agents-access in both orgs.
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(
+		t, client, firstUser.OrganizationID,
+		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+		rbac.ScopedRoleAgentsAccess(secondOrg.ID),
 	)
-	_, err = client.PostOrganizationMember(ctx, secondOrg.ID, member.Username)
-	require.NoError(t, err)
 	memberExp := codersdk.NewExperimentalClient(memberClientRaw)
-
 	// Member creates a chat in the second org.
 	memberChat, err := memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: secondOrg.ID,
@@ -1239,7 +1237,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	// Create an org admin in the second org with agents access.
 	adminClientRaw, _ := coderdtest.CreateAnotherUser(
 		t, client, firstUser.OrganizationID,
-		rbac.ScopedRoleOrgAdmin(secondOrg.ID), rbac.RoleAgentsAccess(),
+		rbac.ScopedRoleOrgAdmin(secondOrg.ID), rbac.ScopedRoleAgentsAccess(secondOrg.ID),
 	)
 	adminExp := codersdk.NewExperimentalClient(adminClientRaw)
 

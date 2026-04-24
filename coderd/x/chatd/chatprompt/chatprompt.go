@@ -3,6 +3,7 @@ package chatprompt
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"mime"
@@ -703,7 +704,7 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 // PartFromContent converts fantasy content into a SDK chat message
 // part, preserving ProviderMetadata and ProviderExecuted fields.
 func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
-	return sdkPartFromContent(block, nil)
+	return sdkPartFromContent(slog.Logger{}, block, nil)
 }
 
 // PartFromContentWithLogger is for call sites that can surface malformed
@@ -713,7 +714,7 @@ func PartFromContentWithLogger(
 	logger slog.Logger,
 	block fantasy.Content,
 ) codersdk.ChatMessagePart {
-	return sdkPartFromContent(block, func(content fantasy.ToolResultContent, err error) {
+	return sdkPartFromContent(logger, block, func(content fantasy.ToolResultContent, err error) {
 		logger.Warn(ctx, "skipping malformed tool attachment metadata",
 			slog.F("tool_name", content.ToolName),
 			slog.F("tool_call_id", content.ToolCallID),
@@ -723,6 +724,7 @@ func PartFromContentWithLogger(
 }
 
 func sdkPartFromContent(
+	logger slog.Logger,
 	block fantasy.Content,
 	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
 ) codersdk.ChatMessagePart {
@@ -800,9 +802,9 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolResultContent:
-		return toolResultContentToPart(value, logMalformedAttachmentMetadata)
+		return toolResultContentToPart(logger, value, logMalformedAttachmentMetadata)
 	case *fantasy.ToolResultContent:
-		return toolResultContentToPart(*value, logMalformedAttachmentMetadata)
+		return toolResultContentToPart(logger, *value, logMalformedAttachmentMetadata)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
@@ -819,6 +821,7 @@ func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isErr
 // toolResultContentToPart converts a fantasy ToolResultContent into a
 // ChatMessagePart.
 func toolResultContentToPart(
+	logger slog.Logger,
 	content fantasy.ToolResultContent,
 	logMalformedAttachmentMetadata func(fantasy.ToolResultContent, error),
 ) codersdk.ChatMessagePart {
@@ -834,23 +837,42 @@ func toolResultContentToPart(
 			if isSubagentLifecycleToolName(content.ToolName) && hasErrorField(raw) {
 				result = raw
 			} else {
-				result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+				var marshalErr error
+				result, marshalErr = json.Marshal(map[string]any{"error": output.Error.Error()})
+				if marshalErr != nil {
+					logger.Error(context.Background(), "failed to marshal error tool result",
+						slog.F("tool_name", content.ToolName),
+						slog.F("tool_call_id", content.ToolCallID),
+						slog.Error(marshalErr),
+					)
+					result = []byte(`{"error":"marshal failure"}`)
+				}
 			}
 		} else {
 			result = []byte(`{"error":""}`)
 		}
 	case fantasy.ToolResultOutputContentText:
-		result = json.RawMessage(output.Text)
+		sanitized := strings.ToValidUTF8(output.Text, "\uFFFD")
+		result = json.RawMessage(sanitized)
 		// Ensure valid JSON; wrap in an object if not.
 		if !json.Valid(result) {
-			result, _ = json.Marshal(map[string]any{"output": output.Text})
+			var marshalErr error
+			result, marshalErr = json.Marshal(map[string]any{"output": sanitized})
+			if marshalErr != nil {
+				logger.Error(context.Background(), "failed to marshal text tool result",
+					slog.F("tool_name", content.ToolName),
+					slog.F("tool_call_id", content.ToolCallID),
+					slog.Error(marshalErr),
+				)
+				result = []byte(`{}`)
+			}
 		}
 	case fantasy.ToolResultOutputContentMedia:
 		isMedia = true
 		persisted := persistedMediaResult{
 			Data:     output.Data,
 			MimeType: output.MediaType,
-			Text:     output.Text,
+			Text:     strings.ToValidUTF8(output.Text, "\uFFFD"),
 		}
 		// Tool renderers only receive the persisted result JSON, while
 		// ClientMetadata is consumed later to append sibling file parts.
@@ -1314,6 +1336,10 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		if extracted := extractErrorString(part.Result); extracted != "" {
 			message = extracted
 		}
+		// Sanitize before wrapping in an error so that invalid
+		// byte sequences from tool output do not propagate into
+		// the LLM message stream.
+		message = strings.ToValidUTF8(message, "\uFFFD")
 		return fantasy.ToolResultPart{
 			ToolCallID:       toolCallID,
 			ProviderExecuted: part.ProviderExecuted,
@@ -1336,38 +1362,59 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 		var media persistedMediaResult
 		unmarshalErr := json.Unmarshal(part.Result, &media)
 		if unmarshalErr == nil && media.Data != "" && media.MimeType != "" {
-			return fantasy.ToolResultPart{
-				ToolCallID:       toolCallID,
-				ProviderExecuted: part.ProviderExecuted,
-				Output: fantasy.ToolResultOutputContentMedia{
-					Data:      media.Data,
-					MediaType: media.MimeType,
-					Text:      media.Text,
-				},
-				ProviderOptions: opts,
+			_, decErr := base64.StdEncoding.DecodeString(media.Data)
+			if decErr == nil {
+				return fantasy.ToolResultPart{
+					ToolCallID:       toolCallID,
+					ProviderExecuted: part.ProviderExecuted,
+					Output: fantasy.ToolResultOutputContentMedia{
+						Data:      media.Data,
+						MediaType: media.MimeType,
+						Text:      strings.ToValidUTF8(media.Text, "\uFFFD"),
+					},
+					ProviderOptions: opts,
+				}
 			}
+			// Base64 invalid. Use the human-readable annotation
+			// instead of the full JSON blob to preserve context.
+			logger.Warn(context.Background(),
+				"tool result not valid base64, falling through to text",
+				slog.F("tool_call_id", toolCallID),
+				slog.F("mime_type", media.MimeType),
+				slog.Error(decErr),
+			)
+			if media.Text != "" {
+				resultText = strings.ToValidUTF8(media.Text, "\uFFFD")
+			} else {
+				resultText = "[media content unavailable: corrupted data]"
+			}
+		} else {
+			// Generic warning: unmarshal failure or missing fields.
+			fields := []slog.Field{
+				slog.F("tool_call_id", toolCallID),
+				slog.F("tool_name", part.ToolName),
+				slog.F("has_data", media.Data != ""),
+				slog.F("has_mime_type", media.MimeType != ""),
+			}
+			if unmarshalErr != nil {
+				fields = append(fields, slog.Error(unmarshalErr))
+			}
+			logger.Warn(context.Background(),
+				"media tool result failed reconstruction, falling through to text",
+				fields...,
+			)
 		}
-
-		fields := []slog.Field{
-			slog.F("tool_call_id", toolCallID),
-			slog.F("tool_name", part.ToolName),
-			slog.F("has_data", media.Data != ""),
-			slog.F("has_mime_type", media.MimeType != ""),
-		}
-		if unmarshalErr != nil {
-			fields = append(fields, slog.Error(unmarshalErr))
-		}
-		logger.Warn(context.Background(),
-			"media tool result failed reconstruction, falling through to text",
-			fields...,
-		)
 	}
+	// Sanitize invalid UTF-8 in text results before sending
+	// to the LLM. This repairs stored messages that were
+	// poisoned by raw binary in tool results.
+	sanitizedResult := strings.ToValidUTF8(resultText, "\uFFFD")
 
 	return fantasy.ToolResultPart{
 		ToolCallID:       toolCallID,
 		ProviderExecuted: part.ProviderExecuted,
 		Output: fantasy.ToolResultOutputContentText{
-			Text: resultText,
+			Text: sanitizedResult,
 		},
 		ProviderOptions: opts,
 	}

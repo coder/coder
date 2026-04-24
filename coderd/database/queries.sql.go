@@ -5077,6 +5077,7 @@ WHERE
             chats
         WHERE
             status = 'pending'::chat_status
+            AND archived = false
         ORDER BY
             updated_at ASC
         FOR UPDATE
@@ -20405,6 +20406,18 @@ func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, e
 	return model_config_id, err
 }
 
+const getChatGeneralModelOverride = `-- name: GetChatGeneralModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -20769,6 +20782,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
+	return err
+}
+
+const upsertChatGeneralModelOverride = `-- name: UpsertChatGeneralModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
 	return err
 }
 
@@ -25099,6 +25122,23 @@ func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUI
 	return theme_preference, err
 }
 
+const getUserThinkingDisplayMode = `-- name: GetUserThinkingDisplayMode :one
+SELECT
+	value AS thinking_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_thinking_display_mode'
+`
+
+func (q *sqlQuerier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserThinkingDisplayMode, userID)
+	var thinking_display_mode string
+	err := row.Scan(&thinking_display_mode)
+	return thinking_display_mode, err
+}
+
 const getUsers = `-- name: GetUsers :many
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, COUNT(*) OVER() AS count
@@ -26023,6 +26063,33 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
+}
+
+const updateUserThinkingDisplayMode = `-- name: UpdateUserThinkingDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_thinking_display_mode', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_thinking_display_mode'
+RETURNING value AS thinking_display_mode
+`
+
+type UpdateUserThinkingDisplayModeParams struct {
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	ThinkingDisplayMode string    `db:"thinking_display_mode" json:"thinking_display_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThinkingDisplayMode, arg.UserID, arg.ThinkingDisplayMode)
+	var thinking_display_mode string
+	err := row.Scan(&thinking_display_mode)
+	return thinking_display_mode, err
 }
 
 const upsertUserChatDebugLoggingEnabled = `-- name: UpsertUserChatDebugLoggingEnabled :exec
