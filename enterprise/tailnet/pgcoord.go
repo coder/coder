@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -1835,6 +1836,130 @@ func (h *heartbeats) checkDBHeartbeatAdvanced(id uuid.UUID, dbTime time.Time) bo
 	return dbTime.After(prevDBTime)
 }
 
+// expiryCandidates returns coordinators whose last pubsub heartbeat
+// exceeds the missed heartbeat threshold.
+func (h *heartbeats) expiryCandidates() map[uuid.UUID]time.Duration {
+	now := h.clock.Now()
+	threshold := MissedHeartbeats * HeartbeatPeriod
+	candidates := make(map[uuid.UUID]time.Duration)
+	for id, t := range h.coordinators {
+		lastHB := now.Sub(t)
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator",
+			slog.F("other_coordinator_id", id),
+			slog.F("last_heartbeat", lastHB),
+		)
+		if lastHB >= threshold {
+			candidates[id] = lastHB
+		}
+	}
+	return candidates
+}
+
+// checkDBHeartbeats verifies expiry candidates against the database.
+// If a candidate's DB heartbeat_at has advanced since the last check,
+// it is rescued from expiry and kept as a known coordinator. Also
+// updates lastDBHeartbeat baselines for all known coordinators.
+func (h *heartbeats) checkDBHeartbeats(candidates map[uuid.UUID]time.Duration, dbMap map[uuid.UUID]time.Time) {
+	now := h.clock.Now()
+	for id := range candidates {
+		dbTime, inDB := dbMap[id]
+		if !inDB {
+			continue
+		}
+		if h.checkDBHeartbeatAdvanced(id, dbTime) {
+			h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			h.coordinators[id] = now
+			delete(candidates, id)
+		}
+	}
+
+	// Update baselines for non-candidate coordinators too.
+	for id := range h.coordinators {
+		if dbTime, ok := dbMap[id]; ok {
+			h.lastDBHeartbeat[id] = dbTime
+		}
+	}
+}
+
+// discoverCoordinators finds coordinators present in the database
+// that have never been seen via pubsub. Uses a two-observation
+// pattern: the first sighting stores a baseline, and only on the
+// second observation with an advanced heartbeat_at is the coordinator
+// added. If a discovered coordinator was previously expired, mappers
+// receive a reset to re-evaluate peers that were marked LOST.
+func (h *heartbeats) discoverCoordinators(candidates map[uuid.UUID]time.Duration, dbMap map[uuid.UUID]time.Time) {
+	now := h.clock.Now()
+	discovered := false
+	for id, dbTime := range dbMap {
+		if id == h.self {
+			continue
+		}
+		if _, known := h.coordinators[id]; known {
+			continue
+		}
+		if _, isCandidate := candidates[id]; isCandidate {
+			continue
+		}
+		if !h.checkDBHeartbeatAdvanced(id, dbTime) {
+			h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
+				slog.F("other_coordinator_id", id),
+				slog.F("db_heartbeat_at", dbTime),
+			)
+			continue
+		}
+		h.logger.Info(h.ctx, "discovered unknown coordinator from database",
+			slog.F("other_coordinator_id", id),
+			slog.F("db_heartbeat_at", dbTime),
+		)
+		h.coordinators[id] = now
+		discovered = true
+	}
+	if discovered {
+		// Check if any discovered coordinator was previously expired.
+		// If so, mappers need a full reset to re-evaluate peers that
+		// were marked LOST.
+		needsReset := false
+		for id := range dbMap {
+			if _, ok := h.expiredCoordinators[id]; ok {
+				if _, ok2 := h.coordinators[id]; ok2 {
+					delete(h.expiredCoordinators, id)
+					needsReset = true
+				}
+			}
+		}
+		filter := filterUpdateUpdated
+		if needsReset {
+			filter = filterUpdateReset
+		}
+		go func() {
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
+		}()
+	}
+}
+
+// cleanupStaleEntries removes tracking state for coordinators that
+// are no longer active in memory or present in the database. This
+// prevents lastDBHeartbeat and expiredCoordinators from growing
+// monotonically as coordinators come and go.
+func (h *heartbeats) cleanupStaleEntries(dbMap map[uuid.UUID]time.Time) {
+	isStale := func(id uuid.UUID) bool {
+		if _, inCoords := h.coordinators[id]; inCoords {
+			return false
+		}
+		_, inDB := dbMap[id]
+		return !inDB
+	}
+	maps.DeleteFunc(h.lastDBHeartbeat, func(id uuid.UUID, _ time.Time) bool {
+		return isStale(id)
+	})
+	maps.DeleteFunc(h.expiredCoordinators, func(id uuid.UUID, _ struct{}) bool {
+		return isStale(id)
+	})
+}
+
 func (h *heartbeats) checkExpiry() {
 	if h.ctx.Err() != nil {
 		return
@@ -1842,127 +1967,27 @@ func (h *heartbeats) checkExpiry() {
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 
 	// Query the database BEFORE acquiring the lock to avoid blocking
-	// heartbeat processing during the DB round-trip. The snapshot may
-	// be slightly stale by the time we apply it under lock, but the
-	// existing logic handles stale data gracefully.
+	// heartbeat processing during the DB round-trip.
 	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
 
 	h.lock.Lock()
 	defer h.lock.Unlock()
-	now := h.clock.Now()
 
-	// Collect candidates that appear expired based on pubsub heartbeats.
-	threshold := MissedHeartbeats * HeartbeatPeriod
-	candidates := make(map[uuid.UUID]time.Duration)
-	for id, t := range h.coordinators {
-		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
-		if lastHB >= threshold {
-			candidates[id] = lastHB
-		}
-	}
+	candidates := h.expiryCandidates()
 
-	// Use the pre-fetched database result. This serves two purposes:
-	// 1. Prevent false expiry of known coordinators whose pubsub heartbeats
-	//    were delayed (the original DB fallback logic).
-	// 2. Discover coordinators that were NEVER seen via pubsub. At scale,
-	//    pubsub notifications can be permanently lost, leaving coordinators
-	//    invisible to other pods.
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
-		// Fall through , expire based on pubsub data only, no discovery.
 	} else {
 		dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
 		for _, c := range dbCoords {
 			dbMap[c.ID] = c.HeartbeatAt
 		}
-
-		// Check candidates (known coordinators that appear expired) against
-		// the database to prevent false expiry.
-		for id := range candidates {
-			dbTime, inDB := dbMap[id]
-			if !inDB {
-				continue
-			}
-			if h.checkDBHeartbeatAdvanced(id, dbTime) {
-				// The DB heartbeat_at advanced since our last
-				// check, proving the coordinator wrote a fresh
-				// heartbeat. Rescue it from expiry.
-				h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				h.coordinators[id] = now
-				delete(candidates, id)
-			}
-		}
-
-		// Update lastDBHeartbeat for non-candidate coordinators too,
-		// so we have a baseline for future comparisons.
-		for id := range h.coordinators {
-			if dbTime, ok := dbMap[id]; ok {
-				h.lastDBHeartbeat[id] = dbTime
-			}
-		}
-
-		// Discover coordinators from the database that were never seen
-		// via pubsub. This handles the case where pubsub notifications
-		// are permanently lost for a coordinator.
-		discovered := false
-		for id, dbTime := range dbMap {
-			if id == h.self {
-				continue
-			}
-			if _, known := h.coordinators[id]; known {
-				continue
-			}
-			if _, isCandidate := candidates[id]; isCandidate {
-				// Already being handled as an expiry candidate.
-				continue
-			}
-			if !h.checkDBHeartbeatAdvanced(id, dbTime) {
-				// First sighting or heartbeat unchanged; need a
-				// second advancing observation to confirm liveness.
-				h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
-					slog.F("other_coordinator_id", id),
-					slog.F("db_heartbeat_at", dbTime),
-				)
-				continue
-			}
-			// The coordinator's heartbeat_at has advanced since
-			// our last check; it is alive. Add it to the map.
-			h.logger.Info(h.ctx, "discovered unknown coordinator from database",
-				slog.F("other_coordinator_id", id),
-				slog.F("db_heartbeat_at", dbTime),
-			)
-			h.coordinators[id] = now
-			discovered = true
-		}
-		if discovered {
-			// Check if any discovered coordinator was previously
-			// expired. If so, mappers need a full reset to
-			// re-evaluate peers that were marked LOST. Otherwise,
-			// an incremental update suffices for first-time joins.
-			needsReset := false
-			for id := range dbMap {
-				if _, ok := h.expiredCoordinators[id]; ok {
-					if _, ok2 := h.coordinators[id]; ok2 {
-						// Was expired but just re-added.
-						delete(h.expiredCoordinators, id)
-						needsReset = true
-					}
-				}
-			}
-			filter := filterUpdateUpdated
-			if needsReset {
-				filter = filterUpdateReset
-			}
-			go func() {
-				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
-			}()
-		}
+		h.checkDBHeartbeats(candidates, dbMap)
+		h.discoverCoordinators(candidates, dbMap)
+		h.cleanupStaleEntries(dbMap)
 	}
 
+	// Expire remaining candidates.
 	expired := false
 	for id, lastHB := range candidates {
 		expired = true
@@ -1971,40 +1996,12 @@ func (h *heartbeats) checkExpiry() {
 		h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 	}
 	if expired {
-		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
+		// Send on a separate goroutine to avoid holding lock.
 		go func() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
-	// Clean up stale entries from lastDBHeartbeat and expiredCoordinators.
-	// Coordinator IDs that are no longer in h.coordinators and no longer
-	// in the DB snapshot are unreachable and should be removed to prevent
-	// unbounded map growth from pod churn.
-	if err == nil {
-		dbSet := make(map[uuid.UUID]struct{}, len(dbCoords))
-		for _, c := range dbCoords {
-			dbSet[c.ID] = struct{}{}
-		}
-		for id := range h.lastDBHeartbeat {
-			if _, inCoords := h.coordinators[id]; inCoords {
-				continue
-			}
-			if _, inDB := dbSet[id]; inDB {
-				continue
-			}
-			delete(h.lastDBHeartbeat, id)
-		}
-		for id := range h.expiredCoordinators {
-			if _, inCoords := h.coordinators[id]; inCoords {
-				continue
-			}
-			if _, inDB := dbSet[id]; inDB {
-				continue
-			}
-			delete(h.expiredCoordinators, id)
-		}
-	}
-	// we need to reset the timer for when the next oldest coordinator will expire, if any.
+
 	h.resetExpiryTimerWithLock()
 }
 
