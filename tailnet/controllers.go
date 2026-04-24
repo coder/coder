@@ -190,16 +190,6 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 			b.SendErr(xerrors.Errorf("write: %w", err))
 		}
 	})
-	// Send current node immediately so the coordinator has it before
-	// any AddTunnel requests that follow.
-	if node := c.Coordinatee.Node(); node != nil {
-		pn, err := NodeToProto(node)
-		if err == nil {
-			_ = b.SendRequest(&proto.CoordinateRequest{
-				UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn},
-			})
-		}
-	}
 	go b.respLoop()
 
 	return b
