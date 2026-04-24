@@ -1851,7 +1851,7 @@ func (h *heartbeats) checkDBHeartbeats(candidates map[uuid.UUID]time.Duration, d
 // first sighting stores a baseline in lastDBHeartbeat, and only on the
 // second observation with an advanced heartbeat_at is the coordinator
 // added.
-func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBHeartbeats map[uuid.UUID]time.Time) {
+func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBHeartbeats map[uuid.UUID]time.Time) filterUpdate {
 	now := h.clock.Now()
 	var discovered []uuid.UUID
 	for id, dbTime := range dbMap {
@@ -1862,11 +1862,14 @@ func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBH
 			continue
 		}
 		prevTime, hasPrev := prevDBHeartbeats[id]
-		if !hasPrev || !dbTime.After(prevTime) {
-			h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator from database",
+		if !hasPrev {
+			h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator",
 				slog.F("other_coordinator_id", id),
 				slog.F("db_heartbeat_at", dbTime),
 			)
+			continue
+		}
+		if !dbTime.After(prevTime) {
 			continue
 		}
 		h.logger.Info(h.ctx, "discovered coordinator from database",
@@ -1877,7 +1880,7 @@ func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBH
 		discovered = append(discovered, id)
 	}
 	if len(discovered) == 0 {
-		return
+		return filterUpdateNone
 	}
 	// If any discovered coordinator was previously expired, mappers
 	// need a full reset to re-evaluate peers marked LOST.
@@ -1888,13 +1891,10 @@ func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBH
 			needsReset = true
 		}
 	}
-	filter := filterUpdateUpdated
 	if needsReset {
-		filter = filterUpdateReset
+		return filterUpdateReset
 	}
-	go func() {
-		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
-	}()
+	return filterUpdateUpdated
 }
 
 // cleanupStaleEntries removes tracking state for coordinators that
@@ -1956,17 +1956,17 @@ func (h *heartbeats) checkExpiry() {
 		// Snapshot previous DB heartbeats before updating, so helpers
 		// can compare old vs new to detect advancement.
 		prevDBHeartbeats := make(map[uuid.UUID]time.Time, len(h.lastDBHeartbeat))
-		for id, t := range h.lastDBHeartbeat {
-			prevDBHeartbeats[id] = t
-		}
+		maps.Copy(prevDBHeartbeats, h.lastDBHeartbeat)
 
 		// Update all baselines from the fresh DB snapshot.
-		for id, dbTime := range dbMap {
-			h.lastDBHeartbeat[id] = dbTime
-		}
+		maps.Copy(h.lastDBHeartbeat, dbMap)
 
 		h.checkDBHeartbeats(candidates, dbMap, prevDBHeartbeats)
-		h.discoverCoordinators(dbMap, prevDBHeartbeats)
+		if filter := h.discoverCoordinators(dbMap, prevDBHeartbeats); filter != filterUpdateNone {
+			go func() {
+				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
+			}()
+		}
 		h.cleanupStaleEntries(dbMap)
 	}
 
