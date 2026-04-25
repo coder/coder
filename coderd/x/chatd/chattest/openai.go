@@ -57,6 +57,25 @@ type OpenAIRequest struct {
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
 
+func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {
+	type openAIRequest OpenAIRequest
+	decoded := struct {
+		*openAIRequest
+		Input []interface{} `json:"input,omitempty"`
+	}{
+		openAIRequest: (*openAIRequest)(r),
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	// The Responses API uses input, while older fake-server tests
+	// inspected prompt. Keep exposing both shapes through Prompt.
+	if r.Prompt == nil && decoded.Input != nil {
+		r.Prompt = decoded.Input
+	}
+	return nil
+}
+
 // OpenAIMessage represents a message in an OpenAI request.
 type OpenAIMessage struct {
 	Role    string `json:"role"`
