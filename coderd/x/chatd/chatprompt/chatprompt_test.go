@@ -10,7 +10,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -410,6 +412,42 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 				toolMessage,
 				userMessage,
 			},
+		},
+		{
+			// Azure OpenAI uses the same fantasy openai code path,
+			// so it must hit the sanitizer too.
+			name:     "azure provider drops orphan tool after reasoning-only assistant",
+			provider: fantasyazure.Name,
+			messages: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				userMessage,
+			},
+			wantToolDropped:      1,
+			wantAssistantDropped: 1,
+		},
+		{
+			// openai-compat backends that opt into WithUseResponsesAPI
+			// also need the sanitizer.
+			name:     "openai-compat provider drops orphan tool after reasoning-only assistant",
+			provider: fantasyopenaicompat.Name,
+			messages: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				userMessage,
+			},
+			wantToolDropped:      1,
+			wantAssistantDropped: 1,
 		},
 		{
 			name:     "openai with no orphan returns unchanged",

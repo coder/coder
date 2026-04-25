@@ -12,7 +12,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -170,8 +172,9 @@ func LogOpenAIOrphanToolSanitization(
 //	No tool output found for function call call_xxx.
 //
 // This is a defensive belt-and-suspenders complement to the fantasy
-// reasoning-replay fix in providers/openai. It is OpenAI-specific
-// and a no-op for other providers.
+// reasoning-replay fix in providers/openai. It runs for every
+// provider that routes through the same Responses API code path
+// (openai, azure, openai-compat) and is a no-op elsewhere.
 //
 // Returns the input slice unchanged when there is nothing to drop
 // (early return on the no-op path), matching
@@ -181,7 +184,7 @@ func SanitizeOpenAIOrphanToolMessages(
 	messages []fantasy.Message,
 ) ([]fantasy.Message, OpenAIOrphanToolSanitizationStats) {
 	var stats OpenAIOrphanToolSanitizationStats
-	if provider != fantasyopenai.Name || len(messages) == 0 {
+	if !isOpenAIResponsesProvider(provider) || len(messages) == 0 {
 		return messages, stats
 	}
 
@@ -232,6 +235,20 @@ func SanitizeOpenAIOrphanToolMessages(
 		out = append(out, msg)
 	}
 	return out, stats
+}
+
+// isOpenAIResponsesProvider reports whether the given provider name
+// uses the OpenAI Responses API. Azure OpenAI and openai-compat both
+// route through the same fantasy openai package and therefore hit the
+// same Responses API pairing rules. The sanitizer must run for all
+// of them, not just the canonical "openai" name.
+func isOpenAIResponsesProvider(provider string) bool {
+	switch provider {
+	case fantasyopenai.Name, fantasyazure.Name, fantasyopenaicompat.Name:
+		return true
+	default:
+		return false
+	}
 }
 
 // isReasoningOnlyAssistantMessage reports whether an assistant message
