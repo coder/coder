@@ -251,27 +251,39 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 
 	dispatchErr := eg.Wait()
 
-	// Always clean up stale subscriptions, even when one or more sibling
-	// deliveries returned a non-stale error. Otherwise a transient delivery
-	// failure on one subscription would prevent expired (410) or invalidated
-	// (400/403/404) siblings from ever being deleted, accumulating in the
-	// database and being retried on every subsequent Dispatch call. After a
-	// PWA reinstall this is what causes notifications to silently fail: the
-	// stale row keeps masking the new one.
-	if len(cleanupSubscriptions) > 0 {
-		// nolint:gocritic // These are known to be invalid subscriptions.
-		if delErr := n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions); delErr != nil {
-			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(delErr))
-		} else {
-			n.pruneSubscriptions(userID, cleanupSubscriptions)
-		}
-	}
+	// Always remove subscriptions that the push service rejected as
+	// permanently invalid, even when sibling deliveries returned a
+	// non-stale error. The cleanup must run before the error return so a
+	// transient delivery failure on one subscription cannot block the
+	// deletion of a 410/404/403/400 sibling. Without this ordering,
+	// stale rows accumulate after PWA reinstalls and silently mask the
+	// new subscription on every subsequent dispatch.
+	n.cleanupStaleSubscriptions(ctx, userID, cleanupSubscriptions)
 
 	if dispatchErr != nil {
 		return xerrors.Errorf("send webpush notifications: %w", dispatchErr)
 	}
 
 	return nil
+}
+
+// cleanupStaleSubscriptions deletes the rows the push service flagged as
+// permanently invalid (see isStaleSubscriptionStatus) and clears the cached
+// entries for the affected user. Failures are logged at error level rather
+// than returned: the caller is in the middle of returning a delivery error
+// and shouldn't have its error shadowed by a cleanup failure. The cache
+// prune is gated on a successful database delete so a partial state cannot
+// leak into the cache.
+func (n *Webpusher) cleanupStaleSubscriptions(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) {
+	if len(ids) == 0 {
+		return
+	}
+	// nolint:gocritic // These are known to be invalid subscriptions.
+	if err := n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), ids); err != nil {
+		n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
+		return
+	}
+	n.pruneSubscriptions(userID, ids)
 }
 
 func (n *Webpusher) subscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
