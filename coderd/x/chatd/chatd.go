@@ -6166,6 +6166,10 @@ func (p *Server) runChat(
 	chatprompt.LogAnthropicProviderToolSanitization(
 		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), sanitizeStats,
 	)
+	prompt, openAISanitizeStats := chatprompt.SanitizeOpenAIOrphanToolMessages(model.Provider(), prompt)
+	chatprompt.LogOpenAIOrphanToolSanitization(
+		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), openAISanitizeStats,
+	)
 	subagentInstruction := ""
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
@@ -6792,6 +6796,10 @@ func (p *Server) runChat(
 			reloadedPrompt, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(model.Provider(), reloadedPrompt)
 			chatprompt.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
+			)
+			reloadedPrompt, openAISanitizeStats := chatprompt.SanitizeOpenAIOrphanToolMessages(model.Provider(), reloadedPrompt)
+			chatprompt.LogOpenAIOrphanToolSanitization(
+				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), openAISanitizeStats,
 			)
 			// Re-derive instruction and skills from the reloaded
 			// messages so that any context added during the

@@ -298,6 +298,159 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 	}
 }
 
+func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
+	t.Parallel()
+
+	reasoningPart := fantasy.ReasoningPart{Text: "thinking..."}
+	textPart := fantasy.TextPart{Text: "Here is the answer."}
+	toolCall := fantasy.ToolCallPart{
+		ToolCallID: "call_001",
+		ToolName:   "add",
+		Input:      `{"a":1}`,
+	}
+	toolResult := fantasy.ToolResultPart{
+		ToolCallID: "call_001",
+		Output:     fantasy.ToolResultOutputContentText{Text: "2"},
+	}
+
+	assistantReasoningOnly := fantasy.Message{
+		Role:    fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{reasoningPart},
+	}
+	assistantWithText := fantasy.Message{
+		Role:    fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{reasoningPart, textPart},
+	}
+	assistantWithToolCall := fantasy.Message{
+		Role:    fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{reasoningPart, toolCall},
+	}
+	toolMessage := fantasy.Message{
+		Role:    fantasy.MessageRoleTool,
+		Content: []fantasy.MessagePart{toolResult},
+	}
+	userMessage := fantasy.Message{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}},
+	}
+
+	testCases := []struct {
+		name            string
+		provider        string
+		messages        []fantasy.Message
+		want            []fantasy.Message
+		wantToolDropped int
+		wantAsstDropped int
+	}{
+		{
+			name:     "openai drops orphan tool after reasoning-only assistant",
+			provider: "openai",
+			messages: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				// Adjacent user messages are merged by
+				// appendSanitizedMessage after the orphan tool and
+				// its reasoning-only assistant are dropped.
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "hi"},
+						fantasy.TextPart{Text: "hi"},
+					},
+				},
+			},
+			wantToolDropped: 1,
+			wantAsstDropped: 1,
+		},
+		{
+			name:     "openai keeps tool when assistant has text",
+			provider: "openai",
+			messages: []fantasy.Message{
+				userMessage,
+				assistantWithText,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				assistantWithText,
+				toolMessage,
+				userMessage,
+			},
+		},
+		{
+			name:     "openai keeps tool when assistant has tool_call",
+			provider: "openai",
+			messages: []fantasy.Message{
+				userMessage,
+				assistantWithToolCall,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				assistantWithToolCall,
+				toolMessage,
+				userMessage,
+			},
+		},
+		{
+			name:     "anthropic provider is a no-op even with orphan shape",
+			provider: "anthropic",
+			messages: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				userMessage,
+			},
+		},
+		{
+			name:     "openai with no orphan returns unchanged",
+			provider: "openai",
+			messages: []fantasy.Message{
+				userMessage,
+				assistantWithText,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				assistantWithText,
+				userMessage,
+			},
+		},
+		{
+			name:     "openai empty input returns unchanged",
+			provider: "openai",
+			messages: nil,
+			want:     nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sanitized, stats := chatprompt.SanitizeOpenAIOrphanToolMessages(
+				tc.provider,
+				tc.messages,
+			)
+			require.Equal(t, tc.wantToolDropped, stats.DroppedToolMessages)
+			require.Equal(t, tc.wantAsstDropped, stats.DroppedAssistantMessages)
+			require.Equal(t, tc.want, sanitized)
+		})
+	}
+}
+
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 

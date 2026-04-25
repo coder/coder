@@ -79,12 +79,15 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // Forked from coder/fantasy (coder_2_33) which adds:
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
-// 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
+// 3) ibetitsmike/fantasy#4, skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7
-// See: https://github.com/coder/fantasy/commits/5ab464a305f4
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260424191546-5ab464a305f4
+// 7) coder/fantasy mike/fix-reasoning-replay-item-reference, emit
+//    item_reference for reasoning items when store=true so reasoning +
+//    web_search_call (and reasoning + function_call) replay correctly.
+// See: https://github.com/coder/fantasy/commits/56076b4533821cf35586eb7b7432576ba9bd9f7f
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260425012031-56076b453382
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.

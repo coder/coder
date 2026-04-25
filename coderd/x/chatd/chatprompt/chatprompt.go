@@ -12,6 +12,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -124,6 +125,123 @@ func SanitizeAnthropicProviderToolCalls(
 		return messages, stats
 	}
 	return out, stats
+}
+
+// OpenAIOrphanToolSanitizationStats summarizes how many
+// reasoning-only assistant messages and orphaned tool messages were
+// dropped by SanitizeOpenAIOrphanToolMessages.
+type OpenAIOrphanToolSanitizationStats struct {
+	DroppedAssistantMessages int
+	DroppedToolMessages      int
+}
+
+// LogOpenAIOrphanToolSanitization logs prompt changes made while
+// removing orphan tool messages that follow reasoning-only assistant
+// messages.
+func LogOpenAIOrphanToolSanitization(
+	ctx context.Context,
+	logger slog.Logger,
+	phase string,
+	provider string,
+	modelName string,
+	stats OpenAIOrphanToolSanitizationStats,
+	extra ...slog.Field,
+) {
+	if stats.DroppedAssistantMessages == 0 && stats.DroppedToolMessages == 0 {
+		return
+	}
+	fields := []slog.Field{
+		slog.F("phase", phase),
+		slog.F("provider", provider),
+		slog.F("model", modelName),
+		slog.F("dropped_assistant_messages", stats.DroppedAssistantMessages),
+		slog.F("dropped_tool_messages", stats.DroppedToolMessages),
+	}
+	fields = append(fields, extra...)
+	logger.Warn(ctx,
+		"dropped reasoning-only assistant + orphan tool messages",
+		fields...)
+}
+
+// SanitizeOpenAIOrphanToolMessages drops tool messages whose preceding
+// assistant message contains only reasoning content. The OpenAI
+// Responses API replay layer skips such messages when the reasoning
+// item lacks a stored ItemID, leaving any function_call_output
+// orphaned and producing:
+//
+//	No tool output found for function call call_xxx.
+//
+// This is a defensive belt-and-suspenders complement to the fantasy
+// reasoning-replay fix in providers/openai. It is OpenAI-specific
+// and a no-op for other providers.
+//
+// Returns the input slice unchanged when no edits are needed (zero-
+// copy fast path), matching SanitizeAnthropicProviderToolCalls.
+func SanitizeOpenAIOrphanToolMessages(
+	provider string,
+	messages []fantasy.Message,
+) ([]fantasy.Message, OpenAIOrphanToolSanitizationStats) {
+	var stats OpenAIOrphanToolSanitizationStats
+	if provider != fantasyopenai.Name || len(messages) == 0 {
+		return messages, stats
+	}
+
+	// Pre-scan: find indices to drop. Drop a tool message when the
+	// immediately preceding assistant message is reasoning-only, and
+	// drop that assistant message too.
+	drop := make([]bool, len(messages))
+	for i, msg := range messages {
+		if msg.Role != fantasy.MessageRoleTool {
+			continue
+		}
+		prev := i - 1
+		if prev < 0 || messages[prev].Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		if !isReasoningOnlyAssistantMessage(messages[prev]) {
+			continue
+		}
+		drop[i] = true
+		drop[prev] = true
+		stats.DroppedToolMessages++
+		stats.DroppedAssistantMessages++
+	}
+
+	if stats.DroppedToolMessages == 0 {
+		return messages, stats
+	}
+
+	out := make([]fantasy.Message, 0, len(messages))
+	for i, msg := range messages {
+		if drop[i] {
+			continue
+		}
+		out = appendSanitizedMessage(out, msg)
+	}
+	return out, stats
+}
+
+// isReasoningOnlyAssistantMessage reports whether an assistant message
+// has at least one reasoning part and no other part type that the
+// OpenAI Responses API treats as visible model content (text,
+// tool_call, tool_result, file).
+func isReasoningOnlyAssistantMessage(msg fantasy.Message) bool {
+	if msg.Role != fantasy.MessageRoleAssistant || len(msg.Content) == 0 {
+		return false
+	}
+	hasReasoning := false
+	for _, part := range msg.Content {
+		switch part.(type) {
+		case fantasy.ReasoningPart:
+			hasReasoning = true
+		case fantasy.TextPart,
+			fantasy.ToolCallPart,
+			fantasy.ToolResultPart,
+			fantasy.FilePart:
+			return false
+		}
+	}
+	return hasReasoning
 }
 
 func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
