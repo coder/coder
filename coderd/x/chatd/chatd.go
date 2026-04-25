@@ -3260,6 +3260,9 @@ type chainModeInfo struct {
 	// contributingTrailingUserCount counts the trailing user
 	// messages that materially change the provider input.
 	contributingTrailingUserCount int
+	// hasUnresolvedLocalToolCalls is true when previousResponseID
+	// points at an assistant message with pending local tool calls.
+	hasUnresolvedLocalToolCalls bool
 }
 
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
@@ -3286,6 +3289,67 @@ func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	return false
 }
 
+func assistantHasUnresolvedLocalToolCalls(
+	messages []database.ChatMessage,
+	assistantIdx int,
+) bool {
+	if assistantIdx < 0 || assistantIdx >= len(messages) {
+		return false
+	}
+
+	parts, err := chatprompt.ParseContent(messages[assistantIdx])
+	if err != nil {
+		return true
+	}
+
+	localCallIDs := make(map[string]struct{})
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeToolCall ||
+			part.ProviderExecuted {
+			continue
+		}
+		localCallIDs[part.ToolCallID] = struct{}{}
+	}
+	if len(localCallIDs) == 0 {
+		return false
+	}
+
+	resolvedCallIDs := make(map[string]struct{})
+	for i := assistantIdx + 1; i < len(messages); i++ {
+		if messages[i].Role != database.ChatMessageRoleTool {
+			break
+		}
+		parts, err := chatprompt.ParseContent(messages[i])
+		if err != nil {
+			return true
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult {
+				continue
+			}
+			if _, ok := localCallIDs[part.ToolCallID]; ok {
+				resolvedCallIDs[part.ToolCallID] = struct{}{}
+			}
+		}
+	}
+
+	return len(resolvedCallIDs) != len(localCallIDs)
+}
+
+func shouldActivateChainMode(
+	providerOptions fantasy.ProviderOptions,
+	info chainModeInfo,
+	modelConfigID uuid.UUID,
+	isPlanModeTurn bool,
+) bool {
+	return chatprovider.IsResponsesStoreEnabled(providerOptions) &&
+		info.previousResponseID != "" &&
+		info.contributingTrailingUserCount > 0 &&
+		info.modelConfigID == modelConfigID &&
+		!isPlanModeTurn &&
+		!info.hasUnresolvedLocalToolCalls
+}
+
 // resolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately
 // preceding assistant/tool block can chain from a provider response ID.
@@ -3310,6 +3374,7 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 				if messages[i].ModelConfigID.Valid {
 					info.modelConfigID = messages[i].ModelConfigID.UUID
 				}
+				info.hasUnresolvedLocalToolCalls = assistantHasUnresolvedLocalToolCalls(messages, i)
 				return info
 			}
 			return info
@@ -6674,11 +6739,12 @@ func (p *Server) runChat(
 	// we set previous_response_id and send only system instructions
 	// plus the new user input, avoiding redundant replay of prior
 	// assistant and tool messages that the provider already has.
-	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
-		chainInfo.previousResponseID != "" &&
-		chainInfo.contributingTrailingUserCount > 0 &&
-		chainInfo.modelConfigID == modelConfig.ID &&
-		!isPlanModeTurn
+	chainModeActive := shouldActivateChainMode(
+		providerOptions,
+		chainInfo,
+		modelConfig.ID,
+		isPlanModeTurn,
+	)
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
