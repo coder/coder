@@ -22,6 +22,22 @@ type ClassifiedError struct {
 	RetryAfter time.Duration
 }
 
+type responsesAPIDiagnosticMatch struct {
+	pattern string
+	detail  string
+}
+
+var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
+	{
+		pattern: "no tool output found for function call",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=function_call_output_missing.",
+	},
+	{
+		pattern: "was provided without its required 'reasoning' item",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+	},
+}
+
 // WithProvider returns a copy of the classification using an explicit
 // provider hint. Explicit provider hints are trusted over provider names
 // heuristically parsed from the error text.
@@ -95,6 +111,16 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
 			Detail:     structured.detail,
+			Kind:       KindGeneric,
+			Provider:   provider,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
+
+	if detail, ok := responsesAPIDiagnostic(lower, structured.detail); ok {
+		return normalizeClassification(ClassifiedError{
+			Detail:     detail,
 			Kind:       KindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
@@ -181,6 +207,16 @@ func Classify(err error) ClassifiedError {
 		StatusCode: statusCode,
 		RetryAfter: structured.retryAfter,
 	})
+}
+
+func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
+	lowerDetail := strings.ToLower(detail)
+	for _, match := range responsesAPIDiagnosticMatches {
+		if strings.Contains(lowerMessage, match.pattern) || strings.Contains(lowerDetail, match.pattern) {
+			return match.detail, true
+		}
+	}
+	return "", false
 }
 
 func normalizeClassification(classified ClassifiedError) ClassifiedError {
