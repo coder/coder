@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -335,16 +336,16 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		provider        string
-		messages        []fantasy.Message
-		want            []fantasy.Message
-		wantToolDropped int
-		wantAsstDropped int
+		name                 string
+		provider             string
+		messages             []fantasy.Message
+		want                 []fantasy.Message
+		wantToolDropped      int
+		wantAssistantDropped int
 	}{
 		{
 			name:     "openai drops orphan tool after reasoning-only assistant",
-			provider: "openai",
+			provider: fantasyopenai.Name,
 			messages: []fantasy.Message{
 				userMessage,
 				assistantReasoningOnly,
@@ -352,23 +353,19 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 				userMessage,
 			},
 			want: []fantasy.Message{
-				// Adjacent user messages are merged by
-				// appendSanitizedMessage after the orphan tool and
-				// its reasoning-only assistant are dropped.
-				{
-					Role: fantasy.MessageRoleUser,
-					Content: []fantasy.MessagePart{
-						fantasy.TextPart{Text: "hi"},
-						fantasy.TextPart{Text: "hi"},
-					},
-				},
+				// Turn boundaries between the two user messages are
+				// preserved (plain append, no same-role coalescing)
+				// after the reasoning-only assistant + its orphan
+				// tool message are dropped.
+				userMessage,
+				userMessage,
 			},
-			wantToolDropped: 1,
-			wantAsstDropped: 1,
+			wantToolDropped:      1,
+			wantAssistantDropped: 1,
 		},
 		{
 			name:     "openai keeps tool when assistant has text",
-			provider: "openai",
+			provider: fantasyopenai.Name,
 			messages: []fantasy.Message{
 				userMessage,
 				assistantWithText,
@@ -384,7 +381,7 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 		},
 		{
 			name:     "openai keeps tool when assistant has tool_call",
-			provider: "openai",
+			provider: fantasyopenai.Name,
 			messages: []fantasy.Message{
 				userMessage,
 				assistantWithToolCall,
@@ -400,7 +397,7 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 		},
 		{
 			name:     "anthropic provider is a no-op even with orphan shape",
-			provider: "anthropic",
+			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{
 				userMessage,
 				assistantReasoningOnly,
@@ -416,7 +413,7 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 		},
 		{
 			name:     "openai with no orphan returns unchanged",
-			provider: "openai",
+			provider: fantasyopenai.Name,
 			messages: []fantasy.Message{
 				userMessage,
 				assistantWithText,
@@ -430,9 +427,76 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 		},
 		{
 			name:     "openai empty input returns unchanged",
-			provider: "openai",
+			provider: fantasyopenai.Name,
 			messages: nil,
 			want:     nil,
+		},
+		{
+			// An assistant with empty content (e.g. a metadata-only
+			// stream that produced no parts) is NOT reasoning-only.
+			// The tool message after it must be left intact so the
+			// sanitizer cannot eat a legitimate tool result if the
+			// upstream stream produced an empty assistant message.
+			name:     "openai empty assistant before tool is left intact",
+			provider: fantasyopenai.Name,
+			messages: []fantasy.Message{
+				userMessage,
+				{Role: fantasy.MessageRoleAssistant, Content: nil},
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				{Role: fantasy.MessageRoleAssistant, Content: nil},
+				toolMessage,
+				userMessage,
+			},
+		},
+		{
+			// Pointer-typed parts must be classified the same way as
+			// value-typed parts. Without fantasy.AsMessagePart the
+			// helper would silently treat a *ReasoningPart as 'not
+			// reasoning' and skip the drop.
+			name:     "openai pointer reasoning part is treated as reasoning",
+			provider: fantasyopenai.Name,
+			messages: []fantasy.Message{
+				userMessage,
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						&fantasy.ReasoningPart{Text: "thinking..."},
+					},
+				},
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				userMessage,
+			},
+			wantToolDropped:      1,
+			wantAssistantDropped: 1,
+		},
+		{
+			// Multiple contiguous tool messages after a reasoning-
+			// only assistant must ALL be dropped, not just the
+			// immediate neighbor. Otherwise a later orphan tool
+			// message survives to OpenAI as 'No tool output found'.
+			name:     "openai drops contiguous tool run after reasoning-only assistant",
+			provider: fantasyopenai.Name,
+			messages: []fantasy.Message{
+				userMessage,
+				assistantReasoningOnly,
+				toolMessage,
+				toolMessage,
+				userMessage,
+			},
+			want: []fantasy.Message{
+				userMessage,
+				userMessage,
+			},
+			wantToolDropped:      2,
+			wantAssistantDropped: 1,
 		},
 	}
 
@@ -445,7 +509,7 @@ func TestSanitizeOpenAIOrphanToolMessages(t *testing.T) {
 				tc.messages,
 			)
 			require.Equal(t, tc.wantToolDropped, stats.DroppedToolMessages)
-			require.Equal(t, tc.wantAsstDropped, stats.DroppedAssistantMessages)
+			require.Equal(t, tc.wantAssistantDropped, stats.DroppedAssistantMessages)
 			require.Equal(t, tc.want, sanitized)
 		})
 	}

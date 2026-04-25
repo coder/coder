@@ -397,6 +397,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 				slog.F("step_index", step),
 				slog.F("total_steps", totalSteps),
 			)
+			prepared, openAISanitizeStats := chatprompt.SanitizeOpenAIOrphanToolMessages(provider, prepared)
+			chatprompt.LogOpenAIOrphanToolSanitization(
+				ctx, opts.Logger, "pre_request", provider, modelName, openAISanitizeStats,
+				slog.F("step_index", step),
+				slog.F("total_steps", totalSteps),
+			)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}

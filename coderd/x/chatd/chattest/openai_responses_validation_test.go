@@ -12,7 +12,7 @@ import (
 func TestValidateResponsesAPIInput_Pass(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
+	testCases := []struct {
 		name  string
 		items []interface{}
 	}{
@@ -74,7 +74,7 @@ func TestValidateResponsesAPIInput_Pass(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Nil(t, chattest.ValidateResponsesAPIInput(tc.items))

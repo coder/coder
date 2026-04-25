@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -26,7 +27,7 @@ import (
 //	required 'reasoning' item: 'rs_xxx'.
 //
 // To force the replay path (rather than chain mode, which short-circuits
-// it via previous_response_id), turn 2 is dispatched against a different
+// it via previous_response_id), step 2 is dispatched against a different
 // model_config_id. chatd then sends the full prior history to the
 // provider and the fake server's ValidateResponsesAPIInput enforces the
 // same pairing rule as live OpenAI.
@@ -54,6 +55,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 		mu                sync.Mutex
 		streamRequests    atomic.Int32
 		validationFailure error
+		step2InputItems   []interface{}
 	)
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -65,7 +67,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 		if errResp := chattest.ValidateResponsesAPIInput(req.Input); errResp != nil {
 			mu.Lock()
 			if validationFailure == nil {
-				validationFailure = &openAIValidationError{message: errResp.Message}
+				validationFailure = xerrors.New(errResp.Message)
 			}
 			mu.Unlock()
 			return chattest.OpenAIResponse{Error: errResp}
@@ -73,7 +75,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 
 		switch streamRequests.Add(1) {
 		case 1:
-			// Turn 1: emit reasoning + web_search_call + text.
+			// Step 1: emit reasoning + web_search_call + text.
 			return chattest.OpenAIResponse{
 				StreamingChunks: chattest.OpenAIStreamingResponse(
 					chattest.OpenAITextChunks("Here is what I found.")...,
@@ -87,7 +89,12 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 				},
 			}
 		default:
-			// Turn 2: text-only response.
+			// Step 2: capture the input items so the test can
+			// assert that chain mode was actually disabled and
+			// fantasy replayed full history. Then emit text only.
+			mu.Lock()
+			step2InputItems = req.Input
+			mu.Unlock()
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAITextChunks("Follow-up answer.")...,
 			)
@@ -111,24 +118,21 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 
 	// gpt-5.5 is in fantasy's responsesReasoningModelIDs and routes
 	// through the Responses API. Two model configs are created so
-	// turn 2 can be sent against a different model_config_id, which
+	// step 2 can be sent against a different model_config_id, which
 	// disables chain mode and forces the full-history replay path
 	// where the reasoning + web_search pairing bug surfaces.
 	contextLimit := int64(200000)
-	isDefault := true
-	notDefault := false
-	reasoningSummary := "auto"
 	openAIOptions := &codersdk.ChatModelOpenAIProviderOptions{
 		Store:            ptr.Ref(store),
-		ReasoningSummary: &reasoningSummary,
+		ReasoningSummary: ptr.Ref("auto"),
 		WebSearchEnabled: ptr.Ref(true),
 	}
 	configA, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-5.5",
-		DisplayName:  "gpt-5.5 (turn 1)",
+		DisplayName:  "gpt-5.5 (step 1)",
 		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+		IsDefault:    ptr.Ref(true),
 		ModelConfig: &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				OpenAI: openAIOptions,
@@ -139,9 +143,9 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 	configB, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-5.5",
-		DisplayName:  "gpt-5.5 (turn 2)",
+		DisplayName:  "gpt-5.5 (step 2)",
 		ContextLimit: &contextLimit,
-		IsDefault:    &notDefault,
+		IsDefault:    ptr.Ref(false),
 		ModelConfig: &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				OpenAI: openAIOptions,
@@ -151,8 +155,10 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 	require.NoError(t, err)
 	require.NotEqual(t, configA.ID, configB.ID,
 		"two distinct model configs are required to disable chain mode")
+	require.NotEqual(t, configA.ID, configB.ID,
+		"two distinct model configs are required to disable chain mode")
 
-	// --- Turn 1: produce reasoning + web_search_call + text ---
+	// --- Step 1: produce reasoning + web_search_call + text ---
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		ModelConfigID:  &configA.ID,
@@ -180,22 +186,22 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 	require.NoError(t, err)
 	logMessages(t, chatMsgs.Messages)
 
-	// Turn 1's assistant message should contain reasoning,
+	// Step 1's assistant message should contain reasoning,
 	// tool-call, tool-result, and text parts.
 	assistantMsg := findAssistantWithText(t, chatMsgs.Messages)
 	require.NotNil(t, assistantMsg,
 		"expected an assistant message with text after step 1")
-	parts := partTypeSet(assistantMsg.Content)
-	require.Contains(t, parts, codersdk.ChatMessagePartTypeReasoning,
+	partTypes := partTypeSet(assistantMsg.Content)
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeReasoning,
 		"assistant should contain reasoning parts")
-	require.Contains(t, parts, codersdk.ChatMessagePartTypeToolCall,
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeToolCall,
 		"assistant should contain a web_search tool call")
-	require.Contains(t, parts, codersdk.ChatMessagePartTypeToolResult,
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeToolResult,
 		"assistant should contain a web_search tool result")
-	require.Contains(t, parts, codersdk.ChatMessagePartTypeText,
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
 		"assistant should contain a text part")
 
-	// --- Turn 2: send a follow-up against configB so chain mode is
+	// --- Step 2: send a follow-up against configB so chain mode is
 	// disabled and chatd sends full history. Replay must satisfy
 	// OpenAI's pairing rules; otherwise the fake server returns 400
 	// and the chat lands in an Error state. ---
@@ -242,16 +248,22 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, store bool) {
 		"expected an assistant message with text after step 2")
 
 	// We expect exactly two streamed Responses API calls (one per
-	// turn). Anything else suggests the chatd retry path masked a
+	// step). Anything else suggests the chatd retry path masked a
 	// validation failure.
 	require.Equal(t, int32(2), streamRequests.Load(),
 		"expected exactly two streamed OpenAI responses")
-}
 
-type openAIValidationError struct {
-	message string
-}
-
-func (e *openAIValidationError) Error() string {
-	return e.message
+	// Confirm the test actually exercised the full-history replay
+	// path the bug surfaces on. Chain mode would have stripped the
+	// prior assistant turn and sent only system + new user input,
+	// hiding the reasoning + web_search_call pairing the fantasy
+	// fix targets. The presence of any historical item in step 2's
+	// input proves chain mode was disabled.
+	mu.Lock()
+	haveStep2 := step2InputItems
+	mu.Unlock()
+	require.NotEmpty(t, haveStep2, "step 2 must have captured input items")
+	require.Greater(t, len(haveStep2), 3,
+		"step 2 input should include the historical assistant turn,"+
+			" not just system + new user message; chain mode was not disabled")
 }

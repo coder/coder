@@ -158,9 +158,7 @@ func LogOpenAIOrphanToolSanitization(
 		slog.F("dropped_tool_messages", stats.DroppedToolMessages),
 	}
 	fields = append(fields, extra...)
-	logger.Warn(ctx,
-		"dropped reasoning-only assistant + orphan tool messages",
-		fields...)
+	logger.Warn(ctx, "dropped reasoning-only assistant and orphan tool messages", fields...)
 }
 
 // SanitizeOpenAIOrphanToolMessages drops tool messages whose preceding
@@ -175,8 +173,9 @@ func LogOpenAIOrphanToolSanitization(
 // reasoning-replay fix in providers/openai. It is OpenAI-specific
 // and a no-op for other providers.
 //
-// Returns the input slice unchanged when no edits are needed (zero-
-// copy fast path), matching SanitizeAnthropicProviderToolCalls.
+// Returns the input slice unchanged when there is nothing to drop
+// (early return on the no-op path), matching
+// SanitizeAnthropicProviderToolCalls.
 func SanitizeOpenAIOrphanToolMessages(
 	provider string,
 	messages []fantasy.Message,
@@ -186,60 +185,75 @@ func SanitizeOpenAIOrphanToolMessages(
 		return messages, stats
 	}
 
-	// Pre-scan: find indices to drop. Drop a tool message when the
-	// immediately preceding assistant message is reasoning-only, and
-	// drop that assistant message too.
+	// Pre-scan: find indices to drop. When a reasoning-only assistant
+	// is found, drop it together with every contiguous tool message
+	// that follows. A function_call_output without its matching
+	// function_call (which lived on the dropped assistant turn) would
+	// otherwise reach OpenAI and trigger 'No tool output found'.
 	drop := make([]bool, len(messages))
 	for i, msg := range messages {
-		if msg.Role != fantasy.MessageRoleTool {
+		if msg.Role != fantasy.MessageRoleAssistant {
 			continue
 		}
-		prev := i - 1
-		if prev < 0 || messages[prev].Role != fantasy.MessageRoleAssistant {
+		if !isReasoningOnlyAssistantMessage(msg) {
 			continue
 		}
-		if !isReasoningOnlyAssistantMessage(messages[prev]) {
+		// Look ahead at the run of tool messages immediately
+		// following this assistant. If at least one exists, the
+		// orphan shape is present and we drop the whole pair.
+		j := i + 1
+		for j < len(messages) && messages[j].Role == fantasy.MessageRoleTool {
+			j++
+		}
+		if j == i+1 {
 			continue
 		}
 		drop[i] = true
-		drop[prev] = true
-		stats.DroppedToolMessages++
 		stats.DroppedAssistantMessages++
+		for k := i + 1; k < j; k++ {
+			drop[k] = true
+			stats.DroppedToolMessages++
+		}
 	}
 
-	if stats.DroppedToolMessages == 0 {
+	if stats.DroppedAssistantMessages == 0 {
 		return messages, stats
 	}
 
+	// Use a plain append (not appendSanitizedMessage) so we do not
+	// merge the two non-tool messages that bracket the dropped run
+	// into a single message. Merging would erase turn boundaries from
+	// the transcript sent to the model.
 	out := make([]fantasy.Message, 0, len(messages))
 	for i, msg := range messages {
 		if drop[i] {
 			continue
 		}
-		out = appendSanitizedMessage(out, msg)
+		out = append(out, msg)
 	}
 	return out, stats
 }
 
 // isReasoningOnlyAssistantMessage reports whether an assistant message
-// has at least one reasoning part and no other part type that the
-// OpenAI Responses API treats as visible model content (text,
-// tool_call, tool_result, file).
+// has at least one reasoning part and every other part is also
+// reasoning. Any non-reasoning part (text, tool call, tool result,
+// file, or unknown type added in a future fantasy release) makes the
+// message NOT reasoning-only so the sanitizer leaves it alone.
 func isReasoningOnlyAssistantMessage(msg fantasy.Message) bool {
 	if msg.Role != fantasy.MessageRoleAssistant || len(msg.Content) == 0 {
 		return false
 	}
 	hasReasoning := false
 	for _, part := range msg.Content {
-		switch part.(type) {
-		case fantasy.ReasoningPart:
+		// AsMessagePart normalizes value and pointer variants, so
+		// *fantasy.ReasoningPart matches too. Fall through to
+		// 'return false' on every non-reasoning part, including any
+		// type added later that this code does not enumerate.
+		if _, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part); ok {
 			hasReasoning = true
-		case fantasy.TextPart,
-			fantasy.ToolCallPart,
-			fantasy.ToolResultPart,
-			fantasy.FilePart:
-			return false
+			continue
 		}
+		return false
 	}
 	return hasReasoning
 }

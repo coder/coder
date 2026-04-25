@@ -94,6 +94,10 @@ func ValidateResponsesAPIInput(items []interface{}) *ErrorResponse {
 	return nil
 }
 
+// responsesInputKind tags items in the Responses API `input` array.
+// Message is a known kind but not enforced by the validator; it is
+// returned only so a future validation rule can reject malformed
+// messages without changing the classifier.
 type responsesInputKind int
 
 const (
