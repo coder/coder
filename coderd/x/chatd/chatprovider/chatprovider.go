@@ -1385,6 +1385,20 @@ func ProviderOptionsFromChatModelConfig(
 	return result
 }
 
+// HasOpenAIResponsesProviderOptions reports whether opts contains a
+// non-nil OpenAI Responses provider options entry.
+func HasOpenAIResponsesProviderOptions(opts fantasy.ProviderOptions) bool {
+	if opts == nil {
+		return false
+	}
+	raw, ok := opts[fantasyopenai.Name]
+	if !ok {
+		return false
+	}
+	respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions)
+	return ok && respOpts != nil
+}
+
 // IsResponsesStoreEnabled checks if the OpenAI Responses provider
 // options are present and have Store set to true. When true, the
 // provider stores conversation history server-side, enabling

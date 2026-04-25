@@ -1228,3 +1228,106 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
 }
+
+func TestHasOpenAIResponsesProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	var typedNil *fantasyopenai.ResponsesProviderOptions
+	testCases := []struct {
+		name string
+		opts fantasy.ProviderOptions
+		want bool
+	}{
+		{
+			name: "NilOptions",
+		},
+		{
+			name: "MissingOpenAIKey",
+			opts: fantasy.ProviderOptions{
+				fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{},
+			},
+		},
+		{
+			name: "WrongOpenAIType",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyanthropic.ProviderOptions{},
+			},
+		},
+		{
+			name: "TypedNilResponsesOptions",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: typedNil,
+			},
+		},
+		{
+			name: "ResponsesOptions",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := chatprovider.HasOpenAIResponsesProviderOptions(tc.opts)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestIsResponsesStoreEnabled(t *testing.T) {
+	t.Parallel()
+
+	storeTrue := true
+	storeFalse := false
+	testCases := []struct {
+		name string
+		opts fantasy.ProviderOptions
+		want bool
+	}{
+		{
+			name: "NilOptions",
+		},
+		{
+			name: "MissingOpenAIKey",
+			opts: fantasy.ProviderOptions{},
+		},
+		{
+			name: "WrongOpenAIType",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyanthropic.ProviderOptions{},
+			},
+		},
+		{
+			name: "NilStore",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{},
+			},
+		},
+		{
+			name: "StoreFalse",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{Store: &storeFalse},
+			},
+		},
+		{
+			name: "StoreTrue",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{Store: &storeTrue},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := chatprovider.IsResponsesStoreEnabled(tc.opts)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
