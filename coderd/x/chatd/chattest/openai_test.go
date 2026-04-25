@@ -1,7 +1,11 @@
 package chattest_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"sync/atomic"
 	"testing"
 
@@ -364,4 +368,179 @@ func TestOpenAI_NonStreaming_MismatchReturnsError_ResponsesAPI(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "streaming response for non-streaming request")
+}
+
+// TestOpenAI_ResponsesAPI_RejectsChainWithoutToolOutput verifies the
+// chattest OpenAI server enforces the Responses API chain-mode
+// contract: when a follow-up request sets previous_response_id to a
+// stored response whose output contained a function_call, the input
+// on the new request must include a matching function_call_output or
+// the server rejects with HTTP 400 mirroring OpenAI's production
+// error body.
+func TestOpenAI_ResponsesAPI_RejectsChainWithoutToolOutput(t *testing.T) {
+	t.Parallel()
+
+	const responseID = "resp_chainmode_test_1"
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// First call: emit a function_call item that must be
+		// answered on the next request. The test server will
+		// remember the call because req.Store is true.
+		if req.PreviousResponseID == nil {
+			return chattest.OpenAIResponse{
+				StreamingChunks: emptyChunkChannel(),
+				FunctionCalls: []chattest.OpenAIResponsesFunctionCall{{
+					CallID:    "call_must_be_answered",
+					Name:      "list_templates",
+					Arguments: `{}`,
+				}},
+				ResponseID: responseID,
+			}
+		}
+		// The follow-up streamed body is irrelevant because the
+		// chain-mode validation fails before the handler emits
+		// anything, but we still need to return a valid response
+		// shape to keep the test server happy.
+		return chattest.OpenAIResponse{
+			StreamingChunks: emptyChunkChannel(),
+		}
+	})
+
+	// Turn 1: initial streaming request with store=true. This makes
+	// the fake server remember the emitted function_call.
+	turn1Body := mustMarshalJSON(t, map[string]any{
+		"model":  "gpt-5.5",
+		"stream": true,
+		"store":  true,
+		"input": []any{
+			map[string]any{
+				"role":    "user",
+				"content": "list templates please",
+			},
+		},
+	})
+	statusCode, body := postResponses(t, serverURL, turn1Body)
+	require.Equal(t, http.StatusOK, statusCode, "turn 1 should succeed")
+	require.Contains(t, body, "function_call",
+		"turn 1 should emit a function_call item")
+	require.Contains(t, body, "call_must_be_answered",
+		"turn 1 should emit the registered call_id")
+
+	// Turn 2: chain via previous_response_id but without a
+	// function_call_output for call_must_be_answered. The server
+	// must reject with HTTP 400 mirroring OpenAI's real error.
+	turn2Body := mustMarshalJSON(t, map[string]any{
+		"model":                "gpt-5.5",
+		"stream":               true,
+		"store":                true,
+		"previous_response_id": responseID,
+		"input": []any{
+			map[string]any{
+				"role":    "user",
+				"content": "follow-up without tool output",
+			},
+		},
+	})
+	statusCode, body = postResponses(t, serverURL, turn2Body)
+	require.Equal(t, http.StatusBadRequest, statusCode,
+		"turn 2 must be rejected with 400 when the chain anchor has "+
+			"unanswered function_calls")
+	require.Contains(t, body, "No tool output found for function call call_must_be_answered",
+		"error body should mirror OpenAI's production message")
+}
+
+// TestOpenAI_ResponsesAPI_AcceptsChainWithToolOutput confirms the
+// chattest server lets a chained follow-up through when the input
+// includes a function_call_output for every unanswered function_call
+// on the referenced response. This exercises the "happy path" side
+// of the contract so subtle regressions in the validator surface as
+// test failures rather than silent passes.
+func TestOpenAI_ResponsesAPI_AcceptsChainWithToolOutput(t *testing.T) {
+	t.Parallel()
+
+	const responseID = "resp_chainmode_test_2"
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.PreviousResponseID == nil {
+			return chattest.OpenAIResponse{
+				StreamingChunks: emptyChunkChannel(),
+				FunctionCalls: []chattest.OpenAIResponsesFunctionCall{{
+					CallID:    "call_answered_on_next_turn",
+					Name:      "list_templates",
+					Arguments: `{}`,
+				}},
+				ResponseID: responseID,
+			}
+		}
+		return chattest.OpenAIResponse{
+			StreamingChunks: emptyChunkChannel(),
+		}
+	})
+
+	// Turn 1 sets up the outstanding call.
+	turn1Body := mustMarshalJSON(t, map[string]any{
+		"model":  "gpt-5.5",
+		"stream": true,
+		"store":  true,
+		"input": []any{
+			map[string]any{
+				"role":    "user",
+				"content": "list templates please",
+			},
+		},
+	})
+	statusCode, _ := postResponses(t, serverURL, turn1Body)
+	require.Equal(t, http.StatusOK, statusCode)
+
+	// Turn 2 provides the required function_call_output alongside
+	// the new user message. The server must accept this chain.
+	turn2Body := mustMarshalJSON(t, map[string]any{
+		"model":                "gpt-5.5",
+		"stream":               true,
+		"store":                true,
+		"previous_response_id": responseID,
+		"input": []any{
+			map[string]any{
+				"type":    "function_call_output",
+				"call_id": "call_answered_on_next_turn",
+				"output":  "{\"templates\":[]}",
+			},
+			map[string]any{
+				"role":    "user",
+				"content": "thanks",
+			},
+		},
+	})
+	statusCode, body := postResponses(t, serverURL, turn2Body)
+	require.Equal(t, http.StatusOK, statusCode,
+		"turn 2 should succeed once every function_call has a matching function_call_output (body=%s)", body)
+}
+
+func postResponses(t *testing.T, baseURL string, body []byte) (int, string) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/responses", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, string(raw)
+}
+
+func mustMarshalJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return data
+}
+
+// emptyChunkChannel returns a closed channel so the streaming writer
+// exits immediately with no text deltas. The tests that use it only
+// care about header items emitted before streaming begins (function
+// calls, validation errors).
+func emptyChunkChannel() chan chattest.OpenAIChunk {
+	ch := make(chan chattest.OpenAIChunk)
+	close(ch)
+	return ch
 }

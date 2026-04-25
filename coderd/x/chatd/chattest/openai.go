@@ -24,6 +24,7 @@ type OpenAIResponse struct {
 	Response        *OpenAICompletion
 	Reasoning       *OpenAIReasoningItem
 	WebSearch       *OpenAIWebSearchCall
+	FunctionCalls   []OpenAIResponsesFunctionCall
 	ResponseID      string         // If set, used as the response ID in streamed events; otherwise auto-generated.
 	Error           *ErrorResponse // If set, server returns this HTTP error instead of streaming/JSON.
 }
@@ -43,6 +44,26 @@ type OpenAIWebSearchCall struct {
 	Query string `json:"query,omitempty"`
 }
 
+// OpenAIResponsesFunctionCall configures a streamed function_call
+// output item for the Responses API test server. When the response
+// is stored (store=true) the test server remembers the emitted
+// call_id on the stored response so a follow-up request chained via
+// previous_response_id must include the matching
+// function_call_output in its input.
+type OpenAIResponsesFunctionCall struct {
+	// ItemID is the response item identifier ("fc_..."). Generated
+	// when empty.
+	ItemID string
+	// CallID is the function-call identifier ("call_...") that
+	// must be matched by a function_call_output on the next chained
+	// request. Generated when empty.
+	CallID string
+	// Name is the function name emitted to the client.
+	Name string
+	// Arguments is the JSON-encoded argument string.
+	Arguments string
+}
+
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
@@ -50,9 +71,17 @@ type OpenAIRequest struct {
 	Messages           []OpenAIMessage `json:"messages"`
 	Stream             bool            `json:"stream,omitempty"`
 	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Prompt             []interface{}   `json:"prompt,omitempty"` // Legacy Responses API field alias; the real wire field is "input".
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	// Input is the raw Responses API input array. Each element is
+	// an opaque JSON object (message / function_call /
+	// function_call_output / reasoning / etc.). The test server
+	// inspects it to enforce the chain-mode contract: follow-up
+	// requests that set previous_response_id to a response with
+	// unanswered function_calls must include the matching
+	// function_call_output items here.
+	Input []json.RawMessage `json:"input,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
@@ -132,12 +161,29 @@ type OpenAICompletion struct {
 }
 
 // openAIServer is a test server that mocks the OpenAI API.
+// openAIResponsesStoredState tracks information about a single
+// response persisted on the fake Responses API server. It mirrors
+// the server-side behavior OpenAI uses when store=true: the server
+// remembers which function_call items a response emitted so that a
+// follow-up request chained via previous_response_id can be
+// validated against the expected function_call_output items.
+type openAIResponsesStoredState struct {
+	// pendingFunctionCalls is the set of function-call IDs that
+	// were emitted by the response and have not yet been answered
+	// by a function_call_output with the same call_id.
+	pendingFunctionCalls map[string]struct{}
+}
+
 type openAIServer struct {
 	mu      sync.Mutex
 	t       testing.TB
 	server  *httptest.Server
 	handler OpenAIHandler
 	request *OpenAIRequest
+	// storedResponses maps response IDs to their server-side state
+	// for the subset of requests that set store=true. Access is
+	// guarded by mu.
+	storedResponses map[string]*openAIResponsesStoredState
 }
 
 // OpenAI creates a fake OpenAI-compatible test server with a
@@ -168,8 +214,9 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	t.Helper()
 
 	s := &openAIServer{
-		t:       t,
-		handler: handler,
+		t:               t,
+		handler:         handler,
+		storedResponses: make(map[string]*openAIResponsesStoredState),
 	}
 
 	mux := http.NewServeMux()
@@ -213,8 +260,121 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.request = &req
 	s.mu.Unlock()
 
+	// Enforce the Responses API chain-mode contract: when a
+	// request sets previous_response_id to a stored response that
+	// emitted function_calls, the new request's input must
+	// include a function_call_output for each of those call IDs.
+	// OpenAI returns HTTP 400 with
+	//   "No tool output found for function call call_..."
+	// when this contract is violated.
+	if errResp := s.validateChainModeContract(&req); errResp != nil {
+		writeErrorResponse(s.t, w, errResp)
+		return
+	}
+
 	resp := s.handler(&req)
 	s.writeResponsesAPIResponse(w, &req, resp)
+}
+
+// validateChainModeContract checks whether a Responses API request
+// that chains via previous_response_id provides function_call_output
+// items for every unanswered function_call in the referenced
+// response. When a tool output is missing it returns an
+// ErrorResponse that mirrors the shape OpenAI serves in production.
+func (s *openAIServer) validateChainModeContract(req *OpenAIRequest) *ErrorResponse {
+	if req.PreviousResponseID == nil || *req.PreviousResponseID == "" {
+		return nil
+	}
+
+	s.mu.Lock()
+	stored, ok := s.storedResponses[*req.PreviousResponseID]
+	s.mu.Unlock()
+	if !ok || stored == nil || len(stored.pendingFunctionCalls) == 0 {
+		return nil
+	}
+
+	providedOutputs := functionCallOutputIDs(req.Input)
+	for callID := range stored.pendingFunctionCalls {
+		if _, provided := providedOutputs[callID]; !provided {
+			return &ErrorResponse{
+				StatusCode: http.StatusBadRequest,
+				Type:       "invalid_request_error",
+				Message:    fmt.Sprintf("No tool output found for function call %s.", callID),
+			}
+		}
+	}
+	return nil
+}
+
+// registerPendingFunctionCall records a function_call that was
+// emitted as part of the given response. Subsequent requests chained
+// to this response must provide a matching function_call_output or
+// the server will reject the chain per
+// openAIServer.validateChainModeContract. markFunctionCallAnswered
+// is called when a follow-up request satisfies the call.
+func (s *openAIServer) registerPendingFunctionCall(responseID, callID string) {
+	if responseID == "" || callID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.storedResponses[responseID]
+	if !ok {
+		state = &openAIResponsesStoredState{
+			pendingFunctionCalls: make(map[string]struct{}),
+		}
+		s.storedResponses[responseID] = state
+	}
+	state.pendingFunctionCalls[callID] = struct{}{}
+}
+
+// markFunctionCallAnswered clears a function_call from the pending
+// set of a stored response when a follow-up request supplies the
+// matching function_call_output. OpenAI resolves this transitively
+// along the chain, so once an output is posted the call never
+// reappears as pending on subsequent turns.
+func (s *openAIServer) markFunctionCallAnswered(responseID, callID string) {
+	if responseID == "" || callID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.storedResponses[responseID]
+	if !ok || state == nil {
+		return
+	}
+	delete(state.pendingFunctionCalls, callID)
+}
+
+// functionCallOutputIDs returns the set of call_id values carried by
+// function_call_output entries in the request input. The input is
+// heterogeneous so each item is decoded individually.
+func functionCallOutputIDs(input []json.RawMessage) map[string]struct{} {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(input))
+	for _, raw := range input {
+		var item struct {
+			Type   string `json:"type"`
+			CallID string `json:"call_id"`
+		}
+		if err := json.Unmarshal(raw, &item); err != nil {
+			continue
+		}
+		if item.Type != "function_call_output" || item.CallID == "" {
+			continue
+		}
+		out[item.CallID] = struct{}{}
+	}
+	return out
+}
+
+// storeEnabledForRequest reports whether the request opted into the
+// Responses API's store=true mode that causes OpenAI to persist the
+// emitted response server-side.
+func storeEnabledForRequest(req *OpenAIRequest) bool {
+	return req != nil && req.Store != nil && *req.Store
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
@@ -269,7 +429,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req.Request, resp)
+		s.writeResponsesAPIStreaming(w, req.Request, req, resp)
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -362,7 +522,8 @@ func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) 
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, resp OpenAIResponse) {
+func (s *openAIServer) writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, req *OpenAIRequest, resp OpenAIResponse) {
+	t := s.t
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -537,6 +698,78 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 			return
 		}
 		textOffset++
+	}
+
+	// Emit any configured function_call items. When the
+	// referencing request set store=true, register them on the
+	// server's stored-responses map so a follow-up request with
+	// previous_response_id must include a matching
+	// function_call_output for each call.
+	for _, fc := range resp.FunctionCalls {
+		outputIndex := textOffset
+		itemID := fc.ItemID
+		if itemID == "" {
+			itemID = fmt.Sprintf("fc_%s", uuid.New().String()[:8])
+		}
+		callID := fc.CallID
+		if callID == "" {
+			callID = fmt.Sprintf("call_%s", uuid.New().String()[:12])
+		}
+		if !writeEvent("response.output_item.added", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":      "function_call",
+				"id":        itemID,
+				"status":    "in_progress",
+				"call_id":   callID,
+				"name":      fc.Name,
+				"arguments": "",
+			},
+		}) {
+			return
+		}
+		if fc.Arguments != "" {
+			if !writeEvent("response.function_call_arguments.delta", map[string]interface{}{
+				"item_id":      itemID,
+				"output_index": outputIndex,
+				"delta":        fc.Arguments,
+			}) {
+				return
+			}
+		}
+		if !writeEvent("response.function_call_arguments.done", map[string]interface{}{
+			"item_id":      itemID,
+			"output_index": outputIndex,
+			"arguments":    fc.Arguments,
+		}) {
+			return
+		}
+		if !writeEvent("response.output_item.done", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":      "function_call",
+				"id":        itemID,
+				"status":    "completed",
+				"call_id":   callID,
+				"name":      fc.Name,
+				"arguments": fc.Arguments,
+			},
+		}) {
+			return
+		}
+		if s != nil && storeEnabledForRequest(req) {
+			s.registerPendingFunctionCall(responseID, callID)
+		}
+		textOffset++
+	}
+
+	// When the follow-up request satisfies function_calls from a
+	// prior response, mark them answered so their stored state
+	// stops complaining on further chains.
+	if s != nil && req != nil && req.PreviousResponseID != nil && *req.PreviousResponseID != "" {
+		for callID := range functionCallOutputIDs(req.Input) {
+			s.markFunctionCallAnswered(*req.PreviousResponseID, callID)
+		}
 	}
 
 	for {
