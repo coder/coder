@@ -2913,6 +2913,115 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, 1, got.contributingTrailingUserCount)
 }
 
+// TestResolveChainMode_RefusesToolCallingAnchor guards against the
+// production OpenAI Responses API bug where chain mode latched onto
+// a tool-calling assistant as the previous_response_id anchor. When
+// the chained request strips assistant and tool rows, the input
+// lacks any function_call_output for the emitted function_call and
+// OpenAI returns HTTP 400 "No tool output found for function call
+// call_...". Refusing that anchor leaves previousResponseID empty
+// so the caller falls back to the safe full-replay path.
+func TestResolveChainMode_RefusesToolCallingAnchor(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCallAsst := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolName:   "list_templates",
+		ToolCallID: "call_pending_output",
+		Args:       json.RawMessage(`{}`),
+	}})
+	toolCallAsst.Role = database.ChatMessageRoleAssistant
+	toolCallAsst.ProviderResponseID = sql.NullString{String: "resp-tool-call", Valid: true}
+	toolCallAsst.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
+
+	toolResult := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolName:   "list_templates",
+		ToolCallID: "call_pending_output",
+		Result:     json.RawMessage(`{"templates":[]}`),
+	}})
+	toolResult.Role = database.ChatMessageRoleTool
+
+	followUp := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "follow-up question",
+	}})
+	followUp.Role = database.ChatMessageRoleUser
+
+	got := resolveChainMode([]database.ChatMessage{toolCallAsst, toolResult, followUp})
+	require.Empty(t, got.previousResponseID,
+		"tool-calling assistant must not become the chain anchor")
+	require.Equal(t, uuid.Nil, got.modelConfigID,
+		"modelConfigID must remain unset when the anchor is refused")
+	require.Equal(t, 1, got.trailingUserCount)
+	require.Equal(t, 1, got.contributingTrailingUserCount)
+}
+
+// TestResolveChainMode_AcceptsTextOnlyAnchor confirms the normal
+// happy path still works: when the trailing assistant row is a
+// text-only step its provider_response_id becomes the chain anchor.
+func TestResolveChainMode_AcceptsTextOnlyAnchor(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	textAsst := chatMessageWithParts([]codersdk.ChatMessagePart{
+		{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: "some internal reasoning",
+		},
+		{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "the final answer",
+		},
+	})
+	textAsst.Role = database.ChatMessageRoleAssistant
+	textAsst.ProviderResponseID = sql.NullString{String: "resp-text-answer", Valid: true}
+	textAsst.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
+
+	followUp := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "follow-up question",
+	}})
+	followUp.Role = database.ChatMessageRoleUser
+
+	got := resolveChainMode([]database.ChatMessage{textAsst, followUp})
+	require.Equal(t, "resp-text-answer", got.previousResponseID,
+		"text-only assistant must be usable as the chain anchor")
+	require.Equal(t, modelConfigID, got.modelConfigID)
+	require.Equal(t, 1, got.trailingUserCount)
+	require.Equal(t, 1, got.contributingTrailingUserCount)
+}
+
+// TestResolveChainMode_ParseErrorTreatedAsToolCalling ensures that
+// malformed assistant content never becomes a chain anchor. If the
+// parser cannot decide whether a row has tool calls we must assume
+// the worst so the full-replay fallback picks it up safely instead
+// of letting OpenAI reject the chained request with HTTP 400.
+func TestResolveChainMode_ParseErrorTreatedAsToolCalling(t *testing.T) {
+	t.Parallel()
+
+	malformed := database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: []byte(`{"not-a-parts-array":true}`), Valid: true},
+		ContentVersion:     1,
+		ProviderResponseID: sql.NullString{String: "resp-malformed", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+
+	followUp := chatMessageWithParts([]codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "follow-up question",
+	}})
+	followUp.Role = database.ChatMessageRoleUser
+
+	got := resolveChainMode([]database.ChatMessage{malformed, followUp})
+	require.Empty(t, got.previousResponseID,
+		"malformed assistant content must be treated as a tool-calling row and skipped")
+	require.Equal(t, uuid.Nil, got.modelConfigID,
+		"modelConfigID must remain unset when the anchor is refused")
+}
+
 func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
 	t.Parallel()
 

@@ -8625,3 +8625,230 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	require.Len(t, acquired, 1, "only the non-archived chat should be acquired")
 	require.Equal(t, activeChat.ID, acquired[0].ID)
 }
+
+// TestProcessChat_ChainModeAfterToolCallReturnsError_BeforeFix is a
+// chattest-driven unit reproduction of the production OpenAI
+// Responses API chain-mode bug. The chatloop's
+// previous_response_id optimization picks the most recent
+// ProviderResponseID-bearing assistant row as the chain anchor. When
+// that row is a tool-calling step, OpenAI rejects the follow-up
+// with HTTP 400 "No tool output found for function call call_..."
+// because the chained input lacks the matching function_call_output.
+//
+// The test seeds the failure shape by running one tool-calling turn
+// and then soft-deleting the following text assistant + tool_result
+// rows, leaving the tool-calling assistant as the trailing row.
+// After the fix lands in resolveChainMode, a tool-calling anchor is
+// refused and the full-replay fallback path (which synthesizes
+// missing tool results) handles the turn cleanly. Before the fix,
+// the chattest server enforces the same contract as OpenAI and
+// rejects the chained request with HTTP 400.
+func TestProcessChat_ChainModeAfterToolCallReturnsError_BeforeFix(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	// callCount distinguishes turn 1 (tool call), tool-continuation
+	// (tool result → text), and turn 2 (follow-up that should be
+	// rejected by the contract validator before the fix).
+	var callCount atomic.Int32
+	const firstResponseID = "resp_turn1_toolcall"
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		n := callCount.Add(1)
+		switch n {
+		case 1:
+			// Turn 1 step 1: emit a function_call that will be
+			// persisted with firstResponseID. The fake server
+			// registers this call as pending because the
+			// request has store=true.
+			return chattest.OpenAIResponse{
+				StreamingChunks: closedEmptyChunkChannel(),
+				FunctionCalls: []chattest.OpenAIResponsesFunctionCall{{
+					CallID:    "call_list_templates_1",
+					Name:      "list_templates",
+					Arguments: `{}`,
+				}},
+				ResponseID: firstResponseID,
+			}
+		case 2:
+			// Turn 1 step 2: chatloop replayed the history with
+			// the tool_result in input. Return a short text
+			// response to complete the turn. The response carries
+			// its own ID which the chatloop persists but the
+			// test will soft-delete it below.
+			return chattest.OpenAIResponse{
+				StreamingChunks: streamingTextChunks("done"),
+				ResponseID:      "resp_turn1_text",
+			}
+		default:
+			// Turn 2 (follow-up) will be rejected by
+			// validateChainModeContract before the handler
+			// runs. This path is still wired so the test
+			// fails loudly if the validator misses.
+			return chattest.OpenAIResponse{
+				StreamingChunks: streamingTextChunks("unexpected"),
+				ResponseID:      "resp_turn2_unexpected",
+			}
+		}
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	storeEnabled := true
+	// gpt-4o is the smallest model that the chatprovider layer
+	// routes to the Responses API with store=true. Using the
+	// canonical production model (gpt-5.5) is unnecessary because
+	// the contract enforcement is driven by the chattest server,
+	// not by any model-specific fantasy behavior.
+	model := insertChatModelConfigWithCallConfig(
+		ctx, t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store: &storeEnabled,
+				},
+			},
+		},
+	)
+
+	// Seed a template so list_templates has something to return.
+	// The actual result content is irrelevant; we only need the
+	// tool-call shape to be persisted with firstResponseID.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+
+	server := newActiveTestServer(t, db, ps)
+
+	// Create the chat with an initial user message that will
+	// trigger the list_templates tool call. The chatloop runs
+	// automatically because pending chats get acquired.
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "chain-mode-tool-call-repro",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List the available workspace templates."),
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for turn 1 to finish.
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	chatData, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chatData.Status,
+		"turn 1 should complete successfully; got error=%q", chatData.LastError.String)
+
+	// Locate the tool-calling assistant row and soft-delete
+	// everything after it so the trailing assistant row is the
+	// tool-calling one with firstResponseID as its
+	// provider_response_id. This mirrors the production failure
+	// shape for the chain-mode bug.
+	dbMsgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	toolCallAsstIdx := -1
+	for i, msg := range dbMsgs {
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		if parseErr != nil {
+			continue
+		}
+		for _, p := range parts {
+			if p.Type == codersdk.ChatMessagePartTypeToolCall &&
+				p.ToolName == "list_templates" {
+				toolCallAsstIdx = i
+				break
+			}
+		}
+		if toolCallAsstIdx >= 0 {
+			break
+		}
+	}
+	require.GreaterOrEqual(t, toolCallAsstIdx, 0,
+		"expected assistant row with list_templates tool call")
+	anchor := dbMsgs[toolCallAsstIdx]
+	require.True(t, anchor.ProviderResponseID.Valid,
+		"tool-calling anchor must have provider_response_id set")
+	require.Equal(t, firstResponseID, anchor.ProviderResponseID.String)
+
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: anchor.ID,
+	})
+	require.NoError(t, err)
+
+	// Follow-up user message. This is the scenario the fix
+	// addresses: chain mode must refuse to use a tool-calling
+	// response as the previous_response_id anchor.
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("And how about now?"),
+		},
+	})
+	require.NoError(t, err)
+
+	// With the fix: the chatloop refuses the tool-calling anchor,
+	// replays the full history with a synthesized
+	// function_call_output, and reaches waiting. Without the fix:
+	// the chattest contract rejects the chained request because
+	// the input is filtered down to system + new user and carries
+	// no function_call_output for call_list_templates_1.
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatData = got
+		return got.Status == database.ChatStatusWaiting ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.Equal(t, database.ChatStatusWaiting, chatData.Status,
+		"with the fix applied the follow-up should not fail "+
+			"(last_error=%q)", chatData.LastError.String)
+}
+
+// closedEmptyChunkChannel returns a closed channel so the streaming
+// writer emits no text deltas. The tests that use it only care
+// about items emitted before streaming begins (function_calls).
+func closedEmptyChunkChannel() chan chattest.OpenAIChunk {
+	ch := make(chan chattest.OpenAIChunk)
+	close(ch)
+	return ch
+}
+
+// streamingTextChunks returns a buffered channel preloaded with a
+// single text chunk whose channel is closed after the send, matching
+// the pattern used by chattest.OpenAIStreamingResponse.
+func streamingTextChunks(text string) chan chattest.OpenAIChunk {
+	chunks := chattest.OpenAITextChunks(text)
+	ch := make(chan chattest.OpenAIChunk, len(chunks))
+	for _, c := range chunks {
+		ch <- c
+	}
+	close(ch)
+	return ch
+}

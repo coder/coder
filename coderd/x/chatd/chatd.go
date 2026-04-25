@@ -3286,6 +3286,30 @@ func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	return false
 }
 
+// assistantMessageHasToolCallParts reports whether a persisted
+// assistant row emitted any tool-call parts. Responses API chain
+// mode cannot safely target such a response: OpenAI's server-side
+// state for the referenced response still holds unanswered
+// function_call items, so a follow-up turn that sets
+// previous_response_id but strips the assistant/tool blocks from
+// the input gets rejected with HTTP 400
+// "No tool output found for function call call_...". Treat parse
+// errors as "has tool calls" so malformed rows never become a
+// chain anchor; the safe full-replay path picks them up via
+// chatprompt.injectMissingToolResults.
+func assistantMessageHasToolCallParts(msg database.ChatMessage) bool {
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		return true
+	}
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeToolCall {
+			return true
+		}
+	}
+	return false
+}
+
 // resolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately
 // preceding assistant/tool block can chain from a provider response ID.
@@ -3304,6 +3328,18 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	for ; i >= 0; i-- {
 		switch messages[i].Role {
 		case database.ChatMessageRoleAssistant:
+			// An assistant row whose response included tool calls
+			// cannot be used as the chain anchor: OpenAI requires a
+			// matching function_call_output for every unanswered
+			// function_call in the referenced response, but chain
+			// mode strips assistant and tool rows from the request
+			// input. Leave previousResponseID empty so the caller
+			// falls back to the full-history replay path that
+			// synthesizes interrupted tool results via
+			// chatprompt.injectMissingToolResults.
+			if assistantMessageHasToolCallParts(messages[i]) {
+				return info
+			}
 			if messages[i].ProviderResponseID.Valid &&
 				messages[i].ProviderResponseID.String != "" {
 				info.previousResponseID = messages[i].ProviderResponseID.String
