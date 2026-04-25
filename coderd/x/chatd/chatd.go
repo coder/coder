@@ -3368,6 +3368,94 @@ func filterPromptForChainMode(
 	return filtered
 }
 
+func openAIResponsesRemoved(stats chatprompt.OpenAIResponsesSanitizationStats) bool {
+	return stats.RemovedToolCalls > 0 ||
+		stats.RemovedToolResults > 0 ||
+		stats.RemovedWebSearchCalls > 0 ||
+		stats.RemovedWebSearchResults > 0
+}
+
+func openAIResponsesRawRowsUnsafeForChainMode(
+	messages []database.ChatMessage,
+	info chainModeInfo,
+) (bool, error) {
+	if info.previousResponseID == "" || info.contributingTrailingUserCount <= 0 {
+		return false, nil
+	}
+
+	candidateEnd := len(messages) - 1
+	for ; candidateEnd >= 0; candidateEnd-- {
+		if messages[candidateEnd].Role != database.ChatMessageRoleUser {
+			break
+		}
+	}
+	if candidateEnd < 0 {
+		return false, nil
+	}
+
+	assistantIndex := -1
+scanCandidate:
+	for i := candidateEnd; i >= 0; i-- {
+		switch messages[i].Role {
+		case database.ChatMessageRoleAssistant:
+			if messages[i].ProviderResponseID.Valid &&
+				messages[i].ProviderResponseID.String != "" {
+				assistantIndex = i
+			}
+			break scanCandidate
+		case database.ChatMessageRoleTool:
+			continue
+		default:
+			return false, nil
+		}
+	}
+	if assistantIndex < 0 {
+		return false, nil
+	}
+
+	callMatched := map[string]bool{}
+	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
+	if err != nil {
+		return false, xerrors.Errorf("parse chain assistant content: %w", err)
+	}
+	for _, part := range assistantParts {
+		if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted {
+			continue
+		}
+		if part.ToolCallID == "" {
+			return true, nil
+		}
+		callMatched[part.ToolCallID] = false
+	}
+	if len(callMatched) == 0 {
+		return false, nil
+	}
+
+	for i := assistantIndex + 1; i <= candidateEnd; i++ {
+		if messages[i].Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(messages[i])
+		if err != nil {
+			return false, xerrors.Errorf("parse chain tool content: %w", err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ProviderExecuted {
+				continue
+			}
+			if _, ok := callMatched[part.ToolCallID]; ok {
+				callMatched[part.ToolCallID] = true
+			}
+		}
+	}
+	for _, matched := range callMatched {
+		if !matched {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // appendChatMessage appends a single message to the batch insert params.
 func appendChatMessage(
 	params *database.InsertChatMessagesParams,
@@ -6669,22 +6757,53 @@ func (p *Server) runChat(
 		model,
 		callConfig.ProviderOptions,
 	)
+	baseProviderOptions := providerOptions
 	// When the OpenAI Responses API has store=true, the provider
 	// retains conversation history server-side. For follow-up turns,
 	// we set previous_response_id and send only system instructions
 	// plus the new user input, avoiding redundant replay of prior
 	// assistant and tool messages that the provider already has.
-	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
+	wouldUseChainMode := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
 		chainInfo.contributingTrailingUserCount > 0 &&
 		chainInfo.modelConfigID == modelConfig.ID &&
 		!isPlanModeTurn
-	if chainModeActive {
+	chainModeActive := false
+	sanitizedFullPrompt := prompt
+	if chatprovider.HasOpenAIResponsesProviderOptions(providerOptions) {
+		rawRowsUnsafe, err := openAIResponsesRawRowsUnsafeForChainMode(messages, chainInfo)
+		if err != nil {
+			return result, xerrors.Errorf("analyze OpenAI Responses chain rows: %w", err)
+		}
+		var openAIStats chatprompt.OpenAIResponsesSanitizationStats
+		sanitizedFullPrompt, openAIStats = chatprompt.SanitizeOpenAIResponsesMessages(prompt)
+		if rawRowsUnsafe {
+			openAIStats.UnsafeForChainMode = true
+		}
+		if openAIResponsesRemoved(openAIStats) || openAIStats.UnsafeForChainMode {
+			prompt = sanitizedFullPrompt
+			providerOptions = baseProviderOptions
+			if wouldUseChainMode {
+				openAIStats.DisabledChainMode = true
+			}
+			chatprompt.LogOpenAIResponsesSanitization(
+				ctx, logger, "request", model.Provider(), model.Model(), openAIStats,
+			)
+		} else if wouldUseChainMode {
+			providerOptions = chatprovider.CloneWithPreviousResponseID(
+				baseProviderOptions,
+				chainInfo.previousResponseID,
+			)
+			prompt = filterPromptForChainMode(prompt, chainInfo)
+			chainModeActive = true
+		}
+	} else if wouldUseChainMode {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
 			chainInfo.previousResponseID,
 		)
 		prompt = filterPromptForChainMode(prompt, chainInfo)
+		chainModeActive = true
 	}
 	activeToolNames := activeToolNamesForTurn(
 		tools,
@@ -6740,6 +6859,29 @@ func (p *Server) runChat(
 		}
 	}()
 
+	var openAIResponsesChainFallbackMessages []fantasy.Message
+	var openAIResponsesChainFallbackProviderOptions fantasy.ProviderOptions
+	if chatprovider.HasOpenAIResponsesProviderOptions(providerOptions) {
+		sanitizedPrompt, openAIStats := chatprompt.SanitizeOpenAIResponsesMessages(prompt)
+		if openAIResponsesRemoved(openAIStats) {
+			if chainModeActive {
+				prompt = sanitizedFullPrompt
+				providerOptions = baseProviderOptions
+				chainModeActive = false
+				openAIStats.DisabledChainMode = true
+			} else {
+				prompt = sanitizedPrompt
+			}
+			chatprompt.LogOpenAIResponsesSanitization(
+				ctx, logger, "pre_request", model.Provider(), model.Model(), openAIStats,
+			)
+		}
+		if chainModeActive {
+			openAIResponsesChainFallbackMessages = sanitizedFullPrompt
+			openAIResponsesChainFallbackProviderOptions = baseProviderOptions
+		}
+	}
+
 	loopErr = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:            model,
 		Messages:         prompt,
@@ -6751,9 +6893,11 @@ func (p *Server) runChat(
 		Logger:           loopLogger,
 		BuiltinToolNames: builtinToolNames,
 
-		ModelConfig:     callConfig,
-		ProviderOptions: providerOptions,
-		ProviderTools:   providerTools,
+		ModelConfig:                                 callConfig,
+		ProviderOptions:                             providerOptions,
+		OpenAIResponsesChainFallbackMessages:        openAIResponsesChainFallbackMessages,
+		OpenAIResponsesChainFallbackProviderOptions: openAIResponsesChainFallbackProviderOptions,
+		ProviderTools:                               providerTools,
 		// dynamicToolNames now contains only names that don't
 		// collide with built-in/MCP tools.
 		DynamicToolNames: dynamicToolNames,
@@ -6825,10 +6969,34 @@ func (p *Server) runChat(
 				},
 			)
 			reloadedPrompt = renderPlanPathPrompt(reloadedPrompt, resolvePlanPathBlock(reloadCtx))
+			reloadedChainInfo := resolveChainMode(reloadedMsgs)
+			if chatprovider.HasOpenAIResponsesProviderOptions(baseProviderOptions) {
+				rawRowsUnsafe, err := openAIResponsesRawRowsUnsafeForChainMode(
+					reloadedMsgs,
+					reloadedChainInfo,
+				)
+				if err != nil {
+					return nil, xerrors.Errorf("analyze reloaded OpenAI Responses chain rows: %w", err)
+				}
+				sanitizedReloadedPrompt, openAIStats := chatprompt.SanitizeOpenAIResponsesMessages(reloadedPrompt)
+				if rawRowsUnsafe {
+					openAIStats.UnsafeForChainMode = true
+				}
+				if openAIResponsesRemoved(openAIStats) || openAIStats.UnsafeForChainMode {
+					if chainModeActive {
+						chainModeActive = false
+						openAIStats.DisabledChainMode = true
+					}
+					chatprompt.LogOpenAIResponsesSanitization(
+						reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), openAIStats,
+					)
+					return sanitizedReloadedPrompt, nil
+				}
+			}
 			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
-					chainInfo,
+					reloadedChainInfo,
 				)
 			}
 			return reloadedPrompt, nil

@@ -84,7 +84,7 @@ func LogOpenAIResponsesSanitization(
 		stats.RemovedToolResults > 0 ||
 		stats.RemovedWebSearchCalls > 0 ||
 		stats.RemovedWebSearchResults > 0
-	if !hasRemoval && !stats.DisabledChainMode {
+	if !hasRemoval && !stats.DisabledChainMode && !stats.UnsafeForChainMode {
 		return
 	}
 

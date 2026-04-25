@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -136,6 +137,13 @@ type RunOptions struct {
 	// separate field because the conversion requires knowledge
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
+
+	// OpenAIResponsesChainFallbackMessages is the sanitized full-history
+	// prompt used if a chain-mode request is still unsafe before send.
+	OpenAIResponsesChainFallbackMessages []fantasy.Message
+	// OpenAIResponsesChainFallbackProviderOptions are base provider
+	// options without PreviousResponseID for the fallback request.
+	OpenAIResponsesChainFallbackProviderOptions fantasy.ProviderOptions
 
 	// ProviderTools are provider-native tools (like web search
 	// and computer use) whose definitions are passed directly
@@ -397,6 +405,32 @@ func Run(ctx context.Context, opts RunOptions) error {
 				slog.F("step_index", step),
 				slog.F("total_steps", totalSteps),
 			)
+			if chatprovider.HasOpenAIResponsesProviderOptions(opts.ProviderOptions) {
+				sanitizedPrepared, openAIStats := chatprompt.SanitizeOpenAIResponsesMessages(prepared)
+				if openAIResponsesRemoved(openAIStats) {
+					if hasPreviousResponseID(opts.ProviderOptions) {
+						if len(opts.OpenAIResponsesChainFallbackMessages) == 0 ||
+							opts.OpenAIResponsesChainFallbackProviderOptions == nil {
+							return xerrors.New("OpenAI Responses chain fallback is required before sending sanitized prompt")
+						}
+						messages = opts.OpenAIResponsesChainFallbackMessages
+						prepared = make([]fantasy.Message, len(messages))
+						copy(prepared, messages)
+						opts.ProviderOptions = opts.OpenAIResponsesChainFallbackProviderOptions
+						if opts.DisableChainMode != nil {
+							opts.DisableChainMode()
+						}
+						openAIStats.DisabledChainMode = true
+					} else {
+						prepared = sanitizedPrepared
+					}
+					chatprompt.LogOpenAIResponsesSanitization(
+						ctx, opts.Logger, "pre_request", provider, modelName, openAIStats,
+						slog.F("step_index", step),
+						slog.F("total_steps", totalSteps),
+					)
+				}
+			}
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
@@ -1581,6 +1615,13 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+func openAIResponsesRemoved(stats chatprompt.OpenAIResponsesSanitizationStats) bool {
+	return stats.RemovedToolCalls > 0 ||
+		stats.RemovedToolResults > 0 ||
+		stats.RemovedWebSearchCalls > 0 ||
+		stats.RemovedWebSearchResults > 0
 }
 
 // hasPreviousResponseID checks whether the provider options contain

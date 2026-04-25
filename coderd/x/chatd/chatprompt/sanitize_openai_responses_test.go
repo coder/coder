@@ -556,7 +556,7 @@ func TestLogOpenAIResponsesSanitization(t *testing.T) {
 		require.Empty(t, sink.snapshotEntries())
 	})
 
-	t.Run("UnsafeOnlyDoesNotLog", func(t *testing.T) {
+	t.Run("UnsafeOnlyLogsApprovedFields", func(t *testing.T) {
 		t.Parallel()
 
 		sink := &openAIResponsesLogSink{}
@@ -571,7 +571,20 @@ func TestLogOpenAIResponsesSanitization(t *testing.T) {
 			chatprompt.OpenAIResponsesSanitizationStats{UnsafeForChainMode: true},
 		)
 
-		require.Empty(t, sink.snapshotEntries())
+		entries := sink.snapshotEntries()
+		require.Len(t, entries, 1)
+		require.Equal(t, map[string]any{
+			"phase":                      "prepare",
+			"provider":                   "openai",
+			"model":                      "gpt-4o-mini",
+			"removed_tool_calls":         0,
+			"removed_tool_results":       0,
+			"removed_web_search_calls":   0,
+			"removed_web_search_results": 0,
+			"dropped_messages":           0,
+			"disabled_chain_mode":        false,
+			"unsafe_for_chain_mode":      true,
+		}, openAIResponsesFieldsMap(entries[0].Fields))
 	})
 
 	t.Run("RemovalLogsApprovedFields", func(t *testing.T) {
