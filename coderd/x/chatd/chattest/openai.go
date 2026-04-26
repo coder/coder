@@ -50,7 +50,7 @@ type OpenAIRequest struct {
 	Messages           []OpenAIMessage `json:"messages"`
 	Stream             bool            `json:"stream,omitempty"`
 	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
