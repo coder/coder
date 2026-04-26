@@ -22,11 +22,17 @@ type ClassifiedError struct {
 	RetryAfter time.Duration
 }
 
+const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
+	"internal state mismatch. This is not a configuration or billing issue."
+
 type responsesAPIDiagnosticMatch struct {
 	pattern string
 	detail  string
 }
 
+// responsesAPIDiagnosticMatches maps provider error fragments to safe
+// diagnostics. Details must not include provider item IDs because they are
+// returned to clients and used by operators for grepping.
 var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
 	{
 		pattern: "no tool output found for function call",
@@ -120,6 +126,7 @@ func Classify(err error) ClassifiedError {
 
 	if detail, ok := responsesAPIDiagnostic(lower, structured.detail); ok {
 		return normalizeClassification(ClassifiedError{
+			Message:    responsesAPIDiagnosticMessage,
 			Detail:     detail,
 			Kind:       KindGeneric,
 			Provider:   provider,

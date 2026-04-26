@@ -3289,6 +3289,10 @@ func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	return false
 }
 
+// assistantHasUnresolvedLocalToolCalls reports whether the assistant message
+// at assistantIdx contains local tool calls that lack matching tool results.
+// It returns true when content parsing fails because full-history replay is
+// safer than chaining from state that cannot be inspected.
 func assistantHasUnresolvedLocalToolCalls(
 	messages []database.ChatMessage,
 	assistantIdx int,
@@ -3299,6 +3303,7 @@ func assistantHasUnresolvedLocalToolCalls(
 
 	parts, err := chatprompt.ParseContent(messages[assistantIdx])
 	if err != nil {
+		// Use full replay when persisted assistant content cannot be parsed.
 		return true
 	}
 
@@ -3321,6 +3326,7 @@ func assistantHasUnresolvedLocalToolCalls(
 		}
 		parts, err := chatprompt.ParseContent(messages[i])
 		if err != nil {
+			// Use full replay when persisted tool content cannot be parsed.
 			return true
 		}
 		for _, part := range parts {
@@ -3336,6 +3342,10 @@ func assistantHasUnresolvedLocalToolCalls(
 	return len(resolvedCallIDs) != len(localCallIDs)
 }
 
+// shouldActivateChainMode reports whether a follow-up turn can use
+// previous_response_id instead of replaying history. It requires store=true,
+// a matching model config, meaningful trailing user input, non-plan mode, and
+// complete local tool state so the provider has all required outputs.
 func shouldActivateChainMode(
 	providerOptions fantasy.ProviderOptions,
 	info chainModeInfo,

@@ -63,4 +63,38 @@ func TestValidateResponsesAPIInput(t *testing.T) {
 		require.NotNil(t, errResp)
 		require.Contains(t, errResp.Message, "Tool output found without preceding function call call_late")
 	})
+
+	t.Run("rejects duplicate function call", func(t *testing.T) {
+		t.Parallel()
+
+		errResp := chattest.ValidateResponsesAPIInput([]interface{}{
+			map[string]interface{}{"type": "function_call", "call_id": "call_duplicate"},
+			map[string]interface{}{"type": "function_call", "call_id": "call_duplicate"},
+			map[string]interface{}{"type": "function_call_output", "call_id": "call_duplicate"},
+		})
+		require.NotNil(t, errResp)
+		require.Contains(t, errResp.Message, "Duplicate function call found for call_id call_duplicate")
+	})
+
+	t.Run("rejects duplicate function call output", func(t *testing.T) {
+		t.Parallel()
+
+		errResp := chattest.ValidateResponsesAPIInput([]interface{}{
+			map[string]interface{}{"type": "function_call", "call_id": "call_duplicate_output"},
+			map[string]interface{}{"type": "function_call_output", "call_id": "call_duplicate_output"},
+			map[string]interface{}{"type": "function_call_output", "call_id": "call_duplicate_output"},
+		})
+		require.NotNil(t, errResp)
+		require.Contains(t, errResp.Message, "Duplicate tool output found for function call call_duplicate_output")
+	})
+
+	t.Run("classifies item reference by prefix without type field", func(t *testing.T) {
+		t.Parallel()
+
+		errResp := chattest.ValidateResponsesAPIInput([]interface{}{
+			map[string]interface{}{"id": "rs_prefix_only"},
+			map[string]interface{}{"id": "ws_prefix_only"},
+		})
+		require.Nil(t, errResp)
+	})
 }

@@ -119,10 +119,6 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		if errResp := chattest.ValidateResponsesAPIInput(req.Prompt); errResp != nil {
-			return chattest.OpenAIResponse{Error: errResp}
-		}
-
 		requestNumber := recorder.record(req)
 		switch requestNumber {
 		case 1:
@@ -499,7 +495,7 @@ func promptItemTypes(prompt []interface{}) []string {
 		if !ok {
 			continue
 		}
-		if itemType := stringField(itemMap, "type"); itemType != "" {
+		if itemType := chattest.StringResponseField(itemMap, "type"); itemType != "" {
 			types = append(types, itemType)
 		}
 	}
@@ -513,7 +509,7 @@ func promptItemRoles(prompt []interface{}) []string {
 		if !ok {
 			continue
 		}
-		if role := stringField(itemMap, "role"); role != "" {
+		if role := chattest.StringResponseField(itemMap, "role"); role != "" {
 			roles = append(roles, role)
 		}
 	}
@@ -532,8 +528,8 @@ func requirePromptItemWithTypeAndCallID(
 		if !ok {
 			continue
 		}
-		if stringField(itemMap, "type") == itemType &&
-			stringField(itemMap, "call_id") == callID {
+		if chattest.StringResponseField(itemMap, "type") == itemType &&
+			chattest.StringResponseField(itemMap, "call_id") == callID {
 			return itemMap
 		}
 	}
@@ -544,6 +540,9 @@ func requirePromptItemWithTypeAndCallID(
 	return nil
 }
 
+// requireNoResponsesProviderItemReplay rejects the explicit stale IDs and all
+// provider-managed Responses item IDs. Chain mode should rely on
+// previous_response_id, not replay rs_ or ws_ identifiers in prompt input.
 func requireNoResponsesProviderItemReplay(
 	t *testing.T,
 	prompt []interface{},
@@ -573,10 +572,13 @@ func assertNoResponsesProviderItemReplay(
 					require.FailNow(t, "prompt replayed web_search_call provider item")
 				}
 				if key == "id" || key == "call_id" || key == "item_id" {
-					_, isStale := staleIDs[text]
-					if isStale || strings.HasPrefix(text, "ws_") || strings.HasPrefix(text, "rs_") {
-						require.FailNowf(t, "prompt replayed provider item ID",
+					if _, isStale := staleIDs[text]; isStale {
+						require.FailNowf(t, "prompt replayed stale provider item ID",
 							"field %q contained stale provider ID %q", key, text)
+					}
+					if strings.HasPrefix(text, "ws_") || strings.HasPrefix(text, "rs_") {
+						require.FailNowf(t, "prompt replayed provider item ID",
+							"field %q contained provider-managed ID %q", key, text)
 					}
 				}
 			}
@@ -603,9 +605,9 @@ func requirePromptItemReferenceOrder(
 		if !ok {
 			continue
 		}
-		itemID := stringField(itemMap, "id")
+		itemID := chattest.StringResponseField(itemMap, "id")
 		if itemID == "" {
-			itemID = stringField(itemMap, "item_id")
+			itemID = chattest.StringResponseField(itemMap, "item_id")
 		}
 		switch itemID {
 		case firstID:
@@ -617,16 +619,4 @@ func requirePromptItemReferenceOrder(
 	require.NotEqual(t, -1, firstIndex, "missing first item reference")
 	require.NotEqual(t, -1, secondIndex, "missing second item reference")
 	require.Less(t, firstIndex, secondIndex)
-}
-
-func stringField(values map[string]interface{}, key string) string {
-	value, ok := values[key]
-	if !ok {
-		return ""
-	}
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return text
 }

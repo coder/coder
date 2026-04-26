@@ -55,7 +55,7 @@ func validateResponsesFunctionCallOutputs(items []interface{}) *ErrorResponse {
 	}
 	states := make(map[string]*callState)
 	var callIDs []string
-	var outputIDs []string
+	var outputCallIDs []string
 
 	stateFor := func(callID string) *callState {
 		state, ok := states[callID]
@@ -86,7 +86,7 @@ func validateResponsesFunctionCallOutputs(items []interface{}) *ErrorResponse {
 			}
 			state := stateFor(item.callID)
 			if state.outputs == 0 {
-				outputIDs = append(outputIDs, item.callID)
+				outputCallIDs = append(outputCallIDs, item.callID)
 				state.firstOutput = index
 			}
 			state.outputs++
@@ -101,7 +101,7 @@ func validateResponsesFunctionCallOutputs(items []interface{}) *ErrorResponse {
 			))
 		}
 	}
-	for _, callID := range outputIDs {
+	for _, callID := range outputCallIDs {
 		state := states[callID]
 		if state.outputs > 1 {
 			return openAIResponsesValidationError(fmt.Sprintf(
@@ -109,7 +109,7 @@ func validateResponsesFunctionCallOutputs(items []interface{}) *ErrorResponse {
 			))
 		}
 	}
-	for _, callID := range outputIDs {
+	for _, callID := range outputCallIDs {
 		state := states[callID]
 		if state.calls == 0 || state.firstOutput < state.firstCall {
 			return openAIResponsesValidationError(fmt.Sprintf(
@@ -135,9 +135,9 @@ func classifyResponsesInputItem(raw interface{}) responsesInputItem {
 		return responsesInputItem{kind: responsesInputOther}
 	}
 
-	itemType := stringResponseField(itemMap, "type")
-	id := stringResponseField(itemMap, "id")
-	callID := stringResponseField(itemMap, "call_id")
+	itemType := StringResponseField(itemMap, "type")
+	id := StringResponseField(itemMap, "id")
+	callID := StringResponseField(itemMap, "call_id")
 
 	switch itemType {
 	case "reasoning":
@@ -172,7 +172,10 @@ func classifyResponsesInputItem(raw interface{}) responsesInputItem {
 	}
 }
 
-func stringResponseField(values map[string]interface{}, key string) string {
+// StringResponseField returns the string value for key from a decoded
+// Responses API item, or an empty string when the field is absent or not a
+// string.
+func StringResponseField(values map[string]interface{}, key string) string {
 	value, ok := values[key]
 	if !ok {
 		return ""

@@ -232,6 +232,13 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.request = &req
 	s.mu.Unlock()
 
+	if req.Prompt != nil {
+		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
+	}
+
 	resp := s.handler(&req)
 	s.writeResponsesAPIResponse(w, &req, resp)
 }
