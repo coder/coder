@@ -240,6 +240,25 @@ export const StatusErrorWithoutResult: Story = {
 	},
 };
 
+// Mirrors the backend path where a tool call is marked execution-failed
+// (status === "error") and the result payload is a raw string instead of
+// a structured object. AdvisorRenderer must route the string through the
+// `errorMessage` branch so the failure surfaces in the error card rather
+// than being rendered as advice text.
+export const StatusErrorWithStringResult: Story = {
+	args: {
+		status: "error",
+		args: { question: sampleQuestion },
+		result: "Connection timed out",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Advisor request failed.")).toBeInTheDocument();
+		expect(canvas.getByText("Connection timed out")).toBeInTheDocument();
+		expect(canvas.getByRole("alert")).toBeInTheDocument();
+	},
+};
+
 // Exercises the plain-string result branch in AdvisorRenderer (Tool.tsx),
 // where a non-object `result` is treated as raw advice text when
 // `isError` is false.
