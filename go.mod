@@ -84,10 +84,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7
 // 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
-//    skip provider-executed web_search item references during manual replay,
-//    validate function_call output pairing in the Responses input.
-// See: https://github.com/coder/fantasy/commits/5afd6320c353
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260425070655-5afd6320c353
+//    replay stored reasoning item references, only replay web_search references
+//    when paired with reasoning, and validate function_call output pairing.
+// See: https://github.com/coder/fantasy/commits/f83367a4a205
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426020813-f83367a4a205
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
 // additional performance improvements.

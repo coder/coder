@@ -104,6 +104,92 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
 }
 
+func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		reasoningID = "rs_full_replay_reasoning"
+		webSearchID = "ws_full_replay_search"
+	)
+	var recorder responsesRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if errResp := chattest.ValidateResponsesAPIInput(req.Prompt); errResp != nil {
+			return chattest.OpenAIResponse{Error: errResp}
+		}
+
+		requestNumber := recorder.record(req)
+		switch requestNumber {
+		case 1:
+			resp := chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("search result summary")...,
+			)
+			resp.ResponseID = "resp_full_replay_first"
+			resp.Reasoning = &chattest.OpenAIReasoningItem{
+				ID:               reasoningID,
+				Summary:          "checked provider-side search state",
+				EncryptedContent: "encrypted-full-replay",
+			}
+			resp.WebSearch = &chattest.OpenAIWebSearchCall{
+				ID:    webSearchID,
+				Query: "coder changelog",
+			}
+			return resp
+		default:
+			resp := chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("follow-up answer")...,
+			)
+			resp.ResponseID = "resp_full_replay_second"
+			return resp
+		}
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	firstModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
+	secondModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "full-replay"),
+		ModelConfigID:  firstModel.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("search for the latest Coder docs"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+	require.Len(t, recorder.all(), 1)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: secondModel.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("summarize the result without searching again"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	requests := recorder.all()
+	require.Len(t, requests, 2)
+	followup := requests[1]
+	require.NotNil(t, followup.Store)
+	require.True(t, *followup.Store)
+	require.Nil(t, followup.PreviousResponseID)
+	require.NotEmpty(t, followup.Prompt)
+	requirePromptItemReferenceOrder(t, followup.Prompt, reasoningID, webSearchID)
+}
+
 func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 	t.Parallel()
 
@@ -501,6 +587,36 @@ func assertNoResponsesProviderItemReplay(
 			assertNoResponsesProviderItemReplay(t, item, staleIDs)
 		}
 	}
+}
+
+func requirePromptItemReferenceOrder(
+	t *testing.T,
+	prompt []interface{},
+	firstID string,
+	secondID string,
+) {
+	t.Helper()
+	firstIndex := -1
+	secondIndex := -1
+	for index, item := range prompt {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		itemID := stringField(itemMap, "id")
+		if itemID == "" {
+			itemID = stringField(itemMap, "item_id")
+		}
+		switch itemID {
+		case firstID:
+			firstIndex = index
+		case secondID:
+			secondIndex = index
+		}
+	}
+	require.NotEqual(t, -1, firstIndex, "missing first item reference")
+	require.NotEqual(t, -1, secondIndex, "missing second item reference")
+	require.Less(t, firstIndex, secondIndex)
 }
 
 func stringField(values map[string]interface{}, key string) string {
