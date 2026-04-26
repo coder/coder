@@ -638,6 +638,53 @@ export const DisableAdvisorWithModelConfigsErrorPreservesOverride: Story = {
 	},
 };
 
+export const DisableAdvisorWithDeletedModelAndEmptyModelConfigs: Story = {
+	args: {
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: "22222222-2222-2222-2222-222222222222",
+		},
+		modelConfigs: [],
+		modelConfigsError: undefined,
+		isLoadingModelConfigs: false,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const enableAdvisorSwitch = await canvas.findByRole("switch", {
+			name: /Enable advisor/i,
+		});
+
+		await userEvent.click(enableAdvisorSwitch);
+
+		const saveButton = canvas.getByRole("button", { name: /Save/i });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+		});
+
+		// An empty model-configs list after a successful load is a definitive
+		// answer that the override no longer exists, so disabling must scrub
+		// the stale ID rather than forwarding it and failing the save with a
+		// 400. This covers the recovery case where every model config has
+		// been deleted.
+		const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+		expect(request).toEqual({
+			enabled: false,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			reasoning_effort: "high",
+			model_config_id: nilUUID,
+		});
+	},
+};
+
 export const ValidationBlocksSave: Story = {
 	args: {
 		advisorConfigData: {
