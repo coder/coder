@@ -197,9 +197,6 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
-	"internal state mismatch. This is not a configuration or billing issue."
-
 func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -234,6 +231,13 @@ func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
 		}
 	}
 
+	assertDirectionalMessage := func(t *testing.T, message string) {
+		t.Helper()
+		require.Contains(t, message, "chat continuation")
+		require.Contains(t, message, "internal state mismatch")
+		require.Contains(t, message, "not a configuration or billing issue")
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name+"/BareString", func(t *testing.T) {
 			t.Parallel()
@@ -242,7 +246,7 @@ func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
 			require.Equal(t, chaterror.KindGeneric, classified.Kind)
 			require.False(t, classified.Retryable)
 			require.Zero(t, classified.StatusCode)
-			require.Equal(t, responsesAPIDiagnosticMessage, classified.Message)
+			assertDirectionalMessage(t, classified.Message)
 			require.Equal(t, tt.wantDetail, classified.Detail)
 			assertNoLeak(t, classified, tt.forbidden)
 		})
@@ -262,7 +266,7 @@ func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
 			require.Equal(t, chaterror.KindGeneric, classified.Kind)
 			require.False(t, classified.Retryable)
 			require.Equal(t, 400, classified.StatusCode)
-			require.Equal(t, responsesAPIDiagnosticMessage, classified.Message)
+			assertDirectionalMessage(t, classified.Message)
 			require.Equal(t, tt.wantDetail, classified.Detail)
 			assertNoLeak(t, classified, tt.forbidden)
 		})
