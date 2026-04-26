@@ -681,7 +681,13 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 
 			if len(choice.ToolCalls) > 0 {
 				for _, tc := range choice.ToolCalls {
-					state, found := outputs[outputIndex]
+					// Each tool call within a chunk owns a distinct
+					// output item, so discriminate by the streaming
+					// tc.Index. Without this, multiple tool calls in
+					// one chunk collide on outputIndex and later
+					// calls inherit the first call's id and name.
+					toolOutputIndex := outputIndex + tc.Index
+					state, found := outputs[toolOutputIndex]
 					if !found {
 						state = &outputItemState{
 							itemType: "function_call",
@@ -689,9 +695,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 							callID:   tc.ID,
 							toolName: tc.Function.Name,
 						}
-						outputs[outputIndex] = state
+						outputs[toolOutputIndex] = state
 						if !writeEvent("response.output_item.added", map[string]interface{}{
-							"output_index": outputIndex,
+							"output_index": toolOutputIndex,
 							"item": map[string]interface{}{
 								"type":      "function_call",
 								"id":        state.itemID,
@@ -708,7 +714,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 						state.arguments += tc.Function.Arguments
 						if !writeEvent("response.function_call_arguments.delta", map[string]interface{}{
 							"item_id":      state.itemID,
-							"output_index": outputIndex,
+							"output_index": toolOutputIndex,
 							"delta":        tc.Function.Arguments,
 						}) {
 							return
