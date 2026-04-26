@@ -207,6 +207,14 @@ const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 			</NavLink>
 			<TasksNavItem user={user} />
 			<AgentsNavItem canCreateChat={canCreateChat} />
+			<NavLink
+				className={({ isActive }) => {
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
+				}}
+				to="/mux"
+			>
+				Mux
+			</NavLink>
 		</nav>
 	);
 };
