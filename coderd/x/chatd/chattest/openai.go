@@ -1,8 +1,10 @@
 package chattest
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -53,6 +55,10 @@ type OpenAIRequest struct {
 	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	// RawBody holds the original request body so callers can inspect
+	// fields the typed struct does not expose, such as the Responses
+	// API "input" payload. It is populated before JSON decoding.
+	RawBody []byte `json:"-"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
@@ -205,12 +211,18 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 }
 
 func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	var req OpenAIRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Request = r
+	req.RawBody = body
 
 	s.mu.Lock()
 	s.request = &req
@@ -221,12 +233,18 @@ func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	var req OpenAIRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Request = r
+	req.RawBody = body
 
 	s.mu.Lock()
 	s.request = &req

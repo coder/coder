@@ -9473,10 +9473,10 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	)
 
 	var (
-		requestsMu      sync.Mutex
-		requests        []recordedOpenAIRequest
-		advisorMessages []chattest.OpenAIMessage
-		advisorCallSeen atomic.Bool
+		requestsMu        sync.Mutex
+		requests          []recordedOpenAIRequest
+		advisorRequestRaw []byte
+		advisorCallSeen   atomic.Bool
 	)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -9492,7 +9492,7 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		requestsMu.Lock()
 		requests = append(requests, recordOpenAIRequest(req))
 		if isAdvisorNested {
-			advisorMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			advisorRequestRaw = append([]byte(nil), req.RawBody...)
 			advisorCallSeen.Store(true)
 		}
 		requestsMu.Unlock()
@@ -9599,7 +9599,7 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	requestsMu.Lock()
-	gotAdvisorMessages := append([]chattest.OpenAIMessage(nil), advisorMessages...)
+	gotAdvisorBody := append([]byte(nil), advisorRequestRaw...)
 	gotRequests := append([]recordedOpenAIRequest(nil), requests...)
 	requestsMu.Unlock()
 
@@ -9617,26 +9617,20 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 
 	require.True(t, advisorCallSeen.Load(),
 		"the nested advisor call must execute under chain mode")
-	require.NotEmpty(t, gotAdvisorMessages,
-		"advisor call must receive the nested prompt messages")
+	require.NotEmpty(t, gotAdvisorBody,
+		"advisor call must receive a non-empty request body")
 
 	// The core assertion: the advisor snapshot must retain turn 1
 	// context. Chain mode filtering strips assistant and tool turns
 	// from the prompt the outer loop sees, so if that filtered view
 	// leaked into the snapshot the advisor would only see turn 2's
-	// trailing user message.
-	var sawTurn1User, sawTurn1Assistant bool
-	for _, msg := range gotAdvisorMessages {
-		if msg.Role == "user" && strings.Contains(msg.Content, turn1User) {
-			sawTurn1User = true
-		}
-		if msg.Role == "assistant" && strings.Contains(msg.Content, turn1Reply) {
-			sawTurn1Assistant = true
-		}
-	}
-	require.True(t, sawTurn1User,
+	// trailing user message. The advisor's nested call goes through
+	// the OpenAI Responses API, which encodes its prompt in the
+	// "input" field rather than "messages", so we inspect the raw
+	// request body for both turn-1 substrings.
+	require.Contains(t, string(gotAdvisorBody), turn1User,
 		"advisor snapshot must retain the turn 1 user message even when chain mode is active")
-	require.True(t, sawTurn1Assistant,
+	require.Contains(t, string(gotAdvisorBody), turn1Reply,
 		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
 }
 
