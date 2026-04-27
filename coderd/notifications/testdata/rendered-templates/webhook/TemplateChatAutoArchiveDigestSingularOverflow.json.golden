@@ -17,23 +17,20 @@
     ],
     "labels": {},
     "data": {
+      "additional_archived_count": "7",
       "archived_chats": [
         {
           "last_activity_humanized": "3 months ago",
           "title": "Onboarding kickoff"
-        },
-        {
-          "last_activity_humanized": "4 months ago",
-          "title": "Quarterly planning draft"
         }
       ],
       "auto_archive_days": "90",
-      "retention_days": "0"
+      "retention_days": "30"
     },
     "targets": null
   },
   "title": "Chats auto-archived after 90 days of inactivity",
   "title_markdown": "Chats auto-archived after 90 days of inactivity",
-  "body": "The following chats were automatically archived because they have been inactive for more than 90 days:\n\n\"Onboarding kickoff\" (last active 3 months ago)\n\"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Agents page; archived chats are kept indefinitely.",
-  "body_markdown": "The following chats were automatically archived because they have been inactive for more than 90 days:\n\n* \"Onboarding kickoff\" (last active 3 months ago)\n* \"Quarterly planning draft\" (last active 4 months ago)\n\nYou can restore any of them from the Agents page; archived chats are kept indefinitely."
+  "body": "The following chat was automatically archived because it has been inactive for more than 90 days:\n\n\"Onboarding kickoff\" (last active 3 months ago)\n...and 7 more.\n\nYou can restore any of them from the Agents page within 30 days, after which they will be permanently deleted.",
+  "body_markdown": "The following chat was automatically archived because it has been inactive for more than 90 days:\n\n* \"Onboarding kickoff\" (last active 3 months ago)\n...and 7 more.\n\n\nYou can restore any of them from the Agents page within 30 days, after which they will be permanently deleted."
 }

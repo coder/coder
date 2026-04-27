@@ -2,9 +2,9 @@ package dbpurge
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -45,7 +46,11 @@ const (
 	// chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
-	// Digest cap; extras surface as "...and N more" in the template.
+	// chatAutoArchiveDigestMaxChats bounds how many chat titles a
+	// single digest body lists. Past the cap, surplus titles are
+	// summarized as "...and N more". 25 is a readable email-friendly
+	// length; the cap is unrelated to chatAutoArchiveBatchSize, which
+	// bounds work per tick.
 	chatAutoArchiveDigestMaxChats = 25
 )
 
@@ -68,13 +73,20 @@ func WithChatAutoArchiveBatchSize(n int32) Option {
 	return func(i *instance) { i.chatAutoArchiveBatchSize = n }
 }
 
+// WithNotificationsEnqueuer overrides the notifications enqueuer.
+func WithNotificationsEnqueuer(e notifications.Enqueuer) Option {
+	return func(i *instance) { i.enqueuer = e }
+}
+
 // New creates a new periodically purging database instance.
 // Callers must Close the returned instance.
 //
 // The auditor pointer is loaded on each dispatch tick so runtime
 // entitlement changes (e.g. toggling the audit-log feature) take
-// effect without restarting the process.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor], enqueuer notifications.Enqueuer, opts ...Option) io.Closer {
+// effect without restarting the process. Notifications enqueuer
+// defaults to no-op. Use WithNotificationsEnqueuer to pass a real
+// one.
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor], opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -113,7 +125,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		vals:                     vals,
 		clk:                      quartz.NewReal(),
 		auditor:                  auditor,
-		enqueuer:                 enqueuer,
+		enqueuer:                 notifications.NewNoopEnqueuer(),
 		iterationDuration:        iterationDuration,
 		recordsPurged:            recordsPurged,
 		chatAutoArchiveRecords:   chatAutoArchiveRecords,
@@ -358,14 +370,25 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		return err
 	}
 
-	// Dispatch audits and digests post-commit on a detached context so
-	// ticker cancellation doesn't interrupt the loop. No timeout: every
-	// root must be audited to avoid gaps in the trail, and digest
-	// enqueuing should complete for every owner.
+	// Dispatch audits and digests post-commit. Audits run on a detached
+	// context so ticker cancellation cannot truncate the audit trail:
+	// every archived root must be audited. Digest enqueue uses the
+	// cancellable parent context: each call is a few DB round trips and
+	// a stuck owner would otherwise stall shutdown (Close waits on this
+	// goroutine). On shutdown we abandon any remaining digests; skipped
+	// owners are not re-notified on the next tick because
+	// AutoArchiveInactiveChats only returns rows with archived = false,
+	// but that's preferable to hanging. Digest enqueue is per-tick, not
+	// per-day: owners with more eligible roots than one tick can
+	// archive will receive one notification per tick until the backlog
+	// drains. notification_messages dedupe will not collapse these,
+	// because each tick's payload carries a different title list. Users
+	// who find this noisy can disable the "Chats Auto-Archived"
+	// template from their notification preferences.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
-		dispatchCtx := context.WithoutCancel(ctx)
-		i.dispatchChatAutoArchive(dispatchCtx, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+		auditCtx := context.WithoutCancel(ctx)
+		i.dispatchChatAutoArchive(auditCtx, ctx, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
 	}
 
 	return nil
@@ -436,21 +459,30 @@ func chatFromAutoArchiveRow(logger slog.Logger, r database.AutoArchiveInactiveCh
 }
 
 // dispatchChatAutoArchive audits every archived root chat and enqueues one
-// digest per owner. Children inherit their root's archival decision and are
-// skipped for audit, matching the manual archive path (patchChat audits the
-// root only). Same-day digest duplicates collapse via notification_messages
-// dedupe. Runs on a detached context so ticker cancellation cannot truncate
-// the trail.
-func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
+// notification per owner covering the roots archived in this tick. Children
+// inherit their root's archival decision and are skipped for audit, matching
+// the manual archive path (patchChat audits the root only). Enqueue is
+// per-tick: owners whose backlog spans multiple ticks receive multiple
+// notifications; notification_messages dedupe does not collapse them because
+// each tick's payload differs.
+//
+// auditCtx is detached from the ticker so audits always complete. enqueueCtx
+// is the cancellable parent: on shutdown we abandon any remaining digests
+// rather than blocking Close.
+func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context, tickStart time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
+	// Children inherit their root's archival decision and are skipped
+	// for both audit and digest. Partition once so the two loops
+	// cannot drift apart if the cascade shape ever changes.
+	roots := slice.Filter(archived, func(r database.AutoArchiveInactiveChatsRow) bool {
+		return !r.ParentChatID.Valid
+	})
+
 	auditor := *i.auditor.Load()
-	for _, row := range archived {
-		if row.ParentChatID.Valid {
-			continue // Children inherit root's archival; audit roots only.
-		}
+	for _, row := range roots {
 		after := chatFromAutoArchiveRow(i.logger, row)
 		before := after
 		before.Archived = false
-		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
 			Audit:            auditor,
 			Log:              i.logger,
 			UserID:           row.OwnerID,
@@ -459,57 +491,62 @@ func (i *instance) dispatchChatAutoArchive(ctx context.Context, now time.Time, a
 			Old:              before,
 			New:              after,
 			Status:           http.StatusOK,
-			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, i.logger, audit.BackgroundSubsystemChatAutoArchive),
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(auditCtx, i.logger, audit.BackgroundSubsystemChatAutoArchive),
 		})
 	}
 
-	digests := buildDigests(archived)
-	for ownerID, digest := range digests {
-		data := buildDigestData(digest, autoArchiveDays, retentionDays, now)
+	digestsByOwner := buildDigests(roots)
+	dispatched := 0
+	for ownerID, ownerRoots := range digestsByOwner {
+		// Check between iterations so shutdown unblocks promptly. A
+		// hung in-flight enqueue is unblocked by enqueueCtx propagating
+		// cancellation into the DB call. Skipped owners are not
+		// re-notified on the next tick because AutoArchiveInactiveChats
+		// only returns rows with archived = false; we accept that
+		// tradeoff over hanging shutdown.
+		if err := enqueueCtx.Err(); err != nil {
+			i.logger.Warn(enqueueCtx, "chat auto-archive digest dispatch canceled",
+				slog.F("remaining_owners", len(digestsByOwner)-dispatched),
+				slog.Error(err))
+			return
+		}
+		dispatched++
+
+		data := buildDigestData(ownerRoots, autoArchiveDays, retentionDays, tickStart)
 
 		// nolint:gocritic // Background digest runs as the notifier subject.
 		if _, err := i.enqueuer.EnqueueWithData(
-			dbauthz.AsNotifier(ctx),
+			dbauthz.AsNotifier(enqueueCtx),
 			ownerID,
 			notifications.TemplateChatAutoArchiveDigest,
 			map[string]string{},
 			data,
-			"chat_auto_archive",
+			string(audit.BackgroundSubsystemChatAutoArchive),
 		); err != nil {
-			i.logger.Warn(ctx, "failed to enqueue chat auto-archive digest",
+			i.logger.Warn(enqueueCtx, "failed to enqueue chat auto-archive digest",
 				slog.F("owner_id", ownerID),
 				slog.Error(err))
-			continue
 		}
 	}
 }
 
-type ownerDigest struct {
-	roots []database.AutoArchiveInactiveChatsRow
-}
-
-// buildDigests groups roots by owner. Cascaded children are dropped;
-// users see conversations, not branches.
-func buildDigests(archived []database.AutoArchiveInactiveChatsRow) map[uuid.UUID]*ownerDigest {
-	out := make(map[uuid.UUID]*ownerDigest)
-	for _, row := range archived {
-		if row.ParentChatID.Valid {
-			continue
-		}
-		d, ok := out[row.OwnerID]
-		if !ok {
-			d = &ownerDigest{}
-			out[row.OwnerID] = d
-		}
-		d.roots = append(d.roots, row)
+// buildDigests groups roots by owner. Callers must pass the
+// already-filtered root slice; child-row filtering happens once at the
+// top of dispatchChatAutoArchive.
+func buildDigests(roots []database.AutoArchiveInactiveChatsRow) map[uuid.UUID][]database.AutoArchiveInactiveChatsRow {
+	out := make(map[uuid.UUID][]database.AutoArchiveInactiveChatsRow)
+	for _, row := range roots {
+		out[row.OwnerID] = append(out[row.OwnerID], row)
 	}
 	return out
 }
 
 // buildDigestData builds the notification payload; shape mirrors the
-// golden fixtures in coderd/notifications/testdata.
-func buildDigestData(d *ownerDigest, autoArchiveDays, retentionDays int32, now time.Time) map[string]any {
-	rows := d.roots
+// golden fixtures in coderd/notifications/testdata. Truncation keeps
+// the oldest archived roots (created_at ASC from the query) to
+// preserve index-driven ordering; revisit if the digest becomes the
+// primary surface for reviewing archived chats.
+func buildDigestData(rows []database.AutoArchiveInactiveChatsRow, autoArchiveDays, retentionDays int32, tickStart time.Time) map[string]any {
 	// Cap titles; overflow surfaces as "...and N more" via the template.
 	overflow := 0
 	if len(rows) > chatAutoArchiveDigestMaxChats {
@@ -519,20 +556,19 @@ func buildDigestData(d *ownerDigest, autoArchiveDays, retentionDays int32, now t
 
 	chats := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
-		ts := r.LastActivityAt
 		chats = append(chats, map[string]any{
 			"title":                   r.Title,
-			"last_activity_humanized": humanize.RelTime(ts, now, "ago", "from now"),
+			"last_activity_humanized": humanize.RelTime(r.LastActivityAt, tickStart, "ago", "from now"),
 		})
 	}
 
 	data := map[string]any{
-		"auto_archive_days": fmt.Sprintf("%d", autoArchiveDays),
-		"retention_days":    fmt.Sprintf("%d", retentionDays),
+		"auto_archive_days": strconv.Itoa(int(autoArchiveDays)),
+		"retention_days":    strconv.Itoa(int(retentionDays)),
 		"archived_chats":    chats,
 	}
 	if overflow > 0 {
-		data["additional_archived_count"] = fmt.Sprintf("%d", overflow)
+		data["additional_archived_count"] = strconv.Itoa(overflow)
 	}
 	return data
 }

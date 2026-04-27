@@ -12,14 +12,14 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The following chats were automatically archived because they have been inac=
-tive for more than 90 days:
+The following chat was automatically archived because it has been inactive =
+for more than 90 days:
 
 "Onboarding kickoff" (last active 3 months ago)
-"Quarterly planning draft" (last active 4 months ago)
+...and 7 more.
 
-You can restore any of them from the Agents page; archived chats are kept i=
-ndefinitely.
+You can restore any of them from the Agents page within 30 days, after whic=
+h they will be permanently deleted.
 
 
 View chats: http://test.com/agents
@@ -53,18 +53,17 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>The following chats were automatically archived because they hav=
-e been inactive for more than 90 days:</p>
+        <p>The following chat was automatically archived because it has bee=
+n inactive for more than 90 days:</p>
 
 <ul>
 <li>&ldquo;Onboarding kickoff&rdquo; (last active 3 months ago)<br>
-</li>
-<li>&ldquo;Quarterly planning draft&rdquo; (last active 4 months ago)<br>
+&hellip;and 7 more.<br>
 </li>
 </ul>
 
-<p>You can restore any of them from the Agents page; archived chats are kep=
-t indefinitely.</p>
+<p>You can restore any of them from the Agents page within 30 days, after w=
+hich they will be permanently deleted.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

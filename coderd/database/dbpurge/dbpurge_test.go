@@ -61,7 +61,7 @@ func TestPurge(t *testing.T) {
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -95,7 +95,7 @@ func TestMetrics(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days retention
 			},
-		}, reg, nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+		}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -164,7 +164,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -254,7 +254,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -279,7 +279,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -374,7 +374,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		Retention: codersdk.RetentionConfig{
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
-	}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 
 	defer closer.Close()
 	<-done // doTick() has now run.
@@ -646,7 +646,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -737,7 +737,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -841,7 +841,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -1004,7 +1004,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -1123,7 +1123,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1379,7 +1379,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1466,7 +1466,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1556,7 +1556,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+		}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1676,7 +1676,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1726,6 +1726,37 @@ func mockAuditorPtr(m *audit.MockAuditor) *atomic.Pointer[audit.Auditor] {
 	var p atomic.Pointer[audit.Auditor]
 	p.Store(&a)
 	return &p
+}
+
+// blockingEnqueuer blocks each enqueue call until its context is
+// canceled. The first call closes started so a test can
+// deterministically observe that an enqueue is in flight, then trigger
+// shutdown and assert that ctx cancellation propagates through to the
+// blocked call. Used to verify dbpurge.dispatchChatAutoArchive does not
+// hang shutdown on a stuck enqueuer.
+type blockingEnqueuer struct {
+	started chan struct{}
+	calls   atomic.Int32
+}
+
+func newBlockingEnqueuer() *blockingEnqueuer {
+	return &blockingEnqueuer{started: make(chan struct{})}
+}
+
+func (b *blockingEnqueuer) Enqueue(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+	return b.block(ctx)
+}
+
+func (b *blockingEnqueuer) EnqueueWithData(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+	return b.block(ctx)
+}
+
+func (b *blockingEnqueuer) block(ctx context.Context) ([]uuid.UUID, error) {
+	if b.calls.Add(1) == 1 {
+		close(b.started)
+	}
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
@@ -1822,7 +1853,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1879,7 +1910,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1936,7 +1967,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2016,7 +2047,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2266,7 +2297,7 @@ func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clk := quartz.NewMock(t)
 	clk.Set(now).MustWait(ctx)
-	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	return &archiveHarness{
 		ctx:    ctx,
@@ -2352,7 +2383,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2385,7 +2416,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2440,7 +2471,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// observe the forced initial tick's results without
 				// racing with a second tick.
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				// Defer driver.close() after closer.Close(): defers
 				// run LIFO, so driver cleanup frees shutdown's
 				// ticker.Stop() before the dbpurge goroutine blocks
@@ -2482,7 +2513,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, notifications.NewNoopEnqueuer(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2514,7 +2545,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2569,7 +2600,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2626,7 +2657,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2681,7 +2712,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2695,6 +2726,12 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, chats, 25, "digest caps titles at 25")
 				require.Equal(t, "2", sent[0].Data["additional_archived_count"],
 					"overflow count is total - cap")
+				// Humanized timestamp is computed from LastActivityAt
+				// and the tick-start time, not a static fixture, so we
+				// only assert the suffix the humanizer emits.
+				humanized, _ := chats[0]["last_activity_humanized"].(string)
+				require.Contains(t, humanized, "ago",
+					"last_activity_humanized should be a past relative time")
 			},
 		},
 		{
@@ -2720,12 +2757,21 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
-				// Four audit rows, one per archived root.
-				require.Len(t, auditor.AuditLogs(), 4)
+				// Four audit rows, one per archived root, attributed
+				// to the owning user so downstream consumers can
+				// correlate per-owner activity.
+				logs := auditor.AuditLogs()
+				require.Len(t, logs, 4)
+				auditsByUser := map[uuid.UUID]int{}
+				for _, l := range logs {
+					auditsByUser[l.UserID]++
+				}
+				require.Equal(t, 2, auditsByUser[deps.user.ID])
+				require.Equal(t, 2, auditsByUser[user2.ID])
 
 				// One digest per owner, each listing only that owner's
 				// two chats.
@@ -2766,7 +2812,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				// Defer driver.close() after closer.Close(): defers
 				// run LIFO, so this frees shutdown's ticker.Stop()
 				// before the dbpurge goroutine blocks on it.
@@ -2812,6 +2858,13 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// effects (audits, digests) follow the same pattern:
 				// dispatch only runs when rows > 0, so tick 3 emits
 				// no new audits or digests.
+				//
+				// The two-digest count asserted here is a consequence
+				// of the per-tick enqueue model, not a product
+				// invariant. notification_messages dedupe does not
+				// collapse these because each tick's payload differs.
+				// If enqueue is ever restructured to one notification
+				// per owner per day, this assertion changes with it.
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
@@ -2828,7 +2881,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				auditorPtr := mockAuditorPtr(auditor)
 				enqueuer := notificationstest.NewFakeEnqueuer()
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, enqueuer, dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
 				// Defer driver.close() after closer.Close() so trap
 				// cleanup frees shutdown's ticker.Stop() before the
 				// dbpurge goroutine blocks on it.
@@ -2864,6 +2917,56 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// removed, update this assertion intentionally.
 				require.Len(t, auditor.AuditLogs(), 27, "tick 3 cumulative audits unchanged")
 				require.Len(t, enqueuer.Sent(), 2, "tick 3 cumulative digests unchanged")
+			},
+		},
+		{
+			name: "ShutdownCancelsDigestDispatch",
+			run: func(t *testing.T) {
+				// Two owners with one stale root each. A blocking
+				// enqueuer holds the first EnqueueWithData call until
+				// ctx is canceled. Closing the purger must propagate
+				// cancellation into the in-flight call and short-
+				// circuit the rest of the loop, so Close returns
+				// promptly instead of hanging on dispatch.
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-stale", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-stale", now.Add(-60*24*time.Hour))
+
+				enqueuer := newBlockingEnqueuer()
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
+
+				// Wait for the forced initial tick to reach the first
+				// enqueue, which then blocks on ctx.Done().
+				testutil.TryReceive(ctx, t, enqueuer.started)
+
+				// Close must return promptly. The blocked enqueue
+				// receives ctx cancellation via the parent context;
+				// the loop-head check then abandons the remaining
+				// owner instead of trying to enqueue them.
+				closeCtx, closeCancel := context.WithTimeout(ctx, testutil.WaitShort)
+				defer closeCancel()
+				done := make(chan error, 1)
+				go func() { done <- closer.Close() }()
+				select {
+				case err := <-done:
+					require.NoError(t, err)
+				case <-closeCtx.Done():
+					t.Fatal("Close did not return; shutdown is hanging on dispatch")
+				}
+
+				// Exactly one enqueue was attempted: the call we
+				// caught blocked. The remaining owner was abandoned
+				// by the inter-iteration ctx check.
+				require.Equal(t, int32(1), enqueuer.calls.Load(),
+					"shutdown should abandon remaining digests")
 			},
 		},
 	}

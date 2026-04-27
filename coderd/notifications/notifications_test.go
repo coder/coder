@@ -1351,11 +1351,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			// Second fixture covering retention_days="0" so the
-			// template's indefinite-retention branch is captured by
-			// the golden files. Reuses the same template ID; the
-			// enumeration check only requires each template to have
-			// at least one matching case by name.
+			// Covers the retention_days="0" indefinite-retention branch.
 			name: "TemplateChatAutoArchiveDigestRetentionZero",
 			id:   notifications.TemplateChatAutoArchiveDigest,
 			payload: types.MessagePayload{
@@ -1370,6 +1366,26 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
 						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
 					},
+				},
+			},
+		},
+		{
+			// Covers the singular-grammar branch ("chat was" / "it has")
+			// and the additional_archived_count overflow sentence.
+			name: "TemplateChatAutoArchiveDigestSingularOverflow",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+					},
+					"additional_archived_count": "7",
 				},
 			},
 		},
