@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { CONCRETE_THEMES } from "./colorblind";
 
 // These CSS variables drive the diff panel and the semantic color roles
 // that are most affected by colorblindness. Every theme class block must
@@ -57,13 +58,12 @@ const REQUIRED_VARIABLES = [
 // to one of these, so we only validate the concrete classes here.
 const THEME_CLASSES = [
 	":root",
-	".light",
-	".dark",
-	".dark-protan-deuter",
-	".light-protan-deuter",
-	".dark-tritan",
-	".light-tritan",
+	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
 ];
+
+const COLORBLIND_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
+	themeName.includes("-"),
+).map((themeName) => `.${themeName}`);
 
 function extractBlock(css: string, selector: string): string | null {
 	// Selectors can be grouped with commas in the stylesheet, for example
@@ -113,10 +113,7 @@ describe("theme CSS variables", () => {
 		});
 	}
 
-	for (const selector of [
-		".light-protan-deuter",
-		".dark-protan-deuter",
-	] as const) {
+	for (const selector of COLORBLIND_THEME_CLASSES) {
 		describe(`${selector} semantic separation`, () => {
 			const block = extractBlock(css, selector);
 

@@ -191,10 +191,11 @@
 	/*
 		Colorblind-friendly variants. ThemeProvider applies these concrete
 		classes alongside the base mode class (`dark` or `light`) so
-		Tailwind's selector-based dark mode keeps working. Each block only
-		declares the colorblind-tuned semantic, diff, and syntax variables
-		validated by cssVariables.test.ts. Layout chrome still inherits from
-		`:root` and the base mode class.
+		Tailwind's selector-based dark mode keeps working. Each block is a
+		complete standalone color declaration for the theme variables
+		validated by cssVariables.test.ts, which prevents stale values from
+		leaking through when users switch themes. Non-color chrome still
+		inherits from `:root` and the base mode class.
 
 		Palette rationale:
 		- dark-protan-deuter / light-protan-deuter: shift the red/green
