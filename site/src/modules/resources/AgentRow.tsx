@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
 	TriangleAlertIcon,
@@ -280,6 +281,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		{
 			title: "All Logs",
 			value: "all",
+			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 		},
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
@@ -535,11 +537,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 									onValueChange={setSelectedLogTab}
 								>
 									<div className="flex items-stretch">
-										<div
-											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1 overflow-hidden"
-										>
-											<TabsList variant="insideBox" overflowKebabMenu>
+										<div className="min-w-0 flex-1 overflow-hidden">
+											<TabsList
+												variant="outsideBox"
+												overflowKebabMenu
+												ref={logTabsListContainerRef}
+												className="px-4"
+											>
 												{visibleLogTabs.map((tab) => (
 													<TabsTrigger
 														key={tab.value}
@@ -565,7 +569,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		: "inactive"
 																}
 																aria-label="More log tabs"
-																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+																className={cn(
+																	"cursor-pointer -mb-px",
+																	"inline-flex items-center justify-center",
+																	"border-none py-3 bg-transparent text-inherit",
+																	"transition-colors duration-150 ease-linear",
+																)}
 															>
 																<EllipsisIcon className="size-icon-sm" />
 																<span className="sr-only">More log tabs</span>

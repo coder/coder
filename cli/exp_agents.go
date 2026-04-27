@@ -131,7 +131,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 
 			var workspaceID *uuid.UUID
 			if workspaceFlag != "" {
-				workspace, err := namedWorkspace(inv.Context(), client, workspaceFlag)
+				workspace, err := client.ResolveWorkspace(inv.Context(), workspaceFlag)
 				if err != nil {
 					return xerrors.Errorf("resolve workspace %q: %w", workspaceFlag, err)
 				}

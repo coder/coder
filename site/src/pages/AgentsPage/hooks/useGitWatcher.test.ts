@@ -842,46 +842,18 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.everDirty.has("/repo")).toBe(true);
 		});
-		expect(result.current.lastCheckedAt).toBeInstanceOf(Date);
 
 		// Switch to a different chat. The hook tears down and recreates
-		// the socket; everDirty, repositories, and lastCheckedAt must
-		// all reset so chat-B starts with a clean slate.
+		// the socket; everDirty and repositories must all reset so
+		// chat-B starts with a clean slate.
 		createMockSocket();
 		rerender({ chatId: "chat-B" });
 
 		expect(result.current.repositories.size).toBe(0);
 		expect(result.current.everDirty.size).toBe(0);
-		expect(result.current.lastCheckedAt).toBeUndefined();
 	});
 
-	it("tracks lastCheckedAt from scanned_at", async () => {
-		const socket = createMockSocket();
-
-		const { result } = renderHook(() =>
-			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
-		);
-
-		act(() => socket.simulateOpen());
-		expect(result.current.lastCheckedAt).toBeUndefined();
-
-		act(() => {
-			socket.simulateMessage({
-				type: "changes",
-				scanned_at: "2024-01-02T03:04:05Z",
-				repositories: [],
-			});
-		});
-
-		await waitFor(() => {
-			expect(result.current.lastCheckedAt).toBeInstanceOf(Date);
-		});
-		expect(result.current.lastCheckedAt?.toISOString()).toBe(
-			"2024-01-02T03:04:05.000Z",
-		);
-	});
-
-	it("heartbeat message (no repositories) advances lastCheckedAt without touching repos", async () => {
+	it("heartbeat message (no repositories) does not touch repos", async () => {
 		const socket = createMockSocket();
 
 		const { result } = renderHook(() =>
@@ -921,11 +893,6 @@ describe("useGitWatcher", () => {
 			});
 		});
 
-		await waitFor(() => {
-			expect(result.current.lastCheckedAt?.toISOString()).toBe(
-				"2024-01-02T03:04:10.000Z",
-			);
-		});
 		// Heartbeat must not mutate repo state.
 		expect(result.current.repositories).toBe(repoStateBeforeHeartbeat);
 		expect(result.current.everDirty).toBe(everDirtyBeforeHeartbeat);
@@ -968,52 +935,11 @@ describe("useGitWatcher", () => {
 			});
 		});
 
-		await waitFor(() => {
-			expect(result.current.lastCheckedAt?.toISOString()).toBe(
-				"2024-01-02T03:04:15.000Z",
-			);
-		});
 		// Repo entry survives an empty-array heartbeat.
-		expect(result.current.repositories.has("/repo")).toBe(true);
-		expect(result.current.everDirty.has("/repo")).toBe(true);
-	});
-
-	it("ignores malformed scanned_at without clearing existing value", async () => {
-		const socket = createMockSocket();
-
-		const { result } = renderHook(() =>
-			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
-		);
-
-		act(() => socket.simulateOpen());
-
-		// Prime a valid timestamp.
-		act(() => {
-			socket.simulateMessage({
-				type: "changes",
-				scanned_at: "2024-01-02T03:04:05Z",
-				repositories: [],
-			});
-		});
-
 		await waitFor(() => {
-			expect(result.current.lastCheckedAt).toBeDefined();
+			expect(result.current.repositories.has("/repo")).toBe(true);
 		});
-		const firstIso = result.current.lastCheckedAt?.toISOString();
-
-		// A malformed scanned_at must not wipe the previous value.
-		act(() => {
-			socket.simulateMessage({
-				type: "changes",
-				scanned_at: "not-a-date",
-				repositories: [],
-			});
-		});
-
-		// Compare by ISO string, not reference. A future refactor that
-		// re-creates the Date object identically should still pass; what
-		// matters is that the observed timestamp did not change.
-		expect(result.current.lastCheckedAt?.toISOString()).toBe(firstIso);
+		expect(result.current.everDirty.has("/repo")).toBe(true);
 	});
 
 	it("tracks everDirty: preserves across agentStatus flap on the same chat", async () => {
@@ -1052,44 +978,5 @@ describe("useGitWatcher", () => {
 		createMockSocket();
 		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
 		expect(result.current.everDirty.has("/repo")).toBe(true);
-	});
-
-	it("preserves lastCheckedAt across agentStatus flap on the same chat", async () => {
-		const socket1 = createMockSocket();
-
-		const { result, rerender } = renderHook(
-			({ agentStatus }: { agentStatus: WorkspaceAgentStatus | undefined }) =>
-				useGitWatcher({ chatId: "chat-stable", agentStatus }),
-			{ initialProps: { agentStatus: "connected" as WorkspaceAgentStatus } },
-		);
-
-		act(() => socket1.simulateOpen());
-		act(() => {
-			socket1.simulateMessage({
-				type: "changes",
-				scanned_at: "2024-01-02T03:04:05Z",
-				repositories: [],
-			});
-		});
-		await waitFor(() => {
-			expect(result.current.lastCheckedAt?.toISOString()).toBe(
-				"2024-01-02T03:04:05.000Z",
-			);
-		});
-
-		// Transient flap: the socket is torn down but the stale-data
-		// timestamp must keep advancing so the UI's "checked Ns ago"
-		// label does not disappear during reconnection backoff.
-		createMockSocket();
-		rerender({ agentStatus: "connecting" as WorkspaceAgentStatus });
-		expect(result.current.lastCheckedAt?.toISOString()).toBe(
-			"2024-01-02T03:04:05.000Z",
-		);
-
-		createMockSocket();
-		rerender({ agentStatus: "connected" as WorkspaceAgentStatus });
-		expect(result.current.lastCheckedAt?.toISOString()).toBe(
-			"2024-01-02T03:04:05.000Z",
-		);
 	});
 });

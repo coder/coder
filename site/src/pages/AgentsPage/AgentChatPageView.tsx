@@ -15,6 +15,10 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./AgentChatPage";
+import {
 	AgentChatInput,
 	type ChatMessageInputRef,
 } from "./components/AgentChatInput";
@@ -128,7 +132,6 @@ interface AgentChatPageViewProps {
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
-		lastCheckedAt: Date | undefined;
 		refresh: () => boolean;
 	};
 
@@ -160,6 +163,7 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messageCount: number;
 
 	urlTransform?: UrlTransform;
 
@@ -230,6 +234,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -267,9 +272,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const effectiveScrollToBottomRef =
 		scrollToBottomRef ?? internalScrollToBottomRef;
 
-	// State for programmatically switching the sidebar tab (e.g. when
-	// the user clicks the inline desktop preview card).
-	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
+	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
+		getPersistedSidebarTabId(agentId),
+	);
+
+	const setSidebarTabId = (tabId: string) => {
+		setSidebarTabIdState(tabId);
+		if (!isArchived) {
+			savePersistedSidebarTabId(agentId, tabId);
+		}
+	};
 
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);
@@ -346,7 +358,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
-						lastCheckedAt={gitWatcher.lastCheckedAt}
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
@@ -381,6 +392,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		label: tab.label,
 		content: renderTabContent(tab.id),
 	}));
+
+	const isEditing =
+		editing.editingMessageId !== null ||
+		editing.editingQueuedMessageID !== null;
 
 	const titleElement = (
 		<title>
@@ -456,6 +471,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
+							messageCount={messageCount}
 						>
 							<div className="px-4">
 								<ChatPageTimeline
@@ -501,6 +517,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								initialEditorState={editing.initialEditorState}
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
+								isEditing={isEditing}
 								editingQueuedMessageID={editing.editingQueuedMessageID}
 								onStartQueueEdit={editing.handleStartQueueEdit}
 								onCancelQueueEdit={editing.handleCancelQueueEdit}

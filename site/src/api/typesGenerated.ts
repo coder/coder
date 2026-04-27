@@ -1273,6 +1273,33 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+export type ChatAgentModelOverrideContext = "explore" | "general";
+
+export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
+	"explore",
+	"general",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatAgentModelOverrideResponse is the response body for the chat agent
+ * model override configuration endpoint.
+ */
+export interface ChatAgentModelOverrideResponse {
+	readonly context: ChatAgentModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
+ */
+export interface ChatAutoArchiveDaysResponse {
+	readonly auto_archive_days: number;
+}
+
+// From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
@@ -1588,20 +1615,6 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatExploreModelOverrideResponse is the response body for the Explore
- * subagent model override configuration endpoint.
- */
-export interface ChatExploreModelOverrideResponse {
-	readonly model_config_id?: string;
-	/**
-	 * HasMalformedOverride reports whether the saved override is malformed and
-	 * is currently being treated as unset.
-	 */
-	readonly has_malformed_override: boolean;
 }
 
 // From codersdk/chats.go
@@ -2155,6 +2168,7 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 export interface ChatQueuedMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
 }
@@ -3397,6 +3411,14 @@ export interface DebugProfileOptions {
 	 */
 	readonly Profiles: readonly string[];
 }
+
+// From codersdk/chats.go
+/**
+ * DefaultChatAutoArchiveDays is the default auto-archive window, in
+ * days, applied when no site config row exists. Zero disables
+ * auto-archival.
+ */
+export const DefaultChatAutoArchiveDays = 0;
 
 // From codersdk/chats.go
 /**
@@ -7584,6 +7606,20 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/users.go
+export type ThinkingDisplayMode =
+	| "always_collapsed"
+	| "always_expanded"
+	| "auto"
+	| "preview";
+
+export const ThinkingDisplayModes: ThinkingDisplayMode[] = [
+	"always_collapsed",
+	"always_expanded",
+	"auto",
+	"preview",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -7659,6 +7695,24 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatAgentModelOverrideRequest is the request body for updating the
+ * chat agent model override configuration endpoint.
+ */
+export interface UpdateChatAgentModelOverrideRequest {
+	readonly model_config_id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatAutoArchiveDaysRequest is a request to update the chat
+ * auto-archive period.
+ */
+export interface UpdateChatAutoArchiveDaysRequest {
+	readonly auto_archive_days: number;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -7672,15 +7726,6 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDesktopEnabledRequest {
 	readonly enable_desktop: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatExploreModelOverrideRequest is the request body for updating the
- * Explore subagent model override configuration endpoint.
- */
-export interface UpdateChatExploreModelOverrideRequest {
-	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go
@@ -8016,7 +8061,8 @@ export interface UpdateUserPasswordRequest {
 
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
-	readonly task_notification_alert_dismissed: boolean;
+	readonly task_notification_alert_dismissed?: boolean;
+	readonly thinking_display_mode?: ThinkingDisplayMode;
 }
 
 // From codersdk/users.go
@@ -8380,6 +8426,7 @@ export interface UserParameter {
 // From codersdk/users.go
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
+	readonly thinking_display_mode: ThinkingDisplayMode;
 }
 
 // From codersdk/deployment.go
