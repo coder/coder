@@ -3,12 +3,15 @@ package dbpurge
 import (
 	"context"
 	"io"
+	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -34,18 +37,38 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch sizes for chat purging. Both use 1000, which is smaller
-	// than audit/connection log batches (10000), because chat_files
-	// rows contain bytea blob data that make large batches heavier.
+	// Chat batch sizes stay smaller than audit/connection log batches because
+	// chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
 )
 
+// defaultChatAutoArchiveBatchSize bounds how many root chats one
+// tick will archive by default.
+const defaultChatAutoArchiveBatchSize int32 = 1000
+
+type Option func(*instance)
+
+// WithClock overrides the clock used by the purger. Defaults to
+// quartz.NewReal().
+func WithClock(clk quartz.Clock) Option {
+	return func(i *instance) { i.clk = clk }
+}
+
+// WithChatAutoArchiveBatchSize overrides how many root chats a
+// single tick will auto-archive. Defaults to
+// defaultChatAutoArchiveBatchSize (1000).
+func WithChatAutoArchiveBatchSize(n int32) Option {
+	return func(i *instance) { i.chatAutoArchiveBatchSize = n }
+}
+
 // New creates a new periodically purging database instance.
-// It is the caller's responsibility to call Close on the returned instance.
+// Callers must Close the returned instance.
 //
-// This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
+// The auditor pointer is loaded on each dispatch tick so runtime
+// entitlement changes (e.g. toggling the audit-log feature) take
+// effect without restarting the process.
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor], opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -69,18 +92,32 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	chatAutoArchiveRecords := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat_auto_archive",
+		Name:      "records_archived_total",
+		Help:      "Total number of chats archived by the auto-archive job (counting both roots and cascaded children).",
+	})
+	reg.MustRegister(chatAutoArchiveRecords)
+
 	inst := &instance{
-		cancel:            cancelFunc,
-		closed:            closed,
-		logger:            logger,
-		vals:              vals,
-		clk:               clk,
-		iterationDuration: iterationDuration,
-		recordsPurged:     recordsPurged,
+		cancel:                   cancelFunc,
+		closed:                   closed,
+		logger:                   logger,
+		vals:                     vals,
+		clk:                      quartz.NewReal(),
+		auditor:                  auditor,
+		iterationDuration:        iterationDuration,
+		recordsPurged:            recordsPurged,
+		chatAutoArchiveRecords:   chatAutoArchiveRecords,
+		chatAutoArchiveBatchSize: defaultChatAutoArchiveBatchSize,
+	}
+	for _, opt := range opts {
+		opt(inst)
 	}
 
 	// Start the ticker with the initial delay.
-	ticker := clk.NewTicker(delay)
+	ticker := inst.clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
 		err := inst.purgeTick(ctx, db, start)
@@ -88,7 +125,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
 			// Record metrics for failed purge iteration.
-			duration := clk.Since(start)
+			duration := inst.clk.Since(start)
 			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
 		}
 	}
@@ -97,7 +134,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		defer close(closed)
 		defer ticker.Stop()
 		// Force an initial tick.
-		doTick(ctx, dbtime.Time(clk.Now()).UTC())
+		doTick(ctx, dbtime.Time(inst.clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
@@ -125,9 +162,19 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		chatRetentionDays = 0
 	}
 
+	// Same rationale as chat_retention_days: read outside the tx.
+	chatAutoArchiveDays, err := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
+	if err != nil {
+		i.logger.Warn(ctx, "failed to read chat auto-archive config, skipping auto-archive", slog.Error(err))
+		chatAutoArchiveDays = 0
+	}
+
+	// Populated inside the tx; dispatched post-commit.
+	var archivedChats []database.AutoArchiveInactiveChatsRow
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
-	return db.InTx(func(tx database.Store) error {
+	err = db.InTx(func(tx database.Store) error {
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -258,6 +305,20 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to delete old chat files: %w", err)
 			}
 		}
+
+		// Auto-archive runs after the delete pass so newly
+		// archived chats aren't eligible for deletion this tick.
+		if chatAutoArchiveDays > 0 {
+			archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
+			archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
+				ArchiveCutoff: archiveCutoff,
+				LimitCount:    i.chatAutoArchiveBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
+			}
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -266,6 +327,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("auto_archived_chats", len(archivedChats)),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -285,20 +347,110 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		return nil
 	}, database.DefaultTXOptions().WithID("db_purge"))
+	if err != nil {
+		return err
+	}
+
+	// Dispatch audits post-commit on a detached context so ticker
+	// cancellation doesn't interrupt the loop. No timeout: every root
+	// must be audited to avoid gaps in the trail. Children inherit
+	// their root's archival decision and are not audited individually,
+	// matching the manual archive path (patchChat audits the root only).
+	if len(archivedChats) > 0 {
+		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
+		dispatchCtx := context.WithoutCancel(ctx)
+		i.dispatchChatAutoArchive(dispatchCtx, archivedChats)
+	}
+
+	return nil
 }
 
 type instance struct {
-	cancel            context.CancelFunc
-	closed            chan struct{}
-	logger            slog.Logger
-	vals              *codersdk.DeploymentValues
-	clk               quartz.Clock
-	iterationDuration *prometheus.HistogramVec
-	recordsPurged     *prometheus.CounterVec
+	cancel                   context.CancelFunc
+	closed                   chan struct{}
+	logger                   slog.Logger
+	vals                     *codersdk.DeploymentValues
+	clk                      quartz.Clock
+	auditor                  *atomic.Pointer[audit.Auditor]
+	iterationDuration        *prometheus.HistogramVec
+	recordsPurged            *prometheus.CounterVec
+	chatAutoArchiveRecords   prometheus.Counter
+	chatAutoArchiveBatchSize int32
 }
 
 func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// chatFromAutoArchiveRow reshapes the query row into a database.Chat for
+// audit.Auditable[database.Chat].
+func chatFromAutoArchiveRow(logger slog.Logger, r database.AutoArchiveInactiveChatsRow) database.Chat {
+	var labels database.StringMap
+	// sqlc's StringMap override doesn't reach CTE-aliased columns, so Labels
+	// arrives as raw JSON bytes. StringMap.Scan handles []byte and nil.
+	if err := labels.Scan([]byte(r.Labels)); err != nil {
+		logger.Warn(context.Background(), "failed to parse chat labels from auto-archive row",
+			slog.F("chat_id", r.ID),
+			slog.F("raw_labels", string(r.Labels)),
+			slog.Error(err),
+		)
+	}
+	return database.Chat{
+		ID:                  r.ID,
+		OwnerID:             r.OwnerID,
+		OrganizationID:      r.OrganizationID,
+		WorkspaceID:         r.WorkspaceID,
+		BuildID:             r.BuildID,
+		AgentID:             r.AgentID,
+		Title:               r.Title,
+		Status:              r.Status,
+		WorkerID:            r.WorkerID,
+		StartedAt:           r.StartedAt,
+		HeartbeatAt:         r.HeartbeatAt,
+		CreatedAt:           r.CreatedAt,
+		UpdatedAt:           r.UpdatedAt,
+		ParentChatID:        r.ParentChatID,
+		RootChatID:          r.RootChatID,
+		LastModelConfigID:   r.LastModelConfigID,
+		Archived:            r.Archived,
+		LastError:           r.LastError,
+		Mode:                r.Mode,
+		MCPServerIDs:        r.MCPServerIDs,
+		Labels:              labels,
+		PinOrder:            r.PinOrder,
+		LastReadMessageID:   r.LastReadMessageID,
+		LastInjectedContext: r.LastInjectedContext,
+		DynamicTools:        r.DynamicTools,
+		PlanMode:            r.PlanMode,
+		ClientType:          r.ClientType,
+	}
+}
+
+// dispatchChatAutoArchive audits every archived root chat. Children
+// inherit their root's archival decision and are skipped, matching
+// the manual archive path (patchChat audits the root only). Runs on
+// a detached context so ticker cancellation cannot truncate the trail.
+func (i *instance) dispatchChatAutoArchive(ctx context.Context, archived []database.AutoArchiveInactiveChatsRow) {
+	auditor := *i.auditor.Load()
+	for _, row := range archived {
+		if row.ParentChatID.Valid {
+			continue // Children inherit root's archival; audit roots only.
+		}
+		after := chatFromAutoArchiveRow(i.logger, row)
+		before := after
+		before.Archived = false
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+			Audit:            auditor,
+			Log:              i.logger,
+			UserID:           row.OwnerID,
+			OrganizationID:   row.OrganizationID,
+			Action:           database.AuditActionWrite,
+			Old:              before,
+			New:              after,
+			Status:           http.StatusOK,
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, i.logger, audit.BackgroundSubsystemChatAutoArchive),
+		})
+	}
 }

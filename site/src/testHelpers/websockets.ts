@@ -1,4 +1,9 @@
 import type { Mock } from "vitest";
+import { API } from "#/api/api";
+import type {
+	DynamicParametersResponse,
+	PreviewParameter,
+} from "#/api/typesGenerated";
 import type { WebSocketEventType } from "#/utils/OneWayWebSocket";
 
 type SocketSendData = Parameters<WebSocket["send"]>[0];
@@ -160,4 +165,42 @@ export function createMockWebSocket(
 	};
 
 	return [mockSocket, publisher] as const;
+}
+
+export function mockDynamicParameterWebSocket(
+	response: DynamicParametersResponse | readonly PreviewParameter[],
+): readonly [MockWebSocket, MockWebSocketServer] {
+	let message: DynamicParametersResponse;
+	if (Array.isArray(response)) {
+		message = {
+			id: 0,
+			parameters: response,
+			diagnostics: [],
+		};
+	} else {
+		message = response as DynamicParametersResponse;
+	}
+	const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+	vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+		(_versionId, _ownerId, callbacks) => {
+			mockWebSocket.addEventListener("message", (event) => {
+				callbacks.onMessage(JSON.parse(event.data));
+			});
+			mockWebSocket.addEventListener("error", () => {
+				callbacks.onError(
+					new Error("Connection for dynamic parameters failed."),
+				);
+			});
+			mockWebSocket.addEventListener("close", () => {
+				callbacks.onClose();
+			});
+			mockPublisher.publishOpen(new Event("open"));
+			mockPublisher.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(message) }),
+			);
+
+			return mockWebSocket;
+		},
+	);
+	return [mockWebSocket, mockPublisher];
 }

@@ -4509,10 +4509,11 @@ type ChatProvider struct {
 }
 
 type ChatQueuedMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content   json.RawMessage `db:"content" json:"content"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID            int64           `db:"id" json:"id"`
+	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content       json.RawMessage `db:"content" json:"content"`
+	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
+	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 }
 
 type ChatUsageLimitConfig struct {

@@ -48,7 +48,7 @@ func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("unable to fetch Workspace %s: %w", inv.Args[0], err)
 			}
@@ -110,7 +110,7 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 				return xerrors.New("at least one user or group must be provided")
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
@@ -208,7 +208,7 @@ func (r *RootCmd) unshareWorkspace() *serpent.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
