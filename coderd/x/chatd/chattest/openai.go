@@ -50,11 +50,30 @@ type OpenAIRequest struct {
 	Messages           []OpenAIMessage `json:"messages"`
 	Stream             bool            `json:"stream,omitempty"`
 	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
+}
+
+func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {
+	type openAIRequest OpenAIRequest
+	decoded := struct {
+		*openAIRequest
+		Input []interface{} `json:"input,omitempty"`
+	}{
+		openAIRequest: (*openAIRequest)(r),
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	// The Responses API uses input, while older fake-server tests
+	// inspected prompt. Keep exposing both shapes through Prompt.
+	if r.Prompt == nil && decoded.Input != nil {
+		r.Prompt = decoded.Input
+	}
+	return nil
 }
 
 // OpenAIMessage represents a message in an OpenAI request.
@@ -212,6 +231,13 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.request = &req
 	s.mu.Unlock()
+
+	if req.Prompt != nil {
+		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
+	}
 
 	resp := s.handler(&req)
 	s.writeResponsesAPIResponse(w, &req, resp)

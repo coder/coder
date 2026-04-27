@@ -16,7 +16,9 @@ const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
-	id: { include: [/src\/pages\/AgentsPage\//] },
+	id: {
+		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+	},
 };
 
 const plugins: PluginOption[] = [

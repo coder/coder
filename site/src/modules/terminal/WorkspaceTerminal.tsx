@@ -276,7 +276,7 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
-		if (!terminal || !isVisible || !autoFocus) {
+		if (!terminal || !isVisible || !autoFocus || loading) {
 			return;
 		}
 
@@ -287,7 +287,7 @@ export const WorkspaceTerminal = ({
 		return () => {
 			cancelAnimationFrame(frame);
 		};
-	}, [terminal, isVisible, autoFocus]);
+	}, [terminal, isVisible, autoFocus, loading]);
 
 	useEffect(() => {
 		if (!terminal || !hasBeenVisible) {
