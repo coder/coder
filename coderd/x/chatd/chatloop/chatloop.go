@@ -400,6 +400,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
+			allowedProviderTools := allowedAnthropicProviderToolNames(provider, opts.ProviderTools)
+			prepared = applyAnthropicProviderToolGuard(
+				ctx, opts.Logger, provider, modelName, prepared, allowedProviderTools,
+			)
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -762,28 +766,76 @@ func sanitizeAnthropicProviderToolContent(
 		return content, stats
 	}
 
-	matchedResultIDs := make(map[string]struct{})
-	for _, block := range content {
-		result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
-		if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
+	histories := make(map[string]*anthropicProviderToolContentHistory)
+	ids := make([]string, 0)
+	for index, block := range content {
+		if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
+			history := ensureAnthropicProviderToolContentHistory(
+				histories,
+				&ids,
+				toolCall.ToolCallID,
+			)
+			history.calls = append(history.calls, anthropicProviderToolContentCall{
+				index:    index,
+				toolCall: toolCall,
+			})
 			continue
 		}
-		matchedResultIDs[result.ToolCallID] = struct{}{}
+		if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
+			history := ensureAnthropicProviderToolContentHistory(
+				histories,
+				&ids,
+				toolResult.ToolCallID,
+			)
+			history.results = append(history.results, anthropicProviderToolContentResult{
+				index:      index,
+				toolResult: toolResult,
+			})
+		}
+	}
+
+	remove := make(map[int]struct{})
+	for _, id := range ids {
+		history := histories[id]
+		switch {
+		case len(history.calls) > 1 || len(history.results) > 1:
+			markAnthropicProviderToolContentHistory(remove, history)
+		case len(history.calls) == 1 && len(history.results) == 0:
+			remove[history.calls[0].index] = struct{}{}
+		case len(history.calls) == 0 && len(history.results) == 1:
+			remove[history.results[0].index] = struct{}{}
+		case len(history.calls) == 1 && len(history.results) == 1:
+			call := history.calls[0]
+			result := history.results[0]
+			switch {
+			case call.index >= result.index:
+				markAnthropicProviderToolContentHistory(remove, history)
+			case !isSerializableAnthropicProviderToolCallContent(call.toolCall):
+				markAnthropicProviderToolContentHistory(remove, history)
+			case !isSerializableAnthropicProviderToolResultContent(result.toolResult, call.toolCall):
+				markAnthropicProviderToolContentHistory(remove, history)
+			}
+		}
+	}
+	if len(remove) == 0 {
+		return content, stats
 	}
 
 	out := make([]fantasy.Content, 0, len(content))
-	for _, block := range content {
-		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-		if ok && isAnthropicProviderExecutedToolCall(provider, toolCall) {
-			if _, hasResult := matchedResultIDs[toolCall.ToolCallID]; !hasResult {
-				stats.RemovedToolCalls++
-				continue
-			}
+	for index, block := range content {
+		if _, ok := remove[index]; !ok {
+			out = append(out, block)
+			continue
+		}
+		if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
+			stats.RemovedToolCalls++
+			continue
+		}
+		if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
+			stats.RemovedToolResults++
+			continue
 		}
 		out = append(out, block)
-	}
-	if stats.RemovedToolCalls == 0 {
-		return content, stats
 	}
 	return out, stats
 }
@@ -793,6 +845,397 @@ func isAnthropicProviderExecutedToolCall(
 	toolCall fantasy.ToolCallContent,
 ) bool {
 	return provider == fantasyanthropic.Name && toolCall.ProviderExecuted
+}
+
+type anthropicProviderToolContentCall struct {
+	index    int
+	toolCall fantasy.ToolCallContent
+}
+
+type anthropicProviderToolContentResult struct {
+	index      int
+	toolResult fantasy.ToolResultContent
+}
+
+type anthropicProviderToolContentHistory struct {
+	calls   []anthropicProviderToolContentCall
+	results []anthropicProviderToolContentResult
+}
+
+func ensureAnthropicProviderToolContentHistory(
+	histories map[string]*anthropicProviderToolContentHistory,
+	ids *[]string,
+	id string,
+) *anthropicProviderToolContentHistory {
+	history, ok := histories[id]
+	if ok {
+		return history
+	}
+	history = &anthropicProviderToolContentHistory{}
+	histories[id] = history
+	*ids = append(*ids, id)
+	return history
+}
+
+func markAnthropicProviderToolContentHistory(
+	remove map[int]struct{},
+	history *anthropicProviderToolContentHistory,
+) {
+	for _, call := range history.calls {
+		remove[call.index] = struct{}{}
+	}
+	for _, result := range history.results {
+		remove[result.index] = struct{}{}
+	}
+}
+
+func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
+	var zero fantasy.ToolCallContent
+	switch value := block.(type) {
+	case fantasy.ToolCallContent:
+		return value, true
+	case *fantasy.ToolCallContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolResultContent(block fantasy.Content) (fantasy.ToolResultContent, bool) {
+	var zero fantasy.ToolResultContent
+	switch value := block.(type) {
+	case fantasy.ToolResultContent:
+		return value, true
+	case *fantasy.ToolResultContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	switch value := part.(type) {
+	case fantasy.ToolCallPart:
+		return value, true
+	case *fantasy.ToolCallPart:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	switch value := part.(type) {
+	case fantasy.ToolResultPart:
+		return value, true
+	case *fantasy.ToolResultPart:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func toolCallContentToPart(toolCall fantasy.ToolCallContent) fantasy.ToolCallPart {
+	return fantasy.ToolCallPart{
+		ToolCallID:       toolCall.ToolCallID,
+		ToolName:         toolCall.ToolName,
+		Input:            toolCall.Input,
+		ProviderExecuted: toolCall.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
+	}
+}
+
+func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolResultPart {
+	return fantasy.ToolResultPart{
+		ToolCallID:       toolResult.ToolCallID,
+		Output:           toolResult.Result,
+		ProviderExecuted: toolResult.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolResult.ProviderMetadata),
+	}
+}
+
+func isSerializableAnthropicProviderToolCallContent(toolCall fantasy.ToolCallContent) bool {
+	return chatprompt.IsSerializableAnthropicProviderToolCall(toolCallContentToPart(toolCall))
+}
+
+func isSerializableAnthropicProviderToolResultContent(
+	toolResult fantasy.ToolResultContent,
+	matchedCall fantasy.ToolCallContent,
+) bool {
+	if toolResult.ToolName != "" && toolResult.ToolName != matchedCall.ToolName {
+		return false
+	}
+	return chatprompt.IsSerializableAnthropicProviderToolResult(
+		toolResultContentToPart(toolResult),
+		toolCallContentToPart(matchedCall),
+	)
+}
+
+func allowedAnthropicProviderToolNames(provider string, providerTools []ProviderTool) map[string]struct{} {
+	if provider != fantasyanthropic.Name {
+		return nil
+	}
+	allowed := make(map[string]struct{})
+	for _, providerTool := range providerTools {
+		if providerTool.Definition == nil || providerTool.Runner != nil {
+			continue
+		}
+		name := providerTool.Definition.GetName()
+		if !chatprompt.IsSerializableAnthropicProviderToolCall(fantasy.ToolCallPart{
+			ToolCallID:       "provider-tool-check",
+			ToolName:         name,
+			Input:            `{}`,
+			ProviderExecuted: true,
+		}) {
+			continue
+		}
+		allowed[name] = struct{}{}
+	}
+	return allowed
+}
+
+func applyAnthropicProviderToolGuard(
+	ctx context.Context,
+	logger slog.Logger,
+	provider string,
+	modelName string,
+	messages []fantasy.Message,
+	allowedTools map[string]struct{},
+) []fantasy.Message {
+	if provider != fantasyanthropic.Name || len(messages) == 0 {
+		return messages
+	}
+
+	violations := chatprompt.ValidateAnthropicProviderToolHistory(messages)
+	affectedMessages := make(map[int]struct{})
+	for _, violation := range violations {
+		if violation.MessageIndex < 0 || violation.MessageIndex >= len(messages) {
+			continue
+		}
+		affectedMessages[violation.MessageIndex] = struct{}{}
+	}
+	disallowedMessages := markDisallowedAnthropicProviderToolMessages(
+		messages,
+		allowedTools,
+		affectedMessages,
+	)
+	if len(violations) == 0 && disallowedMessages == 0 {
+		return messages
+	}
+
+	guarded := sanitizeAnthropicProviderToolGuardMessages(
+		ctx,
+		logger,
+		provider,
+		modelName,
+		messages,
+		affectedMessages,
+		len(violations),
+		disallowedMessages,
+	)
+	if isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+		return guarded
+	}
+
+	fallbackViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
+	fallbackDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
+		guarded,
+		allowedTools,
+	)
+	fallbackAffectedMessages := providerExecutedToolCallMessageIndexes(guarded)
+	guarded = sanitizeAnthropicProviderToolGuardMessages(
+		ctx,
+		logger,
+		provider,
+		modelName,
+		guarded,
+		fallbackAffectedMessages,
+		len(fallbackViolations),
+		fallbackDisallowedMessages,
+		slog.F("fallback", true),
+	)
+	finalViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
+	finalDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
+		guarded,
+		allowedTools,
+	)
+	if len(finalViolations) > 0 || finalDisallowedMessages > 0 {
+		logger.Warn(
+			ctx,
+			"provider-executed tool history remains after guard",
+			slog.F("provider", provider),
+			slog.F("model", modelName),
+			slog.F("validation_violations", len(finalViolations)),
+			slog.F("disallowed_tool_messages", finalDisallowedMessages),
+		)
+	}
+	return guarded
+}
+
+func sanitizeAnthropicProviderToolGuardMessages(
+	ctx context.Context,
+	logger slog.Logger,
+	provider string,
+	modelName string,
+	messages []fantasy.Message,
+	affectedMessages map[int]struct{},
+	validationViolations int,
+	disallowedMessages int,
+	extraFields ...slog.Field,
+) []fantasy.Message {
+	guardPrompt := invalidateProviderExecutedToolCallsInMessages(messages, affectedMessages)
+	// chatprompt owns message coalescing, empty message drops, and
+	// provider option preservation. Marking affected provider calls
+	// invalid lets its existing sanitizer remove the unsafe history.
+	sanitized, stats := chatprompt.SanitizeAnthropicProviderToolCalls(provider, guardPrompt)
+	extra := []slog.Field{
+		slog.F("validation_violations", validationViolations),
+		slog.F("disallowed_tool_messages", disallowedMessages),
+	}
+	extra = append(extra, extraFields...)
+	chatprompt.LogAnthropicProviderToolSanitization(
+		ctx,
+		logger,
+		"pre_request_guard",
+		provider,
+		modelName,
+		stats,
+		extra...,
+	)
+	return sanitized
+}
+
+func isSafeAnthropicProviderToolPrompt(
+	messages []fantasy.Message,
+	allowedTools map[string]struct{},
+) bool {
+	if len(chatprompt.ValidateAnthropicProviderToolHistory(messages)) > 0 {
+		return false
+	}
+	return countDisallowedAnthropicProviderToolMessages(messages, allowedTools) == 0
+}
+
+func markDisallowedAnthropicProviderToolMessages(
+	messages []fantasy.Message,
+	allowedTools map[string]struct{},
+	affectedMessages map[int]struct{},
+) int {
+	count := 0
+	for messageIndex, message := range messages {
+		if messageHasDisallowedAnthropicProviderToolCall(message, allowedTools) {
+			if _, ok := affectedMessages[messageIndex]; !ok {
+				count++
+			}
+			affectedMessages[messageIndex] = struct{}{}
+		}
+	}
+	return count
+}
+
+func countDisallowedAnthropicProviderToolMessages(
+	messages []fantasy.Message,
+	allowedTools map[string]struct{},
+) int {
+	count := 0
+	for _, message := range messages {
+		if messageHasDisallowedAnthropicProviderToolCall(message, allowedTools) {
+			count++
+		}
+	}
+	return count
+}
+
+func messageHasDisallowedAnthropicProviderToolCall(
+	message fantasy.Message,
+	allowedTools map[string]struct{},
+) bool {
+	for _, part := range message.Content {
+		toolCall, ok := safeToolCallPart(part)
+		if !ok || !toolCall.ProviderExecuted {
+			continue
+		}
+		if _, ok := allowedTools[toolCall.ToolName]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func providerExecutedToolCallMessageIndexes(messages []fantasy.Message) map[int]struct{} {
+	indexes := make(map[int]struct{})
+	for messageIndex, message := range messages {
+		for _, part := range message.Content {
+			toolCall, ok := safeToolCallPart(part)
+			if !ok || !toolCall.ProviderExecuted {
+				continue
+			}
+			indexes[messageIndex] = struct{}{}
+			break
+		}
+	}
+	return indexes
+}
+
+func invalidateProviderExecutedToolCallsInMessages(
+	messages []fantasy.Message,
+	affectedMessages map[int]struct{},
+) []fantasy.Message {
+	if len(affectedMessages) == 0 {
+		return messages
+	}
+	out := make([]fantasy.Message, len(messages))
+	copy(out, messages)
+	for messageIndex := range affectedMessages {
+		if messageIndex < 0 || messageIndex >= len(out) {
+			continue
+		}
+		message := out[messageIndex]
+		if len(message.Content) == 0 {
+			continue
+		}
+		parts := make([]fantasy.MessagePart, len(message.Content))
+		for partIndex, part := range message.Content {
+			parts[partIndex] = invalidateProviderExecutedToolCallPart(part)
+		}
+		message.Content = parts
+		out[messageIndex] = message
+	}
+	return out
+}
+
+func invalidateProviderExecutedToolCallPart(part fantasy.MessagePart) fantasy.MessagePart {
+	switch value := part.(type) {
+	case fantasy.ToolCallPart:
+		if value.ProviderExecuted {
+			value.ToolName = ""
+		}
+		return value
+	case *fantasy.ToolCallPart:
+		if value == nil {
+			return part
+		}
+		clone := *value
+		if clone.ProviderExecuted {
+			clone.ToolName = ""
+		}
+		return &clone
+	default:
+		return part
+	}
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
