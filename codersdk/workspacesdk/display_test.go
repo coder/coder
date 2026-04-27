@@ -99,6 +99,27 @@ func TestDefaultDesktopGeometry(t *testing.T) {
 	assert.Equal(t, 720, geometry.DeclaredHeight)
 }
 
+// TestDefaultDesktopGeometryComputerUseCoordinateSystem pins the model-facing
+// coordinate system shared by Anthropic and OpenAI computer use so future
+// geometry changes are intentional.
+func TestDefaultDesktopGeometryComputerUseCoordinateSystem(t *testing.T) {
+	t.Parallel()
+
+	geometry := workspacesdk.DefaultDesktopGeometry()
+
+	assert.Equal(t, 1920, geometry.NativeWidth)
+	assert.Equal(t, 1080, geometry.NativeHeight)
+	assert.Equal(t, 1280, geometry.DeclaredWidth)
+	assert.Equal(t, 720, geometry.DeclaredHeight)
+	assert.Equal(
+		t,
+		geometry.DeclaredWidth*geometry.NativeHeight,
+		geometry.DeclaredHeight*geometry.NativeWidth,
+	)
+	assert.LessOrEqual(t, geometry.DeclaredWidth*geometry.DeclaredHeight, 1_150_000)
+	assert.LessOrEqual(t, max(geometry.DeclaredWidth, geometry.DeclaredHeight), 1568)
+}
+
 func TestDesktopGeometryDeclaredPointToNative(t *testing.T) {
 	t.Parallel()
 
