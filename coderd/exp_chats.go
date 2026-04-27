@@ -4360,8 +4360,8 @@ func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// Upper bound for the auto-archive window. Update the frontend
-// constant if a settings UI is added.
+// Upper bound for the auto-archive window. Keep in sync with
+// the validation schema in site/src/pages/AgentsPage/components/AutoArchiveSettings.tsx.
 const autoArchiveDaysMaximum = 3650 // ~10 years
 
 // putChatAutoArchiveDays updates the deployment-wide auto-archive
