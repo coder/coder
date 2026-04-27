@@ -59,34 +59,49 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	return prompt
 }
 
+type testSourceMessagePart struct {
+	id string
+}
+
+func (testSourceMessagePart) GetType() fantasy.ContentType {
+	return fantasy.ContentTypeSource
+}
+
+func (testSourceMessagePart) Options() fantasy.ProviderOptions {
+	return nil
+}
+
 func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 	t.Parallel()
 
 	textPart := fantasy.TextPart{Text: "Here is a summary."}
-	webSearchCall := fantasy.ToolCallPart{
-		ToolCallID:       "srvtoolu_search",
-		ToolName:         "web_search",
-		Input:            `{"query":"coder"}`,
-		ProviderExecuted: true,
+	sourcePart := testSourceMessagePart{id: "source-1"}
+	reasoningPart := fantasy.ReasoningPart{Text: "Need to search first."}
+	filePart := fantasy.FilePart{Data: []byte("notes"), MediaType: "text/plain"}
+	providerCall := func(id string) fantasy.ToolCallPart {
+		return fantasy.ToolCallPart{
+			ToolCallID:       id,
+			ToolName:         "web_search",
+			Input:            `{"query":"coder"}`,
+			ProviderExecuted: true,
+		}
 	}
-	matchedResult := fantasy.ToolResultPart{
-		ToolCallID:       "srvtoolu_search",
-		Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
-		ProviderExecuted: true,
-	}
-	codeExecutionCall := fantasy.ToolCallPart{
-		ToolCallID:       "srvtoolu_code",
-		ToolName:         "code_execution",
-		Input:            `{"code":"print(1)"}`,
-		ProviderExecuted: true,
+	providerResult := func(id string) fantasy.ToolResultPart {
+		return fantasy.ToolResultPart{
+			ToolCallID:       id,
+			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+			ProviderExecuted: true,
+		}
 	}
 	localCall := fantasy.ToolCallPart{
-		ToolCallID: "toolu_local",
+		ToolCallID: "srvtoolu_local",
 		ToolName:   "read_file",
 		Input:      `{"path":"main.go"}`,
 	}
-	unpairedWebSearchCall := webSearchCall
-	unpairedWebSearchCall.ToolCallID = "srvtoolu_unpaired"
+	localResult := fantasy.ToolResultPart{
+		ToolCallID: "srvtoolu_local",
+		Output:     fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+	}
 	disableParallelToolUse := true
 	providerOptions := fantasy.ProviderOptions{
 		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
@@ -99,14 +114,17 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 			DisableParallelToolUse: &enableParallelToolUse,
 		},
 	}
+	pointerCall := providerCall("srvtoolu_pointer")
+	pointerResult := providerResult("srvtoolu_pointer")
 
 	testCases := []struct {
-		name        string
-		provider    string
-		messages    []fantasy.Message
-		want        []fantasy.Message
-		wantRemoved int
-		wantDropped int
+		name               string
+		provider           string
+		messages           []fantasy.Message
+		want               []fantasy.Message
+		wantRemovedCalls   int
+		wantRemovedResults int
+		wantDropped        int
 	}{
 		{
 			name:     "removes unpaired call and keeps text",
@@ -115,25 +133,428 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 				Role: fantasy.MessageRoleAssistant,
 				Content: []fantasy.MessagePart{
 					textPart,
-					webSearchCall,
+					providerCall("srvtoolu_orphan_call"),
 				},
 			}},
 			want: []fantasy.Message{{
 				Role:    fantasy.MessageRoleAssistant,
 				Content: []fantasy.MessagePart{textPart},
 			}},
-			wantRemoved: 1,
+			wantRemovedCalls: 1,
 		},
 		{
-			name:     "drops assistant message when only part is removed",
+			name:     "drops result-only assistant message",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{webSearchCall},
+				Content: []fantasy.MessagePart{providerResult("srvtoolu_orphan_result")},
 			}},
-			want:        []fantasy.Message{},
-			wantRemoved: 1,
-			wantDropped: 1,
+			want:               []fantasy.Message{},
+			wantRemovedResults: 1,
+			wantDropped:        1,
+		},
+		{
+			name:     "removes orphan result and keeps text",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerResult("srvtoolu_orphan_result"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes result before matching call",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerResult("srvtoolu_search"),
+					providerCall("srvtoolu_search"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "keeps valid web search call and result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+				},
+			}},
+		},
+		{
+			name:     "keeps valid pair and removes orphan result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+					providerResult("srvtoolu_orphan_result"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+				},
+			}},
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes invalid json call and dependent result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					fantasy.ToolCallPart{
+						ToolCallID:       "srvtoolu_bad_json",
+						ToolName:         "web_search",
+						Input:            `{"query":`,
+						ProviderExecuted: true,
+					},
+					providerResult("srvtoolu_bad_json"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes empty call ID and dependent result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerCall(""),
+					providerResult(""),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes empty tool name and dependent result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					fantasy.ToolCallPart{
+						ToolCallID:       "srvtoolu_empty_name",
+						Input:            `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+					providerResult("srvtoolu_empty_name"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes unsupported provider tool and result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					fantasy.ToolCallPart{
+						ToolCallID:       "srvtoolu_code",
+						ToolName:         "code_execution",
+						Input:            `{"code":"print(1)"}`,
+						ProviderExecuted: true,
+					},
+					providerResult("srvtoolu_code"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes duplicate ID with two calls and one result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerCall("srvtoolu_duplicate"),
+					providerCall("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   2,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes duplicate ID with one call and two results",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerCall("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 2,
+		},
+		{
+			name:     "removes repeated valid-looking pairs",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+					providerCall("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+				},
+			}},
+			want:               []fantasy.Message{},
+			wantRemovedCalls:   2,
+			wantRemovedResults: 2,
+			wantDropped:        1,
+		},
+		{
+			name:     "provider call plus local result removes provider call only",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_mismatch"),
+					fantasy.ToolResultPart{
+						ToolCallID: "srvtoolu_mismatch",
+						Output:     fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+					},
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolResultPart{
+						ToolCallID: "srvtoolu_mismatch",
+						Output:     fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+					},
+				},
+			}},
+			wantRemovedCalls: 1,
+		},
+		{
+			name:     "local call plus provider result removes provider result only",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolCallPart{
+						ToolCallID: "srvtoolu_mismatch",
+						ToolName:   "read_file",
+						Input:      `{"path":"main.go"}`,
+					},
+					providerResult("srvtoolu_mismatch"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolCallPart{
+						ToolCallID: "srvtoolu_mismatch",
+						ToolName:   "read_file",
+						Input:      `{"path":"main.go"}`,
+					},
+				},
+			}},
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "removes provider blocks outside assistant and keeps content",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "Please summarize."},
+						providerCall("srvtoolu_user_call"),
+						providerResult("srvtoolu_user_result"),
+						localResult,
+					},
+				},
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{
+						providerResult("srvtoolu_tool"),
+						fantasy.TextPart{Text: "local text"},
+					},
+				},
+			},
+			want: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "Please summarize."},
+						localResult,
+					},
+				},
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "local text"},
+					},
+				},
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 2,
+		},
+		{
+			name:     "drops non-assistant message made empty by provider result removal",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role:    fantasy.MessageRoleTool,
+				Content: []fantasy.MessagePart{providerResult("srvtoolu_tool")},
+			}},
+			want:               []fantasy.Message{},
+			wantRemovedResults: 1,
+			wantDropped:        1,
+		},
+		{
+			name:     "handles pointer tool parts",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					&pointerCall,
+					&pointerResult,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					&pointerCall,
+					&pointerResult,
+				},
+			}},
+		},
+		{
+			name:     "preserves surrounding source text reasoning and file parts",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					sourcePart,
+					reasoningPart,
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+					filePart,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					sourcePart,
+					reasoningPart,
+					providerCall("srvtoolu_search"),
+					providerResult("srvtoolu_search"),
+					filePart,
+				},
+			}},
+		},
+		{
+			name:     "removes coalescing-created duplicate provider history",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						providerCall("srvtoolu_search"),
+						providerResult("srvtoolu_search"),
+					},
+				},
+				{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{providerResult("srvtoolu_orphan")},
+				},
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						providerCall("srvtoolu_search"),
+						providerResult("srvtoolu_search"),
+					},
+				},
+			},
+			want:               []fantasy.Message{},
+			wantRemovedCalls:   2,
+			wantRemovedResults: 3,
+			wantDropped:        2,
+		},
+		{
+			name:     "keeps local srvtoolu-like IDs untouched",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					localCall,
+					localResult,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					localCall,
+					localResult,
+				},
+			}},
 		},
 		{
 			name:     "coalesces adjacent roles after dropping empty message",
@@ -147,7 +568,7 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 				},
 				{
 					Role:    fantasy.MessageRoleAssistant,
-					Content: []fantasy.MessagePart{webSearchCall},
+					Content: []fantasy.MessagePart{providerCall("srvtoolu_orphan_call")},
 				},
 				{
 					Role: fantasy.MessageRoleUser,
@@ -167,8 +588,8 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 					},
 				},
 			}},
-			wantRemoved: 1,
-			wantDropped: 1,
+			wantRemovedCalls: 1,
+			wantDropped:      1,
 		},
 		{
 			name:     "coalesces adjacent provider options without flattening boundaries",
@@ -183,7 +604,7 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 				},
 				{
 					Role:    fantasy.MessageRoleAssistant,
-					Content: []fantasy.MessagePart{webSearchCall},
+					Content: []fantasy.MessagePart{providerCall("srvtoolu_orphan_call")},
 				},
 				{
 					Role: fantasy.MessageRoleUser,
@@ -206,79 +627,19 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 					},
 				},
 			}},
-			wantRemoved: 1,
-			wantDropped: 1,
-		},
-		{
-			name:     "keeps matched call and result",
-			provider: fantasyanthropic.Name,
-			messages: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					webSearchCall,
-					matchedResult,
-				},
-			}},
-			want: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					webSearchCall,
-					matchedResult,
-				},
-			}},
-		},
-		{
-			name:     "removes only unpaired call from mixed message",
-			provider: fantasyanthropic.Name,
-			messages: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					textPart,
-					webSearchCall,
-					matchedResult,
-					unpairedWebSearchCall,
-				},
-			}},
-			want: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					textPart,
-					webSearchCall,
-					matchedResult,
-				},
-			}},
-			wantRemoved: 1,
-		},
-		{
-			name:     "removes unpaired provider call and keeps local call",
-			provider: fantasyanthropic.Name,
-			messages: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					textPart,
-					codeExecutionCall,
-					localCall,
-				},
-			}},
-			want: []fantasy.Message{{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{
-					textPart,
-					localCall,
-				},
-			}},
-			wantRemoved: 1,
+			wantRemovedCalls: 1,
+			wantDropped:      1,
 		},
 		{
 			name:     "leaves other providers unchanged",
 			provider: "fake",
 			messages: []fantasy.Message{{
 				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{webSearchCall},
+				Content: []fantasy.MessagePart{providerResult("srvtoolu_orphan_result")},
 			}},
 			want: []fantasy.Message{{
 				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{webSearchCall},
+				Content: []fantasy.MessagePart{providerResult("srvtoolu_orphan_result")},
 			}},
 		},
 	}
@@ -291,11 +652,254 @@ func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
 				tc.provider,
 				tc.messages,
 			)
-			require.Equal(t, tc.wantRemoved, stats.RemovedToolCalls)
+			require.Equal(t, tc.wantRemovedCalls, stats.RemovedToolCalls)
+			require.Equal(t, tc.wantRemovedResults, stats.RemovedToolResults)
 			require.Equal(t, tc.wantDropped, stats.DroppedMessages)
 			require.Equal(t, tc.want, sanitized)
+			if tc.provider == fantasyanthropic.Name {
+				require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(sanitized))
+			}
 		})
 	}
+}
+
+func TestValidateAnthropicProviderToolHistory(t *testing.T) {
+	t.Parallel()
+
+	providerCall := func(id string) fantasy.ToolCallPart {
+		return fantasy.ToolCallPart{
+			ToolCallID:       id,
+			ToolName:         "web_search",
+			Input:            `{"query":"coder"}`,
+			ProviderExecuted: true,
+		}
+	}
+	providerResult := func(id string) fantasy.ToolResultPart {
+		return fantasy.ToolResultPart{
+			ToolCallID:       id,
+			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+			ProviderExecuted: true,
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		messages []fantasy.Message
+		want     []chatprompt.AnthropicProviderToolHistoryViolation
+	}{
+		{
+			name: "orphan result",
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "summary"},
+					providerResult("srvtoolu_orphan"),
+				},
+			}},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{{
+				MessageIndex: 0,
+				PartIndex:    1,
+				ID:           "srvtoolu_orphan",
+				Reason:       "provider_executed_result_without_call",
+			}},
+		},
+		{
+			name: "result before call",
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerResult("srvtoolu_search"),
+					providerCall("srvtoolu_search"),
+				},
+			}},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_search",
+					Reason:       "provider_executed_result_before_call",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_search",
+					Reason:       "provider_executed_result_before_call",
+				},
+			},
+		},
+		{
+			name: "duplicate ID",
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					providerCall("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+					providerResult("srvtoolu_duplicate"),
+				},
+			}},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    2,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+			},
+		},
+		{
+			name: "invalid call structure",
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolCallPart{
+						ToolCallID:       "srvtoolu_bad_json",
+						ToolName:         "web_search",
+						Input:            `{"query":`,
+						ProviderExecuted: true,
+					},
+					providerResult("srvtoolu_bad_json"),
+				},
+			}},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_bad_json",
+					Reason:       "invalid_provider_executed_tool_call",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_bad_json",
+					Reason:       "invalid_provider_executed_tool_call",
+				},
+			},
+		},
+		{
+			name: "mismatched provider flags",
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						providerCall("srvtoolu_provider_call"),
+						fantasy.ToolResultPart{
+							ToolCallID: "srvtoolu_provider_call",
+							Output:     fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+						},
+					},
+				},
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						fantasy.ToolCallPart{
+							ToolCallID: "srvtoolu_provider_result",
+							ToolName:   "read_file",
+							Input:      `{"path":"main.go"}`,
+						},
+						providerResult("srvtoolu_provider_result"),
+					},
+				},
+			},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_provider_call",
+					Reason:       "provider_executed_call_without_result",
+				},
+				{
+					MessageIndex: 1,
+					PartIndex:    1,
+					ID:           "srvtoolu_provider_result",
+					Reason:       "provider_executed_result_without_call",
+				},
+			},
+		},
+		{
+			name: "provider blocks outside assistant",
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search"},
+						providerCall("srvtoolu_user"),
+					},
+				},
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{
+						providerResult("srvtoolu_tool"),
+					},
+				},
+			},
+			want: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_user",
+					Reason:       "provider_executed_block_outside_assistant",
+				},
+				{
+					MessageIndex: 1,
+					PartIndex:    0,
+					ID:           "srvtoolu_tool",
+					Reason:       "provider_executed_block_outside_assistant",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			violations := chatprompt.ValidateAnthropicProviderToolHistory(tc.messages)
+			require.ElementsMatch(t, tc.want, violations)
+		})
+	}
+}
+
+func TestAnthropicProviderToolSerializationHelpers(t *testing.T) {
+	t.Parallel()
+
+	call := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_search",
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+	result := fantasy.ToolResultPart{
+		ToolCallID:       "srvtoolu_search",
+		Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+		ProviderExecuted: true,
+	}
+
+	require.True(t, chatprompt.IsSerializableAnthropicProviderToolCall(call))
+	require.True(t, chatprompt.IsSerializableAnthropicProviderToolCall(&call))
+	require.True(t, chatprompt.IsSerializableAnthropicProviderToolResult(result, call))
+	require.True(t, chatprompt.IsSerializableAnthropicProviderToolResult(&result, &call))
+
+	invalidCall := call
+	invalidCall.Input = `{"query":`
+	require.False(t, chatprompt.IsSerializableAnthropicProviderToolCall(invalidCall))
+	require.False(t, chatprompt.IsSerializableAnthropicProviderToolResult(result, invalidCall))
+
+	unsupportedCall := call
+	unsupportedCall.ToolName = "code_execution"
+	require.False(t, chatprompt.IsSerializableAnthropicProviderToolCall(unsupportedCall))
+	require.False(t, chatprompt.IsSerializableAnthropicProviderToolResult(result, unsupportedCall))
 }
 
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
@@ -753,6 +1357,7 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		prompt,
 	)
 	require.Equal(t, 1, sanitizeStats.RemovedToolCalls)
+	require.Equal(t, 0, sanitizeStats.RemovedToolResults)
 	require.Len(t, sanitized, 2)
 	remainingToolCalls := chatprompt.ExtractToolCalls(sanitized[0].Content)
 	require.Len(t, remainingToolCalls, 1)

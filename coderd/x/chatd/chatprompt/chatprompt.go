@@ -35,15 +35,39 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
-// AnthropicProviderToolSanitizationStats describes prompt changes made
-// while removing unpaired Anthropic provider-executed tool calls.
-type AnthropicProviderToolSanitizationStats struct {
-	RemovedToolCalls int
-	DroppedMessages  int
+var anthropicProviderResultToolNames = map[string]struct{}{
+	"web_search": {},
 }
 
-// LogAnthropicProviderToolSanitization logs prompt changes made while removing
-// unpaired Anthropic provider-executed tool calls.
+const (
+	anthropicProviderToolViolationOutsideAssistant = "provider_executed_block_outside_assistant"
+	anthropicProviderToolViolationOrphanCall       = "provider_executed_call_without_result"
+	anthropicProviderToolViolationOrphanResult     = "provider_executed_result_without_call"
+	anthropicProviderToolViolationDuplicateID      = "duplicate_provider_executed_id"
+	anthropicProviderToolViolationResultBeforeCall = "provider_executed_result_before_call"
+	anthropicProviderToolViolationInvalidCall      = "invalid_provider_executed_tool_call"
+	anthropicProviderToolViolationInvalidResult    = "invalid_provider_executed_tool_result"
+)
+
+// AnthropicProviderToolSanitizationStats describes prompt changes made
+// while removing invalid Anthropic provider-executed tool history.
+type AnthropicProviderToolSanitizationStats struct {
+	RemovedToolCalls   int
+	RemovedToolResults int
+	DroppedMessages    int
+}
+
+// AnthropicProviderToolHistoryViolation describes an invalid
+// provider-executed tool history block in an Anthropic prompt.
+type AnthropicProviderToolHistoryViolation struct {
+	MessageIndex int
+	PartIndex    int
+	ID           string
+	Reason       string
+}
+
+// LogAnthropicProviderToolSanitization logs prompt changes made while
+// removing invalid Anthropic provider-executed tool history.
 func LogAnthropicProviderToolSanitization(
 	ctx context.Context,
 	logger slog.Logger,
@@ -53,7 +77,7 @@ func LogAnthropicProviderToolSanitization(
 	stats AnthropicProviderToolSanitizationStats,
 	extra ...slog.Field,
 ) {
-	if stats.RemovedToolCalls == 0 {
+	if stats.RemovedToolCalls == 0 && stats.RemovedToolResults == 0 {
 		return
 	}
 	fields := []slog.Field{
@@ -62,14 +86,60 @@ func LogAnthropicProviderToolSanitization(
 		slog.F("provider", provider),
 		slog.F("model", modelName),
 		slog.F("removed_tool_calls", stats.RemovedToolCalls),
+		slog.F("removed_tool_results", stats.RemovedToolResults),
 		slog.F("dropped_messages", stats.DroppedMessages),
 	}
 	fields = append(fields, extra...)
-	logger.Warn(ctx, "removed unpaired provider-executed tool calls", fields...)
+	logger.Warn(ctx, "removed provider-executed tool history", fields...)
+}
+
+// IsSerializableAnthropicProviderToolCall reports whether part can be
+// serialized as an Anthropic provider-executed tool call.
+func IsSerializableAnthropicProviderToolCall(part fantasy.MessagePart) bool {
+	toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+	if !ok || !toolCall.ProviderExecuted {
+		return false
+	}
+	if strings.TrimSpace(toolCall.ToolCallID) == "" || toolCall.ToolName == "" {
+		return false
+	}
+	if _, ok := anthropicProviderResultToolNames[toolCall.ToolName]; !ok {
+		return false
+	}
+	return json.Valid([]byte(strings.TrimSpace(toolCall.Input)))
+}
+
+// IsSerializableAnthropicProviderToolResult reports whether part can be
+// serialized as an Anthropic provider-executed tool result for matchedCall.
+func IsSerializableAnthropicProviderToolResult(
+	part fantasy.MessagePart,
+	matchedCall fantasy.MessagePart,
+) bool {
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	if !ok || !result.ProviderExecuted {
+		return false
+	}
+	if strings.TrimSpace(result.ToolCallID) == "" {
+		return false
+	}
+	toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](matchedCall)
+	if !ok || result.ToolCallID != toolCall.ToolCallID {
+		return false
+	}
+	return IsSerializableAnthropicProviderToolCall(matchedCall)
+}
+
+// ValidateAnthropicProviderToolHistory returns invalid Anthropic
+// provider-executed tool history blocks in messages.
+func ValidateAnthropicProviderToolHistory(
+	messages []fantasy.Message,
+) []AnthropicProviderToolHistoryViolation {
+	analysis := analyzeAnthropicProviderToolHistory(messages)
+	return analysis.violations
 }
 
 // SanitizeAnthropicProviderToolCalls removes Anthropic provider-executed
-// calls that do not have a same-message provider result.
+// tool history that cannot be serialized safely.
 func SanitizeAnthropicProviderToolCalls(
 	provider string,
 	messages []fantasy.Message,
@@ -79,51 +149,265 @@ func SanitizeAnthropicProviderToolCalls(
 		return messages, stats
 	}
 
-	out := make([]fantasy.Message, 0, len(messages))
+	current := messages
 	changed := false
-	for _, msg := range messages {
-		if msg.Role != fantasy.MessageRoleAssistant {
-			out = appendSanitizedMessage(out, msg)
-			continue
-		}
-
-		matchedResultIDs := make(map[string]struct{})
-		for _, part := range msg.Content {
-			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-			if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
-				continue
+	for {
+		analysis := analyzeAnthropicProviderToolHistory(current)
+		if len(analysis.remove) == 0 {
+			if !changed {
+				return messages, stats
 			}
-			matchedResultIDs[result.ToolCallID] = struct{}{}
+			return current, stats
 		}
 
-		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
-		removedFromMessage := 0
-		for _, part := range msg.Content {
-			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
-			if ok && toolCall.ProviderExecuted {
-				if _, hasResult := matchedResultIDs[toolCall.ToolCallID]; !hasResult {
-					stats.RemovedToolCalls++
+		out := make([]fantasy.Message, 0, len(current))
+		for messageIndex, msg := range current {
+			parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+			removedFromMessage := 0
+			for partIndex, part := range msg.Content {
+				key := anthropicProviderToolPartKey{
+					messageIndex: messageIndex,
+					partIndex:    partIndex,
+				}
+				if _, remove := analysis.remove[key]; remove {
+					countRemovedAnthropicProviderToolPart(&stats, part)
 					removedFromMessage++
 					changed = true
 					continue
 				}
+				parts = append(parts, part)
 			}
-			parts = append(parts, part)
-		}
 
-		if removedFromMessage > 0 {
-			if len(parts) == 0 {
-				stats.DroppedMessages++
+			if removedFromMessage > 0 {
+				if len(parts) == 0 {
+					stats.DroppedMessages++
+					continue
+				}
+				msg.Content = parts
+			}
+			out = appendSanitizedMessage(out, msg)
+		}
+		current = out
+	}
+}
+
+type anthropicProviderToolPartKey struct {
+	messageIndex int
+	partIndex    int
+}
+
+type anthropicProviderToolHistoryAnalysis struct {
+	remove     map[anthropicProviderToolPartKey]struct{}
+	violations []AnthropicProviderToolHistoryViolation
+}
+
+type anthropicProviderToolOccurrence struct {
+	partIndex int
+	part      fantasy.MessagePart
+}
+
+type anthropicProviderToolIDHistory struct {
+	calls   []anthropicProviderToolOccurrence
+	results []anthropicProviderToolOccurrence
+}
+
+func analyzeAnthropicProviderToolHistory(
+	messages []fantasy.Message,
+) anthropicProviderToolHistoryAnalysis {
+	analysis := anthropicProviderToolHistoryAnalysis{
+		remove: make(map[anthropicProviderToolPartKey]struct{}),
+	}
+	for messageIndex, msg := range messages {
+		if msg.Role != fantasy.MessageRoleAssistant {
+			for partIndex, part := range msg.Content {
+				id, ok := anthropicProviderExecutedToolPartID(part)
+				if !ok {
+					continue
+				}
+				analysis.addViolation(
+					messageIndex,
+					partIndex,
+					id,
+					anthropicProviderToolViolationOutsideAssistant,
+				)
+			}
+			continue
+		}
+		analysis.analyzeAssistantMessage(messageIndex, msg)
+	}
+	return analysis
+}
+
+func (a *anthropicProviderToolHistoryAnalysis) analyzeAssistantMessage(
+	messageIndex int,
+	msg fantasy.Message,
+) {
+	histories := make(map[string]*anthropicProviderToolIDHistory)
+	ids := make([]string, 0)
+	for partIndex, part := range msg.Content {
+		if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+			history := ensureAnthropicProviderToolIDHistory(
+				histories,
+				&ids,
+				toolCall.ToolCallID,
+			)
+			history.calls = append(history.calls, anthropicProviderToolOccurrence{
+				partIndex: partIndex,
+				part:      part,
+			})
+			continue
+		}
+		if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+			history := ensureAnthropicProviderToolIDHistory(
+				histories,
+				&ids,
+				result.ToolCallID,
+			)
+			history.results = append(history.results, anthropicProviderToolOccurrence{
+				partIndex: partIndex,
+				part:      part,
+			})
+		}
+	}
+
+	for _, id := range ids {
+		history := histories[id]
+		switch {
+		case len(history.calls) > 1 || len(history.results) > 1:
+			a.addHistoryViolations(
+				messageIndex,
+				id,
+				history,
+				anthropicProviderToolViolationDuplicateID,
+			)
+		case len(history.calls) == 1 && len(history.results) == 0:
+			a.addOccurrenceViolation(
+				messageIndex,
+				id,
+				history.calls[0],
+				anthropicProviderToolViolationOrphanCall,
+			)
+		case len(history.calls) == 0 && len(history.results) == 1:
+			a.addOccurrenceViolation(
+				messageIndex,
+				id,
+				history.results[0],
+				anthropicProviderToolViolationOrphanResult,
+			)
+		case len(history.calls) == 1 && len(history.results) == 1:
+			call := history.calls[0]
+			result := history.results[0]
+			if call.partIndex >= result.partIndex {
+				a.addHistoryViolations(
+					messageIndex,
+					id,
+					history,
+					anthropicProviderToolViolationResultBeforeCall,
+				)
 				continue
 			}
-			msg.Content = parts
+			if !IsSerializableAnthropicProviderToolCall(call.part) {
+				a.addHistoryViolations(
+					messageIndex,
+					id,
+					history,
+					anthropicProviderToolViolationInvalidCall,
+				)
+				continue
+			}
+			if !IsSerializableAnthropicProviderToolResult(result.part, call.part) {
+				a.addHistoryViolations(
+					messageIndex,
+					id,
+					history,
+					anthropicProviderToolViolationInvalidResult,
+				)
+			}
 		}
-		out = appendSanitizedMessage(out, msg)
 	}
-	if !changed {
-		return messages, stats
+}
+
+func ensureAnthropicProviderToolIDHistory(
+	histories map[string]*anthropicProviderToolIDHistory,
+	ids *[]string,
+	id string,
+) *anthropicProviderToolIDHistory {
+	history, ok := histories[id]
+	if ok {
+		return history
 	}
-	return out, stats
+	history = &anthropicProviderToolIDHistory{}
+	histories[id] = history
+	*ids = append(*ids, id)
+	return history
+}
+
+func (a *anthropicProviderToolHistoryAnalysis) addHistoryViolations(
+	messageIndex int,
+	id string,
+	history *anthropicProviderToolIDHistory,
+	reason string,
+) {
+	for _, occurrence := range history.calls {
+		a.addOccurrenceViolation(messageIndex, id, occurrence, reason)
+	}
+	for _, occurrence := range history.results {
+		a.addOccurrenceViolation(messageIndex, id, occurrence, reason)
+	}
+}
+
+func (a *anthropicProviderToolHistoryAnalysis) addOccurrenceViolation(
+	messageIndex int,
+	id string,
+	occurrence anthropicProviderToolOccurrence,
+	reason string,
+) {
+	a.addViolation(messageIndex, occurrence.partIndex, id, reason)
+}
+
+func (a *anthropicProviderToolHistoryAnalysis) addViolation(
+	messageIndex int,
+	partIndex int,
+	id string,
+	reason string,
+) {
+	key := anthropicProviderToolPartKey{
+		messageIndex: messageIndex,
+		partIndex:    partIndex,
+	}
+	if _, ok := a.remove[key]; ok {
+		return
+	}
+	a.remove[key] = struct{}{}
+	a.violations = append(a.violations, AnthropicProviderToolHistoryViolation{
+		MessageIndex: messageIndex,
+		PartIndex:    partIndex,
+		ID:           id,
+		Reason:       reason,
+	})
+}
+
+func anthropicProviderExecutedToolPartID(part fantasy.MessagePart) (string, bool) {
+	if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+		return toolCall.ToolCallID, true
+	}
+	if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+		return result.ToolCallID, true
+	}
+	return "", false
+}
+
+func countRemovedAnthropicProviderToolPart(
+	stats *AnthropicProviderToolSanitizationStats,
+	part fantasy.MessagePart,
+) {
+	if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+		stats.RemovedToolCalls++
+		return
+	}
+	if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+		stats.RemovedToolResults++
+	}
 }
 
 func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
