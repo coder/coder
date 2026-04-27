@@ -35,20 +35,19 @@ type ModelView =
 	| { mode: "edit"; model: TypesGen.ChatModelConfig }
 	| { mode: "duplicate"; sourceModel: TypesGen.ChatModelConfig };
 
-type ModelViewParam = "model" | "newModel" | "duplicate";
+const MODEL_VIEW_PARAMS = ["model", "newModel", "duplicate"] as const;
+type ModelViewParam = (typeof MODEL_VIEW_PARAMS)[number];
 
 const clearModelViewParams = (params: URLSearchParams) => {
-	params.delete("model");
-	params.delete("newModel");
-	params.delete("duplicate");
+	for (const param of MODEL_VIEW_PARAMS) {
+		params.delete(param);
+	}
 };
 
 interface ModelsSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	providerStates: readonly ProviderState[];
-	selectedProvider: string | null;
-	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
@@ -179,7 +178,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				providerStates={providerStates}
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
-				onSelectedProviderChange={onSelectedProviderChange}
+				onSelectedProviderChange={(provider) => {
+					onSelectedProviderChange(provider);
+					if (view.mode === "add") {
+						setModelViewParam("newModel", provider);
+					}
+				}}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
 				isDeleting={isDeleting}
@@ -294,7 +298,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								<button
 									type="button"
 									onClick={() => setModelViewParam("model", modelConfig.id)}
-									aria-label={`Edit model details: ${modelName}`}
+									aria-label={`View model: ${modelName}`}
 									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left"
 								>
 									<ProviderIcon
@@ -328,8 +332,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								<div className="flex shrink-0 items-center gap-1">
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<button
-												type="button"
+											<Button
+												size="icon"
+												variant="subtle"
 												onClick={(event) => {
 													event.stopPropagation();
 													handleSetDefault(modelConfig);
@@ -337,7 +342,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												aria-disabled={starUnavailable}
 												aria-label={starLabel}
 												className={cn(
-													"flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+													"hover:bg-surface-secondary",
 													starUnavailable &&
 														"cursor-not-allowed text-content-secondary/40 hover:bg-transparent hover:text-content-secondary/40",
 													modelConfig.is_default && "text-content-primary",
@@ -345,11 +350,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											>
 												<StarIcon
 													className={cn(
-														"h-4 w-4",
 														modelConfig.is_default && "fill-current",
 													)}
 												/>
-											</button>
+											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="top">
 											{!modelConfig.enabled
@@ -361,33 +365,35 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<button
-												type="button"
+											<Button
+												size="icon"
+												variant="subtle"
 												onClick={(event) => {
 													event.stopPropagation();
 													setModelViewParam("model", modelConfig.id);
 												}}
 												aria-label={`Edit model: ${modelName}`}
-												className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+												className="hover:bg-surface-secondary"
 											>
-												<PencilIcon className="h-4 w-4" />
-											</button>
+												<PencilIcon />
+											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="top">Edit model</TooltipContent>
 									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<button
-												type="button"
+											<Button
+												size="icon"
+												variant="subtle"
 												onClick={(event) => {
 													event.stopPropagation();
 													setModelViewParam("duplicate", modelConfig.id);
 												}}
 												aria-label={`Duplicate model: ${modelName}`}
-												className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+												className="hover:bg-surface-secondary"
 											>
-												<CopyIcon className="h-4 w-4" />
-											</button>
+												<CopyIcon />
+											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="top">Duplicate model</TooltipContent>
 									</Tooltip>

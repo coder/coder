@@ -251,9 +251,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	isDeletingModel,
 	modelMutationError,
 }) => {
-	const [requestedProvider, setRequestedProvider] = useState<string | null>(
-		null,
-	);
+	const [, setRequestedProvider] = useState<string | null>(null);
 
 	// ── Sorted model configs ───────────────────────────────────
 	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
@@ -268,20 +266,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		modelCatalogData,
 	);
 
-	// Derive the effective selected provider from user intent + available
-	// providers. This avoids a useEffect + setState cycle that would cause
-	// an extra render with a stale value.
-	const selectedProvider =
-		requestedProvider &&
-		providerStates.some((ps) => ps.provider === requestedProvider)
-			? requestedProvider
-			: (providerStates[0]?.provider ?? null);
-
-	const selectedProviderState = selectedProvider
-		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
-		: null;
-
-	// ── Derived state ──────────────────────────────────────────
 	const providerConfigsUnavailable = providerConfigsData === null;
 	const modelConfigsUnavailable = modelConfigsData === null;
 
@@ -313,8 +297,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
 						providerStates={providerStates}
-						selectedProvider={selectedProvider}
-						selectedProviderState={selectedProviderState}
 						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}

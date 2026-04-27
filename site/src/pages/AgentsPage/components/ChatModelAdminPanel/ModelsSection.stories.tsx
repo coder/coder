@@ -71,39 +71,12 @@ const duplicateSourceModel: TypesGen.ChatModelConfig = {
 	},
 };
 
-type CreateModelHandler = (
-	req: TypesGen.CreateChatModelConfigRequest,
-) => Promise<unknown>;
-
-type UpdateModelHandler = (
-	modelConfigId: string,
-	req: TypesGen.UpdateChatModelConfigRequest,
-) => Promise<unknown>;
-
-type CreateModelMock = CreateModelHandler & {
-	mock: { calls: Array<[TypesGen.CreateChatModelConfigRequest]> };
-};
-
-type UpdateModelMock = UpdateModelHandler & {
-	mock: { calls: Array<[string, TypesGen.UpdateChatModelConfigRequest]> };
-};
-
-const isCreateModelMock = (
-	onCreateModel: CreateModelHandler,
-): onCreateModel is CreateModelMock => "mock" in onCreateModel;
-
-const isUpdateModelMock = (
-	onUpdateModel: UpdateModelHandler,
-): onUpdateModel is UpdateModelMock => "mock" in onUpdateModel;
-
 const meta: Meta<typeof ModelsSection> = {
 	title: "pages/AgentsPage/ChatModelAdminPanel/ModelsSection",
 	component: ModelsSection,
 	args: {
 		sectionLabel: "Models",
 		providerStates: [providerState],
-		selectedProvider: "openai",
-		selectedProviderState: providerState,
 		onSelectedProviderChange: fn(),
 		modelConfigs: [baseModelConfig],
 		modelConfigsUnavailable: false,
@@ -162,7 +135,7 @@ export const ShowsExplicitRowActions: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 		const rowButton = canvas.getByRole("button", {
-			name: "Edit model details: GPT-4.1",
+			name: "View model: GPT-4.1",
 		});
 		const starButton = canvas.getByRole("button", {
 			name: "Set as default model: GPT-4.1",
@@ -177,8 +150,6 @@ export const ShowsExplicitRowActions: Story = {
 		await expect(starButton).toBeVisible();
 		await expect(editButton).toBeVisible();
 		await expect(copyButton).toBeVisible();
-		expect(canvasElement.querySelector(".lucide-chevron-right")).toBeNull();
-
 		rowButton.focus();
 		await expect(rowButton).toHaveFocus();
 		await user.tab();
@@ -212,7 +183,9 @@ export const OpensDuplicateFormWithoutCreating: Story = {
 			"gpt-4.1-default",
 		);
 		expect(canvas.getByLabelText(/Context Limit/)).toHaveValue("200000");
-		expect(canvas.getByRole("switch", { name: "Enabled" })).toBeChecked();
+		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
+		expect(enabledSwitch).toBeChecked();
+		expect(enabledSwitch).toBeEnabled();
 
 		await userEvent.click(canvas.getByRole("button", { name: /Advanced/ }));
 		expect(canvas.getByLabelText(/Compression Threshold/)).toHaveValue("65");
@@ -280,38 +253,70 @@ export const SavesDuplicateAsCreateRequest: Story = {
 		await waitFor(() => expect(args.onCreateModel).toHaveBeenCalledTimes(1));
 		expect(args.onUpdateModel).not.toHaveBeenCalled();
 
-		if (!isCreateModelMock(args.onCreateModel)) {
-			throw new Error("Expected mocked create handler.");
-		}
-		const createReq = args.onCreateModel.mock.calls[0]?.[0];
+		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
+		const createReq = createModelMock.mock.calls[0]?.[0];
 		if (!createReq) {
 			throw new Error("Expected create request.");
 		}
-		expect(createReq).toEqual(
-			expect.objectContaining({
-				provider: "openai",
-				model: "gpt-4.1-copy",
-				display_name: "GPT-4.1 Copy",
-				enabled: true,
-				is_default: true,
-				context_limit: 200000,
-				compression_threshold: 65,
-			}),
-		);
-		expect(createReq.model_config).toEqual(
-			expect.objectContaining({
+		expect(createReq).toEqual({
+			provider: "openai",
+			model: "gpt-4.1-copy",
+			display_name: "GPT-4.1 Copy",
+			enabled: true,
+			is_default: false,
+			context_limit: 200000,
+			compression_threshold: 65,
+			model_config: {
 				max_output_tokens: 4096,
 				provider_options: {
-					openai: expect.objectContaining({
+					openai: {
 						max_tool_calls: 4,
 						reasoning_effort: "high",
-					}),
+					},
 				},
-			}),
+			},
+		});
+	},
+};
+
+export const SavesNonDefaultDuplicateWithEditableEnabled: Story = {
+	args: {
+		modelConfigs: [baseModelConfig],
+		onCreateModel: fn(async () => undefined),
+		onUpdateModel: fn(async () => undefined),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Duplicate model: GPT-4.1" }),
 		);
-		expect("id" in createReq).toBe(false);
-		expect("created_at" in createReq).toBe(false);
-		expect("updated_at" in createReq).toBe(false);
+		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+
+		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
+		expect(enabledSwitch).toBeChecked();
+		expect(enabledSwitch).toBeEnabled();
+		await userEvent.click(enabledSwitch);
+
+		const modelInput = canvas.getByLabelText(/Model Identifier/);
+		await userEvent.clear(modelInput);
+		await userEvent.type(modelInput, "gpt-4.1-copy");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Create duplicate" }),
+		);
+
+		await waitFor(() => expect(args.onCreateModel).toHaveBeenCalledTimes(1));
+		expect(args.onUpdateModel).not.toHaveBeenCalled();
+
+		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
+		expect(createModelMock.mock.calls[0]?.[0]).toEqual({
+			provider: "openai",
+			model: "gpt-4.1-copy",
+			display_name: "GPT-4.1",
+			enabled: false,
+			is_default: false,
+			context_limit: 128000,
+			compression_threshold: 80,
+		});
 	},
 };
 
@@ -323,9 +328,7 @@ export const RowActionsDoNotOpenRowBody: Story = {
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		if (!isUpdateModelMock(args.onUpdateModel)) {
-			throw new Error("Expected mocked update handler.");
-		}
+		const updateModelMock = args.onUpdateModel as ReturnType<typeof fn>;
 
 		await userEvent.click(
 			canvas.getByRole("button", {
@@ -333,7 +336,7 @@ export const RowActionsDoNotOpenRowBody: Story = {
 			}),
 		);
 		await waitFor(() => expect(args.onUpdateModel).toHaveBeenCalledTimes(1));
-		expect(args.onUpdateModel.mock.calls[0]).toEqual([
+		expect(updateModelMock.mock.calls[0]).toEqual([
 			"model-config-id",
 			{ is_default: true },
 		]);
