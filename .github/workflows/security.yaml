@@ -69,45 +69,46 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     env:
       IMAGE_REF: ghcr.io/coder/coder:latest
-      OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner:v2.3.5
+      OSV_SCANNER_VERSION: v2.3.5
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
+      - name: Install OSV-Scanner
+        run: |
+          curl -fsSL -o /usr/local/bin/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          chmod +x /usr/local/bin/osv-scanner
+
       - name: Pull released Coder image
         run: docker pull "$IMAGE_REF"
-
-      - name: Export released Coder image
-        run: docker save "$IMAGE_REF" -o coder-image.tar
 
       - name: Run OSV-Scanner vulnerability scanner
         id: scan
         run: |
           set +e
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            --volume "$PWD:/workspace" \
-            "$OSV_SCANNER_IMAGE" \
-            scan image \
-            --archive /workspace/coder-image.tar \
+          osv-scanner scan image "$IMAGE_REF" \
             --format sarif \
-            --output-file /workspace/osv-results.sarif
+            --output-file osv-results.sarif
           scan_exit_code=$?
           set -e
+
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${scan_exit_code}" -eq 0 ]]; then
+            exit 0
+          fi
 
           if [[ "${scan_exit_code}" -eq 1 ]]; then
             echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
             echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            exit 0
           fi
 
-          if [[ "${scan_exit_code}" -gt 1 ]]; then
-            echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
-            exit "${scan_exit_code}"
-          fi
-
-          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
+          exit "${scan_exit_code}"
 
       - name: Upload OSV-Scanner scan results to GitHub Security tab
         if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
