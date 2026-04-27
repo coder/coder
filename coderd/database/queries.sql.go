@@ -18706,6 +18706,64 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 	return items, nil
 }
 
+const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = ANY($1 :: uuid [ ])
+`
+
+// Lightweight lookup used by the list-workspaces enrichment hot path. Avoids
+// the expensive ROW_NUMBER() window in
+// GetProvisionerJobsByIDsWithQueuePosition for non-pending jobs (which always
+// yield queue_position=0 and queue_size=0 anyway).
+func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
@@ -22623,6 +22681,79 @@ ORDER BY (name, id) ASC
 
 func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Template
+	for rows.Next() {
+		var i Template
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
+			&i.Description,
+			&i.DefaultTTL,
+			&i.CreatedBy,
+			&i.Icon,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.DisplayName,
+			&i.AllowUserCancelWorkspaceJobs,
+			&i.AllowUserAutostart,
+			&i.AllowUserAutostop,
+			&i.FailureTTL,
+			&i.TimeTilDormant,
+			&i.TimeTilDormantAutoDelete,
+			&i.AutostopRequirementDaysOfWeek,
+			&i.AutostopRequirementWeeks,
+			&i.AutostartBlockDaysOfWeek,
+			&i.RequireActiveVersion,
+			&i.Deprecated,
+			&i.ActivityBump,
+			&i.MaxPortSharingLevel,
+			&i.UseClassicParameterFlow,
+			&i.CorsBehavior,
+			&i.DisableModuleCache,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
+			&i.CreatedByName,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplatesByIDs = `-- name: GetTemplatesByIDs :many
+SELECT
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+FROM
+	template_with_names
+WHERE
+	id = ANY($1 :: uuid [ ])
+	AND deleted = false
+`
+
+// Hot-path lookup used by list-workspaces enrichment. Avoids the expensive
+// CASE chain and LEFT JOIN template_versions in GetTemplatesWithFilter.
+func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]Template, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplatesByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
