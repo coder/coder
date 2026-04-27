@@ -5667,7 +5667,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
 		dbm.EXPECT().ListUserSecretsWithValues(gomock.Any(), user.ID).Return([]database.UserSecret{secret}, nil).AnyTimes()
 		check.Args(user.ID).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceUserSecret, policy.ActionRead).
 			Returns([]database.UserSecret{secret})
 	}))
 	s.Run("CreateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

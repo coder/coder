@@ -190,7 +190,7 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 	}
 
 	// Get workspace
-	workspace, err := namedWorkspace(ctx, client, workspaceName)
+	workspace, err := client.ResolveWorkspace(ctx, workspaceName)
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
@@ -272,37 +272,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	}
 
 	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
-}
-
-func splitNameAndOwner(identifier string) (name string, owner string) {
-	// Parse owner and name (workspace, task).
-	parts := strings.SplitN(identifier, "/", 2)
-
-	if len(parts) == 2 {
-		owner = parts[0]
-		name = parts[1]
-	} else {
-		owner = "me"
-		name = identifier
-	}
-
-	return name, owner
-}
-
-// namedWorkspace gets a workspace by owner/name or just name
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	workspaceName, owner := splitNameAndOwner(identifier)
-
-	// Handle -- separator format (convert to / format)
-	if strings.Contains(identifier, "--") && !strings.Contains(identifier, "/") {
-		dashParts := strings.SplitN(identifier, "--", 2)
-		if len(dashParts) == 2 {
-			owner = dashParts[0]
-			workspaceName = dashParts[1]
-		}
-	}
-
-	return client.WorkspaceByOwnerAndName(ctx, owner, workspaceName, codersdk.WorkspaceOptions{})
 }
 
 // executeCommandWithTimeout executes a command with timeout support

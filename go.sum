@@ -352,8 +352,8 @@ github.com/coder/tailscale v1.1.1-0.20260409064601-e956a950740b h1:HW3db+iEczHHS
 github.com/coder/tailscale v1.1.1-0.20260409064601-e956a950740b/go.mod h1:9lK5yqqKpK5yhDv4G8ZDDHr2S8EATEjLyUkLTKDbPzU=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
-github.com/coder/terraform-provider-coder/v2 v2.15.0 h1:sdKV3JvwlL7FNuSfaba0pm2WsPTBG7d0H6lmbzX+q4M=
-github.com/coder/terraform-provider-coder/v2 v2.15.0/go.mod h1:++c+FmMAFj8+H8lxstoaGBmTM3YFSxnVRxSkkdAG+YA=
+github.com/coder/terraform-provider-coder/v2 v2.16.0 h1:n5/RkxVWuhjQWLqBYkjcUzNIR01JGnpHnqMso6IZBGE=
+github.com/coder/terraform-provider-coder/v2 v2.16.0/go.mod h1:7AlyJjE2pwnQ04nXl8eWY2RWOL3MbT7FubDIJ8TBcQI=
 github.com/coder/trivy v0.0.0-20260309164037-c413f5a2f511 h1:wJS3Pk13VuCbV8hjrQRnOBCUwP3Islk91sMvbSdY0Vk=
 github.com/coder/trivy v0.0.0-20260309164037-c413f5a2f511/go.mod h1:+zF17ZBOdhFWwD3+GkLxZ/vkmKLudoOtt+hgnc1TQpA=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
@@ -1318,8 +1318,8 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0 h1:QKdN8ly8zEMrByybbQg
 go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0/go.mod h1:bTdK1nhqF76qiPoCCdyFIV+N/sRHYXYCTQc+3VCi3MI=
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0 h1:DvJDOPmSWQHWywQS6lKL+pb8s3gBLOZUtw4N+mavW1I=
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0/go.mod h1:EtekO9DEJb4/jRyN4v4Qjc2yA7AtfCBuz2FynRUWTXs=
-go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0 h1:aTL7F04bJHUlztTsNGJ2l+6he8c+y/b//eR0jjjemT4=
-go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0/go.mod h1:kldtb7jDTeol0l3ewcmd8SDvx3EmIE7lyvqbasU3QC4=
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0 h1:3iZJKlCZufyRzPzlQhUIWVmfltrXuGyfjREgGP3UUjc=
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0/go.mod h1:/G+nUPfhq2e+qiXMGxMwumDrP5jtzU+mWN7/sjT2rak=
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.40.0 h1:ZrPRak/kS4xI3AVXy8F7pipuDXmDsrO8Lg+yQjBLjw0=
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.40.0/go.mod h1:3y6kQCWztq6hyW8Z9YxQDDm0Je9AJoFar2G0yDcmhRk=
 go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.37.0 h1:SNhVp/9q4Go/XHBkQ1/d5u9P/U+L1yaGPoi0x+mStaI=

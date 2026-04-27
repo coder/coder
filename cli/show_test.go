@@ -65,6 +65,59 @@ func TestShow(t *testing.T) {
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
+
+	// Regression test: workspace names that are valid dashless UUIDs
+	// (32 hex chars) should be looked up by name, not parsed as a
+	// UUID and fetched by ID (which 404s).
+	t.Run("WorkspaceWithUUIDLikeName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// This name is a valid 32-char hex string (dashless UUID).
+		const wsName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = wsName
+		})
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		args := []string{
+			"show",
+			wsName,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		go func() {
+			defer close(doneChan)
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		}()
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: fmt.Sprintf("%s/%s", workspace.OwnerName, workspace.Name)},
+			{match: fmt.Sprintf("(%s since ", build.Status)},
+			{match: fmt.Sprintf("%s:%s", workspace.TemplateName, workspace.LatestBuild.TemplateVersionName)},
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
+			{match: "coder ssh " + workspace.Name},
+		}
+		for _, m := range matches {
+			pty.ExpectMatchContext(ctx, m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+		_ = testutil.TryReceive(ctx, t, doneChan)
+	})
 }
 
 func TestShowDevcontainers_Golden(t *testing.T) {

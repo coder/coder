@@ -1743,8 +1743,8 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
-func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) database.UserSecret {
-	userSecret, err := db.CreateUserSecret(genCtx, database.CreateUserSecretParams{
+func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutators ...func(params *database.CreateUserSecretParams)) database.UserSecret {
+	params := database.CreateUserSecretParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Name:        takeFirst(seed.Name, "secret-name"),
@@ -1753,7 +1753,11 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) datab
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
-	})
+	}
+	for _, mut := range mutators {
+		mut(&params)
+	}
+	userSecret, err := db.CreateUserSecret(genCtx, params)
 	require.NoError(t, err, "failed to insert user secret")
 	return userSecret
 }
