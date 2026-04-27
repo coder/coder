@@ -40,18 +40,18 @@ const defaultCooldown = 60 * time.Second
 
 // Key holds a key value and its runtime state.
 type Key struct {
-	pool          *Pool
 	value         string
 	isPermanent   bool
 	cooldownUntil time.Time
+
+	mu    sync.RWMutex
+	clock quartz.Clock
 }
 
 // Pool manages a set of keys with state tracking and
 // cooldown expiry. It is safe for concurrent use.
 type Pool struct {
-	mu    sync.RWMutex
-	keys  []Key
-	clock quartz.Clock
+	keys []Key
 }
 
 // New creates a pool from the given keys. All keys start in
@@ -62,8 +62,7 @@ func New(keys []string, clk quartz.Clock) (*Pool, error) {
 		return nil, ErrNoKeys
 	}
 	pool := &Pool{
-		keys:  make([]Key, len(keys)),
-		clock: clk,
+		keys: make([]Key, len(keys)),
 	}
 
 	seen := make(map[string]struct{}, len(keys))
@@ -73,7 +72,7 @@ func New(keys []string, clk quartz.Clock) (*Pool, error) {
 		}
 		seen[val] = struct{}{}
 		pool.keys[i] = Key{
-			pool:  pool,
+			clock: clk,
 			value: val,
 		}
 	}
@@ -89,14 +88,14 @@ func (k *Key) Value() string {
 // State returns the current state of the key, derived from its
 // isPermanent flag and cooldown deadline.
 func (k *Key) State() KeyState {
-	k.pool.mu.RLock()
-	defer k.pool.mu.RUnlock()
+	k.mu.RLock()
+	defer k.mu.RUnlock()
 
 	if k.isPermanent {
 		return KeyStatePermanent
 	}
 	// Cooldown still active: key is temporarily unavailable.
-	if k.pool.clock.Now().Before(k.cooldownUntil) {
+	if k.clock.Now().Before(k.cooldownUntil) {
 		return KeyStateTemporary
 	}
 	return KeyStateValid
@@ -106,8 +105,8 @@ func (k *Key) State() KeyState {
 // the specified cooldown duration. Returns true if this call
 // transitions the key to temporary.
 func (k *Key) MarkTemporary(cooldown time.Duration) bool {
-	k.pool.mu.Lock()
-	defer k.pool.mu.Unlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
 	// Permanent is irreversible.
 	if k.isPermanent {
@@ -118,7 +117,7 @@ func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 		cooldown = defaultCooldown
 	}
 
-	now := k.pool.clock.Now()
+	now := k.clock.Now()
 	// Used to detect the valid -> temporary transition.
 	inCooldown := k.cooldownUntil.After(now)
 	newDeadline := now.Add(cooldown)
@@ -136,8 +135,8 @@ func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 // is a terminal state. Returns true if this call transitions
 // the key to permanent.
 func (k *Key) MarkPermanent() bool {
-	k.pool.mu.Lock()
-	defer k.pool.mu.Unlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
 	if k.isPermanent {
 		return false
@@ -172,18 +171,10 @@ func (w *Walker) Next() (*Key, error) {
 	if pool == nil {
 		return nil, ErrAllKeysExhausted
 	}
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
 
 	for i := w.pos; i < len(pool.keys); i++ {
 		key := &pool.keys[i]
-
-		// Permanently unavailable, skip.
-		if key.isPermanent {
-			continue
-		}
-		// Cooldown still active, skip.
-		if pool.clock.Now().Before(key.cooldownUntil) {
+		if key.State() != KeyStateValid {
 			continue
 		}
 		// Key is available.
