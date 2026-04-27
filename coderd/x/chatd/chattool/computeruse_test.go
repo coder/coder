@@ -78,10 +78,12 @@ func TestComputerUseProviderTool(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	def := chattool.ComputerUseProviderTool(
+	def, err := chattool.ComputerUseProviderTool(
+		chattool.ComputerUseProviderAnthropic,
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
 	)
+	require.NoError(t, err)
 	pdt, ok := def.(fantasy.ProviderDefinedTool)
 	require.True(t, ok, "ComputerUseProviderTool should return a ProviderDefinedTool")
 	assert.True(t, fantasyanthropic.IsComputerUseTool(def))
@@ -90,7 +92,7 @@ func TestComputerUseProviderTool(t *testing.T) {
 	assert.Equal(t, int64(geometry.DeclaredWidth), pdt.Args["display_width_px"])
 	assert.Equal(t, int64(geometry.DeclaredHeight), pdt.Args["display_height_px"])
 
-	openAITool, err := chattool.ComputerUseProviderToolForProvider(
+	openAITool, err := chattool.ComputerUseProviderTool(
 		chattool.ComputerUseProviderOpenAI,
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
@@ -98,7 +100,7 @@ func TestComputerUseProviderTool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
 
-	_, err = chattool.ComputerUseProviderToolForProvider(
+	_, err = chattool.ComputerUseProviderTool(
 		"unsupported",
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
@@ -130,7 +132,7 @@ func TestComputerUseTool_Run_Screenshot(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -174,7 +176,7 @@ func TestComputerUseTool_Run_Screenshot_PersistsAttachment(t *testing.T) {
 	var storedName string
 	var storedType string
 	var storedData []byte
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, name string, detectName string, data []byte) (chattool.AttachmentMetadata, error) {
 		storedName = name
@@ -228,7 +230,7 @@ func TestComputerUseTool_Run_Screenshot_StoreErrorFallsBackToImage(t *testing.T)
 		ScreenshotHeight: geometry.DeclaredHeight,
 	}, nil)
 
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		return chattool.AttachmentMetadata{}, xerrors.New("chat already has the maximum of 20 linked files")
@@ -264,7 +266,7 @@ func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *t
 		ScreenshotHeight: geometry.DeclaredHeight,
 	}, nil)
 
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for oversized screenshots")
@@ -324,7 +326,7 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for left_click follow-up screenshots")
@@ -372,7 +374,7 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 		}, nil
 	})
 
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for wait screenshots")
@@ -419,6 +421,7 @@ func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
 	}, nil)
 
 	tool := chattool.NewComputerUseTool(
+		chattool.ComputerUseProviderAnthropic,
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,
 		func(_ context.Context) (workspacesdk.AgentConn, error) {
@@ -460,7 +463,7 @@ func TestComputerUseTool_Run_ConnError(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("workspace not available")
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -480,7 +483,7 @@ func TestComputerUseTool_Run_InvalidInput(t *testing.T) {
 	t.Parallel()
 
 	geometry := workspacesdk.DefaultDesktopGeometry()
-	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("should not be called")
 	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
 
@@ -851,7 +854,7 @@ func newOpenAIComputerUseTool(
 	clock quartz.Clock,
 ) fantasy.AgentTool {
 	t.Helper()
-	return chattool.NewComputerUseToolForProvider(
+	return chattool.NewComputerUseTool(
 		chattool.ComputerUseProviderOpenAI,
 		geometry.DeclaredWidth,
 		geometry.DeclaredHeight,

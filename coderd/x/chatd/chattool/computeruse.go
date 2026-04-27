@@ -69,31 +69,11 @@ type computerUseTool struct {
 	logger           slog.Logger
 }
 
-// NewComputerUseTool creates an Anthropic computer use AgentTool that delegates
-// to the agent's desktop endpoints.
+// NewComputerUseTool creates a provider-aware computer use AgentTool that
+// delegates to the agent's desktop endpoints. declaredWidth and declaredHeight
+// are the model-facing desktop dimensions advertised to providers and requested
+// for screenshots.
 func NewComputerUseTool(
-	declaredWidth, declaredHeight int,
-	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
-	storeFile StoreFileFunc,
-	clock quartz.Clock,
-	logger slog.Logger,
-) fantasy.AgentTool {
-	return NewComputerUseToolForProvider(
-		ComputerUseProviderAnthropic,
-		declaredWidth,
-		declaredHeight,
-		getWorkspaceConn,
-		storeFile,
-		clock,
-		logger,
-	)
-}
-
-// NewComputerUseToolForProvider creates a computer use AgentTool that delegates
-// to the agent's desktop endpoints. declaredWidth and declaredHeight are the
-// model-facing desktop dimensions advertised to providers and requested for
-// screenshots.
-func NewComputerUseToolForProvider(
 	provider string,
 	declaredWidth, declaredHeight int,
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
@@ -123,23 +103,9 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 	}
 }
 
-// ComputerUseProviderTool creates the provider-defined Anthropic computer-use
-// tool definition using the declared model-facing desktop geometry.
-func ComputerUseProviderTool(declaredWidth, declaredHeight int) fantasy.Tool {
-	tool, err := ComputerUseProviderToolForProvider(
-		ComputerUseProviderAnthropic,
-		declaredWidth,
-		declaredHeight,
-	)
-	if err != nil {
-		panic(err)
-	}
-	return tool
-}
-
-// ComputerUseProviderToolForProvider creates the provider-defined computer-use
-// tool definition using the declared model-facing desktop geometry.
-func ComputerUseProviderToolForProvider(provider string, declaredWidth, declaredHeight int) (fantasy.Tool, error) {
+// ComputerUseProviderTool creates the provider-defined computer-use tool
+// definition using the declared model-facing desktop geometry.
+func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int) (fantasy.Tool, error) {
 	switch DefaultComputerUseProvider(provider) {
 	case ComputerUseProviderAnthropic:
 		// The run callback is nil because execution is handled separately
