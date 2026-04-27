@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
 import { RichParameterInput } from "./RichParameterInput";
@@ -7,6 +9,20 @@ const meta: Meta<typeof RichParameterInput> = {
 	title: "components/RichParameterInput",
 	parameters: { chromatic },
 	component: RichParameterInput,
+	render: function RenderComponent(args) {
+		const [value, setValue] = useState(args.value ?? "");
+
+		return (
+			<RichParameterInput
+				{...args}
+				value={value}
+				onChange={(value) => {
+					setValue(value);
+					args.onChange?.(value);
+				}}
+			/>
+		);
+	},
 };
 
 export default meta;
@@ -45,6 +61,13 @@ export const Basic: Story = {
 			description:
 				"Customize the name of a Google Cloud project that will be created!",
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByLabelText("project_name");
+		await userEvent.clear(input);
+		await userEvent.type(input, "updated-value");
+		await expect(input).toHaveValue("updated-value");
 	},
 };
 
@@ -85,6 +108,14 @@ export const WithError: Story = {
 		}),
 		error: true,
 		helperText: "Number must be greater than 5",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByLabelText("number_parameter");
+		await expect(input).toHaveAttribute("aria-invalid", "true");
+		await expect(
+			canvas.getByText("Number must be greater than 5"),
+		).toBeVisible();
 	},
 };
 
@@ -142,6 +173,14 @@ export const BooleanType: Story = {
 			description: "Boolean parameter",
 		}),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trueOption = canvas.getByRole("radio", { name: "True" });
+		const falseOption = canvas.getByRole("radio", { name: "False" });
+		await expect(falseOption).toBeChecked();
+		await userEvent.click(trueOption);
+		await expect(trueOption).toBeChecked();
+	},
 };
 
 export const Options: Story = {
@@ -173,6 +212,12 @@ export const Options: Story = {
 				},
 			],
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const secondOption = canvas.getByRole("radio", { name: /Second option/ });
+		await userEvent.click(secondOption);
+		await expect(secondOption).toBeChecked();
 	},
 };
 
@@ -295,6 +340,55 @@ export const DescriptionWithLinks: Story = {
 			icon: "",
 			options: [],
 		}),
+	},
+};
+
+export const WithUserHistoryAutofill: Story = {
+	args: {
+		value: "",
+		id: "project_name",
+		parameter: createTemplateVersionParameter({
+			name: "project_name",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
+		}),
+		parameterAutofill: {
+			name: "project_name",
+			value: "recent-value",
+			source: "user_history",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/was recently used/)).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "recent-value" }));
+		await expect(canvas.getByLabelText("project_name")).toHaveValue(
+			"recent-value",
+		);
+		await expect(
+			canvas.queryByText(/was recently used/),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const WithUrlAutofill: Story = {
+	args: {
+		value: "from-url",
+		id: "project_name",
+		parameter: createTemplateVersionParameter({
+			name: "project_name",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
+		}),
+		parameterAutofill: {
+			name: "project_name",
+			value: "from-url",
+			source: "url",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/Autofilled/)).toBeVisible();
 	},
 };
 

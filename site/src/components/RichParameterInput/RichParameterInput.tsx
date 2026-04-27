@@ -1,23 +1,21 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormHelperText from "@mui/material/FormHelperText";
-import type { InputBaseComponentProps } from "@mui/material/InputBase";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { CircleAlertIcon, SettingsIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useId, useState } from "react";
 import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input, type InputProps } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import { Pill } from "#/components/Pill/Pill";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import type {
 	AutofillBuildParameter,
 	AutofillSource,
@@ -28,10 +26,11 @@ const isBoolean = (parameter: TemplateVersionParameter) => {
 	return parameter.type === "bool";
 };
 
+const getParameterDisplayName = (parameter: TemplateVersionParameter) => {
+	return parameter.display_name ? parameter.display_name : parameter.name;
+};
+
 const styles = {
-	label: {
-		marginBottom: 4,
-	},
 	labelCaption: (theme) => ({
 		fontSize: 14,
 		color: theme.palette.text.secondary,
@@ -64,30 +63,6 @@ const styles = {
 		color: theme.palette.text.disabled,
 		fontWeight: 500,
 	}),
-	textField: {
-		".small & .MuiInputBase-root": {
-			height: 36,
-			fontSize: 14,
-			borderRadius: 6,
-		},
-	},
-	radioGroup: {
-		".small & .MuiFormControlLabel-label": {
-			fontSize: 14,
-		},
-		".small & .MuiRadio-root": {
-			padding: "6px 9px", // 8px + 1px border
-		},
-		".small & .MuiRadio-root svg": {
-			width: 16,
-			height: 16,
-		},
-	},
-	checkbox: {
-		display: "flex",
-		alignItems: "center",
-		gap: 8,
-	},
 	labelIconWrapper: {
 		width: 20,
 		height: 20,
@@ -113,27 +88,23 @@ const styles = {
 			width: 16,
 		},
 	},
-	suggestion: (theme) => ({
-		color: theme.roles.notice.fill.solid,
-		marginLeft: "-4px",
-		padding: "4px 6px",
-		lineHeight: "inherit",
-		fontSize: "inherit",
-		height: "unset",
-		minWidth: "unset",
-	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
 interface ParameterLabelProps {
 	parameter: TemplateVersionParameter;
 	isPreset?: boolean;
+	id?: string;
+	htmlFor?: string;
 }
 
-const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
+const ParameterLabel: FC<ParameterLabelProps> = ({
+	parameter,
+	isPreset,
+	id,
+	htmlFor,
+}) => {
 	const hasDescription = parameter.description && parameter.description !== "";
-	const displayName = parameter.display_name
-		? parameter.display_name
-		: parameter.name;
+	const displayName = getParameterDisplayName(parameter);
 
 	const labelPrimary = (
 		<span css={styles.labelPrimary}>
@@ -180,8 +151,16 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 		</span>
 	);
 
+	const primaryLabel = htmlFor ? (
+		<Label htmlFor={htmlFor} className="block cursor-default p-0">
+			{labelPrimary}
+		</Label>
+	) : (
+		labelPrimary
+	);
+
 	return (
-		<label htmlFor={parameter.name}>
+		<div id={id}>
 			<Stack direction="row" alignItems="center">
 				{parameter.icon && (
 					<span css={styles.labelIconWrapper}>
@@ -195,27 +174,35 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 
 				{hasDescription ? (
 					<Stack spacing={0}>
-						{labelPrimary}
+						{primaryLabel}
 						<MemoizedMarkdown css={styles.labelCaption}>
 							{parameter.description}
 						</MemoizedMarkdown>
 					</Stack>
 				) : (
-					labelPrimary
+					primaryLabel
 				)}
 			</Stack>
-		</label>
+		</div>
 	);
 };
 
 type Size = "medium" | "small";
 
-type RichParameterInputProps = Omit<TextFieldProps, "size" | "onChange"> & {
+type RichParameterInputProps = Omit<
+	InputProps,
+	"size" | "onChange" | "value"
+> & {
 	parameter: TemplateVersionParameter;
 	parameterAutofill?: AutofillBuildParameter;
 	onChange: (value: string) => void;
 	size?: Size;
 	isPreset?: boolean;
+	value?: string | number;
+	error?: boolean;
+	helperText?: ReactNode;
+	inputProps?: InputProps;
+	label?: ReactNode;
 };
 
 const autofillDescription: Partial<Record<AutofillSource, ReactNode>> = {
@@ -228,11 +215,41 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 	parameterAutofill,
 	onChange,
 	isPreset,
+	helperText,
+	error,
+	id,
+	"aria-describedby": ariaDescribedBy,
 	...fieldProps
 }) => {
+	const generatedId = useId();
+	const inputId = id ?? parameter.name ?? generatedId;
+	const labelId = `${inputId}-label`;
+	const helperTextId = helperText ? `${inputId}-helper-text` : undefined;
 	const autofillSource = parameterAutofill?.source;
 	const autofillValue = parameterAutofill?.value;
 	const [hideSuggestion, setHideSuggestion] = useState(false);
+	const showUserHistorySuggestion = Boolean(
+		!parameter.ephemeral &&
+			autofillSource === "user_history" &&
+			autofillValue &&
+			!hideSuggestion,
+	);
+	const suggestionId = showUserHistorySuggestion
+		? `${inputId}-autofill-suggestion`
+		: undefined;
+	const autofillTextId =
+		autofillSource && autofillDescription[autofillSource]
+			? `${inputId}-autofill-helper`
+			: undefined;
+	const describedBy = [
+		ariaDescribedBy,
+		helperTextId,
+		suggestionId,
+		autofillTextId,
+	]
+		.filter(Boolean)
+		.join(" ");
+	const isGroup = isBoolean(parameter) || parameter.options.length > 0;
 
 	return (
 		<Stack
@@ -241,76 +258,123 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 			className={size}
 			data-testid={`parameter-field-${parameter.name}`}
 		>
-			<ParameterLabel parameter={parameter} isPreset={isPreset} />
+			<ParameterLabel
+				id={labelId}
+				htmlFor={isGroup ? undefined : inputId}
+				parameter={parameter}
+				isPreset={isPreset}
+			/>
 			<div className="flex flex-col">
 				<RichParameterField
 					{...fieldProps}
+					describedBy={describedBy || undefined}
+					error={error}
+					inputId={inputId}
+					labelId={labelId}
 					onChange={onChange}
 					size={size}
 					parameter={parameter}
 					parameterAutofill={parameterAutofill}
 				/>
-				{!parameter.ephemeral &&
-					autofillSource === "user_history" &&
-					autofillValue &&
-					!hideSuggestion && (
-						<FormHelperText>
-							<Button
-								variant="subtle"
-								size="xs"
-								className="p-1 min-w-0"
-								css={styles.suggestion}
-								onClick={() => {
-									onChange(autofillValue);
-									setHideSuggestion(true);
-								}}
-							>
-								{autofillValue}
-							</Button>{" "}
-							was recently used for this parameter.
-						</FormHelperText>
-					)}
+				{helperText && (
+					<p
+						id={helperTextId}
+						className={cn(
+							"m-0 mt-1 text-xs",
+							error ? "text-content-destructive" : "text-content-secondary",
+						)}
+					>
+						{helperText}
+					</p>
+				)}
+				{showUserHistorySuggestion && (
+					<p
+						id={suggestionId}
+						className="m-0 mt-1 text-xs text-content-secondary"
+					>
+						<Button
+							variant="subtle"
+							size="xs"
+							className="-ml-1 h-auto min-w-0 px-1.5 py-1 text-xs text-content-warning hover:text-content-primary"
+							onClick={() => {
+								onChange(autofillValue ?? "");
+								setHideSuggestion(true);
+							}}
+						>
+							{autofillValue}
+						</Button>{" "}
+						was recently used for this parameter.
+					</p>
+				)}
 				{autofillSource && autofillDescription[autofillSource] && (
-					<div className="mt-1 text-xs">
+					<p
+						id={autofillTextId}
+						className="m-0 mt-1 text-xs text-content-secondary"
+					>
 						🪄 Autofilled {autofillDescription[autofillSource]}
-					</div>
+					</p>
 				)}
 			</div>
 		</Stack>
 	);
 };
 
-const RichParameterField: FC<RichParameterInputProps> = ({
+type RichParameterFieldProps = RichParameterInputProps & {
+	inputId: string;
+	labelId: string;
+	describedBy?: string;
+};
+
+const RichParameterField: FC<RichParameterFieldProps> = ({
+	className,
+	describedBy,
 	disabled,
+	error,
+	inputId,
+	inputProps,
+	label,
+	labelId,
 	onChange,
 	parameter,
 	parameterAutofill,
 	value,
 	size,
+	helperText: _helperText,
+	isPreset: _isPreset,
 	...props
 }) => {
 	const small = size === "small";
+	const radioValue = value === undefined ? "" : String(value);
 
 	if (isBoolean(parameter)) {
 		return (
 			<RadioGroup
-				id={parameter.name}
+				id={inputId}
 				data-testid="parameter-field-bool"
-				css={styles.radioGroup}
-				value={value}
-				onChange={(_, value) => onChange(value)}
+				value={radioValue}
+				onValueChange={onChange}
+				disabled={disabled}
+				name={props.name}
+				aria-labelledby={labelId}
+				aria-describedby={describedBy}
+				aria-invalid={error || undefined}
+				className={cn(small ? "gap-1.5" : "gap-2")}
 			>
-				<FormControlLabel
-					disabled={disabled}
-					value="true"
-					control={<Radio size="small" />}
+				<RadioOption
+					id={`${inputId}-true`}
 					label="True"
-				/>
-				<FormControlLabel
+					value="true"
 					disabled={disabled}
-					value="false"
-					control={<Radio size="small" />}
+					error={error}
+					small={small}
+				/>
+				<RadioOption
+					id={`${inputId}-false`}
 					label="False"
+					value="false"
+					disabled={disabled}
+					error={error}
+					small={small}
 				/>
 			</RadioGroup>
 		);
@@ -319,18 +383,21 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 	if (parameter.options.length > 0) {
 		return (
 			<RadioGroup
-				id={parameter.name}
+				id={inputId}
 				data-testid="parameter-field-options"
-				css={styles.radioGroup}
-				value={value}
-				onChange={(_, value) => onChange(value)}
+				value={radioValue}
+				onValueChange={onChange}
+				disabled={disabled}
+				name={props.name}
+				aria-labelledby={labelId}
+				aria-describedby={describedBy}
+				aria-invalid={error || undefined}
+				className={cn(small ? "gap-1.5" : "gap-2")}
 			>
-				{parameter.options.map((option) => (
-					<FormControlLabel
-						disabled={disabled}
+				{parameter.options.map((option, index) => (
+					<RadioOption
 						key={option.name}
-						value={option.value}
-						control={<Radio size="small" />}
+						id={`${inputId}-option-${index}`}
 						label={
 							<Stack direction="row" alignItems="center">
 								{option.icon && (
@@ -350,7 +417,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 										{small ? (
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<div>{option.name}</div>
+													<span>{option.name}</span>
 												</TooltipTrigger>
 												<TooltipContent side="bottom" className="max-w-xs">
 													<MemoizedMarkdown>
@@ -372,6 +439,10 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 								)}
 							</Stack>
 						}
+						value={option.value}
+						disabled={disabled}
+						error={error}
+						small={small}
 					/>
 				))}
 			</RadioGroup>
@@ -395,9 +466,11 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 
 		return (
 			<TagInput
-				id={parameter.name}
+				id={inputId}
 				data-testid="parameter-field-list-of-string"
-				label={props.label as string}
+				label={
+					typeof label === "string" ? label : getParameterDisplayName(parameter)
+				}
 				values={values}
 				onChange={(values) => {
 					try {
@@ -411,23 +484,23 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 		);
 	}
 
-	let inputProps: InputBaseComponentProps = {};
+	let numberInputProps: InputProps = {};
 	if (parameter.type === "number") {
 		switch (parameter.validation_monotonic) {
 			case "increasing":
-				inputProps = {
+				numberInputProps = {
 					max: parameter.validation_max,
 					min: parameterAutofill?.value,
 				};
 				break;
 			case "decreasing":
-				inputProps = {
+				numberInputProps = {
 					max: parameterAutofill?.value,
 					min: parameter.validation_min,
 				};
 				break;
 			default:
-				inputProps = {
+				numberInputProps = {
 					max: parameter.validation_max,
 					min: parameter.validation_min,
 				};
@@ -439,20 +512,67 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 	// As other cases become more prominent (like filtering for numbers),
 	// we should break this out into more finely scoped input fields.
 	return (
-		<TextField
+		<Input
+			{...inputProps}
 			{...props}
-			id={parameter.name}
+			{...numberInputProps}
+			id={inputId}
 			data-testid="parameter-field-text"
-			css={styles.textField}
 			type={parameter.type}
 			disabled={disabled}
 			required={parameter.required}
 			placeholder={parameter.default_value}
 			value={value}
-			inputProps={inputProps}
+			aria-invalid={error || undefined}
+			aria-describedby={describedBy}
+			className={cn(
+				small && "h-9 rounded-md text-sm",
+				inputProps?.className,
+				className,
+			)}
 			onChange={(event) => {
 				onChange(event.target.value);
 			}}
 		/>
+	);
+};
+
+type RadioOptionProps = {
+	id: string;
+	label: ReactNode;
+	value: string;
+	disabled?: boolean;
+	error?: boolean;
+	small?: boolean;
+};
+
+const RadioOption: FC<RadioOptionProps> = ({
+	id,
+	label,
+	value,
+	disabled,
+	error,
+	small,
+}) => {
+	return (
+		<div className="flex items-center gap-2">
+			<RadioGroupItem
+				id={id}
+				value={value}
+				disabled={disabled}
+				aria-invalid={error || undefined}
+				className={cn(error && "border-border-destructive")}
+			/>
+			<Label
+				htmlFor={id}
+				className={cn(
+					"min-w-0 cursor-pointer font-normal leading-normal text-content-primary",
+					small ? "text-sm" : "text-base",
+					disabled && "cursor-not-allowed opacity-50",
+				)}
+			>
+				{label}
+			</Label>
+		</div>
 	);
 };
