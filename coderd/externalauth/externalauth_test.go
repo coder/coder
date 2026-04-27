@@ -807,6 +807,27 @@ func TestValidateToken(t *testing.T) {
 		assert.False(t, valid, "401 always means token is invalid")
 		assert.Nil(t, user)
 	})
+
+	// Unauthorized_WithRateLimitHeaders: 401 is always a revocation,
+	// even when rate-limit headers are present. Locks the ordering
+	// invariant that the 401 branch precedes the rate-limit check.
+	t.Run("Unauthorized_WithRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 is always invalid, even with rate-limit headers")
+		assert.Nil(t, user)
+	})
 }
 
 func TestRevokeToken(t *testing.T) {
