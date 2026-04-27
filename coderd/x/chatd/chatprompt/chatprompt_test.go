@@ -105,6 +105,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			ProviderExecuted: true,
 		}
 	}
+	resultText := fantasy.TextPart{Text: `{"ok":true}`}
 	localCall := fantasy.ToolCallPart{
 		ToolCallID: "srvtoolu_local",
 		ToolName:   "read_file",
@@ -155,18 +156,20 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			wantRemovedCalls: 1,
 		},
 		{
-			name:     "drops result-only assistant message",
+			name:     "textifies result-only assistant message",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role:    fantasy.MessageRoleAssistant,
 				Content: []fantasy.MessagePart{providerResult("srvtoolu_orphan_result")},
 			}},
-			want:               []fantasy.Message{},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{resultText},
+			}},
 			wantRemovedResults: 1,
-			wantDropped:        1,
 		},
 		{
-			name:     "removes orphan result and keeps text",
+			name:     "textifies orphan result and keeps text",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
@@ -176,13 +179,16 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedResults: 1,
 		},
 		{
-			name:     "removes result before matching call",
+			name:     "textifies result before matching call",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
@@ -193,8 +199,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
@@ -218,7 +227,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			}},
 		},
 		{
-			name:     "keeps valid pair and removes orphan result",
+			name:     "keeps valid pair and textifies orphan result",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
@@ -233,6 +242,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				Content: []fantasy.MessagePart{
 					providerCall("srvtoolu_search"),
 					providerResult("srvtoolu_search"),
+					resultText,
 				},
 			}},
 			wantRemovedResults: 1,
@@ -254,8 +264,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
@@ -272,8 +285,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
@@ -294,8 +310,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
@@ -317,8 +336,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
@@ -336,8 +358,11 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   2,
 			wantRemovedResults: 1,
@@ -355,14 +380,18 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 				},
 			}},
 			want: []fantasy.Message{{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{textPart},
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+					resultText,
+				},
 			}},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 2,
 		},
 		{
-			name:     "removes repeated valid-looking pairs",
+			name:     "textifies repeated valid-looking pairs",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
@@ -373,10 +402,15 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 					providerResult("srvtoolu_duplicate"),
 				},
 			}},
-			want:               []fantasy.Message{},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					resultText,
+					resultText,
+				},
+			}},
 			wantRemovedCalls:   2,
 			wantRemovedResults: 2,
-			wantDropped:        1,
 		},
 		{
 			name:     "provider call plus local result removes provider call only",
@@ -403,7 +437,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			wantRemovedCalls: 1,
 		},
 		{
-			name:     "local call plus provider result removes provider result only",
+			name:     "local call plus provider result textifies provider result",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
@@ -424,12 +458,13 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 						ToolName:   "read_file",
 						Input:      `{"path":"main.go"}`,
 					},
+					resultText,
 				},
 			}},
 			wantRemovedResults: 1,
 		},
 		{
-			name:     "removes provider blocks outside assistant and keeps content",
+			name:     "textifies provider results outside assistant",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{
 				{
@@ -454,12 +489,14 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 					Role: fantasy.MessageRoleUser,
 					Content: []fantasy.MessagePart{
 						fantasy.TextPart{Text: "Please summarize."},
+						resultText,
 						localResult,
 					},
 				},
 				{
 					Role: fantasy.MessageRoleTool,
 					Content: []fantasy.MessagePart{
+						resultText,
 						fantasy.TextPart{Text: "local text"},
 					},
 				},
@@ -468,15 +505,17 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			wantRemovedResults: 2,
 		},
 		{
-			name:     "drops non-assistant message made empty by provider result removal",
+			name:     "textifies non-assistant provider result message",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{
 				Role:    fantasy.MessageRoleTool,
 				Content: []fantasy.MessagePart{providerResult("srvtoolu_tool")},
 			}},
-			want:               []fantasy.Message{},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleTool,
+				Content: []fantasy.MessagePart{resultText},
+			}},
 			wantRemovedResults: 1,
-			wantDropped:        1,
 		},
 		{
 			name:     "handles pointer tool parts",
@@ -523,7 +562,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			}},
 		},
 		{
-			name:     "removes coalescing-created duplicate provider history",
+			name:     "textified orphan prevents duplicate coalescing",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{
 				{
@@ -545,10 +584,27 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 					},
 				},
 			},
-			want:               []fantasy.Message{},
-			wantRemovedCalls:   2,
-			wantRemovedResults: 3,
-			wantDropped:        2,
+			want: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						providerCall("srvtoolu_search"),
+						providerResult("srvtoolu_search"),
+					},
+				},
+				{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{resultText},
+				},
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						providerCall("srvtoolu_search"),
+						providerResult("srvtoolu_search"),
+					},
+				},
+			},
+			wantRemovedResults: 1,
 		},
 		{
 			name:     "keeps local srvtoolu-like IDs untouched",

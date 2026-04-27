@@ -1043,6 +1043,21 @@ func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.
 	}
 }
 
+func requireTextPrompt(t *testing.T, prompt []fantasy.Message, text string) fantasy.TextPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+			if ok && textPart.Text == text {
+				return textPart
+			}
+		}
+	}
+	t.Fatalf("missing prompt text %q", text)
+	return fantasy.TextPart{}
+}
+
 func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 
@@ -1161,40 +1176,10 @@ func requireProviderExecutedToolResultPrompt(
 	return fantasy.ToolResultPart{}
 }
 
-func requireNoDisallowedProviderToolCallsPrompt(
-	t *testing.T,
-	prompt []fantasy.Message,
-	allowed map[string]struct{},
-) {
-	t.Helper()
-
-	for i, message := range prompt {
-		for j, part := range message.Content {
-			toolCall, ok := safeToolCallPart(part)
-			if !ok || !toolCall.ProviderExecuted {
-				continue
-			}
-			if _, ok := allowed[toolCall.ToolName]; !ok {
-				t.Fatalf(
-					"prompt[%d].content[%d]: disallowed provider tool %q",
-					i,
-					j,
-					toolCall.ToolName,
-				)
-			}
-		}
-	}
-}
-
-func requireAnthropicProviderToolPromptSafe(
-	t *testing.T,
-	prompt []fantasy.Message,
-	allowed map[string]struct{},
-) {
+func requireAnthropicProviderToolPromptSafe(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 
 	require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(prompt))
-	requireNoDisallowedProviderToolCallsPrompt(t, prompt, allowed)
 }
 
 func requireLogField(t *testing.T, entry slog.SinkEntry, name string) any {
@@ -2521,18 +2506,18 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 		wantSummary        contentSummary
 		wantRemovedCalls   int
 		wantRemovedResults int
-		wantText           string
+		wantTexts          []string
 		validateAnthropic  bool
 	}{
 		{
-			name:     "orphan provider result removed",
+			name:     "orphan provider result textified",
 			provider: fantasyanthropic.Name,
 			content: []fantasy.Content{
 				fantasy.TextContent{Text: "keep"},
 				providerResult("ws-1", "web_search"),
 			},
 			wantRemovedResults: 1,
-			wantText:           "keep",
+			wantTexts:          []string{"keep", "ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2544,6 +2529,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2558,7 +2544,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 				providerCalls:   []string{"ws-1"},
 				providerResults: []string{"ws-1"},
 			},
-			wantText:          "search done",
+			wantTexts:         []string{"search done"},
 			validateAnthropic: true,
 		},
 		{
@@ -2570,6 +2556,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2581,6 +2568,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2592,6 +2580,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2603,6 +2592,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2614,6 +2604,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2626,6 +2617,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   2,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2643,6 +2635,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			},
 			wantRemovedCalls:   1,
 			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
 			validateAnthropic:  true,
 		},
 		{
@@ -2711,8 +2704,8 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			assert.ElementsMatch(t, tc.wantSummary.providerResults, summary.providerResults)
 			assert.ElementsMatch(t, tc.wantSummary.localCalls, summary.localCalls)
 			assert.ElementsMatch(t, tc.wantSummary.localResults, summary.localResults)
-			if tc.wantText != "" {
-				requireTextContent(t, sanitized, tc.wantText)
+			for _, text := range tc.wantTexts {
+				requireTextContent(t, sanitized, text)
 			}
 			if tc.validateAnthropic {
 				assertProviderHistoryValid(t, sanitized)
@@ -2724,7 +2717,6 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	t.Parallel()
 
-	allowedWebSearch := map[string]struct{}{"web_search": {}}
 	webSearchTool := ProviderTool{
 		Definition: fantasy.ProviderDefinedTool{
 			ID:   "anthropic.web_search",
@@ -2787,10 +2779,10 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		toolCall := requireProviderExecutedToolCallPrompt(t, capturedPrompt, "ws-allowed")
 		require.Equal(t, "web_search", toolCall.ToolName)
 		requireProviderExecutedToolResultPrompt(t, capturedPrompt, "ws-allowed")
-		requireAnthropicProviderToolPromptSafe(t, capturedPrompt, allowedWebSearch)
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
 	})
 
-	t.Run("web search history is stripped when disabled", func(t *testing.T) {
+	t.Run("web search history survives when provider tool is disabled", func(t *testing.T) {
 		t.Parallel()
 
 		var capturedPrompt []fantasy.Message
@@ -2824,14 +2816,14 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		requireNoProviderExecutedToolCallPrompt(t, capturedPrompt)
-		requireNoProviderExecutedToolResultPrompt(t, capturedPrompt)
+		requireProviderExecutedToolCallPrompt(t, capturedPrompt, "ws-disabled")
+		requireProviderExecutedToolResultPrompt(t, capturedPrompt, "ws-disabled")
 		promptResult := requireToolResultPrompt(t, capturedPrompt, "tc-1")
 		require.False(t, promptResult.ProviderExecuted)
-		requireAnthropicProviderToolPromptSafe(t, capturedPrompt, map[string]struct{}{})
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
 	})
 
-	t.Run("direct guard removes orphaned provider result", func(t *testing.T) {
+	t.Run("direct guard textifies orphaned provider result", func(t *testing.T) {
 		t.Parallel()
 
 		guarded := applyAnthropicProviderToolGuard(
@@ -2846,24 +2838,27 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 						fantasy.TextPart{Text: "keep"},
 						fantasy.ToolResultPart{
 							ToolCallID:       "ws-orphan",
+							Output:           fantasy.ToolResultOutputContentText{Text: "search result"},
 							ProviderExecuted: true,
 						},
 					},
 				},
 			},
-			allowedWebSearch,
 		)
 
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
-		requireAnthropicProviderToolPromptSafe(t, guarded, allowedWebSearch)
+		requireAnthropicProviderToolPromptSafe(t, guarded)
 		require.Len(t, guarded, 1)
-		require.Len(t, guarded[0].Content, 1)
+		require.Len(t, guarded[0].Content, 2)
 		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](guarded[0].Content[0])
 		require.True(t, ok)
 		require.Equal(t, "keep", textPart.Text)
+		textPart, ok = fantasy.AsMessagePart[fantasy.TextPart](guarded[0].Content[1])
+		require.True(t, ok)
+		require.Equal(t, "search result", textPart.Text)
 	})
 
-	t.Run("affected message removes every provider block", func(t *testing.T) {
+	t.Run("direct guard leaves valid provider history unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		content := []fantasy.MessagePart{fantasy.TextPart{Text: "keep"}}
@@ -2875,17 +2870,15 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 			fantasyanthropic.Name,
 			"claude-test",
 			[]fantasy.Message{{Role: fantasy.MessageRoleAssistant, Content: content}},
-			map[string]struct{}{},
 		)
 
-		requireNoProviderExecutedToolCallPrompt(t, guarded)
-		requireNoProviderExecutedToolResultPrompt(t, guarded)
-		requireAnthropicProviderToolPromptSafe(t, guarded, map[string]struct{}{})
+		requireAnthropicProviderToolPromptSafe(t, guarded)
 		require.Len(t, guarded, 1)
-		require.Len(t, guarded[0].Content, 1)
-		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](guarded[0].Content[0])
-		require.True(t, ok)
-		require.Equal(t, "keep", textPart.Text)
+		require.Len(t, guarded[0].Content, len(content))
+		requireProviderExecutedToolCallPrompt(t, guarded, "ws-one")
+		requireProviderExecutedToolResultPrompt(t, guarded, "ws-one")
+		requireProviderExecutedToolCallPrompt(t, guarded, "ws-two")
+		requireProviderExecutedToolResultPrompt(t, guarded, "ws-two")
 	})
 
 	t.Run("direct guard leaves non Anthropic providers unchanged", func(t *testing.T) {
@@ -2903,7 +2896,6 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 			"fake",
 			"fake-model",
 			prompt,
-			map[string]struct{}{},
 		)
 		require.Equal(t, prompt, guarded)
 	})
@@ -2913,6 +2905,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 
 		logSink := testutil.NewFakeSink(t)
 		logger := logSink.Logger()
+		logPair := providerPair("ws-log")
 		guarded := applyAnthropicProviderToolGuard(
 			context.Background(),
 			logger,
@@ -2920,15 +2913,18 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 			"claude-test",
 			[]fantasy.Message{
 				{
-					Role:    fantasy.MessageRoleAssistant,
-					Content: providerPair("ws-log"),
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						logPair[1],
+						logPair[0],
+					},
 				},
 			},
-			map[string]struct{}{},
 		)
 
 		requireNoProviderExecutedToolCallPrompt(t, guarded)
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
+		requireTextPrompt(t, guarded, "ok")
 		entries := logSink.Entries(func(e slog.SinkEntry) bool {
 			return e.Level == slog.LevelWarn &&
 				e.Message == "removed provider-executed tool history"
@@ -3022,7 +3018,7 @@ func TestAnthropicProviderToolFallbackStripHelpers(t *testing.T) {
 	)
 	require.Equal(t, 1, stats.RemovedToolCalls)
 	require.Equal(t, 2, stats.RemovedToolResults)
-	require.Equal(t, 1, stats.DroppedMessages)
+	require.Zero(t, stats.DroppedMessages)
 
 	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolHistory(
 		fantasyanthropic.Name,
@@ -3033,15 +3029,21 @@ func TestAnthropicProviderToolFallbackStripHelpers(t *testing.T) {
 	require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(sanitized))
 	require.Len(t, sanitized, 2)
 	require.Equal(t, fantasy.MessageRoleAssistant, sanitized[0].Role)
-	require.Len(t, sanitized[0].Content, 2)
+	require.Len(t, sanitized[0].Content, 3)
 	firstText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[0])
 	require.True(t, ok)
 	require.Equal(t, "first", firstText.Text)
-	secondText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[1])
+	stripText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[1])
+	require.True(t, ok)
+	require.Equal(t, "ok", stripText.Text)
+	secondText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[2])
 	require.True(t, ok)
 	require.Equal(t, "second", secondText.Text)
 	require.Equal(t, fantasy.MessageRoleUser, sanitized[1].Role)
 	require.Len(t, sanitized[1].Content, 1)
+	keepText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[1].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "keep", keepText.Text)
 
 	violations := make([]chatprompt.AnthropicProviderToolHistoryViolation, 33)
 	for i := range violations {

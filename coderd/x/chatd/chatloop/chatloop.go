@@ -398,9 +398,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 				slog.F("step_index", step),
 				slog.F("total_steps", totalSteps),
 			)
-			allowedProviderTools := allowedAnthropicProviderToolNames(provider, opts.ProviderTools)
 			prepared = applyAnthropicProviderToolGuard(
-				ctx, opts.Logger, provider, modelName, prepared, allowedProviderTools,
+				ctx, opts.Logger, provider, modelName, prepared,
 			)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
@@ -854,6 +853,9 @@ func sanitizeAnthropicProviderToolContent(
 				stats.RemovedToolCalls++
 			case mappedToolContentResult:
 				stats.RemovedToolResults++
+				if textContent, ok := anthropicProviderToolResultTextContent(block); ok {
+					out = append(out, textContent)
+				}
 			}
 			continue
 		}
@@ -882,6 +884,24 @@ func isAnthropicProviderExecutedToolCall(
 	toolCall fantasy.ToolCallContent,
 ) bool {
 	return provider == fantasyanthropic.Name && toolCall.ProviderExecuted
+}
+
+func anthropicProviderToolResultTextContent(
+	block fantasy.Content,
+) (fantasy.TextContent, bool) {
+	var zero fantasy.TextContent
+	toolResult, ok := safeToolResultContent(block)
+	if !ok || !toolResult.ProviderExecuted {
+		return zero, false
+	}
+	text := chatprompt.AnthropicToolResultOutputText(toolResult.Result)
+	if text == "" {
+		return zero, false
+	}
+	return fantasy.TextContent{
+		Text:             text,
+		ProviderMetadata: toolResult.ProviderMetadata,
+	}, true
 }
 
 func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
@@ -963,50 +983,25 @@ func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolR
 	}
 }
 
-func allowedAnthropicProviderToolNames(provider string, providerTools []ProviderTool) map[string]struct{} {
-	if provider != fantasyanthropic.Name {
-		return nil
-	}
-	allowed := make(map[string]struct{})
-	for _, providerTool := range providerTools {
-		if providerTool.Definition == nil || providerTool.Runner != nil {
-			continue
-		}
-		name := providerTool.Definition.GetName()
-		if !chatprompt.IsAllowedAnthropicProviderToolName(name) {
-			continue
-		}
-		allowed[name] = struct{}{}
-	}
-	return allowed
-}
-
 func applyAnthropicProviderToolGuard(
 	ctx context.Context,
 	logger slog.Logger,
 	provider string,
 	modelName string,
 	messages []fantasy.Message,
-	allowedTools map[string]struct{},
 ) []fantasy.Message {
 	if provider != fantasyanthropic.Name || len(messages) == 0 {
 		return messages
 	}
 
 	violations := chatprompt.ValidateAnthropicProviderToolHistory(messages)
+	if len(violations) == 0 {
+		return messages
+	}
 	affectedMessages := messageIndexesFromAnthropicProviderToolViolations(
 		violations,
 		len(messages),
 	)
-	disallowedMessages := markDisallowedAnthropicProviderToolMessages(
-		messages,
-		allowedTools,
-		affectedMessages,
-	)
-	if len(violations) == 0 && disallowedMessages == 0 {
-		return messages
-	}
-
 	guarded := sanitizeAnthropicProviderToolGuardMessages(
 		ctx,
 		logger,
@@ -1015,17 +1010,12 @@ func applyAnthropicProviderToolGuard(
 		messages,
 		affectedMessages,
 		len(violations),
-		disallowedMessages,
 	)
-	if isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+	if isSafeAnthropicProviderToolPrompt(guarded) {
 		return guarded
 	}
 
 	fallbackViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
-	fallbackDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
-		guarded,
-		allowedTools,
-	)
 	fallbackAffectedMessages := providerExecutedToolMessageIndexes(guarded)
 	guarded = sanitizeAnthropicProviderToolGuardMessages(
 		ctx,
@@ -1035,10 +1025,9 @@ func applyAnthropicProviderToolGuard(
 		guarded,
 		fallbackAffectedMessages,
 		len(fallbackViolations),
-		fallbackDisallowedMessages,
 		slog.F("fallback", true),
 	)
-	if isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+	if isSafeAnthropicProviderToolPrompt(guarded) {
 		return guarded
 	}
 
@@ -1046,15 +1035,10 @@ func applyAnthropicProviderToolGuard(
 	// selects. The strip path is a fail-closed backstop for analyzer and
 	// provider serialization drift, not a path we can drive without hooks.
 	preStripViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
-	preStripDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
-		guarded,
-		allowedTools,
-	)
 	stripMessages := messageIndexesFromAnthropicProviderToolViolations(
 		preStripViolations,
 		len(guarded),
 	)
-	markDisallowedAnthropicProviderToolMessages(guarded, allowedTools, stripMessages)
 
 	var stripStats chatprompt.AnthropicProviderToolSanitizationStats
 	guarded, stripStats = stripAnthropicProviderToolHistoryFromMessages(
@@ -1068,7 +1052,7 @@ func applyAnthropicProviderToolGuard(
 	)
 	stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
 
-	if !isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+	if !isSafeAnthropicProviderToolPrompt(guarded) {
 		guarded, sanitizeStats = stripAnthropicProviderToolHistoryFromMessages(
 			guarded,
 			providerExecutedToolMessageIndexes(guarded),
@@ -1079,7 +1063,7 @@ func applyAnthropicProviderToolGuard(
 			guarded,
 		)
 		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
-		if !isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+		if !isSafeAnthropicProviderToolPrompt(guarded) {
 			logger.Error(
 				ctx,
 				"anthropic provider tool guard postcondition failed: prompt still unsafe after nuclear strip",
@@ -1102,7 +1086,6 @@ func applyAnthropicProviderToolGuard(
 		modelName,
 		stripStats,
 		slog.F("validation_violations", len(preStripViolations)),
-		slog.F("disallowed_tool_messages", preStripDisallowedMessages),
 		slog.F("validation_violation_details", details),
 		slog.F("truncated_violations", truncated),
 	)
@@ -1117,7 +1100,6 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	messages []fantasy.Message,
 	affectedMessages map[int]struct{},
 	validationViolations int,
-	disallowedMessages int,
 	extraFields ...slog.Field,
 ) []fantasy.Message {
 	guardPrompt := invalidateProviderExecutedToolCallsInMessages(messages, affectedMessages)
@@ -1127,7 +1109,6 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	sanitized, stats := chatprompt.SanitizeAnthropicProviderToolHistory(provider, guardPrompt)
 	extra := []slog.Field{
 		slog.F("validation_violations", validationViolations),
-		slog.F("disallowed_tool_messages", disallowedMessages),
 	}
 	extra = append(extra, extraFields...)
 	chatprompt.LogAnthropicProviderToolSanitization(
@@ -1142,60 +1123,8 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	return sanitized
 }
 
-func isSafeAnthropicProviderToolPrompt(
-	messages []fantasy.Message,
-	allowedTools map[string]struct{},
-) bool {
-	if len(chatprompt.ValidateAnthropicProviderToolHistory(messages)) > 0 {
-		return false
-	}
-	return countDisallowedAnthropicProviderToolMessages(messages, allowedTools) == 0
-}
-
-func markDisallowedAnthropicProviderToolMessages(
-	messages []fantasy.Message,
-	allowedTools map[string]struct{},
-	affectedMessages map[int]struct{},
-) int {
-	count := 0
-	for messageIndex, message := range messages {
-		if messageHasDisallowedAnthropicProviderToolCall(message, allowedTools) {
-			if _, ok := affectedMessages[messageIndex]; !ok {
-				count++
-			}
-			affectedMessages[messageIndex] = struct{}{}
-		}
-	}
-	return count
-}
-
-func countDisallowedAnthropicProviderToolMessages(
-	messages []fantasy.Message,
-	allowedTools map[string]struct{},
-) int {
-	count := 0
-	for _, message := range messages {
-		if messageHasDisallowedAnthropicProviderToolCall(message, allowedTools) {
-			count++
-		}
-	}
-	return count
-}
-
-func messageHasDisallowedAnthropicProviderToolCall(
-	message fantasy.Message,
-	allowedTools map[string]struct{},
-) bool {
-	for _, part := range message.Content {
-		toolCall, ok := safeToolCallPart(part)
-		if !ok || !toolCall.ProviderExecuted {
-			continue
-		}
-		if _, ok := allowedTools[toolCall.ToolName]; !ok {
-			return true
-		}
-	}
-	return false
+func isSafeAnthropicProviderToolPrompt(messages []fantasy.Message) bool {
+	return len(chatprompt.ValidateAnthropicProviderToolHistory(messages)) == 0
 }
 
 func messageIndexesFromAnthropicProviderToolViolations(
@@ -1253,6 +1182,9 @@ func stripAnthropicProviderToolHistoryFromMessages(
 			}
 			if toolResult, ok := safeToolResultPart(part); ok && toolResult.ProviderExecuted {
 				stats.RemovedToolResults++
+				if textPart, ok := chatprompt.AnthropicProviderToolResultTextPart(part); ok {
+					parts = append(parts, textPart)
+				}
 				continue
 			}
 			parts = append(parts, part)

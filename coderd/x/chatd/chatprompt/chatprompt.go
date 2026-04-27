@@ -131,6 +131,67 @@ func IsSerializableAnthropicProviderToolResult(
 	return IsSerializableAnthropicProviderToolCall(matchedCall)
 }
 
+// AnthropicProviderToolResultTextPart converts a provider-executed tool
+// result into text so unsafe provider-tool structure can be removed without
+// losing the result payload.
+func AnthropicProviderToolResultTextPart(
+	part fantasy.MessagePart,
+) (fantasy.TextPart, bool) {
+	var zero fantasy.TextPart
+	result, ok := safeAsToolResultPart(part)
+	if !ok || !result.ProviderExecuted {
+		return zero, false
+	}
+	text := AnthropicToolResultOutputText(result.Output)
+	if text == "" {
+		return zero, false
+	}
+	return fantasy.TextPart{
+		Text:            text,
+		ProviderOptions: result.ProviderOptions,
+	}, true
+}
+
+// AnthropicToolResultOutputText converts a tool result payload into the text
+// that should remain in the prompt when provider-tool metadata is unsafe.
+func AnthropicToolResultOutputText(output fantasy.ToolResultOutputContent) string {
+	switch value := output.(type) {
+	case fantasy.ToolResultOutputContentText:
+		return value.Text
+	case *fantasy.ToolResultOutputContentText:
+		if value == nil {
+			return ""
+		}
+		return value.Text
+	case fantasy.ToolResultOutputContentError:
+		if value.Error == nil {
+			return ""
+		}
+		return value.Error.Error()
+	case *fantasy.ToolResultOutputContentError:
+		if value == nil || value.Error == nil {
+			return ""
+		}
+		return value.Error.Error()
+	case fantasy.ToolResultOutputContentMedia:
+		return value.Text
+	case *fantasy.ToolResultOutputContentMedia:
+		if value == nil {
+			return ""
+		}
+		return value.Text
+	}
+
+	if output == nil {
+		return ""
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
+}
+
 // IsAllowedAnthropicProviderToolName reports whether name is an Anthropic
 // provider-executed tool name we know how to serialize.
 func IsAllowedAnthropicProviderToolName(name string) bool {
@@ -234,6 +295,9 @@ func SanitizeAnthropicProviderToolHistory(
 				}
 				if _, remove := analysis.remove[key]; remove {
 					countRemovedAnthropicProviderToolPart(&stats, part)
+					if textPart, ok := AnthropicProviderToolResultTextPart(part); ok {
+						parts = append(parts, textPart)
+					}
 					removedFromMessage++
 					changed = true
 					continue
