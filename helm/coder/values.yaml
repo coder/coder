@@ -361,7 +361,7 @@ coder:
   hostAliases: []
     # - hostnames:
     #     - "some.host.name.com"
-    #  ip: 0.0.0.0
+    #   ip: 0.0.0.0
 
   # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
