@@ -154,31 +154,31 @@ const ReasoningDisclosure = memo<{
 			>
 				<CollapsibleTrigger
 					className={cn(
-						"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
-						"flex w-full items-center gap-1.5 cursor-pointer",
+						"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
+						"flex w-full items-center gap-2 cursor-pointer",
 						"text-content-secondary transition-colors hover:text-content-primary",
 					)}
 				>
-					<ChevronDownIcon
-						className={cn(
-							"size-icon-sm shrink-0 transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
-						)}
-					/>
 					{isStreaming ? (
-						<Shimmer as="span" className="text-xs">
+						<Shimmer as="span" className="text-sm">
 							Thinking
 						</Shimmer>
 					) : (
-						<span className="text-xs">Thinking</span>
+						<span className="text-sm">Thinking</span>
 					)}
+					<ChevronDownIcon
+						className={cn(
+							"ml-auto h-3 w-3 shrink-0 text-current transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
 				</CollapsibleTrigger>
 				{hasText && (
 					<CollapsibleContent>
 						<div
 							ref={previewScrollRef}
 							className={cn(
-								"mt-1 pl-5",
+								"mt-1.5",
 								isPreviewConstrained && "max-h-24 overflow-y-auto",
 							)}
 						>
