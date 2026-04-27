@@ -1348,6 +1348,22 @@ export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatComputerUseProviderKey = ["chat-computer-use-provider"] as const;
+
+export const chatComputerUseProvider = () => ({
+	queryKey: chatComputerUseProviderKey,
+	queryFn: () => API.experimental.getChatComputerUseProvider(),
+});
+
+export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatComputerUseProvider,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatComputerUseProviderKey,
+		});
+	},
+});
+
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 
 export const chatWorkspaceTTL = () => ({

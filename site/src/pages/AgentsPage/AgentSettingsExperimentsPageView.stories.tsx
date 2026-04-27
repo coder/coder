@@ -10,6 +10,10 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	onSaveDesktopEnabled: fn(),
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
+	computerUseProviderData: { provider: "anthropic" },
+	onSaveComputerUseProvider: fn(),
+	isSavingComputerUseProvider: false,
+	computerUseProviderSaveError: null,
 	debugLoggingData: {
 		allow_users: false,
 		forced_by_deployment: false,
@@ -45,6 +49,26 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof AgentSettingsExperimentsPageView>;
+
+const getComputerUseProviderSelect = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	return await canvas.findByRole("combobox", {
+		name: "Computer use provider",
+	});
+};
+
+const selectComputerUseProvider = async (
+	canvasElement: HTMLElement,
+	currentSelectionName: string,
+	optionName: string,
+) => {
+	const trigger = await getComputerUseProviderSelect(canvasElement);
+	expect(trigger).toHaveTextContent(currentSelectionName);
+
+	await userEvent.click(trigger);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(await body.findByRole("option", { name: optionName }));
+};
 
 export const AllowUsersOff: Story = {
 	play: async ({ canvasElement }) => {
@@ -121,5 +145,69 @@ export const TogglesDesktop: Story = {
 				enable_desktop: true,
 			});
 		});
+	},
+};
+
+export const ComputerUseProviderAnthropic: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Computer use provider");
+		const providerSelect = await getComputerUseProviderSelect(canvasElement);
+
+		expect(providerSelect).toHaveTextContent("Anthropic");
+	},
+};
+
+export const SelectsOpenAIProvider: Story = {
+	args: {
+		onSaveComputerUseProvider: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		await selectComputerUseProvider(canvasElement, "Anthropic", "OpenAI");
+
+		await waitFor(() => {
+			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith({
+				provider: "openai",
+			});
+		});
+	},
+};
+
+export const SelectsAnthropicProvider: Story = {
+	args: {
+		computerUseProviderData: { provider: "openai" },
+		onSaveComputerUseProvider: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		await selectComputerUseProvider(canvasElement, "OpenAI", "Anthropic");
+
+		await waitFor(() => {
+			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith({
+				provider: "anthropic",
+			});
+		});
+	},
+};
+
+export const ComputerUseProviderSaveError: Story = {
+	args: {
+		computerUseProviderSaveError: new Error("Failed to save."),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save computer use provider."),
+		).toBeInTheDocument();
+	},
+};
+
+export const ComputerUseProviderSaving: Story = {
+	args: {
+		isSavingComputerUseProvider: true,
+	},
+	play: async ({ canvasElement }) => {
+		const providerSelect = await getComputerUseProviderSelect(canvasElement);
+
+		expect(providerSelect).toBeDisabled();
 	},
 };

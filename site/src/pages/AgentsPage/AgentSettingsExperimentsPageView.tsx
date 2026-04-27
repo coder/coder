@@ -21,6 +21,15 @@ export interface AgentSettingsExperimentsPageViewProps {
 	>;
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
+	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
+	onSaveComputerUseProvider: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatComputerUseProviderRequest,
+		unknown
+	>;
+	isSavingComputerUseProvider: boolean;
+	computerUseProviderSaveError: Error | null;
 	debugLoggingData: TypesGen.ChatDebugLoggingAdminSettings | undefined;
 	onSaveDebugLogging: UseMutateFunction<
 		void,
@@ -54,6 +63,10 @@ export const AgentSettingsExperimentsPageView: FC<
 	onSaveDesktopEnabled,
 	isSavingDesktopEnabled,
 	isSaveDesktopEnabledError,
+	computerUseProviderData,
+	onSaveComputerUseProvider,
+	isSavingComputerUseProvider,
+	computerUseProviderSaveError,
 	debugLoggingData,
 	onSaveDebugLogging,
 	isSavingDebugLogging,
@@ -82,6 +95,10 @@ export const AgentSettingsExperimentsPageView: FC<
 				onSaveDesktopEnabled={onSaveDesktopEnabled}
 				isSavingDesktopEnabled={isSavingDesktopEnabled}
 				isSaveDesktopEnabledError={isSaveDesktopEnabledError}
+				computerUseProviderData={computerUseProviderData}
+				onSaveComputerUseProvider={onSaveComputerUseProvider}
+				isSavingComputerUseProvider={isSavingComputerUseProvider}
+				computerUseProviderSaveError={computerUseProviderSaveError}
 			/>
 			<AdvisorSettings
 				advisorConfigData={advisorConfigData}
