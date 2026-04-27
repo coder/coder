@@ -15,11 +15,11 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatMessagesEqualByValue,
 	chatQueuedMessagesEqualByID,
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
+import { mergeMessagesIntoInfiniteCache } from "./messageCache";
 import type { RetryState } from "./types";
 
 const normalizeChatDetailError = (
@@ -143,44 +143,14 @@ export const useChatStore = (
 	// have been committed to the DB yet.
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
-			if (!chatID || messages.length === 0) {
+			if (!chatID) {
 				return;
 			}
 			queryClient.setQueryData<
 				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
-
-				let changed = false;
-				for (const msg of messages) {
-					const existing = existingByID.get(msg.id);
-					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
-						changed = true;
-						existingByID.set(msg.id, msg);
-					}
-				}
-
-				if (!changed) {
-					return currentData;
-				}
-
-				// Sort descending to match the API page order
-				// (newest first).
-				const updatedMessages = Array.from(existingByID.values());
-				updatedMessages.sort((a, b) => b.id - a.id);
-
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, messages: updatedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
-			});
+			>(chatMessagesKey(chatID), (currentData) =>
+				mergeMessagesIntoInfiniteCache(currentData, messages),
+			);
 		},
 		[chatID, queryClient],
 	);
