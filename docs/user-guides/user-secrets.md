@@ -64,9 +64,23 @@ coder secret create api-key \
 Stdin is read verbatim. If the source file ends with a trailing newline, Coder
 stores that newline as part of the secret value.
 
+## Update secrets
+
+Use `coder secret update` to rotate a secret value or change where it is
+injected. At least one of `--value`, `--description`, `--env`, or `--file` must
+be specified.
+
+```sh
+# Rotate a secret value.
+coder secret update api-key --value "$NEW_API_KEY"
+
+# Clear the file injection target while keeping the secret.
+coder secret update api-key --file ""
+```
+
 ## Manage secrets
 
-List, show, update, and delete your secrets with the `coder secret` CLI:
+List, show, and delete your secrets with the `coder secret` CLI:
 
 ```sh
 # List all of your secrets.
@@ -75,16 +89,10 @@ coder secret list
 # Show a single secret by name.
 coder secret list api-key
 
-# Update a secret and clear its file injection target.
-coder secret update api-key --file ""
-
 # Delete a secret you no longer need.
 coder secret delete api-key
 ```
 
-You can update a secret later with `coder secret update`, including rotating the
-value or clearing an injection target by passing an empty string. Use
-`coder secret delete` to remove a secret entirely. The secret value itself is
-never returned by the API or CLI list output. For full command details, see
-[`coder secret`](../reference/cli/secret.md) and the
+The secret value itself is never returned by the API or CLI list output. For
+full command details, see [`coder secret`](../reference/cli/secret.md) and the
 [Secrets API reference](../reference/api/secrets.md).
