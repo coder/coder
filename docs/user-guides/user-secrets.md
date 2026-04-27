@@ -14,8 +14,8 @@ environment variable, a file, or both.
 
 ## Environment variable secrets
 
-Use `--env` when a tool expects a credential in an environment variable. The
-secret is available in your workspaces under the environment variable name you
+Use `--env` to inject a secret into your workspaces as an environment
+variable. The secret is available under the environment variable name you
 provide.
 
 ```sh
@@ -27,8 +27,8 @@ coder secret create api-key \
 
 ## File secrets
 
-Use `--file` when a tool expects a credential or config file on disk. File paths
-must start with `~/` or `/`.
+Use `--file` to inject a secret as a file in your workspaces. File paths must
+start with `~/` or `/`.
 
 ```sh
 coder secret create tool-config \
@@ -47,20 +47,7 @@ coder secret create service-token \
   --file ~/.config/service/token
 ```
 
-## Manage secrets
-
-List, show, and delete your secrets with the `coder secret` CLI:
-
-```sh
-# List all of your secrets.
-coder secret list
-
-# Show a single secret by name.
-coder secret list api-key
-
-# Delete a secret you no longer need.
-coder secret delete api-key
-```
+## Secret values
 
 Provide a secret value with `--value`, or non-interactive stdin (pipe or
 redirect). The examples above use `--value` for readability. For sensitive
@@ -76,6 +63,24 @@ coder secret create api-key \
 
 Stdin is read verbatim. If the source file ends with a trailing newline, Coder
 stores that newline as part of the secret value.
+
+## Manage secrets
+
+List, show, update, and delete your secrets with the `coder secret` CLI:
+
+```sh
+# List all of your secrets.
+coder secret list
+
+# Show a single secret by name.
+coder secret list api-key
+
+# Update a secret and clear its file injection target.
+coder secret update api-key --file ""
+
+# Delete a secret you no longer need.
+coder secret delete api-key
+```
 
 You can update a secret later with `coder secret update`, including rotating the
 value or clearing an injection target by passing an empty string. Use
