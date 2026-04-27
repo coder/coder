@@ -1837,6 +1837,12 @@ func (h *heartbeats) checkDBHeartbeats(candidates map[uuid.UUID]time.Duration, d
 		if !hasPrev || !dbTime.After(prevTime) {
 			continue
 		}
+		// Require absolute freshness as well: tailnet_coordinators rows
+		// persist for 24h after a coordinator dies, so a stale row with
+		// one advancing window must not rescue a dead coordinator.
+		if now.Sub(dbTime) >= MissedHeartbeats*HeartbeatPeriod {
+			continue
+		}
 		h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
 			slog.F("other_coordinator_id", id),
 			slog.F("db_heartbeat_at", dbTime),
@@ -1870,6 +1876,12 @@ func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBH
 			continue
 		}
 		if !dbTime.After(prevTime) {
+			continue
+		}
+		// Require absolute freshness: prevent discovery of dead
+		// coordinators whose rows haven't been cleaned up yet (24h
+		// retention on tailnet_coordinators).
+		if now.Sub(dbTime) >= MissedHeartbeats*HeartbeatPeriod {
 			continue
 		}
 		h.logger.Info(h.ctx, "discovered coordinator from database",
