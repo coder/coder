@@ -898,10 +898,7 @@ func anthropicProviderToolResultTextContent(
 	if text == "" {
 		return zero, false
 	}
-	return fantasy.TextContent{
-		Text:             text,
-		ProviderMetadata: toolResult.ProviderMetadata,
-	}, true
+	return fantasy.TextContent{Text: text}, true
 }
 
 func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {

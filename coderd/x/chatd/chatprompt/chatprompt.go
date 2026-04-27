@@ -128,7 +128,22 @@ func IsSerializableAnthropicProviderToolResult(
 	if !ok || result.ToolCallID != toolCall.ToolCallID {
 		return false
 	}
-	return IsSerializableAnthropicProviderToolCall(matchedCall)
+	if !IsSerializableAnthropicProviderToolCall(matchedCall) {
+		return false
+	}
+	return hasSerializableAnthropicProviderToolResultMetadata(result, toolCall)
+}
+
+func hasSerializableAnthropicProviderToolResultMetadata(
+	result fantasy.ToolResultPart,
+	matchedCall fantasy.ToolCallPart,
+) bool {
+	if matchedCall.ToolName != "web_search" {
+		return false
+	}
+	providerMetadata := result.ProviderOptions[fantasyanthropic.Name]
+	metadata, ok := providerMetadata.(*fantasyanthropic.WebSearchResultMetadata)
+	return ok && metadata != nil
 }
 
 // AnthropicProviderToolResultTextPart converts a provider-executed tool
@@ -146,10 +161,7 @@ func AnthropicProviderToolResultTextPart(
 	if text == "" {
 		return zero, false
 	}
-	return fantasy.TextPart{
-		Text:            text,
-		ProviderOptions: result.ProviderOptions,
-	}, true
+	return fantasy.TextPart{Text: text}, true
 }
 
 // AnthropicToolResultOutputText converts a tool result payload into the text

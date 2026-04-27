@@ -32,6 +32,20 @@ import (
 
 const activeToolName = "read_file"
 
+func validWebSearchProviderMetadataForTest() fantasy.ProviderMetadata {
+	return fantasy.ProviderMetadata{
+		fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+			Results: []fantasyanthropic.WebSearchResultItem{
+				{
+					URL:              "https://example.com",
+					Title:            "Example",
+					EncryptedContent: "encrypted",
+				},
+			},
+		},
+	}
+}
+
 func awaitRunResult(ctx context.Context, t *testing.T, done <-chan error) error {
 	t.Helper()
 
@@ -2113,6 +2127,7 @@ func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 					ID:               "ws-1",
 					ToolCallName:     "web_search",
 					ProviderExecuted: true,
+					ProviderMetadata: validWebSearchProviderMetadataForTest(),
 				},
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
@@ -2424,6 +2439,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			ToolCallID:       id,
 			ToolName:         name,
 			ProviderExecuted: true,
+			ProviderMetadata: validWebSearchProviderMetadataForTest(),
 			Result:           fantasy.ToolResultOutputContentText{Text: "ok"},
 		}
 	}
@@ -2639,17 +2655,16 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 			validateAnthropic:  true,
 		},
 		{
-			name:     "malformed provider metadata does not panic",
+			name:     "malformed provider metadata textifies result",
 			provider: fantasyanthropic.Name,
 			content: []fantasy.Content{
 				metadataCall,
 				metadataResult,
 			},
-			wantSummary: contentSummary{
-				providerCalls:   []string{"ws-meta"},
-				providerResults: []string{"ws-meta"},
-			},
-			validateAnthropic: true,
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
 		},
 		{
 			name:     "pointer and nil pointer variants are handled safely",
@@ -2735,6 +2750,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				ToolCallID:       id,
 				Output:           fantasy.ToolResultOutputContentText{Text: "ok"},
 				ProviderExecuted: true,
+				ProviderOptions:  fantasy.ProviderOptions(validWebSearchProviderMetadataForTest()),
 			},
 		}
 	}

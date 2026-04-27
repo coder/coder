@@ -75,6 +75,28 @@ type testToolCallPart = fantasy.ToolCallPart
 
 type testToolResultPart = fantasy.ToolResultPart
 
+type testToolResultOutput struct {
+	Value string `json:"value"`
+}
+
+func (testToolResultOutput) GetType() fantasy.ToolResultContentType {
+	return "test"
+}
+
+func validWebSearchProviderOptionsForTest() fantasy.ProviderOptions {
+	return fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+			Results: []fantasyanthropic.WebSearchResultItem{
+				{
+					URL:              "https://example.com",
+					Title:            "Example",
+					EncryptedContent: "encrypted",
+				},
+			},
+		},
+	}
+}
+
 func asToolCallPartForTest(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
 	return fantasy.AsMessagePart[testToolCallPart](part)
 }
@@ -103,6 +125,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			ToolCallID:       id,
 			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
 			ProviderExecuted: true,
+			ProviderOptions:  validWebSearchProviderOptionsForTest(),
 		}
 	}
 	resultText := fantasy.TextPart{Text: `{"ok":true}`}
@@ -261,6 +284,31 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 						ProviderExecuted: true,
 					},
 					providerResult("srvtoolu_bad_json"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					resultText,
+				},
+			}},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+		},
+		{
+			name:     "textifies result with missing provider metadata",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerCall("srvtoolu_missing_meta"),
+					fantasy.ToolResultPart{
+						ToolCallID:       "srvtoolu_missing_meta",
+						Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+						ProviderExecuted: true,
+					},
 				},
 			}},
 			want: []fantasy.Message{{
@@ -747,6 +795,7 @@ func TestAnthropicProviderToolPartsToRemove(t *testing.T) {
 			ToolCallID:       id,
 			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
 			ProviderExecuted: true,
+			ProviderOptions:  validWebSearchProviderOptionsForTest(),
 		}
 	}
 
@@ -903,6 +952,7 @@ func TestValidateAnthropicProviderToolHistory(t *testing.T) {
 			ToolCallID:       id,
 			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
 			ProviderExecuted: true,
+			ProviderOptions:  validWebSearchProviderOptionsForTest(),
 		}
 	}
 
@@ -1111,6 +1161,7 @@ func TestAnthropicProviderToolSerializationHelpers(t *testing.T) {
 			ToolCallID:       "srvtoolu_search",
 			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
 			ProviderExecuted: true,
+			ProviderOptions:  validWebSearchProviderOptionsForTest(),
 		}
 	}
 
@@ -1257,6 +1308,57 @@ func TestAnthropicProviderToolSerializationHelpers(t *testing.T) {
 			matchedCall: validCall(),
 		},
 		{
+			name: "nil output with metadata",
+			part: func() fantasy.ToolResultPart {
+				result := validResult()
+				result.Output = nil
+				return result
+			}(),
+			matchedCall: validCall(),
+			want:        true,
+		},
+		{
+			name: "empty text output with metadata",
+			part: func() fantasy.ToolResultPart {
+				result := validResult()
+				result.Output = fantasy.ToolResultOutputContentText{}
+				return result
+			}(),
+			matchedCall: validCall(),
+			want:        true,
+		},
+		{
+			name: "missing metadata",
+			part: func() fantasy.ToolResultPart {
+				result := validResult()
+				result.ProviderOptions = nil
+				return result
+			}(),
+			matchedCall: validCall(),
+		},
+		{
+			name: "nil metadata",
+			part: func() fantasy.ToolResultPart {
+				result := validResult()
+				result.ProviderOptions = fantasy.ProviderOptions{
+					fantasyanthropic.Name: nil,
+				}
+				return result
+			}(),
+			matchedCall: validCall(),
+		},
+		{
+			name: "wrong metadata type",
+			part: func() fantasy.ToolResultPart {
+				result := validResult()
+				result.ProviderOptions = fantasy.ProviderOptions{
+					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{},
+				}
+				return result
+			}(),
+			matchedCall: validCall(),
+		},
+		{
 			name: "matched call is not serializable",
 			part: validResult(),
 			matchedCall: func() fantasy.ToolCallPart {
@@ -1276,6 +1378,95 @@ func TestAnthropicProviderToolSerializationHelpers(t *testing.T) {
 			t.Parallel()
 
 			require.Equal(t, tc.want, chatprompt.IsSerializableAnthropicProviderToolResult(tc.part, tc.matchedCall))
+		})
+	}
+}
+
+func TestAnthropicToolResultOutputText(t *testing.T) {
+	t.Parallel()
+
+	textPointer := fantasy.ToolResultOutputContentText{Text: "pointer text"}
+	errorPointer := fantasy.ToolResultOutputContentError{Error: xerrors.New("pointer error")}
+	mediaPointer := fantasy.ToolResultOutputContentMedia{Text: "pointer media"}
+	var nilTextPointer *fantasy.ToolResultOutputContentText
+	var nilErrorPointer *fantasy.ToolResultOutputContentError
+	var nilMediaPointer *fantasy.ToolResultOutputContentMedia
+
+	testCases := []struct {
+		name   string
+		output fantasy.ToolResultOutputContent
+		want   string
+	}{
+		{
+			name:   "text value",
+			output: fantasy.ToolResultOutputContentText{Text: "text value"},
+			want:   "text value",
+		},
+		{
+			name:   "text pointer",
+			output: &textPointer,
+			want:   "pointer text",
+		},
+		{
+			name:   "nil text pointer",
+			output: nilTextPointer,
+		},
+		{
+			name:   "error value",
+			output: fantasy.ToolResultOutputContentError{Error: xerrors.New("error value")},
+			want:   "error value",
+		},
+		{
+			name:   "error pointer",
+			output: &errorPointer,
+			want:   "pointer error",
+		},
+		{
+			name:   "nil error pointer",
+			output: nilErrorPointer,
+		},
+		{
+			name: "error value with nil error",
+			output: fantasy.ToolResultOutputContentError{
+				Error: nil,
+			},
+		},
+		{
+			name:   "media value",
+			output: fantasy.ToolResultOutputContentMedia{Text: "media value"},
+			want:   "media value",
+		},
+		{
+			name:   "media pointer",
+			output: &mediaPointer,
+			want:   "pointer media",
+		},
+		{
+			name:   "nil media pointer",
+			output: nilMediaPointer,
+		},
+		{
+			name: "media value without text",
+			output: fantasy.ToolResultOutputContentMedia{
+				Data:      "base64",
+				MediaType: "image/png",
+			},
+		},
+		{
+			name:   "nil output",
+			output: nil,
+		},
+		{
+			name:   "json fallback",
+			output: testToolResultOutput{Value: "custom"},
+			want:   `{"value":"custom"}`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, chatprompt.AnthropicToolResultOutputText(tc.output))
 		})
 	}
 }
