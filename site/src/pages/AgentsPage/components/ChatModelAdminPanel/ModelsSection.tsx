@@ -44,11 +44,18 @@ const clearModelViewParams = (params: URLSearchParams) => {
 	}
 };
 
+const canManageProviderModels = (providerState: ProviderState | undefined) => {
+	return Boolean(
+		providerState?.providerConfig &&
+			(providerState.hasEffectiveAPIKey ||
+				providerState.providerConfig.allow_user_api_key),
+	);
+};
+
 interface ModelsSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	providerStates: readonly ProviderState[];
-	onSelectedProviderChange: (provider: string) => void;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
 	isCreating: boolean;
@@ -68,7 +75,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
 	sectionDescription,
 	providerStates,
-	onSelectedProviderChange,
 	modelConfigs,
 	modelConfigsUnavailable,
 	isCreating,
@@ -179,7 +185,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
 				onSelectedProviderChange={(provider) => {
-					onSelectedProviderChange(provider);
 					if (view.mode === "add") {
 						setModelViewParam("newModel", provider);
 					}
@@ -212,11 +217,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// Only show providers that have a deployment key configured or allow
 	// end users to bring their own key.
-	const addableProviders = providerStates.filter(
-		(ps) =>
-			ps.providerConfig &&
-			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
-	);
+	const addableProviders = providerStates.filter(canManageProviderModels);
 
 	const addButton = addableProviders.length > 0 && (
 		<DropdownMenu>
@@ -232,7 +233,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					<DropdownMenuItem
 						key={ps.provider}
 						onClick={() => {
-							onSelectedProviderChange(ps.provider);
 							setModelViewParam("newModel", ps.provider);
 						}}
 						className="gap-2"
@@ -286,6 +286,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 							: `Set as default model: ${modelName}`;
 						const starUnavailable =
 							isUpdating || modelConfig.is_default || !modelConfig.enabled;
+						const providerState = providerStates.find(
+							(ps) => ps.provider === modelConfig.provider,
+						);
+						const duplicateUnavailable =
+							!canManageProviderModels(providerState);
 
 						return (
 							<div
@@ -298,7 +303,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								<button
 									type="button"
 									onClick={() => setModelViewParam("model", modelConfig.id)}
-									aria-label={`View model: ${modelName}`}
+									aria-label={`Open model: ${modelName}`}
 									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left"
 								>
 									<ProviderIcon
@@ -387,15 +392,25 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												variant="subtle"
 												onClick={(event) => {
 													event.stopPropagation();
+													if (duplicateUnavailable) return;
 													setModelViewParam("duplicate", modelConfig.id);
 												}}
+												aria-disabled={duplicateUnavailable}
 												aria-label={`Duplicate model: ${modelName}`}
-												className="hover:bg-surface-secondary"
+												className={cn(
+													"hover:bg-surface-secondary",
+													duplicateUnavailable &&
+														"cursor-not-allowed text-content-secondary/40 hover:bg-transparent hover:text-content-secondary/40",
+												)}
 											>
 												<CopyIcon />
 											</Button>
 										</TooltipTrigger>
-										<TooltipContent side="top">Duplicate model</TooltipContent>
+										<TooltipContent side="top">
+											{duplicateUnavailable
+												? "Set an API key for this provider before duplicating models"
+												: "Duplicate model"}
+										</TooltipContent>
 									</Tooltip>
 								</div>
 							</div>

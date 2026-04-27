@@ -31,6 +31,19 @@ const providerState: ProviderState = {
 	baseURL: "",
 };
 
+const providerStateWithoutAPIKey: ProviderState = {
+	...providerState,
+	providerConfig: {
+		...providerState.providerConfig!,
+		has_api_key: false,
+		central_api_key_enabled: false,
+		allow_user_api_key: false,
+	},
+	hasManagedAPIKey: false,
+	hasCatalogAPIKey: false,
+	hasEffectiveAPIKey: false,
+};
+
 const baseModelConfig: TypesGen.ChatModelConfig = {
 	id: "model-config-id",
 	provider: "openai",
@@ -42,6 +55,14 @@ const baseModelConfig: TypesGen.ChatModelConfig = {
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
+};
+
+const disabledModelConfig: TypesGen.ChatModelConfig = {
+	...baseModelConfig,
+	id: "disabled-model-config-id",
+	model: "gpt-4.1-disabled",
+	display_name: "GPT-4.1 Disabled",
+	enabled: false,
 };
 
 const defaultModelConfig: TypesGen.ChatModelConfig = {
@@ -77,7 +98,6 @@ const meta: Meta<typeof ModelsSection> = {
 	args: {
 		sectionLabel: "Models",
 		providerStates: [providerState],
-		onSelectedProviderChange: fn(),
 		modelConfigs: [baseModelConfig],
 		modelConfigsUnavailable: false,
 		isCreating: false,
@@ -135,7 +155,7 @@ export const ShowsExplicitRowActions: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 		const rowButton = canvas.getByRole("button", {
-			name: "View model: GPT-4.1",
+			name: "Open model: GPT-4.1",
 		});
 		const starButton = canvas.getByRole("button", {
 			name: "Set as default model: GPT-4.1",
@@ -317,6 +337,67 @@ export const SavesNonDefaultDuplicateWithEditableEnabled: Story = {
 			context_limit: 128000,
 			compression_threshold: 80,
 		});
+	},
+};
+
+export const SavesDisabledDuplicateWithEditableEnabled: Story = {
+	args: {
+		modelConfigs: [disabledModelConfig],
+		onCreateModel: fn(async () => undefined),
+		onUpdateModel: fn(async () => undefined),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Duplicate model: GPT-4.1 Disabled",
+			}),
+		);
+		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+
+		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
+		expect(enabledSwitch).not.toBeChecked();
+		expect(enabledSwitch).toBeEnabled();
+		await userEvent.click(enabledSwitch);
+
+		const modelInput = canvas.getByLabelText(/Model Identifier/);
+		await userEvent.clear(modelInput);
+		await userEvent.type(modelInput, "gpt-4.1-disabled-copy");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Create duplicate" }),
+		);
+
+		await waitFor(() => expect(args.onCreateModel).toHaveBeenCalledTimes(1));
+		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
+		expect(createModelMock.mock.calls[0]?.[0]).toEqual({
+			provider: "openai",
+			model: "gpt-4.1-disabled-copy",
+			display_name: "GPT-4.1 Disabled",
+			enabled: true,
+			is_default: false,
+			context_limit: 128000,
+			compression_threshold: 80,
+		});
+	},
+};
+
+export const DisablesDuplicateWhenProviderCannotManageModels: Story = {
+	args: {
+		providerStates: [providerStateWithoutAPIKey],
+		modelConfigs: [baseModelConfig],
+		onCreateModel: fn(async () => undefined),
+		onUpdateModel: fn(async () => undefined),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const duplicateButton = canvas.getByRole("button", {
+			name: "Duplicate model: GPT-4.1",
+		});
+
+		expect(duplicateButton).toHaveAttribute("aria-disabled", "true");
+		await userEvent.click(duplicateButton);
+		expect(canvas.queryByText("Duplicate Model")).not.toBeInTheDocument();
+		expect(args.onCreateModel).not.toHaveBeenCalled();
 	},
 };
 

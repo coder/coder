@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import type { FC } from "react";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -251,8 +251,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	isDeletingModel,
 	modelMutationError,
 }) => {
-	const [, setRequestedProvider] = useState<string | null>(null);
-
 	// ── Sorted model configs ───────────────────────────────────
 	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
 		const cmp = a.provider.localeCompare(b.provider);
@@ -290,14 +288,12 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						onCreateProvider={onCreateProvider}
 						onUpdateProvider={onUpdateProvider}
 						onDeleteProvider={onDeleteProvider}
-						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
 					<ModelsSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
 						providerStates={providerStates}
-						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
 						isCreating={isCreatingModel}
