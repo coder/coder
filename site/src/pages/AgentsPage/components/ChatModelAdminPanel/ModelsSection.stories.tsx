@@ -403,7 +403,7 @@ export const DisablesDuplicateWhenProviderCannotManageModels: Story = {
 
 export const RowActionsDoNotOpenRowBody: Story = {
 	args: {
-		modelConfigs: [baseModelConfig, defaultModelConfig],
+		modelConfigs: [baseModelConfig, defaultModelConfig, disabledModelConfig],
 		onCreateModel: fn(async () => undefined),
 		onUpdateModel: fn(async () => undefined),
 	},
@@ -426,6 +426,14 @@ export const RowActionsDoNotOpenRowBody: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Default model: GPT-4o" }),
 		);
+		expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
+		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
+
+		const disabledStarButton = canvas.getByRole("button", {
+			name: "Set as default model: GPT-4.1 Disabled",
+		});
+		expect(disabledStarButton).toHaveAttribute("aria-disabled", "true");
+		await userEvent.click(disabledStarButton);
 		expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
 		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
 

@@ -113,8 +113,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
 	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
-	const effectiveProvider = selectedProvider;
-	const effectiveProviderState = selectedProviderState;
 	const initialValues = {
 		...buildInitialModelFormValues(initialModel),
 		...(isDuplicating && { isDefault: false }),
@@ -125,9 +123,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
-		effectiveProviderState?.providerConfig &&
-			(effectiveProviderState.hasEffectiveAPIKey ||
-				effectiveProviderState.providerConfig.allow_user_api_key),
+		selectedProviderState?.providerConfig &&
+			(selectedProviderState.hasEffectiveAPIKey ||
+				selectedProviderState.providerConfig.allow_user_api_key),
 	);
 	const formTitle = isEditing
 		? "Edit Model"
@@ -155,7 +153,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				effectiveProvider,
+				selectedProvider,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -192,11 +190,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!effectiveProvider || !effectiveProviderState?.providerConfig)
-					return;
+				if (!selectedProvider || !selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: effectiveProvider,
+					provider: selectedProvider,
 					model: trimmedModel,
 					enabled: values.enabled,
 					is_default: values.isDefault,
@@ -225,7 +222,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		effectiveProvider,
+		selectedProvider,
 		form.values.config,
 	);
 
@@ -245,7 +242,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				Provider
 			</Label>
 			<Select
-				value={effectiveProvider ?? ""}
+				value={selectedProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
 				disabled={isEditing || isDuplicating || providerStates.length === 0}
 			>
@@ -270,7 +267,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	);
 
 	// No provider selected or configs unavailable.
-	if (!effectiveProviderState || modelConfigsUnavailable) {
+	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
 				<BackButton onClick={onCancel} />
@@ -295,7 +292,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
-						{!effectiveProviderState.providerConfig
+						{!selectedProviderState.providerConfig
 							? "Create a managed provider config on the Providers tab before managing models."
 							: "Set an API key for this provider on the Providers tab before managing models."}
 					</p>
@@ -326,9 +323,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 			</div>
 			{/* Header - editable display name */}
 			<div className="flex items-center gap-3">
-				{effectiveProviderState && (
+				{selectedProviderState && (
 					<ProviderIcon
-						provider={effectiveProviderState.provider}
+						provider={selectedProviderState.provider}
 						className="h-8 w-8"
 					/>
 				)}
@@ -507,7 +504,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showPricing && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
 								<PricingModelConfigFields
-									provider={effectiveProviderState.provider}
+									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -541,7 +538,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showProviderConfig && (
 							<div className="pt-3">
 								<ModelConfigFields
-									provider={effectiveProviderState.provider}
+									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -575,7 +572,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showAdvanced && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
 								<GeneralModelConfigFields
-									provider={effectiveProviderState.provider}
+									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
