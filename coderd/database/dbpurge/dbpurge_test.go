@@ -2442,6 +2442,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, sent, 1, "expected one digest notification")
 				require.Equal(t, notifications.TemplateChatAutoArchiveDigest, sent[0].TemplateID)
 				require.Equal(t, deps.user.ID, sent[0].UserID)
+				// Ensure that config-derived fields flow through to payload.
+				require.Equal(t, "90", sent[0].Data["auto_archive_days"])
+				require.Equal(t, "0", sent[0].Data["retention_days"])
 			},
 		},
 		{
@@ -2627,6 +2630,12 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				logs := auditor.AuditLogs()
 				require.Len(t, logs, 1, "only the completed chat should produce an audit entry")
 				require.Equal(t, completedChat.ID, logs[0].ResourceID)
+
+				// Assert number of sent notifications to catch dispatch regressions.
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "expected one digest notification for the completed chat")
+				require.Equal(t, notifications.TemplateChatAutoArchiveDigest, sent[0].TemplateID)
+				require.Equal(t, deps.user.ID, sent[0].UserID)
 			},
 		},
 		{

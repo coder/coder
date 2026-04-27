@@ -32,7 +32,7 @@ When your chats are auto-archived, you receive a digest notification
 listing the titles of the archived conversations and the
 auto-archive window currently configured.
 
-If you find the digest noisy you can disable the "Chats
+If you find the digest noisy, you can disable the "Chats
 Auto-Archived" notification entirely from your notification preferences.
 
 ## Interaction with retention

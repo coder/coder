@@ -73,7 +73,8 @@ func WithChatAutoArchiveBatchSize(n int32) Option {
 	return func(i *instance) { i.chatAutoArchiveBatchSize = n }
 }
 
-// WithNotificationsEnqueuer overrides the notifications enqueuer.
+// WithNotificationsEnqueuer sets the enqueuer used for digest
+// notifications. Defaults to notifications.NewNoopEnqueuer().
 func WithNotificationsEnqueuer(e notifications.Enqueuer) Option {
 	return func(i *instance) { i.enqueuer = e }
 }
