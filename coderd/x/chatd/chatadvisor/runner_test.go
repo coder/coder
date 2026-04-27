@@ -118,7 +118,47 @@ func TestAdvisorRunError(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
 	require.Contains(t, result.Error, "boom")
-	require.Equal(t, 0, result.RemainingUses)
+	// A transient nested run failure must not consume quota: callers
+	// can retry up to MaxUsesPerRun times despite the failure.
+	require.Equal(t, 1, result.RemainingUses)
+
+	// Confirm the refund left the runtime in a usable state by issuing
+	// a successful call after the failure, even though MaxUsesPerRun=1.
+	runtime2, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func() func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				var calls int
+				return func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					calls++
+					if calls == 1 {
+						return nil, xerrors.New("boom")
+					}
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "recovered"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					}), nil
+				}
+			}(),
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+	})
+	require.NoError(t, err)
+
+	failed, err := runtime2.RunAdvisor(t.Context(), "first?", nil)
+	require.NoError(t, err)
+	require.Equal(t, chatadvisor.ResultTypeError, failed.Type)
+	require.Equal(t, 1, failed.RemainingUses)
+
+	retried, err := runtime2.RunAdvisor(t.Context(), "retry?", nil)
+	require.NoError(t, err)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, retried.Type)
+	require.Equal(t, "recovered", retried.Advice)
+	require.Equal(t, 0, retried.RemainingUses)
 }
 
 func TestNewRuntimeValidation(t *testing.T) {

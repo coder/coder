@@ -50,6 +50,9 @@ func (rt *Runtime) RunAdvisor(
 	}
 
 	if err := chatloop.Run(ctx, runOpts); err != nil {
+		// Refund the use so a transient provider failure does not
+		// permanently exhaust the per-run advisor budget.
+		rt.release()
 		return AdvisorResult{
 			Type:          ResultTypeError,
 			Error:         err.Error(),
@@ -59,6 +62,10 @@ func (rt *Runtime) RunAdvisor(
 
 	advice := extractAdvisorText(persistedStep)
 	if advice == "" {
+		// Refund: the run did not produce advice, so the contract
+		// "increments on every successful advisor call" treats this
+		// as not consuming a use.
+		rt.release()
 		return AdvisorResult{
 			Type:          ResultTypeError,
 			Error:         "advisor produced no text output",

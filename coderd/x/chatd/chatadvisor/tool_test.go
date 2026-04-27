@@ -142,7 +142,8 @@ func TestAdvisorToolReportsNestedError(t *testing.T) {
 	require.Contains(t, result.Error, "boom")
 	require.Empty(t, result.Advice)
 	require.Empty(t, result.AdvisorModel)
-	require.Equal(t, 0, result.RemainingUses)
+	// A failed nested run does not consume the per-run quota.
+	require.Equal(t, 1, result.RemainingUses)
 }
 
 func TestAdvisorToolReportsLimitReached(t *testing.T) {
@@ -217,6 +218,9 @@ func TestAdvisorToolReportsEmptyModelOutput(t *testing.T) {
 	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
 	require.Contains(t, result.Error, "no text output")
 	require.Empty(t, result.Advice)
+	// An advisor call that produces no advice does not count as a
+	// successful use, so the quota must still be available.
+	require.Equal(t, 1, result.RemainingUses)
 }
 
 func mustAdvisorRuntime(t *testing.T) *chatadvisor.Runtime {
