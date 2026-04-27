@@ -605,6 +605,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				"relative flex h-full min-h-0 min-w-0 flex-1",
 				showRightPanel && "flex-row",
 			)}
+			data-testid="agent-chat-page-loading-view"
 		>
 			{titleElement}
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">

@@ -1418,7 +1418,11 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
+	const isInitialChatLoad = !chatQuery.data && chatQuery.isPending;
+	const isInitialMessagesLoad =
+		!chatMessagesQuery.data && chatMessagesQuery.isPending;
+
+	if (isInitialChatLoad || isInitialMessagesLoad) {
 		return (
 			<AgentChatPageLoadingView
 				titleElement={titleElement}

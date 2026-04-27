@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -29,14 +29,41 @@ import {
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsOutletContext } from "./AgentsPage";
 
+const LOADING_VIEW_TEST_ID = "agent-chat-page-loading-view";
+const CACHE_CHAT_A_ID = "chat-cache-a";
+const CACHE_CHAT_B_ID = "chat-cache-b";
+
+type AgentChatPageLayoutProps = {
+	showSwitchControls?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Layout wrapper – provides outlet context for the child route.
 // ---------------------------------------------------------------------------
-const AgentChatPageLayout: FC = () => {
+const AgentChatPageLayout: FC<AgentChatPageLayoutProps> = ({
+	showSwitchControls = false,
+}) => {
+	const navigate = useNavigate();
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+				{showSwitchControls && (
+					<div className="flex gap-2 border-b border-border p-2">
+						<button
+							type="button"
+							onClick={() => navigate(`/agents/${CACHE_CHAT_A_ID}`)}
+						>
+							Open cached chat A
+						</button>
+						<button
+							type="button"
+							onClick={() => navigate(`/agents/${CACHE_CHAT_B_ID}`)}
+						>
+							Open cached chat B
+						</button>
+					</div>
+				)}
 				<Outlet
 					context={
 						{
@@ -163,7 +190,7 @@ const buildQueries = (
 	opts?: { diffUrl?: string },
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
-		chat_id: CHAT_ID,
+		chat_id: chat.id,
 		url: opts?.diffUrl,
 		pull_request_title: "",
 		pull_request_draft: false,
@@ -177,16 +204,16 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatKey(chat.id), data: chatWithDiffStatus },
 		{
-			key: chatMessagesKey(CHAT_ID),
+			key: chatMessagesKey(chat.id),
 			data: { pages: [messagesData], pageParams: [undefined] },
 		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
-			key: chatDiffContentsKey(CHAT_ID),
+			key: chatDiffContentsKey(chat.id),
 			data: {
-				chat_id: CHAT_ID,
+				chat_id: chat.id,
 				diff: opts?.diffUrl ? sampleDiff : undefined,
 				pull_request_url: opts?.diffUrl,
 			} satisfies TypesGen.ChatDiffContents,
@@ -199,6 +226,67 @@ const buildQueries = (
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{ key: mcpServerConfigsKey, data: [] },
 	];
+};
+
+const agentChatRouterParameters = (agentId: string) =>
+	reactRouterParameters({
+		location: {
+			path: `/agents/${agentId}`,
+			pathParams: { agentId },
+		},
+		routing: reactRouterOutlet({ path: "/agents/:agentId" }, <AgentChatPage />),
+	});
+
+const cacheHitMessages = (
+	chatId: string,
+	messageId: number,
+	text: string,
+): TypesGen.ChatMessagesResponse => ({
+	messages: [
+		{
+			id: messageId,
+			chat_id: chatId,
+			created_at: "2026-02-18T00:01:00.000Z",
+			role: "assistant",
+			content: [{ type: "text", text }],
+		},
+	],
+	queued_messages: [],
+	has_more: false,
+});
+
+const containsLoadingView = (node: Node): boolean => {
+	if (!(node instanceof HTMLElement)) {
+		return false;
+	}
+
+	return (
+		node.dataset.testid === LOADING_VIEW_TEST_ID ||
+		node.querySelector(`[data-testid="${LOADING_VIEW_TEST_ID}"]`) !== null
+	);
+};
+
+const observeLoadingView = (canvasElement: HTMLElement) => {
+	let sawLoadingView =
+		canvasElement.querySelector(`[data-testid="${LOADING_VIEW_TEST_ID}"]`) !==
+		null;
+	const observer = new MutationObserver((records) => {
+		for (const record of records) {
+			for (const node of record.addedNodes) {
+				if (containsLoadingView(node)) {
+					sawLoadingView = true;
+				}
+			}
+		}
+	});
+	observer.observe(canvasElement, { childList: true, subtree: true });
+
+	return {
+		disconnect: () => observer.disconnect(),
+		get sawLoadingView() {
+			return sawLoadingView;
+		},
+	};
 };
 
 // ---------------------------------------------------------------------------
@@ -217,16 +305,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		layout: "fullscreen",
 		user: MockUserOwner,
 		webSocket: [],
-		reactRouter: reactRouterParameters({
-			location: {
-				path: `/agents/${CHAT_ID}`,
-				pathParams: { agentId: CHAT_ID },
-			},
-			routing: reactRouterOutlet(
-				{ path: "/agents/:agentId" },
-				<AgentChatPage />,
-			),
-		}),
+		reactRouter: agentChatRouterParameters(CHAT_ID),
 	},
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
@@ -609,6 +688,80 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+export const CacheHitSwitchesDoNotShowLoadingView: Story = {
+	args: {
+		showSwitchControls: true,
+	},
+	parameters: {
+		reactRouter: agentChatRouterParameters(CACHE_CHAT_A_ID),
+		queries: [
+			...buildQueries(
+				{
+					id: CACHE_CHAT_A_ID,
+					...baseChatFields,
+					title: "Cached chat A",
+					status: "completed",
+				},
+				cacheHitMessages(
+					CACHE_CHAT_A_ID,
+					101,
+					"Cached chat A response is ready.",
+				),
+				{ diffUrl: undefined },
+			),
+			...buildQueries(
+				{
+					id: CACHE_CHAT_B_ID,
+					...baseChatFields,
+					title: "Cached chat B",
+					status: "completed",
+				},
+				cacheHitMessages(
+					CACHE_CHAT_B_ID,
+					201,
+					"Cached chat B response is ready.",
+				),
+				{ diffUrl: undefined },
+			),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const switchChatAndAssertNoLoadingView = async ({
+			buttonName,
+			expectedText,
+		}: {
+			buttonName: string;
+			expectedText: string;
+		}) => {
+			const loadingViewObserver = observeLoadingView(canvasElement);
+			await user.click(canvas.getByRole("button", { name: buttonName }));
+			expect(await canvas.findByText(expectedText)).toBeVisible();
+			await Promise.resolve();
+			loadingViewObserver.disconnect();
+			expect(loadingViewObserver.sawLoadingView).toBe(false);
+			expect(
+				canvas.queryByTestId(LOADING_VIEW_TEST_ID),
+			).not.toBeInTheDocument();
+		};
+
+		expect(
+			await canvas.findByText("Cached chat A response is ready."),
+		).toBeVisible();
+		expect(canvas.queryByTestId(LOADING_VIEW_TEST_ID)).not.toBeInTheDocument();
+
+		await switchChatAndAssertNoLoadingView({
+			buttonName: "Open cached chat B",
+			expectedText: "Cached chat B response is ready.",
+		});
+		await switchChatAndAssertNoLoadingView({
+			buttonName: "Open cached chat A",
+			expectedText: "Cached chat A response is ready.",
+		});
 	},
 };
 
