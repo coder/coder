@@ -78,6 +78,7 @@ const TerminalPage: FC = () => {
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
+	const commandPendingConfirmation = !!command && !appSlug && !commandConfirmed;
 	const initialCommand = appCommand
 		? appCommand
 		: command && commandConfirmed
@@ -182,7 +183,8 @@ const TerminalPage: FC = () => {
 					loading={
 						workspace.isLoading ||
 						config.isLoading ||
-						appearanceSettingsQuery.isLoading
+						appearanceSettingsQuery.isLoading ||
+						commandPendingConfirmation
 					}
 					errorMessage={terminalErrorMessage}
 					testId="terminal"
