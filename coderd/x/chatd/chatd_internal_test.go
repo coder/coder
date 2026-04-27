@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -2911,6 +2913,286 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, modelConfigID, got.modelConfigID)
 	require.Equal(t, 2, got.trailingUserCount)
 	require.Equal(t, 1, got.contributingTrailingUserCount)
+}
+
+func TestResolveChainMode_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenAssistantContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeCorruptAssistantMessage(modelConfigID),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenToolContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeCorruptToolMessage(),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsProviderExecutedOnly(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	toolCall.ProviderExecuted = true
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedProviderExecutedAndUnresolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	providerCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{providerCall, localCall},
+		),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	firstCall := codersdk.ChatMessageToolCall(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	secondCall := codersdk.ChatMessageToolCall(
+		"call-second",
+		"read_file",
+		json.RawMessage(`{"path":"README.md"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{firstCall, secondCall},
+		),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func chainModeProviderOptions() fantasy.ProviderOptions {
+	store := true
+	return fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			Store: &store,
+		},
+	}
+}
+
+func chainModeSystemMessage() database.ChatMessage {
+	return database.ChatMessage{Role: database.ChatMessageRoleSystem}
+}
+
+func chainModeUserMessage(text string) database.ChatMessage {
+	msg := chatMessageWithParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	msg.Role = database.ChatMessageRoleUser
+	return msg
+}
+
+func chainModeAssistantMessage(
+	modelConfigID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleAssistant
+	msg.ProviderResponseID = sql.NullString{String: "resp-123", Valid: true}
+	msg.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
+	return msg
+}
+
+func chainModeCorruptAssistantMessage(modelConfigID uuid.UUID) database.ChatMessage {
+	return database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeCorruptToolMessage() database.ChatMessage {
+	return database.ChatMessage{
+		Role: database.ChatMessageRoleTool,
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeToolMessage(parts []codersdk.ChatMessagePart) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleTool
+	return msg
 }
 
 func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {

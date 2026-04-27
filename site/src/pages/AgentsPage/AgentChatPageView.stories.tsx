@@ -16,6 +16,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -1009,5 +1010,156 @@ export const TerminalFocusOnTabSwitch: Story = {
 			},
 			{ timeout: 3000 },
 		);
+	},
+};
+
+const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * When localStorage contains a persisted tab ID for this chat, the sidebar
+ * should restore it on mount. Seed localStorage with "terminal" and verify
+ * that the Terminal tab is selected instead of the default Git tab.
+ */
+export const RestoresPersistedSidebarTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		expect(gitTab).toHaveAttribute("aria-selected", "false");
+	},
+};
+
+/**
+ * Clicking a sidebar tab persists the selection to localStorage so that
+ * it is restored across session switches.
+ */
+export const PersistsSidebarTabClick: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(sidebarTabStorageKey);
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+		await userEvent.click(terminalTab);
+
+		await waitFor(() => {
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
+
+/**
+ * When localStorage holds a tab ID whose tab is not currently available
+ * (e.g. `"terminal"` while the workspace is stopped), the sidebar
+ * should fall back to the first available tab (Git) and the stored
+ * value must be preserved so it can be honoured once the tab reappears.
+ *
+ * This locks down the contract described in the PR: `getEffectiveTabId`
+ * only reads `sidebarTabId` and never writes back. A future write-back
+ * in the fallback path would silently break restore-after-recovery, so
+ * this story exists to catch that regression.
+ */
+export const PreservesUnavailableSidebarTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
+
+/**
+ * When a chat is archived, clicking a sidebar tab must not persist the
+ * selection to localStorage. The archive flow clears the entry on
+ * purpose so that a subsequent unarchive starts from the default tab;
+ * persisting here would silently recreate the entry for any tab the
+ * user clicks while viewing the read-only archived view.
+ *
+ * This locks down the fix for the codex P2 review comment.
+ */
+export const DoesNotPersistForArchivedChat: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(sidebarTabStorageKey);
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			isArchived
+			isInputDisabled
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+		await userEvent.click(terminalTab);
+
+		await waitFor(() => {
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
 	},
 };

@@ -9,7 +9,7 @@ import {
 import { cn } from "#/utils/cn";
 import { DATE_FORMAT, formatDateTime, humanDuration } from "#/utils/time";
 import {
-	DebugCodeBlock,
+	CopyableCodeBlock,
 	DebugDataSection,
 	EmptyHelper,
 } from "./DebugPanelPrimitives";
@@ -27,24 +27,23 @@ interface DebugAttemptAccordionProps {
 
 interface JsonBlockProps {
 	value: unknown;
-	fallbackCopy: string;
+	emptyMessage: string;
+	copyLabel: string;
 }
 
-const JsonBlock: FC<JsonBlockProps> = ({ value, fallbackCopy }) => {
+const JsonBlock: FC<JsonBlockProps> = ({ value, emptyMessage, copyLabel }) => {
 	if (
 		value === null ||
 		value === undefined ||
 		(typeof value === "string" && value.length === 0) ||
 		(typeof value === "object" && Object.keys(value as object).length === 0)
 	) {
-		return <EmptyHelper message={fallbackCopy} />;
+		return <EmptyHelper message={emptyMessage} />;
 	}
 
-	if (typeof value === "string") {
-		return <DebugCodeBlock code={value} />;
-	}
+	const code = safeJsonStringify(value);
 
-	return <DebugCodeBlock code={safeJsonStringify(value)} />;
+	return <CopyableCodeBlock code={code} label={copyLabel} />;
 };
 
 const getAttemptTimingLabel = (attempt: NormalizedAttempt): string => {
@@ -79,7 +78,7 @@ export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
 					Unable to parse raw attempts. Showing the original payload exactly as
 					it was captured.
 				</p>
-				<DebugCodeBlock code={rawFallback} />
+				<CopyableCodeBlock code={rawFallback} label="Copy raw attempts" />
 			</div>
 		);
 	}
@@ -161,19 +160,22 @@ export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
 								<DebugDataSection title="Raw request">
 									<JsonBlock
 										value={attempt.raw_request}
-										fallbackCopy="No raw request captured."
+										emptyMessage="No raw request captured."
+										copyLabel="Copy raw request JSON"
 									/>
 								</DebugDataSection>
 								<DebugDataSection title="Raw response">
 									<JsonBlock
 										value={attempt.raw_response}
-										fallbackCopy="No raw response captured."
+										emptyMessage="No raw response captured."
+										copyLabel="Copy raw response JSON"
 									/>
 								</DebugDataSection>
 								<DebugDataSection title="Error">
 									<JsonBlock
 										value={attempt.error}
-										fallbackCopy="No error captured."
+										emptyMessage="No error captured."
+										copyLabel="Copy raw attempt error"
 									/>
 								</DebugDataSection>
 							</div>

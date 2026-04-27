@@ -39,6 +39,7 @@ import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
@@ -164,6 +165,7 @@ const AgentsPage: FC = () => {
 		...archiveChatBase,
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -186,6 +188,7 @@ const AgentsPage: FC = () => {
 			),
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),

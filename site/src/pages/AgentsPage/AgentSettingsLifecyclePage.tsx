@@ -1,8 +1,10 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
+	chatAutoArchiveDays,
 	chatRetentionDays,
 	chatWorkspaceTTL,
+	updateChatAutoArchiveDays,
 	updateChatRetentionDays,
 	updateChatWorkspaceTTL,
 } from "#/api/queries/chats";
@@ -21,11 +23,18 @@ const AgentSettingsLifecyclePage: FC = () => {
 		...chatRetentionDays(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const autoArchiveDaysQuery = useQuery({
+		...chatAutoArchiveDays(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const saveWorkspaceTTLMutation = useMutation(
 		updateChatWorkspaceTTL(queryClient),
 	);
 	const saveRetentionDaysMutation = useMutation(
 		updateChatRetentionDays(queryClient),
+	);
+	const saveAutoArchiveDaysMutation = useMutation(
+		updateChatAutoArchiveDays(queryClient),
 	);
 
 	return (
@@ -43,6 +52,12 @@ const AgentSettingsLifecyclePage: FC = () => {
 				onSaveRetentionDays={saveRetentionDaysMutation.mutate}
 				isSavingRetentionDays={saveRetentionDaysMutation.isPending}
 				isSaveRetentionDaysError={saveRetentionDaysMutation.isError}
+				autoArchiveDaysData={autoArchiveDaysQuery.data}
+				isAutoArchiveDaysLoading={autoArchiveDaysQuery.isLoading}
+				isAutoArchiveDaysLoadError={autoArchiveDaysQuery.isError}
+				onSaveAutoArchiveDays={saveAutoArchiveDaysMutation.mutate}
+				isSavingAutoArchiveDays={saveAutoArchiveDaysMutation.isPending}
+				isSaveAutoArchiveDaysError={saveAutoArchiveDaysMutation.isError}
 			/>
 		</RequirePermission>
 	);

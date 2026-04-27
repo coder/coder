@@ -197,6 +197,82 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          string
+		responseBody string
+		wantDetail   string
+		forbidden    []string
+	}{
+		{
+			name:         "FunctionCallOutputMissing",
+			err:          "No Tool Output Found For Function Call call_sensitive123",
+			responseBody: `{"error":{"message":"No tool output found for function call call_sensitive123"}}`,
+			wantDetail:   "OpenAI Responses API request continuity diagnostic: match=function_call_output_missing.",
+			forbidden:    []string{"call_sensitive123"},
+		},
+		{
+			name:         "WebSearchReasoningMissing",
+			err:          "Item 'ws_sensitive123' of type 'web_search_call' WAS PROVIDED WITHOUT ITS REQUIRED 'reasoning' item: 'rs_sensitive123'",
+			responseBody: `{"error":{"message":"Item 'ws_sensitive123' of type 'web_search_call' was provided without its required 'reasoning' item: 'rs_sensitive123'"}}`,
+			wantDetail:   "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+			forbidden:    []string{"ws_sensitive123", "rs_sensitive123"},
+		},
+	}
+
+	assertNoLeak := func(t *testing.T, classified chaterror.ClassifiedError, forbidden []string) {
+		t.Helper()
+		for _, value := range forbidden {
+			require.NotContains(t, classified.Message, value)
+			require.NotContains(t, classified.Detail, value)
+		}
+	}
+
+	assertDirectionalMessage := func(t *testing.T, message string) {
+		t.Helper()
+		require.Contains(t, message, "chat continuation")
+		require.Contains(t, message, "internal state mismatch")
+		require.Contains(t, message, "not a configuration or billing issue")
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"/BareString", func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, chaterror.KindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Zero(t, classified.StatusCode)
+			assertDirectionalMessage(t, classified.Message)
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			assertNoLeak(t, classified, tt.forbidden)
+		})
+
+		t.Run(tt.name+"/WrappedProviderError", func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.Errorf(
+				"provider request failed: %w",
+				testProviderError(
+					"",
+					400,
+					nil,
+					testProviderResponseDump(tt.responseBody),
+				),
+			))
+			require.Equal(t, chaterror.KindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Equal(t, 400, classified.StatusCode)
+			assertDirectionalMessage(t, classified.Message)
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			assertNoLeak(t, classified, tt.forbidden)
+		})
+	}
+}
+
 func TestClassify_PatternCoverage(t *testing.T) {
 	t.Parallel()
 

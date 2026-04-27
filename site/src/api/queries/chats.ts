@@ -1351,6 +1351,22 @@ export const updateChatRetentionDays = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatAutoArchiveDaysKey = ["chat-auto-archive-days"] as const;
+
+export const chatAutoArchiveDays = () => ({
+	queryKey: chatAutoArchiveDaysKey,
+	queryFn: () => API.experimental.getChatAutoArchiveDays(),
+});
+
+export const updateChatAutoArchiveDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatAutoArchiveDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAutoArchiveDaysKey,
+		});
+	},
+});
+
 const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
 
 export const chatTemplateAllowlist = () => ({
