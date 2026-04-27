@@ -45,6 +45,10 @@ const createWorkspaceTerminalWebSocket = () => {
 	return new WS(websocketUrl);
 };
 
+// Renders the terminal page and waits for the terminal to finish
+// initializing (i.e. the WebSocket connection is established). Do not
+// use this for tests where the terminal stays in loading state, such
+// as when a command confirmation dialog is blocking the connection.
 const renderTerminal = async (
 	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
 ) => {
@@ -63,6 +67,18 @@ const renderTerminal = async (
 		expect(wrapper.dataset.status).not.toBe("initializing");
 	});
 	return utils;
+};
+
+// Renders the terminal page without waiting for the terminal to leave
+// the "initializing" state. Use this for tests where a confirmation
+// dialog keeps the terminal in loading state until the user acts.
+const renderTerminalRaw = (
+	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
+) => {
+	return renderWithAuth(<TerminalPage />, {
+		route,
+		path: "/:username/:workspace/terminal",
+	});
 };
 
 const expectTerminalText = (container: HTMLElement, text: string) => {
@@ -185,11 +201,10 @@ describe("TerminalPage", () => {
 	});
 
 	it("shows confirmation dialog when command param is present", async () => {
-		createWorkspaceTerminalWebSocket();
-		await renderTerminal(
+		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
 		);
-		const dialog = screen.getByRole("dialog");
+		const dialog = await screen.findByRole("dialog");
 		expect(dialog).toHaveTextContent("echo hello");
 		expect(
 			screen.getByRole("button", { name: "Run command" }),
@@ -208,10 +223,12 @@ describe("TerminalPage", () => {
 		const ws = new WS(
 			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&command=echo+hello&height=24&width=80`,
 		);
-		await renderTerminal(
+		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
 		);
-		await userEvent.click(screen.getByRole("button", { name: "Run command" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Run command" }),
+		);
 		await waitFor(() =>
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
 		);
@@ -224,10 +241,12 @@ describe("TerminalPage", () => {
 
 	it("removes command param on cancel", async () => {
 		createWorkspaceTerminalWebSocket();
-		await renderTerminal(
+		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
 		);
-		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Cancel" }),
+		);
 		await waitFor(() =>
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
 		);
