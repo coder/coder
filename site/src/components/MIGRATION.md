@@ -107,21 +107,21 @@ Use the Radix `Select` family for closed-list options.
 
 ```tsx
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "#/components/Select/Select";
 
 <Select value={unit} onValueChange={setUnit}>
-	<SelectTrigger>
-		<SelectValue placeholder="Unit" />
-	</SelectTrigger>
-	<SelectContent>
-		<SelectItem value="hours">Hours</SelectItem>
-		<SelectItem value="days">Days</SelectItem>
-	</SelectContent>
+  <SelectTrigger>
+    <SelectValue placeholder="Unit" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="hours">Hours</SelectItem>
+    <SelectItem value="days">Days</SelectItem>
+  </SelectContent>
 </Select>;
 ```
 
@@ -134,8 +134,8 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Label } from "#/components/Label/Label";
 
 <div className="flex items-center gap-2">
-	<Checkbox id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
-	<Label htmlFor={enabledId}>Enabled</Label>
+  <Checkbox id={enabledId} checked={enabled} onCheckedChange={setEnabled} />
+  <Label htmlFor={enabledId}>Enabled</Label>
 </div>;
 ```
 
@@ -148,7 +148,7 @@ its children.
 import { Spinner } from "#/components/Spinner/Spinner";
 
 <Spinner loading={isLoading} size="sm">
-	<span>Ready</span>
+  <span>Ready</span>
 </Spinner>;
 ```
 
@@ -160,8 +160,8 @@ Use `DialogFooter` when dialog wrappers are migrated in slice 2.
 import { DialogFooter } from "#/components/Dialog/Dialog";
 
 <DialogFooter>
-	<Button variant="outline">Cancel</Button>
-	<Button>Save</Button>
+  <Button variant="outline">Cancel</Button>
+  <Button>Save</Button>
 </DialogFooter>;
 ```
 
