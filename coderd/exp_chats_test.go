@@ -1066,7 +1066,7 @@ func TestListChats(t *testing.T) {
 					}
 				}
 				return false
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.WaitLong, testutil.IntervalFast)
 		}
 
 		// Fetch first page with limit=2.

@@ -176,7 +176,7 @@ func TestDelete(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
-			assert.ErrorContains(t, err, "invalid workspace name: \"a/b/c\"")
+			assert.ErrorContains(t, err, "invalid workspace identifier: \"a/b/c\"")
 		}()
 		<-doneChan
 	})

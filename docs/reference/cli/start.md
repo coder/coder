@@ -89,6 +89,15 @@ Specify a file path with values for rich parameters defined in the template. The
 
 Rich parameter default values in the format "name=value".
 
+### --use-parameter-defaults
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
+
+Automatically accept parameter defaults when no value is provided.
+
 ### --always-prompt
 
 |      |                   |
