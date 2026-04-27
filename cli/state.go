@@ -41,7 +41,7 @@ func (r *RootCmd) statePull() *serpent.Command {
 			}
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
-				workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -99,7 +99,7 @@ func (r *RootCmd) statePush() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}

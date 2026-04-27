@@ -185,7 +185,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				cliLog.Warn(inv.Context(), "no workspace specified")
 				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
-				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("invalid workspace: %w", err)
 				}

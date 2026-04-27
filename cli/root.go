@@ -1070,13 +1070,6 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
 }
 
-// namedWorkspace fetches and returns a workspace by identifier, which may be
-// a workspace UUID, a bare name (for a workspace owned by the current user),
-// or a "user/workspace" combination where user is either a username or UUID.
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	return client.ResolveWorkspace(ctx, identifier)
-}
-
 func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
 	// best effort
 	cfg, _ := client.Appearance(ctx)

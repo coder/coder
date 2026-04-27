@@ -984,7 +984,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		err            error
 	)
 
-	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
+	workspace, err = client.ResolveWorkspace(ctx, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 	}
@@ -1044,7 +1044,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		}
 
 		// Refresh workspace state so that `outdated`, `build`,`template_*` fields are up-to-date.
-		workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
+		workspace, err = client.ResolveWorkspace(ctx, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 		}
