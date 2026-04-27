@@ -5,7 +5,7 @@ import {
 	PlusIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -36,7 +36,6 @@ type ModelView =
 interface ModelsSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -59,7 +58,6 @@ interface ModelsSectionProps {
 export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -233,7 +231,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					description={
 						sectionDescription ?? "Manage models available to Agents."
 					}
-					badge={sectionBadge}
 					action={addButton || undefined}
 				/>
 			)}

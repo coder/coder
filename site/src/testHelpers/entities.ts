@@ -374,6 +374,16 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.Role = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -5316,4 +5326,5 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_write_input_tokens: 120,
 	},
 	last_prompt: "But *can* I really fix it?",
+	last_active_at: "2026-03-09T10:28:15.03152Z",
 };

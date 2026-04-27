@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, useState } from "react";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -156,6 +156,9 @@ const useProviderStates = (
 		const label =
 			readOptionalString(providerConfigEntry?.display_name) ??
 			formatProviderLabel(provider);
+		const hasBedrockAmbientCredentials =
+			provider === "bedrock" &&
+			providerConfig?.central_api_key_enabled === true;
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
 		const isCatalogEnvPreset =
 			!providerConfig &&
@@ -173,7 +176,7 @@ const useProviderStates = (
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
 			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey
+				? hasProviderEntryAPIKey || hasBedrockAmbientCredentials
 				: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),
@@ -188,7 +191,6 @@ interface ChatModelAdminPanelProps {
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	// Data from queries.
 	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
@@ -229,7 +231,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerConfigsData,
 	modelConfigsData,
 	modelCatalogData,
@@ -299,7 +300,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<ProvidersSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
@@ -312,7 +312,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<ModelsSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						selectedProvider={selectedProvider}
 						selectedProviderState={selectedProviderState}

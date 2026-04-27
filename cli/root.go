@@ -27,7 +27,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -1069,36 +1068,6 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	}
 
 	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
-}
-
-func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
-	parts := strings.Split(identifier, "/")
-
-	switch len(parts) {
-	case 1:
-		owner = codersdk.Me
-		workspaceName = parts[0]
-	case 2:
-		owner = parts[0]
-		workspaceName = parts[1]
-	default:
-		return "", "", xerrors.Errorf("invalid workspace name: %q", identifier)
-	}
-	return owner, workspaceName, nil
-}
-
-// namedWorkspace fetches and returns a workspace by an identifier, which may be either
-// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
-// where user is either a username or UUID.
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	if uid, err := uuid.Parse(identifier); err == nil {
-		return client.Workspace(ctx, uid)
-	}
-	owner, name, err := splitNamedWorkspace(identifier)
-	if err != nil {
-		return codersdk.Workspace{}, err
-	}
-	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
 func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {

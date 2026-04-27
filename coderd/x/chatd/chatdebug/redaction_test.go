@@ -88,18 +88,54 @@ func TestRedactHeaders(t *testing.T) {
 		t.Parallel()
 
 		headers := http.Header{
-			"Anthropic-Ratelimit-Tokens-Limit":     {"1000000"},
-			"Anthropic-Ratelimit-Tokens-Remaining": {"999000"},
-			"Anthropic-Ratelimit-Tokens-Reset":     {"2026-03-31T08:55:26Z"},
-			"X-RateLimit-Limit-Tokens":             {"120000"},
-			"X-RateLimit-Remaining-Tokens":         {"119500"},
-			"X-RateLimit-Reset-Tokens":             {"12ms"},
+			"Anthropic-Ratelimit-Tokens-Limit":            {"1000000"},
+			"Anthropic-Ratelimit-Tokens-Remaining":        {"999000"},
+			"Anthropic-Ratelimit-Tokens-Reset":            {"2026-03-31T08:55:26Z"},
+			"Anthropic-Ratelimit-Input-Tokens-Limit":      {"200000"},
+			"Anthropic-Ratelimit-Input-Tokens-Remaining":  {"199000"},
+			"Anthropic-Ratelimit-Input-Tokens-Reset":      {"2026-03-31T08:55:26Z"},
+			"Anthropic-Ratelimit-Output-Tokens-Limit":     {"80000"},
+			"Anthropic-Ratelimit-Output-Tokens-Remaining": {"79500"},
+			"Anthropic-Ratelimit-Output-Tokens-Reset":     {"2026-03-31T08:55:26Z"},
+			"Anthropic-Priority-Input-Tokens-Limit":       {"10000"},
+			"Anthropic-Priority-Input-Tokens-Remaining":   {"9618"},
+			"Anthropic-Priority-Input-Tokens-Reset":       {"2026-03-31T08:55:26Z"},
+			"Anthropic-Priority-Output-Tokens-Limit":      {"10000"},
+			"Anthropic-Priority-Output-Tokens-Remaining":  {"6000"},
+			"Anthropic-Priority-Output-Tokens-Reset":      {"2026-03-31T08:55:26Z"},
+			"Anthropic-Fast-Input-Tokens-Limit":           {"50000"},
+			"Anthropic-Fast-Input-Tokens-Remaining":       {"49000"},
+			"Anthropic-Fast-Input-Tokens-Reset":           {"2026-03-31T08:55:26Z"},
+			"Anthropic-Fast-Output-Tokens-Limit":          {"25000"},
+			"Anthropic-Fast-Output-Tokens-Remaining":      {"24000"},
+			"Anthropic-Fast-Output-Tokens-Reset":          {"2026-03-31T08:55:26Z"},
+			"X-RateLimit-Limit-Tokens":                    {"120000"},
+			"X-RateLimit-Remaining-Tokens":                {"119500"},
+			"X-RateLimit-Reset-Tokens":                    {"12ms"},
 		}
 
 		redacted := chatdebug.RedactHeaders(headers)
 		require.Equal(t, "1000000", redacted["Anthropic-Ratelimit-Tokens-Limit"])
 		require.Equal(t, "999000", redacted["Anthropic-Ratelimit-Tokens-Remaining"])
 		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Ratelimit-Tokens-Reset"])
+		require.Equal(t, "200000", redacted["Anthropic-Ratelimit-Input-Tokens-Limit"])
+		require.Equal(t, "199000", redacted["Anthropic-Ratelimit-Input-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Ratelimit-Input-Tokens-Reset"])
+		require.Equal(t, "80000", redacted["Anthropic-Ratelimit-Output-Tokens-Limit"])
+		require.Equal(t, "79500", redacted["Anthropic-Ratelimit-Output-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Ratelimit-Output-Tokens-Reset"])
+		require.Equal(t, "10000", redacted["Anthropic-Priority-Input-Tokens-Limit"])
+		require.Equal(t, "9618", redacted["Anthropic-Priority-Input-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Priority-Input-Tokens-Reset"])
+		require.Equal(t, "10000", redacted["Anthropic-Priority-Output-Tokens-Limit"])
+		require.Equal(t, "6000", redacted["Anthropic-Priority-Output-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Priority-Output-Tokens-Reset"])
+		require.Equal(t, "50000", redacted["Anthropic-Fast-Input-Tokens-Limit"])
+		require.Equal(t, "49000", redacted["Anthropic-Fast-Input-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Fast-Input-Tokens-Reset"])
+		require.Equal(t, "25000", redacted["Anthropic-Fast-Output-Tokens-Limit"])
+		require.Equal(t, "24000", redacted["Anthropic-Fast-Output-Tokens-Remaining"])
+		require.Equal(t, "2026-03-31T08:55:26Z", redacted["Anthropic-Fast-Output-Tokens-Reset"])
 		require.Equal(t, "120000", redacted["X-RateLimit-Limit-Tokens"])
 		require.Equal(t, "119500", redacted["X-RateLimit-Remaining-Tokens"])
 		require.Equal(t, "12ms", redacted["X-RateLimit-Reset-Tokens"])

@@ -270,7 +270,9 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={warningNotifications}
 					severity="warning"
-					icon={<TriangleAlertIcon className="size-icon-sm" />}
+					icon={
+						<TriangleAlertIcon aria-hidden="true" className="size-icon-sm" />
+					}
 				/>
 			)}
 		</div>

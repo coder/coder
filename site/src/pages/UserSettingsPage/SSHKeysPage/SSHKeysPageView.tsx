@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import type { FC } from "react";
 import type { GitSSHKey } from "#/api/typesGenerated";
@@ -20,8 +19,6 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 	sshKey,
 	onRegenerateClick,
 }) => {
-	const theme = useTheme();
-
 	if (isLoading) {
 		return (
 			<div className="p-8">
@@ -38,25 +35,11 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 
 			{sshKey && (
 				<>
-					<p
-						css={{
-							fontSize: 14,
-							color: theme.palette.text.secondary,
-							margin: 0,
-						}}
-					>
+					<p className="leading-relaxed font-normal text-sm text-content-secondary m-0">
 						The following public key is used to authenticate Git in workspaces.
 						You may add it to Git services (such as GitHub) that you need to
 						access from your workspace. Coder configures authentication via{" "}
-						<code
-							css={{
-								background: theme.palette.divider,
-								fontSize: 12,
-								padding: "2px 4px",
-								color: theme.palette.text.primary,
-								borderRadius: 2,
-							}}
-						>
+						<code className="bg-surface-quaternary text-xs py-0.5 px-1 text-content-primary rounded-sm">
 							$GIT_SSH_COMMAND
 						</code>
 						.

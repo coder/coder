@@ -989,9 +989,13 @@ export const WithReasoningInline: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Reasoning text renders inline.
-		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
-		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
+		// Reasoning renders inside a collapsible disclosure.
+		const trigger = canvas.getByRole("button", { name: "Thinking" });
+		expect(trigger).toBeInTheDocument();
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			expect(canvas.getByText("Reasoning body")).toBeVisible();
+		});
 	},
 };
 

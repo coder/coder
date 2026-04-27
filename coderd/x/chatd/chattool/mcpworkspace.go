@@ -107,7 +107,7 @@ func convertMCPToolResponse(
 	for _, c := range resp.Content {
 		switch c.Type {
 		case "text":
-			textParts = append(textParts, c.Text)
+			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case "image", "audio":
 			if c.Data == "" {
 				continue
@@ -129,7 +129,7 @@ func convertMCPToolResponse(
 				binaryResult = &r
 			}
 		default:
-			textParts = append(textParts, c.Text)
+			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		}
 	}
 
