@@ -4,6 +4,10 @@ Coder Agents automatically cleans up old conversation data to manage database
 growth. Archived conversations and their associated files are periodically
 purged based on a configurable retention period.
 
+Conversations become eligible for purging only after they are archived. Old
+conversations can be archived manually, or automatically. See
+[Auto-Archive](./chat-auto-archive.md) for how the two controls interact.
+
 ## How it works
 
 A background process runs approximately every 10 minutes to remove expired

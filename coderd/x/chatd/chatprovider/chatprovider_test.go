@@ -2,6 +2,7 @@ package chatprovider_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -965,6 +966,87 @@ func TestModelFromConfig_Bedrock(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestModelFromConfig_BedrockStripsAnthropicHeaders is a regression test
+// for a bug where the Anthropic SDK reads ANTHROPIC_API_KEY from the
+// process environment and adds X-Api-Key and Anthropic-Version headers to
+// every request. On Bedrock, these headers conflict with SigV4 signing and
+// cause auth failures. The SDK's Bedrock middleware strips them before
+// signing. This test verifies the outgoing request shape with both
+// Anthropic and AWS credentials present.
+func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
+	t.Setenv("AWS_REGION", "us-east-2")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+
+	type requestCapture struct {
+		Authorization    string
+		AnthropicVersion string
+		XAPIKey          string
+		Body             string
+		ReadError        error
+	}
+
+	requests := make(chan requestCapture, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		requests <- requestCapture{
+			Authorization:    r.Header.Get("Authorization"),
+			AnthropicVersion: r.Header.Get("Anthropic-Version"),
+			XAPIKey:          r.Header.Get("X-Api-Key"),
+			Body:             string(body),
+			ReadError:        err,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+	}))
+	defer server.Close()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasybedrock.Name,
+		"anthropic.claude-opus-4-6-v1",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasybedrock.Name: server.URL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "hello"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
+	require.Empty(t, got.AnthropicVersion)
+	require.Empty(t, got.XAPIKey)
+	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
+	require.NotContains(t, got.Authorization, "anthropic-version")
+	require.NotContains(t, got.Authorization, "x-api-key")
+	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
 }
 
 func bedrockNonStreamingResponse() map[string]any {

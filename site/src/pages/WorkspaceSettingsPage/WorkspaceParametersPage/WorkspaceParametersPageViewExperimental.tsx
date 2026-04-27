@@ -60,6 +60,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				autofillParameters,
 			),
 		},
+		initialTouched: Object.fromEntries(
+			autofillParameters.map((p) => [p.name, true]),
+		),
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
@@ -97,12 +100,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			name: parameter.name,
 			value,
 		});
+		form.setFieldTouched(parameter.name, true);
 		sendDynamicParamsRequest(parameter, value);
 	};
 
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -201,7 +206,11 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
-			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
+			<form
+				onSubmit={form.handleSubmit}
+				className="flex flex-col gap-8"
+				data-testid="form"
+			>
 				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>

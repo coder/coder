@@ -159,6 +159,7 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messageCount: number;
 
 	urlTransform?: UrlTransform;
 
@@ -229,6 +230,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -380,6 +382,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		content: renderTabContent(tab.id),
 	}));
 
+	const isEditing =
+		editing.editingMessageId !== null ||
+		editing.editingQueuedMessageID !== null;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -454,6 +460,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
+							messageCount={messageCount}
 						>
 							<div className="px-4">
 								<ChatPageTimeline
@@ -499,6 +506,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								initialEditorState={editing.initialEditorState}
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
+								isEditing={isEditing}
 								editingQueuedMessageID={editing.editingQueuedMessageID}
 								onStartQueueEdit={editing.handleStartQueueEdit}
 								onCancelQueueEdit={editing.handleCancelQueueEdit}

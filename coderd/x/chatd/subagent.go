@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -26,6 +27,18 @@ import (
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+
+var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
+
+type modelOverrideConfigResolver func(
+	context.Context,
+	uuid.UUID,
+) (database.ChatModelConfig, string, error)
+
+type modelOverrideProviderKeysResolver func(
+	context.Context,
+	uuid.UUID,
+) (chatprovider.ProviderAPIKeys, error)
 
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
@@ -90,64 +103,197 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 	return enabled
 }
 
-func (p *Server) resolveExploreSubagentModelConfigID(
+func subagentModelOverrideLogLabel(
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) string {
+	switch overrideContext {
+	case codersdk.ChatAgentModelOverrideContextGeneral:
+		return "general delegated child"
+	case codersdk.ChatAgentModelOverrideContextExplore:
+		return "explore"
+	default:
+		return string(overrideContext)
+	}
+}
+
+func readSubagentModelOverride(
 	ctx context.Context,
-	ownerID uuid.UUID,
-	fallback uuid.UUID,
-) (uuid.UUID, error) {
-	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := p.db.GetChatExploreModelOverride(chatdCtx)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get Explore model override: %w", err)
-	}
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return fallback, nil
-	}
-	configuredModelConfigID, err := uuid.Parse(trimmed)
-	if err != nil {
-		p.logger.Warn(ctx,
-			"invalid Explore model override, falling back to current turn model",
-			slog.F("raw_model_config_id", trimmed),
-			slog.Error(err),
+	db database.Store,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (string, error) {
+	switch overrideContext {
+	case codersdk.ChatAgentModelOverrideContextGeneral:
+		return db.GetChatGeneralModelOverride(ctx)
+	case codersdk.ChatAgentModelOverrideContextExplore:
+		return db.GetChatExploreModelOverride(ctx)
+	default:
+		return "", xerrors.Errorf(
+			"unknown subagent model override context %q",
+			overrideContext,
 		)
-		return fallback, nil
 	}
-	modelConfig, err := p.db.GetEnabledChatModelConfigByID(
-		chatdCtx,
-		configuredModelConfigID,
-	)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			p.logger.Warn(ctx,
-				"explore model override is unavailable, falling back to current turn model",
-				slog.F("model_config_id", configuredModelConfigID),
-			)
-			return fallback, nil
-		}
-		return uuid.Nil, xerrors.Errorf("get enabled chat model config by id: %w", err)
+}
+
+func validateModelConfigAndResolveProvider(
+	modelConfig database.ChatModelConfig,
+) (database.ChatModelConfig, string, error) {
+	if !modelConfig.Enabled {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
 		modelConfig.Model,
 		modelConfig.Provider,
 	)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("resolve Explore model provider: %w", err)
+		return database.ChatModelConfig{}, "", xerrors.Errorf(
+			"%w: %v",
+			errInvalidModelOverrideMetadata,
+			err,
+		)
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	return modelConfig, providerName, nil
+}
+
+func enabledProviderContainsName(
+	providers []database.ChatProvider,
+	providerName string,
+) bool {
+	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
+	for _, provider := range providers {
+		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Server) resolveConfiguredModelOverride(
+	ctx context.Context,
+	overrideContext string,
+	raw string,
+	ownerID uuid.UUID,
+	resolveModelConfig modelOverrideConfigResolver,
+	resolveProviderKeys modelOverrideProviderKeysResolver,
+) (database.ChatModelConfig, bool, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return database.ChatModelConfig{}, false, nil
+	}
+	configuredModelConfigID, err := uuid.Parse(trimmed)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("resolve provider API keys: %w", err)
+		p.logger.Info(ctx,
+			"invalid model override, ignoring",
+			slog.F("override_context", overrideContext),
+			slog.F("raw_model_config_id", trimmed),
+			slog.Error(err),
+		)
+		return database.ChatModelConfig{}, false, nil
 	}
-	if providerKeys.APIKey(providerName) == "" {
-		p.logger.Warn(ctx,
-			"explore model override credentials are unavailable, falling back to current turn model",
+	modelConfig, providerName, err := resolveModelConfig(
+		ctx,
+		configuredModelConfigID,
+	)
+	if err != nil {
+		switch {
+		case xerrors.Is(err, sql.ErrNoRows):
+			p.logger.Info(ctx,
+				"model override is unavailable, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+			)
+		case errors.Is(err, errInvalidModelOverrideMetadata):
+			p.logger.Info(ctx,
+				"model override metadata is invalid, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+				slog.Error(err),
+			)
+		default:
+			p.logger.Warn(ctx,
+				"failed to resolve model override, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+				slog.Error(err),
+			)
+		}
+		return database.ChatModelConfig{}, false, nil
+	}
+	providerKeys, err := resolveProviderKeys(ctx, ownerID)
+	if err != nil {
+		return database.ChatModelConfig{}, false, xerrors.Errorf(
+			"resolve provider API keys: %w",
+			err,
+		)
+	}
+	if providerKeys.APIKey(providerName) == "" &&
+		!(chatprovider.ProviderAllowsAmbientCredentials(providerName) &&
+			providerKeys.HasProvider(providerName)) {
+		p.logger.Info(ctx,
+			"model override credentials are unavailable, ignoring",
+			slog.F("override_context", overrideContext),
 			slog.F("model_config_id", configuredModelConfigID),
 			slog.F("provider", providerName),
 		)
-		return fallback, nil
+		return database.ChatModelConfig{}, false, nil
+	}
+	return modelConfig, true, nil
+}
+
+func (p *Server) resolveSubagentModelConfigID(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (uuid.UUID, error) {
+	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	raw, err := readSubagentModelOverride(chatdCtx, p.db, overrideContext)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf(
+			"get %s model override: %w",
+			subagentModelOverrideLogLabel(overrideContext),
+			err,
+		)
+	}
+	modelConfig, ok, err := p.resolveConfiguredModelOverride(
+		ctx,
+		string(overrideContext),
+		raw,
+		ownerID,
+		p.resolveModelConfigAndNormalizedProvider,
+		p.resolveUserProviderAPIKeys,
+	)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !ok {
+		return uuid.Nil, nil
 	}
 	return modelConfig.ID, nil
+}
+
+func (p *Server) resolveModelConfigAndNormalizedProvider(
+	ctx context.Context,
+	modelConfigID uuid.UUID,
+) (database.ChatModelConfig, string, error) {
+	if modelConfigID == uuid.Nil {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	enabledProviders, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	if !enabledProviderContainsName(enabledProviders, providerName) {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	return modelConfig, providerName, nil
 }
 
 func (p *Server) subagentTools(
@@ -444,7 +590,6 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
-
 	reloadedParent, err := p.db.GetChatByID(ctx, parent.ID)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to load parent chat for spawn_agent",
