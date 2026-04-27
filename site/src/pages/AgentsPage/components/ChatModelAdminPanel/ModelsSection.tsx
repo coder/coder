@@ -117,11 +117,18 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		return { mode: "list" };
 	})();
 
-	const setModelViewParam = (param: ModelViewParam, value: string) => {
+	const setModelViewParam = (
+		param: ModelViewParam,
+		value: string,
+		options?: { replace?: boolean },
+	) => {
 		const nextParams = new URLSearchParams(searchParams);
 		clearModelViewParams(nextParams);
 		nextParams.set(param, value);
-		setSearchParams(nextParams, { state: { pushed: true } });
+		setSearchParams(nextParams, {
+			replace: options?.replace,
+			state: options?.replace ? location.state : { pushed: true },
+		});
 	};
 
 	// Clear model-related search params and return to the list.
@@ -186,7 +193,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				selectedProviderState={effectiveProviderState}
 				onSelectedProviderChange={(provider) => {
 					if (view.mode === "add") {
-						setModelViewParam("newModel", provider);
+						setModelViewParam("newModel", provider, { replace: true });
 					}
 				}}
 				modelConfigsUnavailable={modelConfigsUnavailable}
