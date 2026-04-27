@@ -83,15 +83,6 @@ Specify automatic updates setting for the workspace (accepts 'always' or 'never'
 
 Specify the source workspace name to copy parameters from.
 
-### --use-parameter-defaults
-
-|             |                                                      |
-|-------------|------------------------------------------------------|
-| Type        | <code>bool</code>                                    |
-| Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
-
-Automatically accept parameter defaults when no value is provided.
-
 ### --no-wait
 
 |             |                                    |
@@ -135,6 +126,15 @@ Specify a file path with values for rich parameters defined in the template. The
 | Environment | <code>$CODER_RICH_PARAMETER_DEFAULT</code> |
 
 Rich parameter default values in the format "name=value".
+
+### --use-parameter-defaults
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
+
+Automatically accept parameter defaults when no value is provided.
 
 ### -O, --org
 

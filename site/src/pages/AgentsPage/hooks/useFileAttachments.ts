@@ -6,9 +6,14 @@ import {
 	useState,
 } from "react";
 import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { UploadState } from "../components/AgentChatInput";
 import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	formatAgentAttachmentTooLargeError,
+	formatAgentAttachmentUploadError,
+	maxAgentAttachmentSize,
+	readAgentAttachmentText,
+} from "../utils/fileAttachmentLimits";
 
 /** @internal Exported for testing. */
 export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
@@ -240,9 +245,7 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				const message = getErrorMessage(err, "Upload failed");
-				const detail = getErrorDetail(err);
-				const errorMessage = detail ? `${message} ${detail}` : message;
+				const errorMessage = formatAgentAttachmentUploadError(err);
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error",
@@ -254,7 +257,6 @@ export function useFileAttachments(
 	};
 
 	const handleAttach = (files: File[]) => {
-		const maxSize = 10 * 1024 * 1024; // 10 MB
 		setAttachments((prev) => [...prev, ...files]);
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
@@ -267,13 +269,8 @@ export function useFileAttachments(
 		});
 		// Read text content for preview, but skip oversized files.
 		for (const file of files) {
-			if (file.type === "text/plain" && file.size <= maxSize) {
-				// Defensive: some test environments lack File.prototype.text().
-				const readText =
-					typeof file.text === "function"
-						? file.text()
-						: new Response(file).text();
-				void readText
+			if (file.type === "text/plain" && file.size <= maxAgentAttachmentSize) {
+				void readAgentAttachmentText(file)
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);
@@ -287,11 +284,11 @@ export function useFileAttachments(
 			}
 		}
 		for (const file of files) {
-			if (file.size > maxSize) {
+			if (file.size > maxAgentAttachmentSize) {
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error" as const,
-						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+						error: formatAgentAttachmentTooLargeError(file.size),
 					}),
 				);
 			} else {

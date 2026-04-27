@@ -382,6 +382,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		content: renderTabContent(tab.id),
 	}));
 
+	const isEditing =
+		editing.editingMessageId !== null ||
+		editing.editingQueuedMessageID !== null;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -502,6 +506,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								initialEditorState={editing.initialEditorState}
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
+								isEditing={isEditing}
 								editingQueuedMessageID={editing.editingQueuedMessageID}
 								onStartQueueEdit={editing.handleStartQueueEdit}
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
