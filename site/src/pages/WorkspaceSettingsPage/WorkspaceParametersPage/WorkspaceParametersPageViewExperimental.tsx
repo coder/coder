@@ -88,7 +88,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			formInputs[parameter.name] = value;
 			sendMessage(formInputs);
 		},
-		500,
+		(parameter: PreviewParameter, _value: string) => {
+			// Return a debounce for string fields (those that involve typing) and
+			// zero debounce for all others (so the UI can react immediately).
+			return parameter.form_type === "input" ||
+				parameter.form_type === "textarea"
+				? 500
+				: 0;
+		},
 	);
 
 	const handleChange = async (
