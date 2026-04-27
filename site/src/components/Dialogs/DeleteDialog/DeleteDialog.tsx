@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { Input } from "../../Input/Input";
+import { Label } from "../../Label/Label";
 import { Stack } from "../../Stack/Stack";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
@@ -47,7 +48,12 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
 	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
+	const confirmationInputId = `${hookId}-confirm`;
+	const confirmationErrorId = `${confirmationInputId}-error`;
+	const confirmationLabel = label ?? `Name of the ${entity} to delete`;
+	const errorMessage = displayErrorMessage
+		? `${userConfirmationText} does not match the name of this ${entity}`
+		: undefined;
 
 	return (
 		<ConfirmDialog
@@ -75,30 +81,36 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 					</Stack>
 
 					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-6"
-							name="confirmation"
-							autoComplete="off"
-							id={`${hookId}-confirm`}
-							placeholder={name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
-							label={label ?? `Name of the ${entity} to delete`}
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this ${entity}`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
-						/>
+						<div className="mt-6 flex flex-col gap-2">
+							<Label htmlFor={confirmationInputId}>{confirmationLabel}</Label>
+							<Input
+								autoFocus
+								name="confirmation"
+								autoComplete="off"
+								id={confirmationInputId}
+								placeholder={name}
+								value={userConfirmationText}
+								onChange={(event) =>
+									setUserConfirmationText(event.target.value)
+								}
+								onFocus={() => setIsFocused(true)}
+								onBlur={() => setIsFocused(false)}
+								aria-invalid={displayErrorMessage}
+								aria-describedby={
+									errorMessage ? confirmationErrorId : undefined
+								}
+								data-testid="delete-dialog-name-confirmation"
+								className="text-content-primary"
+							/>
+							{errorMessage && (
+								<span
+									id={confirmationErrorId}
+									className="text-xs text-content-destructive"
+								>
+									{errorMessage}
+								</span>
+							)}
+						</div>
 					</form>
 				</>
 			}
