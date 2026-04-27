@@ -1,11 +1,15 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import DialogActions from "@mui/material/DialogActions";
 import type { FC, ReactNode } from "react";
 import {
 	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import {
 	DialogActionButtons,
 	type DialogActionButtonsProps,
-} from "../Dialog";
+} from "../DialogActionButtons";
 import type { ConfirmDialogType } from "../types";
 
 interface ConfirmDialogTypeConfig {
@@ -52,48 +56,6 @@ export interface ConfirmDialogProps
 	readonly title: string;
 }
 
-const styles = {
-	dialogWrapper: (theme) => ({
-		"& .MuiPaper-root": {
-			background: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-			width: "100%",
-			maxWidth: 440,
-		},
-		"& .MuiDialogActions-spacing": {
-			padding: "0 40px 40px",
-		},
-	}),
-	dialogContent: (theme) => ({
-		color: theme.palette.text.secondary,
-		padding: "40px 40px 20px",
-	}),
-	dialogTitle: (theme) => ({
-		margin: 0,
-		marginBottom: 16,
-		color: theme.palette.text.primary,
-		fontWeight: 400,
-		fontSize: 20,
-	}),
-	dialogDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-		fontSize: 16,
-
-		"& strong": {
-			color: theme.palette.text.primary,
-		},
-
-		"& p:not(.MuiFormHelperText-root)": {
-			margin: 0,
-		},
-
-		"& > p": {
-			margin: "8px 0",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
-
 /**
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
@@ -112,34 +74,42 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	type = "info",
 }) => {
 	const defaults = CONFIRM_DIALOG_DEFAULTS[type];
-
-	if (typeof hideCancel === "undefined") {
-		hideCancel = defaults.hideCancel;
-	}
+	const resolvedHideCancel = hideCancel ?? defaults.hideCancel;
 
 	return (
 		<Dialog
-			css={styles.dialogWrapper}
-			onClose={onClose}
 			open={open}
-			data-testid="dialog"
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onClose();
+				}
+			}}
 		>
-			<div css={styles.dialogContent}>
-				<h3 css={styles.dialogTitle}>{title}</h3>
-				{description && <div css={styles.dialogDescription}>{description}</div>}
-			</div>
+			<DialogContent className="max-w-[440px] gap-0 p-0" data-testid="dialog">
+				<div className="px-10 pb-5 pt-10">
+					<DialogTitle className="mb-4 font-normal">{title}</DialogTitle>
+					{description && (
+						<DialogDescription
+							asChild
+							className="text-base font-normal leading-[160%] text-content-secondary [&>p]:my-2 [&_p:not(.MuiFormHelperText-root)]:m-0 [&_strong]:text-content-primary"
+						>
+							<div>{description}</div>
+						</DialogDescription>
+					)}
+				</div>
 
-			<DialogActions>
-				<DialogActionButtons
-					cancelText={cancelText}
-					confirmLoading={confirmLoading}
-					confirmText={confirmText || defaults.confirmText}
-					disabled={disabled}
-					onCancel={!hideCancel ? onClose : undefined}
-					onConfirm={onConfirm || onClose}
-					type={type}
-				/>
-			</DialogActions>
+				<DialogFooter className="px-10 pb-10">
+					<DialogActionButtons
+						cancelText={cancelText}
+						confirmLoading={confirmLoading}
+						confirmText={confirmText || defaults.confirmText}
+						disabled={disabled}
+						onCancel={!resolvedHideCancel ? onClose : undefined}
+						onConfirm={onConfirm || onClose}
+						type={type}
+					/>
+				</DialogFooter>
+			</DialogContent>
 		</Dialog>
 	);
 };

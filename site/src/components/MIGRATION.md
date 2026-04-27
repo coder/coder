@@ -61,11 +61,11 @@ points for MUI replacement work.
 | `TextField`                            | `FormField` for form-backed labeled inputs, or `Input` for bare inputs      | `FormField` already wires label, helper text, errors, and accessible descriptions.  |
 | `Link`                                 | `#/components/Link/Link`                                                    | Use `asChild` when composing with router links or another anchor-like child.        |
 | `Select` plus `MenuItem`               | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, and `SelectItem` | This is the default closed-list replacement for finite options.                     |
-| `MenuItem` in action menus             | Menu primitives in a later slice                                            | Do not map action-menu items to `SelectItem`. Slice 1 documents the direction only. |
+| `MenuItem` in action menus             | `DropdownMenu` primitives                                                   | Do not map action-menu items to `SelectItem`. Use action-menu primitives instead.  |
 | `FormControlLabel`                     | `Checkbox` or `Switch` plus `Label`                                         | Keep explicit `id` and `htmlFor` wiring so the label activates the control.         |
 | `Checkbox`                             | `#/components/Checkbox/Checkbox`                                            | Use controlled state when indeterminate behavior is required.                       |
 | `CircularProgress`                     | `#/components/Spinner/Spinner`                                              | Use `loading` when wrapping fallback children.                                      |
-| `DialogActions`                        | `DialogFooter` when dialog wrappers are migrated                            | Existing dialog wrappers remain slice 2 scope.                                      |
+| `DialogActions`                        | `DialogFooter`                                                              | `ConfirmDialog` uses this mapping. New custom dialogs should use Radix primitives. |
 | `sx`, MUI `styled`, and MUI `useTheme` | Tailwind classes, design tokens, and CVA variants                           | Emotion cleanup remains final-cleanup scope.                                        |
 
 ## Examples
@@ -154,7 +154,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 
 ### DialogActions
 
-Use `DialogFooter` when dialog wrappers are migrated in slice 2.
+Use `DialogFooter` for action rows in Radix dialogs.
 
 ```tsx
 import { DialogFooter } from "#/components/Dialog/Dialog";
@@ -164,6 +164,25 @@ import { DialogFooter } from "#/components/Dialog/Dialog";
   <Button>Save</Button>
 </DialogFooter>;
 ```
+
+## Shared dialog wrappers
+
+`#/components/Dialogs/ConfirmDialog` is Radix-backed and remains the preferred
+shared wrapper for confirmation, deletion, success, and informational dialogs.
+It keeps the existing confirmation button behavior and uses `DialogFooter` for
+its action row.
+
+New custom dialogs should import primitives from `#/components/Dialog/Dialog`.
+Do not start new code from `#/components/Dialogs/Dialog`; that file is a
+temporary MUI compatibility shim for feature dialogs and type-only consumers
+that still rely on MUI `Dialog` behavior or `DialogProps`.
+
+## Menu wrapper findings
+
+Use `DropdownMenu` primitives for action menus. No reused shared MUI action-menu
+wrapper was migrated in slice 2. `SelectMenu` is deferred because it has no
+production callsites outside its own story. `DurationField` is deferred because
+it is form-field scope.
 
 ## Select versus Combobox
 
@@ -178,8 +197,12 @@ experience.
 
 ## Deferred work
 
-- Dialog and menu wrapper migrations are slice 2 scope.
-- Existing MUI callsite replacement is later slice scope.
+- `#/components/Dialogs/Dialog` remains a temporary MUI compatibility shim for
+  feature dialogs and type-only consumers that still need MUI `Dialog` props.
+- `SelectMenu` remains deferred until it has production callsites or a later
+  slice needs it as part of a broader menu migration.
+- `DurationField` and other form-field MUI usage remain form-field slice scope.
+- Existing feature callsite replacement is later slice scope.
 - MUI provider, theme, package, and Emotion cleanup remain final-cleanup scope.
 - Add new primitives only when a later slice proves the existing component
   inventory cannot cover the target migration.

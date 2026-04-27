@@ -7,14 +7,9 @@ import { DeleteDialog } from "./DeleteDialog";
 const inputTestId = "delete-dialog-name-confirmation";
 
 async function fillInputField(inputElement: HTMLElement, text: string) {
-	// 2023-10-06 - There's something wonky with MUI's ConfirmDialog that causes
-	// its state to update after a typing event gets  fired, and React Testing
-	// Library isn't able to catch it, making React DOM freak out because an
-	// "unexpected" state change happened. It won't fail the test, but it makes
-	// the console look really scary because it'll spit out a big warning message.
-	// Tried everything under the sun to catch the state changes the proper way,
-	// but the only way to get around it for now might be to manually make React
-	// DOM aware of the changes
+	// 2023-10-06: MUI's TextField can update state after a typing event fires,
+	// and React Testing Library is not able to catch it. Manually wrapping the
+	// event keeps React DOM aware of the changes.
 	return act(() => userEvent.type(inputElement, text));
 }
 

@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const meta: Meta<typeof ConfirmDialog> = {
 	title: "components/Dialogs/ConfirmDialog",
 	component: ConfirmDialog,
 	args: {
-		onClose: action("onClose"),
-		onConfirm: action("onConfirm"),
+		onClose: fn(),
+		onConfirm: fn(),
 		open: true,
 		title: "Confirm Dialog",
 	},
@@ -22,6 +22,23 @@ export const Example: Story = {
 		hideCancel: false,
 		type: "delete",
 	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+
+		expect(
+			body.getByRole("heading", { name: "Confirm Dialog" }),
+		).toBeInTheDocument();
+		expect(
+			body.getByText("Do you really want to delete me?"),
+		).toBeInTheDocument();
+
+		await user.click(body.getByRole("button", { name: "Cancel" }));
+		expect(args.onClose).toHaveBeenCalled();
+
+		await user.click(body.getByRole("button", { name: "Delete" }));
+		expect(args.onConfirm).toHaveBeenCalled();
+	},
 };
 
 export const InfoDialog: Story = {
@@ -29,6 +46,14 @@ export const InfoDialog: Story = {
 		description: "Information is cool!",
 		hideCancel: true,
 		type: "info",
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		expect(body.getByRole("button", { name: "OK" })).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Cancel" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -59,8 +84,15 @@ export const SuccessDialogWithCancel: Story = {
 export const SuccessDialogLoading: Story = {
 	args: {
 		description: "I am successful.",
-		hideCancel: true,
+		hideCancel: false,
 		type: "success",
 		confirmLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		expect(body.getByRole("button", { name: "Cancel" })).toBeDisabled();
+		expect(body.getByRole("button", { name: /OK/ })).toBeDisabled();
+		expect(body.getByTitle("Loading spinner")).toBeInTheDocument();
 	},
 };
