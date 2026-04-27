@@ -255,6 +255,14 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 // list of server configs. Missing files are silently skipped;
 // parse errors are logged and skipped.
 func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
+	// Stat before reading so the snapshot is conservatively old.
+	// If a file changes between stat and read, the snapshot
+	// records the old mtime, SnapshotChanged detects a mismatch
+	// on the next check, and triggers a re-read. False positives
+	// (extra reload) are safe; false negatives (missed change)
+	// are not.
+	snap := captureSnapshot(mcpConfigFiles)
+
 	var allConfigs []ServerConfig
 	for _, configPath := range mcpConfigFiles {
 		configs, err := ParseConfig(configPath)
@@ -281,15 +289,15 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 		seen[cfg.Name] = struct{}{}
 		deduped = append(deduped, cfg)
 	}
-	return deduped, captureSnapshot(mcpConfigFiles)
+	return deduped, snap
 }
 
 // classifyServers compares wanted configs against the current
 // server map and returns a diff describing what changed.
-// Acquires and releases m.mu.
+// Acquires and releases m.mu for reading.
 func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	if m.closed {
 		return nil, xerrors.New("manager closed")
@@ -425,9 +433,6 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	}
 	return snap
 }
-
-// connectServer establishes a connection to a single MCP server
-// and returns the connected client. It does not modify any Manager
 
 // Tools returns the cached tool list. Thread-safe.
 func (m *Manager) Tools() []workspacesdk.MCPToolInfo {
@@ -589,6 +594,9 @@ func (m *Manager) Close() error {
 	return errors.Join(errs...)
 }
 
+// connectServer establishes a connection to a single MCP server
+// and returns the connected client. It does not modify any Manager
+// state.
 func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
 	tr, err := m.createTransport(ctx, cfg)
 	if err != nil {
@@ -657,8 +665,8 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 }
 
 // buildEnv enriches the process environment via the agent's
-// updateCommandEnv callback, then merges explicit overrides
-// from the server config on top.
+// updateEnv callback, then merges explicit overrides from the
+// server config on top.
 func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
 	env := usershell.SystemEnvInfo{}.Environ()
 	if m.updateEnv != nil {

@@ -675,3 +675,34 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	assert.Same(t, origClient, sameClient,
 		"no-op reload should not replace the client")
 }
+
+// TestClose_SuppressesSubprocessExitError verifies that Close
+// returns nil when servers have running subprocesses that exit
+// with a kill signal during shutdown.
+func TestClose_SuppressesSubprocessExitError(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+
+	_, entry := fakeMCPServerConfig(t, "srv")
+	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	err := m.Reload(ctx, []string{configPath})
+	require.NoError(t, err)
+	require.Len(t, m.Tools(), 1, "server should be connected")
+
+	// Close kills the subprocess. The ExitError guard should
+	// suppress the "signal: killed" error.
+	err = m.Close()
+	assert.NoError(t, err, "Close should not propagate subprocess kill errors")
+}
