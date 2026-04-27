@@ -1,9 +1,21 @@
-import FormHelperText from "@mui/material/FormHelperText";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { ChevronDownIcon } from "lucide-react";
-import { type FC, useEffect, useReducer } from "react";
+import {
+	type FC,
+	type InputHTMLAttributes,
+	type ReactNode,
+	useEffect,
+	useId,
+	useReducer,
+} from "react";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { cn } from "#/utils/cn";
 import {
 	durationInDays,
 	durationInHours,
@@ -11,9 +23,17 @@ import {
 	type TimeUnit,
 } from "#/utils/time";
 
-type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
+type DurationFieldProps = Omit<
+	InputHTMLAttributes<HTMLInputElement>,
+	"onChange" | "value"
+> & {
 	valueMs: number;
 	onChange: (value: number) => void;
+	label?: ReactNode;
+	helperText?: ReactNode;
+	error?: boolean;
+	fullWidth?: boolean;
+	value?: InputHTMLAttributes<HTMLInputElement>["value"];
 };
 
 type State = {
@@ -64,8 +84,22 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 		valueMs: parentValueMs,
 		onChange,
 		helperText,
-		...textFieldProps
+		error,
+		label,
+		fullWidth: _fullWidth,
+		value: _value,
+		id,
+		className,
+		disabled,
+		inputMode,
+		step,
+		"aria-describedby": ariaDescribedBy,
+		...inputProps
 	} = props;
+	const generatedId = useId();
+	const inputId = id ?? generatedId;
+	const helperTextId = helperText ? `${inputId}-helper-text` : undefined;
+	const describedBy = [ariaDescribedBy, helperTextId].filter(Boolean).join(" ");
 	const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
 	const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
 
@@ -75,12 +109,52 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 		}
 	}, [currentDurationMs, parentValueMs]);
 
+	const handleUnitChange = (value: string) => {
+		if (!isTimeUnit(value)) {
+			return;
+		}
+
+		const unit = value;
+		dispatch({
+			type: "CHANGE_TIME_UNIT",
+			unit,
+		});
+
+		// Calculate the new duration in ms after changing the unit.
+		// Important: When changing from hours to days, we need to round up to
+		// nearest day but keep the millisecond value consistent for the parent
+		// component.
+		let newDurationMs: number;
+		if (unit === "hours") {
+			// When switching to hours, use the current milliseconds to get exact
+			// hours.
+			newDurationMs = currentDurationMs;
+		} else {
+			// When switching to days, round up to the nearest day.
+			const daysValue = Math.ceil(durationInDays(currentDurationMs));
+			newDurationMs = daysToDuration(daysValue);
+		}
+
+		// Notify parent component if the value has changed.
+		if (newDurationMs !== parentValueMs) {
+			onChange(newDurationMs);
+		}
+	};
+
 	return (
 		<div>
+			{label && (
+				<Label htmlFor={inputId} className="mb-2 block">
+					{label}
+				</Label>
+			)}
+
 			<div className="flex gap-2">
-				<TextField
-					{...textFieldProps}
-					fullWidth
+				<Input
+					{...inputProps}
+					id={inputId}
+					className={cn("min-w-0 flex-1", className)}
+					disabled={disabled}
 					value={state.durationFieldValue}
 					onChange={(e) => {
 						const durationFieldValue = intMask(e.currentTarget.value);
@@ -98,49 +172,40 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 							onChange(newDurationInMs);
 						}
 					}}
-					inputProps={{
-						step: 1,
-					}}
+					step={step ?? 1}
+					inputMode={inputMode ?? "numeric"}
+					aria-invalid={error || undefined}
+					aria-describedby={describedBy || undefined}
 				/>
 				<Select
-					disabled={props.disabled}
-					css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
+					disabled={disabled}
 					value={state.unit}
-					onChange={(e) => {
-						const unit = e.target.value as TimeUnit;
-						dispatch({
-							type: "CHANGE_TIME_UNIT",
-							unit,
-						});
-
-						// Calculate the new duration in ms after changing the unit
-						// Important: When changing from hours to days, we need to round up to nearest day
-						// but keep the millisecond value consistent for the parent component
-						let newDurationMs: number;
-						if (unit === "hours") {
-							// When switching to hours, use the current milliseconds to get exact hours
-							newDurationMs = currentDurationMs;
-						} else {
-							// When switching to days, round up to the nearest day
-							const daysValue = Math.ceil(durationInDays(currentDurationMs));
-							newDurationMs = daysToDuration(daysValue);
-						}
-
-						// Notify parent component if the value has changed
-						if (newDurationMs !== parentValueMs) {
-							onChange(newDurationMs);
-						}
-					}}
-					inputProps={{ "aria-label": "Time unit" }}
-					IconComponent={ChevronDownIcon}
+					onValueChange={handleUnitChange}
 				>
-					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem value="days">Days</MenuItem>
+					<SelectTrigger
+						disabled={disabled}
+						aria-label="Time unit"
+						className="w-[120px] shrink-0"
+					>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="hours">Hours</SelectItem>
+						<SelectItem value="days">Days</SelectItem>
+					</SelectContent>
 				</Select>
 			</div>
 
 			{helperText && (
-				<FormHelperText error={props.error}>{helperText}</FormHelperText>
+				<p
+					id={helperTextId}
+					className={cn(
+						"mt-2 text-xs",
+						error ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					{helperText}
+				</p>
 			)}
 		</div>
 	);
@@ -181,4 +246,8 @@ function hoursToDuration(hours: number): number {
 
 function daysToDuration(days: number): number {
 	return days * 24 * hoursToDuration(1);
+}
+
+function isTimeUnit(value: string): value is TimeUnit {
+	return value === "hours" || value === "days";
 }
