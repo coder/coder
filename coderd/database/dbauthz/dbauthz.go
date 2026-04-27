@@ -2223,10 +2223,10 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
-		return 0, err
+		return database.UserSecret{}, err
 	}
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
@@ -4376,6 +4376,10 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 		return nil, err
 	}
 	return q.db.GetUserNotificationPreferences(ctx, userID)
+}
+
+func (q *querier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
+	return fetch(q.log, q.auth, q.db.GetUserSecretByID)(ctx, id)
 }
 
 func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
