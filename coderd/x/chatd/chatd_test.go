@@ -2687,6 +2687,8 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	firstRunStarted := make(chan struct{})
+	secondRunStarted := make(chan struct{}, 1)
+	thirdRunStarted := make(chan struct{}, 1)
 	allowFirstRunFinish := make(chan struct{})
 	var requestCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -2709,15 +2711,27 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 			}()
 			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		case 2:
+			select {
+			case secondRunStarted <- struct{}{}:
+			default:
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("second run done")...)
 		case 3:
+			select {
+			case thirdRunStarted <- struct{}{}:
+			default:
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("third run done")...)
 		default:
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("extra run done")...)
 		}
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Disable periodic polling so chained promotions must be driven by
+		// signalWake.
+		cfg.PendingChatAcquireInterval = time.Hour
+	})
 	user, org, modelConfigA := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 	modelConfigB := insertChatModelConfigWithCallConfig(
 		ctx,
@@ -2769,9 +2783,9 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 
 	close(allowFirstRunFinish)
 
-	require.Eventually(t, func() bool {
-		return requestCount.Load() >= 3
-	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, secondRunStarted)
+	testutil.TryReceive(ctx, t, thirdRunStarted)
+	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
 	chatd.WaitUntilIdleForTest(server)
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -2825,6 +2839,7 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	firstRunStarted := make(chan struct{})
+	secondRunStarted := make(chan struct{}, 1)
 	allowFirstRunFinish := make(chan struct{})
 	var requestCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -2847,11 +2862,19 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 			}()
 			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		default:
+			select {
+			case secondRunStarted <- struct{}{}:
+			default:
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("fallback run done")...)
 		}
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Disable periodic polling so only signalWake can
+		// trigger the next processing run.
+		cfg.PendingChatAcquireInterval = time.Hour
+	})
 	user, org, modelConfig := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
@@ -2875,9 +2898,8 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 
 	close(allowFirstRunFinish)
 
-	require.Eventually(t, func() bool {
-		return requestCount.Load() >= 2
-	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, secondRunStarted)
+	require.GreaterOrEqual(t, requestCount.Load(), int32(2))
 	chatd.WaitUntilIdleForTest(server)
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -3000,8 +3022,6 @@ func TestPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	t.Parallel()
 
-	const acquireInterval = 10 * time.Millisecond
-
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -3013,27 +3033,14 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
-	acquireTrap := clock.Trap().NewTicker("chatd", "acquire")
-	defer acquireTrap.Close()
-
-	assertPendingWithoutQueuedMessages := func(chatID uuid.UUID) {
-		t.Helper()
-
-		queued, dbErr := db.GetChatQueuedMessages(ctx, chatID)
-		require.NoError(t, dbErr)
-		require.Empty(t, queued)
-
-		fromDB, dbErr := db.GetChatByID(ctx, chatID)
-		require.NoError(t, dbErr)
-		require.Equal(t, database.ChatStatusPending, fromDB.Status)
-		require.False(t, fromDB.WorkerID.Valid)
-	}
 
 	streamStarted := make(chan struct{})
 	interrupted := make(chan struct{})
-	secondRequestStarted := make(chan struct{})
-	thirdRequestStarted := make(chan struct{})
+	secondRequestStarted := make(chan struct{}, 1)
+	thirdRequestStarted := make(chan struct{}, 1)
 	allowFinish := make(chan struct{})
+	allowSecondRequestFinish := make(chan struct{})
+	allowThirdRequestFinish := make(chan struct{})
 	var requestCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -3061,9 +3068,35 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 			}()
 			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		case 2:
-			close(secondRequestStarted)
+			select {
+			case secondRequestStarted <- struct{}{}:
+			default:
+			}
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("second run partial")[0]
+				select {
+				case <-allowSecondRequestFinish:
+				case <-req.Context().Done():
+				}
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		case 3:
-			close(thirdRequestStarted)
+			select {
+			case thirdRequestStarted <- struct{}{}:
+			default:
+			}
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("third run partial")[0]
+				select {
+				case <-allowThirdRequestFinish:
+				case <-req.Context().Done():
+				}
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		}
 
 		return chattest.OpenAIStreamingResponse(
@@ -3073,10 +3106,11 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.Clock = clock
-		cfg.PendingChatAcquireInterval = acquireInterval
+		// Keep periodic polling frozen so request handoff is synchronized
+		// through explicit mock channels.
+		cfg.PendingChatAcquireInterval = time.Hour
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
-	acquireTrap.MustWait(ctx).MustRelease(ctx)
 
 	user, org, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
@@ -3090,7 +3124,6 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clock.Advance(acquireInterval).MustWait(ctx)
 	testutil.TryReceive(ctx, t, streamStarted)
 
 	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -3105,12 +3138,8 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	testutil.TryReceive(ctx, t, interrupted)
 
 	close(allowFinish)
-	chatd.WaitUntilIdleForTest(server)
-	assertPendingWithoutQueuedMessages(chat.ID)
+	testutil.TryReceive(ctx, t, secondRequestStarted)
 
-	// Keep the acquire loop frozen here so "queued" stays pending.
-	// That makes the later send queue because the chat is still busy,
-	// rather than because the scheduler happened to be slow.
 	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:  chat.ID,
 		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
@@ -3159,13 +3188,11 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clock.Advance(acquireInterval).MustWait(ctx)
-	testutil.TryReceive(ctx, t, secondRequestStarted)
-	chatd.WaitUntilIdleForTest(server)
-	assertPendingWithoutQueuedMessages(chat.ID)
-
-	clock.Advance(acquireInterval).MustWait(ctx)
+	close(allowSecondRequestFinish)
 	testutil.TryReceive(ctx, t, thirdRequestStarted)
+	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
+
+	close(allowThirdRequestFinish)
 	chatd.WaitUntilIdleForTest(server)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)

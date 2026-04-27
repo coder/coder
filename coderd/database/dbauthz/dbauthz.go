@@ -245,6 +245,7 @@ var (
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
+					rbac.ResourceUserSecret.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -5821,7 +5822,7 @@ func (q *querier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUI
 	// This query returns decrypted secret values and must only be called
 	// from system contexts (provisioner, agent manifest). REST API
 	// handlers should use ListUserSecrets (metadata only).
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserSecret); err != nil {
 		return nil, err
 	}
 	return q.db.ListUserSecretsWithValues(ctx, userID)

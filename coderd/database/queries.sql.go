@@ -14336,6 +14336,10 @@ func (q *sqlQuerier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID
 const insertWebpushSubscription = `-- name: InsertWebpushSubscription :one
 INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id, endpoint) DO UPDATE
+    SET endpoint_p256dh_key = EXCLUDED.endpoint_p256dh_key,
+        endpoint_auth_key   = EXCLUDED.endpoint_auth_key,
+        created_at          = EXCLUDED.created_at
 RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
 `
 
@@ -14347,6 +14351,10 @@ type InsertWebpushSubscriptionParams struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
+// Inserts or updates a webpush subscription. The (user_id, endpoint) pair
+// is unique; re-subscribing the same endpoint replaces the keys instead of
+// inserting a duplicate row. This is the recovery path after a PWA reinstall
+// on iOS, where the browser may keep the same endpoint with rotated keys.
 func (q *sqlQuerier) InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error) {
 	row := q.db.QueryRowContext(ctx, insertWebpushSubscription,
 		arg.UserID,

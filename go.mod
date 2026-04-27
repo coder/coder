@@ -83,13 +83,16 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
 // 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
 // 6) Anthropic EffortXHigh constant for Claude Opus 4.7
-// See: https://github.com/coder/fantasy/commits/5ab464a305f4
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260424191546-5ab464a305f4
+// 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
+//    replay stored reasoning item references, only replay web_search references
+//    when paired with reasoning, and validate function_call output pairing.
+// See: https://github.com/coder/fantasy/commits/f83367a4a205
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951a49c681df
 
-// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
-// additional performance improvements.
-// See: https://github.com/coder/anthropic-sdk-go/commits/a31d7d0e7067
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260415160422-a31d7d0e7067
+// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
+// with performance improvements and Bedrock header cleanup.
+// See: https://github.com/coder/anthropic-sdk-go/commits/3be8e193ec89
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260424230212-3be8e193ec89
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262
@@ -129,7 +132,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.14.0
-	github.com/coder/terraform-provider-coder/v2 v2.15.0
+	github.com/coder/terraform-provider-coder/v2 v2.16.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.18.0

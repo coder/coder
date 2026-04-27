@@ -759,6 +759,122 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 	require.Equal(t, "toolu_local", remainingToolCalls[0].ToolCallID)
 }
 
+func TestInjectMissingToolResults_SkipsProviderExecutedAndInjectsLocal(t *testing.T) {
+	t.Parallel()
+
+	providerCall := codersdk.ChatMessageToolCall(
+		"srvtoolu_web_search",
+		"web_search",
+		json.RawMessage(`{"query":"coder"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"toolu_read",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		providerCall,
+		localCall,
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{{
+		Role:           database.ChatMessageRoleAssistant,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        assistantContent,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}})
+
+	require.Len(t, prompt, 2, "expected assistant plus local synthetic tool result")
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+
+	toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
+	require.Len(t, toolCalls, 2)
+	require.Equal(t, "srvtoolu_web_search", toolCalls[0].ToolCallID)
+	require.True(t, toolCalls[0].ProviderExecuted)
+	require.Equal(t, "toolu_read", toolCalls[1].ToolCallID)
+	require.False(t, toolCalls[1].ProviderExecuted)
+
+	require.Equal(t, []string{"toolu_read"}, extractToolResultIDs(t, prompt[1]))
+	require.Len(t, prompt[1].Content, 1)
+	toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+	require.True(t, ok, "expected synthetic ToolResultPart")
+	require.Equal(t, "toolu_read", toolResult.ToolCallID)
+	require.False(t, toolResult.ProviderExecuted)
+	errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](toolResult.Output)
+	require.True(t, ok, "expected synthetic error output")
+	require.ErrorContains(t, errOutput.Error, "tool call was interrupted")
+}
+
+func TestInjectMissingToolResults_AdjacentAssistantsInjectLocalResults(t *testing.T) {
+	t.Parallel()
+
+	assistantAContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant a"),
+		codersdk.ChatMessageToolCall(
+			"toolu_a",
+			"read_file",
+			json.RawMessage(`{"path":"a.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	assistantBContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant b"),
+		codersdk.ChatMessageToolCall(
+			"toolu_b",
+			"read_file",
+			json.RawMessage(`{"path":"b.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("next user message"),
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantAContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantBContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        userContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	})
+
+	require.Len(t, prompt, 5)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[3].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[4].Role)
+	require.Equal(t, []string{"toolu_a"}, extractToolResultIDs(t, prompt[1]))
+	require.Equal(t, []string{"toolu_b"}, extractToolResultIDs(t, prompt[3]))
+
+	assistantAText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected assistant A text")
+	require.Equal(t, "assistant a", assistantAText.Text)
+	assistantBText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[2].Content[0])
+	require.True(t, ok, "expected assistant B text")
+	require.Equal(t, "assistant b", assistantBText.Text)
+	userText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[4].Content[0])
+	require.True(t, ok, "expected user text")
+	require.Equal(t, "next user message", userText.Text)
+}
+
 // TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
 // provider-executed tool results that end up after the wrong assistant
 // message (because they were persisted in a later step) are dropped

@@ -55,8 +55,11 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { formatProviderLabel } from "../utils/modelOptions";
-import type { UploadState } from "./AttachmentPreview";
-import { AttachmentPreview } from "./AttachmentPreview";
+import {
+	AttachmentPreview,
+	isUploadInProgress,
+	type UploadState,
+} from "./AttachmentPreview";
 import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import {
 	ChatMessageInput,
@@ -71,6 +74,7 @@ import { WorkspacePill } from "./WorkspacePill";
 
 export {
 	ImageThumbnail,
+	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -578,8 +582,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [isLoading]);
-	const isUploading = attachments.some(
-		(f) => uploadStates?.get(f)?.status === "uploading",
+	const hasActiveUploads = attachments.some((file) =>
+		isUploadInProgress(uploadStates?.get(file)),
 	);
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
@@ -594,7 +598,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
-		!isUploading;
+		!hasActiveUploads;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -606,7 +610,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!hasFileReferences &&
 			!isDisabled &&
 			!isLoading &&
-			!isUploading &&
+			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
 			onPromoteQueuedMessage
 		) {
@@ -618,7 +622,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			(!text && !hasUploadedAttachments && !hasFileReferences) ||
 			isDisabled ||
 			isLoading ||
-			isUploading ||
+			hasActiveUploads ||
 			!hasModelOptions
 		) {
 			return;
