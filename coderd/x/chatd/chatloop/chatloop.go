@@ -1227,13 +1227,7 @@ func persistPendingDynamicStep(
 		})
 	}
 
-	contextLimit := extractContextLimit(result.providerMetadata)
-	if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
-		contextLimit = sql.NullInt64{
-			Int64: opts.ContextLimitFallback,
-			Valid: true,
-		}
-	}
+	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
 
 	if err := opts.PersistStep(ctx, PersistedStep{
 		Content:                 result.content,
