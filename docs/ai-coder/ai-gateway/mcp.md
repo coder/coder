@@ -1,7 +1,10 @@
 # MCP
 
 > [!WARNING]
-> Injected MCP in AI Gateway is deprecated and will be removed in a future release.
+> Injected MCP in AI Gateway is deprecated. This feature will remain
+> functional and will not be removed until
+> [MCP Gateway](https://coder.com/docs/ai-coder/ai-gateway), its
+> replacement, is released.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
