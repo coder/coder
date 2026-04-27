@@ -380,6 +380,13 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// permission error.
 		return false, nil, nil
 	}
+	if res.StatusCode == http.StatusTooManyRequests {
+		// GitHub can return either 403 or 429 for rate limits.
+		// Treat 429 the same as a rate-limited 403: optimistically
+		// valid. The token was likely just issued by the IDP; the
+		// validation endpoint is transiently overloaded.
+		return true, nil, nil
+	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
@@ -1275,6 +1282,11 @@ func IsGithubDotComURL(str string) bool {
 // rather than a genuine authorization failure. It inspects two signals:
 //   - Primary rate limit: X-RateLimit-Remaining header is "0".
 //   - Secondary rate limit: Retry-After header is present.
+//
+// This covers the common rate-limit patterns documented by GitHub.
+// Edge cases exist (e.g. secondary limits without Retry-After) but
+// are not a regression since all 403s were previously treated as
+// invalid.
 func isRateLimited(resp *http.Response) bool {
 	if resp == nil {
 		return false

@@ -155,8 +155,8 @@ func TestIsFailedRefresh(t *testing.T) {
 			expected: true,
 		},
 		{
-			// Uses 403 status (excluded from Switch 2) so the only
-			// path to true is the error code match in Switch 1.
+			// Uses 403 status (excluded from the status code switch)
+			// so the only path to true is the error code switch.
 			name: "IncorrectClientCredentials_Status403",
 			err: &oauth2.RetrieveError{
 				Response:  &http.Response{StatusCode: http.StatusForbidden},
@@ -175,8 +175,8 @@ func TestIsFailedRefresh(t *testing.T) {
 			expected: true,
 		},
 		{
-			// Uses 403 status (excluded from Switch 2) so the only
-			// path to true is the error code match in Switch 1.
+			// Uses 403 status (excluded from the status code switch)
+			// so the only path to true is the error code switch.
 			name: "InvalidClient_Status403",
 			err: &oauth2.RetrieveError{
 				Response:  &http.Response{StatusCode: http.StatusForbidden},

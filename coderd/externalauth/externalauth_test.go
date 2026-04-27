@@ -559,6 +559,7 @@ func TestRefreshToken(t *testing.T) {
 		}))
 
 		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
 
 		// Expire the token to force a refresh.
 		link.OAuthExpiry = expired
@@ -579,7 +580,9 @@ func TestRefreshToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
-			"DB should have the refreshed token")
+			"DB should have the refreshed access token")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token (old one was rotated by the IDP)")
 	})
 
 	// SaveBeforeValidate_DBError tests that when the early DB save
@@ -826,6 +829,25 @@ func TestValidateToken(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.False(t, valid, "401 is always invalid, even with rate-limit headers")
+		assert.Nil(t, user)
+	})
+
+	// TooManyRequests: 429 is treated optimistically, same as a
+	// rate-limited 403. GitHub can return either status code for
+	// rate limits.
+	t.Run("TooManyRequests", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "429 should be treated as optimistically valid")
 		assert.Nil(t, user)
 	})
 }
