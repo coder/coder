@@ -72,10 +72,12 @@ const coerceConcrete = (
  * to review; a string-manipulation version would obscure edge cases
  * like the bare `dark`/`light` pair versus the hyphenated variants.
  */
-const FAMILY_PAIR: Record<
-	ConcreteThemeName,
-	{ light: ConcreteThemeName; dark: ConcreteThemeName }
-> = {
+type ThemeFamilyPair = {
+	light: ConcreteThemeName;
+	dark: ConcreteThemeName;
+};
+
+const FAMILY_PAIR = {
 	light: { light: "light", dark: "dark" },
 	dark: { light: "light", dark: "dark" },
 	"light-protan-deuter": {
@@ -88,7 +90,7 @@ const FAMILY_PAIR: Record<
 	},
 	"light-tritan": { light: "light-tritan", dark: "dark-tritan" },
 	"dark-tritan": { light: "light-tritan", dark: "dark-tritan" },
-};
+} satisfies Record<ConcreteThemeName, ThemeFamilyPair>;
 
 /**
  * Decodes the persisted appearance settings into the form's working

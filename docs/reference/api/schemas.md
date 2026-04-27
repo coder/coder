@@ -10623,8 +10623,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
-  "theme_dark": "string",
-  "theme_light": "string",
+  "theme_dark": "dark",
+  "theme_light": "light",
   "theme_mode": "sync",
   "theme_preference": "string"
 }
@@ -10642,9 +10642,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property     | Value(s)         |
-|--------------|------------------|
-| `theme_mode` | `single`, `sync` |
+| Property      | Value(s)                                       |
+|---------------|------------------------------------------------|
+| `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`    |
+| `theme_light` | `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_mode`  | `single`, `sync`                               |
 
 ## codersdk.UpdateUserNotificationPreferences
 

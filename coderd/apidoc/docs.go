@@ -21528,10 +21528,20 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "theme_dark": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
                 },
                 "theme_light": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan"
+                    ]
                 },
                 "theme_mode": {
                     "description": "ThemeMode is optional for backward compatibility. An empty value is\ntreated as \"single\" so older CLI clients that only send\ntheme_preference continue to work.",

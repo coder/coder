@@ -1903,6 +1903,63 @@ func TestUserThemeMode(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("invalid theme slots are rejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, tc := range []struct {
+			name       string
+			themeLight string
+			themeDark  string
+		}{
+			{
+				name:       "arbitrary light slot",
+				themeLight: "../../etc/passwd",
+				themeDark:  "dark",
+			},
+			{
+				name:       "arbitrary dark slot",
+				themeLight: "light",
+				themeDark:  "xss-payload",
+			},
+			{
+				name:       "dark theme in light slot",
+				themeLight: "dark",
+				themeDark:  "dark",
+			},
+			{
+				name:       "light theme in dark slot",
+				themeLight: "light",
+				themeDark:  "light",
+			},
+			{
+				name:       "empty light slot in sync mode",
+				themeLight: "",
+				themeDark:  "dark",
+			},
+			{
+				name:       "empty dark slot in sync mode",
+				themeLight: "light",
+				themeDark:  "",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+					ThemePreference: "dark",
+					ThemeMode:       codersdk.ThemeModeSync,
+					ThemeLight:      tc.themeLight,
+					ThemeDark:       tc.themeDark,
+					TerminalFont:    codersdk.TerminalFontGeistMono,
+				})
+				require.Error(t, err)
+			})
+		}
+	})
 }
 
 func TestUserTaskNotificationAlertDismissed(t *testing.T) {

@@ -281,21 +281,20 @@ type UserAppearanceSettings struct {
 }
 
 // UpdateUserAppearanceSettingsRequest is the payload for updating a
-// user's theme and terminal-font preferences. Theme names
-// (ThemePreference, ThemeLight, ThemeDark) are intentionally not
-// validated against a server-side allowlist: the client resolves
-// unknown names to the active OS color scheme via resolveThemeName at
-// render time, and migrateLegacyPreference sanitizes stale database
-// values on read. See site/src/theme/colorblind.ts and
-// site/src/theme/themeMode.ts.
+// user's theme and terminal-font preferences. ThemePreference is the
+// legacy mirror field and is intentionally not validated against a
+// server-side allowlist; clients sanitize unknown legacy names on read
+// via resolveThemeName and migrateLegacyPreference. ThemeLight and
+// ThemeDark are concrete sync slots. They are required in sync mode
+// and must be scheme-specific concrete theme names when present.
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 	// ThemeMode is optional for backward compatibility. An empty value is
 	// treated as "single" so older CLI clients that only send
 	// theme_preference continue to work.
 	ThemeMode    ThemeMode        `json:"theme_mode" validate:"omitempty,oneof=sync single"`
-	ThemeLight   string           `json:"theme_light"`
-	ThemeDark    string           `json:"theme_dark"`
+	ThemeLight   string           `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan"`
+	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
