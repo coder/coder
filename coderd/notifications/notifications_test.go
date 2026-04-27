@@ -1370,9 +1370,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			// Covers the singular-grammar branch ("chat was" / "it has")
-			// and the additional_archived_count overflow sentence.
-			name: "TemplateChatAutoArchiveDigestSingularOverflow",
+			// Covers the additional_archived_count overflow sentence.
+			// Production cannot produce overflow with a single
+			// visible chat (the cap is chatAutoArchiveDigestMaxChats
+			// and overflow only triggers when len > cap), so we use
+			// a realistic shape: multiple visible plus overflow.
+			name: "TemplateChatAutoArchiveDigestOverflow",
 			id:   notifications.TemplateChatAutoArchiveDigest,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -1384,8 +1387,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"retention_days":    "30",
 					"archived_chats": []map[string]any{
 						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
 					},
-					"additional_archived_count": "7",
+					"additional_archived_count": "6",
 				},
 			},
 		},

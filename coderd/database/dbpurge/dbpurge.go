@@ -74,8 +74,14 @@ func WithChatAutoArchiveBatchSize(n int32) Option {
 }
 
 // WithNotificationsEnqueuer sets the enqueuer used for digest
-// notifications. Defaults to notifications.NewNoopEnqueuer().
+// notifications. Defaults to notifications.NewNoopEnqueuer(). Panics
+// if e is nil: a nil enqueuer would NPE on the first dispatch tick,
+// and failing fast at option-apply time surfaces the misuse at
+// startup rather than minutes later.
 func WithNotificationsEnqueuer(e notifications.Enqueuer) Option {
+	if e == nil {
+		panic("developer error: WithNotificationsEnqueuer called with nil enqueuer")
+	}
 	return func(i *instance) { i.enqueuer = e }
 }
 
@@ -496,9 +502,14 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 		})
 	}
 
-	digestsByOwner := buildDigests(roots)
+	// Group archived roots by owner. Inline because this is the
+	// only call site and the loop body is self-explanatory.
+	rootsByOwner := make(map[uuid.UUID][]database.AutoArchiveInactiveChatsRow, len(roots))
+	for _, row := range roots {
+		rootsByOwner[row.OwnerID] = append(rootsByOwner[row.OwnerID], row)
+	}
 	dispatched := 0
-	for ownerID, ownerRoots := range digestsByOwner {
+	for ownerID, ownerRoots := range rootsByOwner {
 		// Check between iterations so shutdown unblocks promptly. A
 		// hung in-flight enqueue is unblocked by enqueueCtx propagating
 		// cancellation into the DB call. Skipped owners are not
@@ -507,7 +518,7 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 		// tradeoff over hanging shutdown.
 		if err := enqueueCtx.Err(); err != nil {
 			i.logger.Warn(enqueueCtx, "chat auto-archive digest dispatch canceled",
-				slog.F("remaining_owners", len(digestsByOwner)-dispatched),
+				slog.F("remaining_owners", len(rootsByOwner)-dispatched),
 				slog.Error(err))
 			return
 		}
@@ -531,17 +542,6 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 	}
 }
 
-// buildDigests groups roots by owner. Callers must pass the
-// already-filtered root slice; child-row filtering happens once at the
-// top of dispatchChatAutoArchive.
-func buildDigests(roots []database.AutoArchiveInactiveChatsRow) map[uuid.UUID][]database.AutoArchiveInactiveChatsRow {
-	out := make(map[uuid.UUID][]database.AutoArchiveInactiveChatsRow)
-	for _, row := range roots {
-		out[row.OwnerID] = append(out[row.OwnerID], row)
-	}
-	return out
-}
-
 // buildDigestData builds the notification payload; shape mirrors the
 // golden fixtures in coderd/notifications/testdata. Truncation keeps
 // the oldest archived roots (created_at ASC from the query) to
@@ -563,6 +563,11 @@ func buildDigestData(rows []database.AutoArchiveInactiveChatsRow, autoArchiveDay
 		})
 	}
 
+	// Stringify the int32 config values: the template's
+	// {{if eq .Data.retention_days "0"}} branch requires both
+	// operands to share a type, and Go templates do not coerce
+	// numeric ↔ string. Storing a raw int here would silently
+	// take the deletion-warning branch on every notification.
 	data := map[string]any{
 		"auto_archive_days": strconv.Itoa(int(autoArchiveDays)),
 		"retention_days":    strconv.Itoa(int(retentionDays)),
