@@ -1517,10 +1517,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 	}
 
 	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
+		ID:            message.ID,
+		ChatID:        message.ChatID,
+		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
+		Content:       parts,
+		CreatedAt:     message.CreatedAt,
 	}
 }
 

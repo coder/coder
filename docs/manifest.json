@@ -1268,6 +1268,12 @@
 									"description": "Automatic cleanup of old conversation data",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "Auto-Archive",
+									"description": "Automatic archiving of inactive conversations",
+									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
+									"state": ["early access"]
 								}
 							]
 						},

@@ -19499,6 +19499,16 @@
 			"enum": ["", "sync", "single"],
 			"x-enum-varnames": ["ThemeModeUnset", "ThemeModeSync", "ThemeModeSingle"]
 		},
+		"codersdk.ThinkingDisplayMode": {
+			"type": "string",
+			"enum": ["auto", "preview", "always_expanded", "always_collapsed"],
+			"x-enum-varnames": [
+				"ThinkingDisplayModeAuto",
+				"ThinkingDisplayModePreview",
+				"ThinkingDisplayModeAlwaysExpanded",
+				"ThinkingDisplayModeAlwaysCollapsed"
+			]
+		},
 		"codersdk.TimingStage": {
 			"type": "string",
 			"enum": [
@@ -19827,6 +19837,9 @@
 			"properties": {
 				"task_notification_alert_dismissed": {
 					"type": "boolean"
+				},
+				"thinking_display_mode": {
+					"$ref": "#/definitions/codersdk.ThinkingDisplayMode"
 				}
 			}
 		},
@@ -20268,6 +20281,9 @@
 			"properties": {
 				"task_notification_alert_dismissed": {
 					"type": "boolean"
+				},
+				"thinking_display_mode": {
+					"$ref": "#/definitions/codersdk.ThinkingDisplayMode"
 				}
 			}
 		},

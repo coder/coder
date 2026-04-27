@@ -21244,6 +21244,21 @@ const docTemplate = `{
                 "ThemeModeSingle"
             ]
         },
+        "codersdk.ThinkingDisplayMode": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "preview",
+                "always_expanded",
+                "always_collapsed"
+            ],
+            "x-enum-varnames": [
+                "ThinkingDisplayModeAuto",
+                "ThinkingDisplayModePreview",
+                "ThinkingDisplayModeAlwaysExpanded",
+                "ThinkingDisplayModeAlwaysCollapsed"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -21590,6 +21605,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -22060,6 +22078,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },

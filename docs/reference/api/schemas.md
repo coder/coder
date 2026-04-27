@@ -10337,6 +10337,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------|
 | ``, `single`, `sync` |
 
+## codersdk.ThinkingDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                 |
+|----------------------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto`, `preview` |
+
 ## codersdk.TimingStage
 
 ```json
@@ -10686,15 +10700,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                         | Required | Restrictions | Description |
+|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -11262,15 +11278,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                         | Required | Restrictions | Description |
+|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

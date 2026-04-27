@@ -223,6 +223,7 @@ const NotificationsPage: FC = () => {
 																		preferencesQuery.data
 																	) {
 																		updatePreferencesMutation.mutate({
+																			...preferencesQuery.data,
 																			task_notification_alert_dismissed: false,
 																		});
 																	}

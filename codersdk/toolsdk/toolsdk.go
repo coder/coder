@@ -432,11 +432,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
-		wsID, err := uuid.Parse(args.WorkspaceID)
-		if err != nil {
-			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
-		}
-		return deps.coderClient.Workspace(ctx, wsID)
+		return deps.coderClient.ResolveWorkspace(ctx, NormalizeWorkspaceInput(args.WorkspaceID))
 	},
 }
 
