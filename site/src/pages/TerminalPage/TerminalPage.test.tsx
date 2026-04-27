@@ -38,9 +38,8 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 const createWorkspaceTerminalWebSocket = () => {
-	const websocketProtocol =
-		window.location.protocol === "https:" ? "wss" : "ws";
-	const websocketUrl = `${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
+	const websocketProtocol = location.protocol === "https:" ? "wss" : "ws";
+	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
 
 	return new WS(websocketUrl);
 };

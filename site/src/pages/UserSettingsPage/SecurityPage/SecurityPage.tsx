@@ -42,7 +42,7 @@ const SecurityPage: FC = () => {
 						toast.success("Updated password.");
 						// Refresh the browser session. We need to improve the AuthProvider
 						// to include better API to handle these scenarios
-						window.location.href = location.origin;
+						location.href = location.origin;
 					},
 				},
 			}}

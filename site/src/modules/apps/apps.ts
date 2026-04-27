@@ -138,7 +138,7 @@ export const getAppHref = (
 	}
 
 	if (host && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
+		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
 		url.pathname = "/";
 		return url.toString();
