@@ -91,6 +91,15 @@ export const RolesLoading: Story = {
 	},
 };
 
+export const RolesError: Story = {
+	args: {
+		rolesError: mockApiError({
+			message: "Failed to fetch assignable roles.",
+		}),
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
 export const WithRoles: Story = {
 	args: {
 		availableRoles: mockAvailableRoles,

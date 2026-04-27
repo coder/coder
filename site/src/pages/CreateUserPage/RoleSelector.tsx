@@ -1,6 +1,8 @@
 import { UserIcon } from "lucide-react";
 import { type FC, useId } from "react";
+import { getErrorMessage } from "#/api/errors";
 import type { AssignableRoles } from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
@@ -20,6 +22,7 @@ interface RoleSelectorProps {
 	selectedRoles: string[];
 	onChange: (roles: string[]) => void;
 	loading?: boolean;
+	error?: unknown;
 }
 
 export const RoleSelector: FC<RoleSelectorProps> = ({
@@ -27,6 +30,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	selectedRoles,
 	onChange,
 	loading,
+	error,
 }) => {
 	const baseId = useId();
 	const selectableRoles = roles.filter(
@@ -65,6 +69,19 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 						<span className="text-sm">{roleDescriptions.member}</span>
 					</div>
 				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="flex flex-col gap-2">
+				<span className="text-sm font-medium">Roles</span>
+				<Alert severity="error">
+					<AlertTitle>
+						{getErrorMessage(error, "Failed to load roles.")}
+					</AlertTitle>
+				</Alert>
 			</div>
 		);
 	}

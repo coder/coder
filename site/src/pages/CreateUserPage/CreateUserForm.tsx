@@ -94,6 +94,7 @@ interface CreateUserFormProps {
 	serviceAccountsEnabled: boolean;
 	availableRoles?: TypesGen.AssignableRoles[];
 	rolesLoading?: boolean;
+	rolesError?: unknown;
 }
 
 // Stable reference for empty org options to avoid re-render loops
@@ -110,6 +111,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	serviceAccountsEnabled,
 	availableRoles,
 	rolesLoading,
+	rolesError,
 }) => {
 	const availableLoginTypes = [
 		authMethods?.password.enabled && "password",
@@ -346,6 +348,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 					{rolesLoading ? (
 						<RoleSelector
 							loading
+							roles={[]}
+							selectedRoles={[]}
+							onChange={() => {}}
+						/>
+					) : rolesError ? (
+						<RoleSelector
+							error={rolesError}
 							roles={[]}
 							selectedRoles={[]}
 							onChange={() => {}}
