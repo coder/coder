@@ -24,7 +24,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { EditRolesButton } from "./EditRolesButton";
+import { EditRolesButton } from "../../../modules/roles/EditRolesDialog";
 
 type UserRoleCellProps = {
 	isLoading: boolean;

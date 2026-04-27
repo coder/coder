@@ -7,7 +7,7 @@ import {
 	MockWorkspaceCreationBanRole,
 } from "#/testHelpers/entities";
 import { withDesktopViewport } from "#/testHelpers/storybook";
-import { EditRolesButton } from "./EditRolesButton";
+import { EditRolesButton } from "./EditRolesDialog";
 
 const meta: Meta<typeof EditRolesButton> = {
 	title: "pages/UsersPage/EditRolesButton",

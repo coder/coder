@@ -46,7 +46,7 @@ type Props = {
 	variant: ColumnHeader;
 };
 
-export const TableColumnHelpPopover: FC<Props> = ({ variant }) => {
+export const RolesHelpPopover: FC<Props> = ({ variant }) => {
 	const data = tooltipData[variant];
 
 	return (

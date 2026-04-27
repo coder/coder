@@ -1,13 +1,6 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import {
-	BanIcon,
-	EllipsisVertical,
-	KeyIcon,
-	ShieldIcon,
-	TrashIcon,
-	UserLockIcon,
-} from "lucide-react";
+import { EllipsisVertical, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
@@ -25,7 +18,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { TableCell, TableRow } from "#/components/Table/Table";
@@ -118,10 +110,6 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 							<Skeleton variant="text" width="25%" />
 						</TableCell>
 
-						<TableCell>
-							<Skeleton variant="text" width="25%" />
-						</TableCell>
-
 						{canEditUsers && (
 							<TableCell>
 								<Skeleton variant="text" width="25%" />
@@ -182,10 +170,6 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 
 						{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
 
-						<TableCell>
-							<LoginType authMethods={authMethods!} value={user.login_type} />
-						</TableCell>
-
 						<TableCell
 							className={cn(
 								"capitalize",
@@ -211,20 +195,8 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											<span className="sr-only">Open menu</span>
 										</Button>
 									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										{user.status === "active" || user.status === "dormant" ? (
-											<DropdownMenuItem
-												data-testid="suspend-button"
-												onClick={() => onSuspendUser(user)}
-											>
-												Suspend&hellip;
-											</DropdownMenuItem>
-										) : (
-											<DropdownMenuItem onClick={() => onActivateUser(user)}>
-												Activate&hellip;
-											</DropdownMenuItem>
-										)}
 
+									<DropdownMenuContent align="end">
 										<DropdownMenuItem onClick={() => onListWorkspaces(user)}>
 											View workspaces
 										</DropdownMenuItem>
@@ -242,12 +214,34 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											Edit
 										</DropdownMenuItem>
 
-										{user.login_type === "password" && (
+										<DropdownMenuItem
+											disabled={
+												user.login_type === "oidc" && oidcRoleSyncEnabled
+											}
+											onClick={() => navigate(user.username)}
+										>
+											Edit roles
+										</DropdownMenuItem>
+
+										{user.status !== "suspended" && (
 											<DropdownMenuItem
+												disabled={user.login_type === "password"}
 												onClick={() => onResetUserPassword(user)}
-												disabled={user.login_type !== "password"}
 											>
 												Reset password&hellip;
+											</DropdownMenuItem>
+										)}
+
+										{user.status === "active" || user.status === "dormant" ? (
+											<DropdownMenuItem
+												data-testid="suspend-button"
+												onClick={() => onSuspendUser(user)}
+											>
+												Suspend&hellip;
+											</DropdownMenuItem>
+										) : (
+											<DropdownMenuItem onClick={() => onActivateUser(user)}>
+												Activate&hellip;
 											</DropdownMenuItem>
 										)}
 
@@ -269,49 +263,5 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 				))}
 			</Cond>
 		</ChooseOne>
-	);
-};
-
-interface LoginTypeProps {
-	authMethods: TypesGen.AuthMethods;
-	value: TypesGen.LoginType;
-}
-
-const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
-	let displayName: string = value;
-	let icon = <></>;
-
-	if (value === "password") {
-		displayName = "Password";
-		icon = <UserLockIcon className="size-icon-xs" />;
-	} else if (value === "none") {
-		displayName = "None";
-		icon = <BanIcon className="size-icon-xs" />;
-	} else if (value === "github") {
-		displayName = "GitHub";
-		icon = <ExternalImage src="/icon/github.svg" className="size-icon-xs" />;
-	} else if (value === "token") {
-		displayName = "Token";
-		icon = <KeyIcon className="size-icon-xs" />;
-	} else if (value === "oidc") {
-		displayName =
-			authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
-		icon =
-			authMethods.oidc.iconUrl === "" ? (
-				<ShieldIcon className="size-icon-xs" />
-			) : (
-				<img
-					alt="Open ID Connect icon"
-					src={authMethods.oidc.iconUrl}
-					className="size-icon-xs"
-				/>
-			);
-	}
-
-	return (
-		<div className="flex items-center gap-2 text-sm">
-			{icon}
-			{displayName}
-		</div>
 	);
 };
