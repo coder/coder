@@ -1,8 +1,9 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import type { UserAppearanceSettings } from "#/api/typesGenerated";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { AppearanceForm } from "./AppearanceForm";
 import AppearancePage from "./AppearancePage";
 
 // Helper for building a mock PUT response. The shape is a full
@@ -95,5 +96,31 @@ describe("appearance page", () => {
 				terminal_font: "fira-code",
 			}),
 		);
+	});
+
+	it("ignores repeated submits while an update is in flight", async () => {
+		let resolveSubmit: ((value: UserAppearanceSettings) => void) | undefined;
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((resolve) => {
+					resolveSubmit = resolve;
+				}),
+		);
+
+		render(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+		fireEvent.click(screen.getByRole("radio", { name: /dark default/i }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(resolveSubmit).toBeDefined();
+		resolveSubmit?.(putResponse());
+		await Promise.resolve();
 	});
 });

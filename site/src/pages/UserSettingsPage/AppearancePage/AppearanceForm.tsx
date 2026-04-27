@@ -1,4 +1,4 @@
-import { type FC, useMemo, useState } from "react";
+import { type FC, useMemo, useRef, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -80,13 +80,25 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		() => initialValues.terminal_font || DEFAULT_TERMINAL_FONT,
 		[initialValues.terminal_font],
 	);
+	const submitInFlightRef = useRef(false);
 
 	const submit = (next: ThemeModeDraft, terminalFont: TerminalFontName) => {
-		if (isUpdating) {
+		if (isUpdating || submitInFlightRef.current) {
 			return;
 		}
+		submitInFlightRef.current = true;
 		setDraft(next);
-		return onSubmit(stateToUpdate(next, terminalFont));
+		try {
+			const submitted = onSubmit(stateToUpdate(next, terminalFont));
+			const resetSubmitInFlight = () => {
+				submitInFlightRef.current = false;
+			};
+			void submitted.then(resetSubmitInFlight, resetSubmitInFlight);
+			return submitted;
+		} catch (error) {
+			submitInFlightRef.current = false;
+			throw error;
+		}
 	};
 
 	const onChangeMode = (mode: "sync" | "single") => {
