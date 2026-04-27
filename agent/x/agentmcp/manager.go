@@ -73,7 +73,7 @@ type Manager struct {
 	tools       []workspacesdk.MCPToolInfo
 	snapshot    map[string]fileSnapshot
 	serverGen   uint64
-	reloadGroup tailscalesingleflight.Group[string, error]
+	reloadGroup tailscalesingleflight.Group[string, struct{}]
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -408,16 +408,16 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	// consulted; the next SnapshotChanged check after this
 	// reload completes will detect the mismatch and trigger
 	// a fresh reload.
-	ch := m.reloadGroup.DoChan("", func() (error, error) {
+	ch := m.reloadGroup.DoChan("", func() (struct{}, error) {
 		err := m.doReload(m.ctx, paths)
-		return err, nil
+		return struct{}{}, err
 	})
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case res := <-ch:
-		return res.Val
+		return res.Err
 	}
 }
 
@@ -736,7 +736,15 @@ func (m *Manager) Close() error {
 	m.closed = true
 	var errs []error
 	for _, entry := range m.servers {
-		errs = append(errs, entry.client.Close())
+		if err := entry.client.Close(); err != nil {
+			// Subprocess kill signals are expected during shutdown.
+			// The stdio transport returns cmd.Wait() which surfaces
+			// "signal: killed" as an exec.ExitError.
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
+				errs = append(errs, err)
+			}
+		}
 	}
 	m.servers = make(map[string]*serverEntry)
 	m.tools = nil
