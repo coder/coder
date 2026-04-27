@@ -435,6 +435,16 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch task", slog.Error(err))
 		}
 		return task.DeletedAt.Valid && task.DeletedAt.Time.Before(time.Now())
+	case database.ResourceTypeChat:
+		// Chats are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		if err != nil {
+			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
+		}
+		return false
 	default:
 		return false
 	}
@@ -522,6 +532,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
 
+	case database.ResourceTypeChat:
+		// Chats are surfaced at /agents/{id}. They are owner-scoped but
+		// not username-scoped in the URL like workspaces or tasks.
+		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
 	default:
 		return ""
 	}

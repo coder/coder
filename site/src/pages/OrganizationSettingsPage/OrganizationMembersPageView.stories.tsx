@@ -17,7 +17,16 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 	args: {
 		canEditMembers: true,
 		error: undefined,
-		isAddingMember: false,
+		filterProps: {
+			filter: {
+				query: "",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: false,
+			},
+		},
 		isUpdatingMemberRoles: false,
 		canViewMembers: true,
 		me: MockUserOwner,
@@ -33,7 +42,7 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 			...mockSuccessResult,
 			totalRecords: 2,
 		} as UsePaginatedQueryResult,
-		addMember: () => Promise.resolve(),
+		addMembers: () => Promise.resolve(),
 		removeMember: () => Promise.resolve(),
 		updateMemberRoles: () => Promise.resolve(),
 	},
@@ -87,12 +96,6 @@ export const WithError: Story = {
 export const NoEdit: Story = {
 	args: {
 		canEditMembers: false,
-	},
-};
-
-export const AddingMember: Story = {
-	args: {
-		isAddingMember: true,
 	},
 };
 

@@ -11,18 +11,24 @@ import (
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Encoding  string `json:"encoding" validate:"required"`
+	// AgentName optionally selects a specific agent when multiple
+	// agents share the same instance identity. An empty string is
+	// treated as unspecified.
+	AgentName string `json:"agent_name,omitempty"`
 }
 
 // AzureSessionTokenExchanger exchanges Azure attested metadata for a Coder session token.
 // @typescript-ignore AzureSessionTokenExchanger
 type AzureSessionTokenExchanger struct {
-	client *codersdk.Client
+	client    *codersdk.Client
+	agentName string
 }
 
-func WithAzureInstanceIdentity() SessionTokenSetup {
+func WithAzureInstanceIdentity(opts ...InstanceIdentityOption) SessionTokenSetup {
+	cfg := applyInstanceIdentityOptions(opts)
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &InstanceIdentitySessionTokenProvider{
-			TokenExchanger: &AzureSessionTokenExchanger{client: client},
+			TokenExchanger: &AzureSessionTokenExchanger{client: client, agentName: cfg.AgentName},
 		}
 	}
 }
@@ -46,6 +52,7 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 	if err != nil {
 		return AuthenticateResponse{}, err
 	}
+	token.AgentName = a.agentName
 
 	res, err = a.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
 	if err != nil {

@@ -2,6 +2,7 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"iter"
 	"strings"
@@ -9,13 +10,16 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -99,6 +103,150 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[2]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[3]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
+}
+
+func TestRun_ActiveToolsRejectsDisallowedExecution(t *testing.T) {
+	t.Parallel()
+
+	var blockedCalls atomic.Int32
+	blockedToolName := "write_file"
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-blocked", ToolCallName: blockedToolName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-blocked", Delta: `{"path":"/tmp/nope"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-blocked"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-blocked",
+					ToolCallName:  blockedToolName,
+					ToolCallInput: `{"path":"/tmp/nope"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	blockedTool := fantasy.NewAgentTool(
+		blockedToolName,
+		"blocked tool",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			blockedCalls.Add(1)
+			return fantasy.NewTextResponse("should not run"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "try the blocked tool"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool(activeToolName),
+			blockedTool,
+		},
+		ActiveTools: []string{activeToolName},
+		MaxSteps:    1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Zero(t, blockedCalls.Load(), "disallowed tool must not execute")
+
+	var foundToolError bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != blockedToolName {
+			continue
+		}
+		errResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok)
+		assert.EqualError(t, errResult.Error, "Tool not active in this turn: "+blockedToolName)
+		foundToolError = true
+	}
+	require.True(t, foundToolError, "persisted step should include the rejected tool result")
+}
+
+func TestRun_ActiveToolsAllowsProviderRunnerExecution(t *testing.T) {
+	t.Parallel()
+
+	providerRunnerName := "computer"
+	var runnerCalls atomic.Int32
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-provider-runner", ToolCallName: providerRunnerName},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-provider-runner", Delta: `{}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-provider-runner"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-provider-runner",
+					ToolCallName:  providerRunnerName,
+					ToolCallInput: `{}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	runnerTool := fantasy.NewAgentTool(
+		providerRunnerName,
+		"provider runner",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			runnerCalls.Add(1)
+			return fantasy.NewTextResponse("ran provider runner"), nil
+		},
+	)
+
+	var persistedStep PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "use the computer"),
+		},
+		Tools:       []fantasy.AgentTool{newNoopTool(activeToolName)},
+		ActiveTools: []string{activeToolName},
+		ProviderTools: []ProviderTool{
+			{
+				Definition: fantasy.FunctionTool{
+					Name:        providerRunnerName,
+					Description: "provider runner",
+					InputSchema: map[string]any{
+						"type":       "object",
+						"properties": map[string]any{},
+					},
+				},
+				Runner: runnerTool,
+			},
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), runnerCalls.Load(),
+		"provider runner should execute even when omitted from active tools")
+
+	var foundToolResult bool
+	for _, block := range persistedStep.Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != providerRunnerName {
+			continue
+		}
+		textResult, ok := toolResult.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok)
+		assert.Equal(t, "ran provider runner", textResult.Text)
+		foundToolResult = true
+	}
+	require.True(t, foundToolResult,
+		"persisted step should include the provider runner result")
 }
 
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
@@ -344,6 +492,85 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 		require.ErrorIs(t, cause, errStartupTimeout)
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for startup timeout cause")
+	}
+}
+
+// TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout proves the
+// provider comes from Model.Provider() (not from sniffing the error
+// text) by using an error string with no provider hint and running
+// the same assertion across two providers.
+func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
+	t.Parallel()
+
+	providers := []string{"anthropic", "openai"}
+	for _, provider := range providers {
+		t.Run(provider, func(t *testing.T) {
+			t.Parallel()
+
+			const startupTimeout = 5 * time.Millisecond
+
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				testutil.WaitShort,
+			)
+			defer cancel()
+
+			mClock := quartz.NewMock(t)
+			trap := mClock.Trap().AfterFunc("startupGuard")
+			defer trap.Close()
+
+			attempts := 0
+			var retries []chatretry.ClassifiedError
+			model := &chattest.FakeModel{
+				ProviderName: provider,
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					attempts++
+					if attempts == 1 {
+						// Bare transport error; Provider must
+						// come from Model.Provider().
+						return nil, xerrors.New(
+							"http2: client connection force closed via ClientConn.Close",
+						)
+					}
+					return streamFromParts([]fantasy.StreamPart{{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+					}}), nil
+				},
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- Run(context.Background(), RunOptions{
+					Model:          model,
+					MaxSteps:       1,
+					StartupTimeout: startupTimeout,
+					Clock:          mClock,
+					PersistStep: func(_ context.Context, _ PersistedStep) error {
+						return nil
+					},
+					OnRetry: func(
+						_ int,
+						_ error,
+						classified chatretry.ClassifiedError,
+						_ time.Duration,
+					) {
+						retries = append(retries, classified)
+					},
+				})
+			}()
+
+			// One guard per attempt.
+			trap.MustWait(ctx).MustRelease(ctx)
+			trap.MustWait(ctx).MustRelease(ctx)
+
+			require.NoError(t, awaitRunResult(ctx, t, done))
+			require.Equal(t, 2, attempts)
+			require.Len(t, retries, 1)
+			require.Equal(t, chaterror.KindTimeout, retries[0].Kind, "Kind")
+			require.True(t, retries[0].Retryable, "Retryable")
+			require.Equal(t, provider, retries[0].Provider, "Provider")
+		})
 	}
 }
 
@@ -792,6 +1019,95 @@ func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
 	}
 }
 
+func requireNoProviderExecutedToolCallContent(t *testing.T, content []fantasy.Content) {
+	t.Helper()
+
+	for i, block := range content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && toolCall.ProviderExecuted {
+			t.Fatalf("content[%d]: unexpected provider-executed call", i)
+		}
+	}
+}
+
+func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.Content) {
+	t.Helper()
+
+	for i, block := range content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if ok && toolResult.ProviderExecuted {
+			t.Fatalf("content[%d]: unexpected provider-executed result", i)
+		}
+	}
+}
+
+func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+
+	for i, message := range prompt {
+		for j, part := range message.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ProviderExecuted {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed call", i, j)
+			}
+		}
+	}
+}
+
+func requireTextContent(t *testing.T, content []fantasy.Content, text string) fantasy.TextContent {
+	t.Helper()
+
+	for _, block := range content {
+		textContent, ok := fantasy.AsContentType[fantasy.TextContent](block)
+		if ok && textContent.Text == text {
+			return textContent
+		}
+	}
+	t.Fatalf("missing text content %q", text)
+	return fantasy.TextContent{}
+}
+
+func requireToolCallContent(t *testing.T, content []fantasy.Content, id, name string) fantasy.ToolCallContent {
+	t.Helper()
+
+	for _, block := range content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && toolCall.ToolCallID == id && toolCall.ToolName == name {
+			return toolCall
+		}
+	}
+	t.Fatalf("missing tool call %q", id)
+	return fantasy.ToolCallContent{}
+}
+
+func requireToolResultContent(t *testing.T, content []fantasy.Content, id, name string) fantasy.ToolResultContent {
+	t.Helper()
+
+	for _, block := range content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if ok && toolResult.ToolCallID == id && toolResult.ToolName == name {
+			return toolResult
+		}
+	}
+	t.Fatalf("missing tool result %q", id)
+	return fantasy.ToolResultContent{}
+}
+
+func requireToolResultPrompt(t *testing.T, prompt []fantasy.Message, id string) fantasy.ToolResultPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if ok && toolResult.ToolCallID == id {
+				return toolResult
+			}
+		}
+	}
+	t.Fatalf("missing prompt tool result %q", id)
+	return fantasy.ToolResultPart{}
+}
+
 func containsPromptSentinel(prompt []fantasy.Message) bool {
 	for _, message := range prompt {
 		if message.Role != fantasy.MessageRoleUser || len(message.Content) != 1 {
@@ -921,6 +1237,144 @@ func TestRun_MultiStepToolExecution(t *testing.T) {
 		"tool-result timestamp must be >= tool-call timestamp")
 }
 
+func TestStopAfterTool_Success(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-plan",
+					ToolCallName:  "propose_plan",
+					ToolCallInput: `{"path":"/tmp/plan.md"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("plan saved"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	persistStepCalls := 0
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistStepCalls++
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrStopAfterTool)
+	require.Equal(t, 1, streamCalls)
+	require.Equal(t, 1, persistStepCalls)
+	require.Len(t, persistedSteps, 1)
+
+	var foundToolResult bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		foundToolResult = true
+		_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+		require.False(t, isErr, "stop-after-tool should only trigger on successful tool results")
+	}
+	require.True(t, foundToolResult, "persisted step should include the successful tool result before stopping")
+}
+
+func TestStopAfterTool_IgnoresErrorResults(t *testing.T) {
+	t.Parallel()
+
+	streamCalls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			if streamCalls == 1 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-plan", ToolCallName: "propose_plan"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-plan", Delta: `{"path":"/tmp/plan.md"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-plan"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-plan",
+						ToolCallName:  "propose_plan",
+						ToolCallInput: `{"path":"/tmp/plan.md"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "tool failed, continue"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	proposePlanTool := fantasy.NewAgentTool(
+		"propose_plan",
+		"writes a plan",
+		func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("plan failed"), nil
+		},
+	)
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "propose a plan"),
+		},
+		Tools:    []fantasy.AgentTool{proposePlanTool},
+		MaxSteps: 5,
+		StopAfterTools: map[string]struct{}{
+			"propose_plan": {},
+		},
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+
+	var foundToolError bool
+	for _, block := range persistedSteps[0].Content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || toolResult.ToolName != "propose_plan" {
+			continue
+		}
+		_, foundToolError = toolResult.Result.(fantasy.ToolResultOutputContentError)
+	}
+	require.True(t, foundToolError, "first step should persist the failed tool result")
+}
+
 func TestRun_ParallelToolExecutionTimestamps(t *testing.T) {
 	t.Parallel()
 
@@ -1048,7 +1502,7 @@ func TestRun_PersistStepErrorPropagates(t *testing.T) {
 
 // TestRun_ShutdownDuringToolExecutionReturnsContextCanceled verifies that
 // when the parent context is canceled (simulating server shutdown) while
-// a tool is blocked, Run returns context.Canceled — not ErrInterrupted.
+// a tool is blocked, Run returns context.Canceled, not ErrInterrupted.
 // This matters because the caller uses the error type to decide whether
 // to set chat status to "pending" (retryable on another worker) vs
 // "waiting" (stuck forever).
@@ -1130,7 +1584,7 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	<-serverCancelDone
 
 	require.Error(t, err)
-	// The error must NOT be ErrInterrupted — it should propagate
+	// The error must NOT be ErrInterrupted, it should propagate
 	// as context.Canceled so the caller can distinguish shutdown
 	// from user interruption. Use assert (not require) so both
 	// checks are evaluated even if the first fails.
@@ -1150,7 +1604,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"query":"coder"}`,
 				ProviderExecuted: true,
 			},
-			// Provider-executed tool result — must stay in
+			// Provider-executed tool result, must stay in
 			// assistant message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "provider-tc-1",
@@ -1165,7 +1619,7 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 				Input:            `{"path":"main.go"}`,
 				ProviderExecuted: false,
 			},
-			// Local tool result — should go into tool message.
+			// Local tool result, should go into tool message.
 			fantasy.ToolResultContent{
 				ToolCallID:       "local-tc-1",
 				ToolName:         "read_file",
@@ -1219,28 +1673,28 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 
 	sr := stepResult{
 		content: []fantasy.Content{
-			// Empty text — should be filtered.
+			// Empty text, should be filtered.
 			fantasy.TextContent{Text: ""},
-			// Whitespace-only text — should be filtered.
+			// Whitespace-only text, should be filtered.
 			fantasy.TextContent{Text: "   \t\n"},
-			// Empty reasoning — should be filtered.
+			// Empty reasoning, should be filtered.
 			fantasy.ReasoningContent{Text: ""},
-			// Whitespace-only reasoning — should be filtered.
+			// Whitespace-only reasoning, should be filtered.
 			fantasy.ReasoningContent{Text: "  \n"},
-			// Non-empty text — should pass through.
+			// Non-empty text, should pass through.
 			fantasy.TextContent{Text: "hello world"},
-			// Leading/trailing whitespace with content — kept
+			// Leading/trailing whitespace with content, kept
 			// with the original value (not trimmed).
 			fantasy.TextContent{Text: "  hello  "},
-			// Non-empty reasoning — should pass through.
+			// Non-empty reasoning, should pass through.
 			fantasy.ReasoningContent{Text: "let me think"},
-			// Tool call — should be unaffected by filtering.
+			// Tool call, should be unaffected by filtering.
 			fantasy.ToolCallContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
 				Input:      `{"path":"main.go"}`,
 			},
-			// Local tool result — should be unaffected by filtering.
+			// Local tool result, should be unaffected by filtering.
 			fantasy.ToolResultContent{
 				ToolCallID: "tc-1",
 				ToolName:   "read_file",
@@ -1265,7 +1719,7 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 	require.True(t, ok, "part 0 should be TextPart")
 	assert.Equal(t, "hello world", textPart.Text)
 
-	// Part 1: padded text — original whitespace preserved.
+	// Part 1: padded text, original whitespace preserved.
 	paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](assistantMsg.Content[1])
 	require.True(t, ok, "part 1 should be TextPart")
 	assert.Equal(t, "  hello  ", paddedPart.Text)
@@ -1431,7 +1885,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			// Simulate a provider-executed tool call and result
 			// (e.g. Anthropic web search) followed by a text
-			// response — all in a single stream.
+			// response, all in a single stream.
 			return streamFromParts([]fantasy.StreamPart{
 				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
 				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
@@ -1443,7 +1897,7 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 					ToolCallInput:    `{"query":"coder"}`,
 					ProviderExecuted: true,
 				},
-				// Provider-executed tool result — emitted by
+				// Provider-executed tool result, emitted by
 				// the provider, not our tool runner.
 				{
 					Type:             fantasy.StreamPartTypeToolResult,
@@ -1488,6 +1942,384 @@ func TestRun_ProviderExecutedToolResultTimestamps(t *testing.T) {
 	require.False(t,
 		step.ToolResultCreatedAt["ws-1"].Before(step.ToolCallCreatedAt["ws-1"]),
 		"tool-result timestamp must be >= tool-call timestamp")
+}
+
+func TestRun_AnthropicDropsUnpairedProviderToolBeforePersist(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		toolName  string
+		toolInput string
+	}{
+		{
+			name:      "web_search",
+			toolName:  "web_search",
+			toolInput: `{"query":"coder"}`,
+		},
+		{
+			name:      "code_execution",
+			toolName:  "code_execution",
+			toolInput: `{"code":"print(1)"}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &chattest.FakeModel{
+				ProviderName: fantasyanthropic.Name,
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "pt-1", ToolCallName: tc.toolName, ProviderExecuted: true},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "pt-1", Delta: tc.toolInput, ProviderExecuted: true},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "pt-1"},
+						{
+							Type:             fantasy.StreamPartTypeToolCall,
+							ID:               "pt-1",
+							ToolCallName:     tc.toolName,
+							ToolCallInput:    tc.toolInput,
+							ProviderExecuted: true,
+						},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					}), nil
+				},
+			}
+
+			persistCalls := 0
+			err := Run(context.Background(), RunOptions{
+				Model: model,
+				Messages: []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "run provider tool"),
+				},
+				MaxSteps: 1,
+				PersistStep: func(_ context.Context, _ PersistedStep) error {
+					persistCalls++
+					return nil
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, 0, persistCalls)
+		})
+	}
+}
+
+func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+				{
+					Type:             fantasy.StreamPartTypeToolCall,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ToolCallInput:    `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				{
+					Type:             fantasy.StreamPartTypeToolResult,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				},
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "ws-1", "web_search")
+	require.True(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "ws-1", "web_search")
+	require.True(t, toolResult.ProviderExecuted)
+	requireTextContent(t, persistedSteps[0].Content, "search done")
+}
+
+func TestRun_AnthropicInterruptedWebSearchDoesNotPersistSyntheticResult(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputStart,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputDelta,
+					ID:               "ws-1",
+					Delta:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				close(started)
+				<-ctx.Done()
+				_ = yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: ctx.Err(),
+				})
+			}), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		<-started
+		cancel(ErrInterrupted)
+	}()
+
+	persistCalls := 0
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			persistCalls++
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+	require.Equal(t, 0, persistCalls)
+}
+
+func TestRun_AnthropicInterruptedProviderToolKeepsLocalSyntheticResult(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputStart,
+					ID:               "ws-1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolInputDelta,
+					ID:               "ws-1",
+					Delta:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:         fantasy.StreamPartTypeToolInputStart,
+					ID:           "tc-1",
+					ToolCallName: "read_file",
+				}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeToolInputDelta,
+					ID:    "tc-1",
+					Delta: `{"path":"main.go"}`,
+				}) {
+					return
+				}
+				close(started)
+				<-ctx.Done()
+				_ = yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: ctx.Err(),
+				})
+			}), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		<-started
+		cancel(ErrInterrupted)
+	}()
+
+	var persistedSteps []PersistedStep
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search and read"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+	require.Len(t, persistedSteps, 1)
+	requireNoProviderExecutedToolCallContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedToolResultContent(t, persistedSteps[0].Content)
+
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolResult.ProviderExecuted)
+	_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+	require.True(t, isErr)
+}
+
+func TestRun_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) {
+	t.Parallel()
+
+	var capturedPrompt []fantasy.Message
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			capturedPrompt = append([]fantasy.Message(nil), call.Prompt...)
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search for coder"),
+			{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					fantasy.ToolCallPart{
+						ToolCallID:       "ws-1",
+						ToolName:         "web_search",
+						Input:            `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+				},
+			},
+			textMessage(fantasy.MessageRoleUser, "continue"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, capturedPrompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, capturedPrompt[0].Role)
+	require.Len(t, capturedPrompt[0].Content, 2)
+	requireNoProviderExecutedToolCallPrompt(t, capturedPrompt)
+}
+
+func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "ws-1", ToolCallName: "web_search", ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "ws-1", Delta: `{"query":"coder"}`, ProviderExecuted: true},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "ws-1"},
+					{
+						Type:             fantasy.StreamPartTypeToolCall,
+						ID:               "ws-1",
+						ToolCallName:     "web_search",
+						ToolCallInput:    `{"query":"coder"}`,
+						ProviderExecuted: true,
+					},
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"main.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"main.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "search and read"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+		},
+		MaxSteps: 2,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Len(t, persistedSteps, 2)
+	requireNoProviderExecutedToolCallContent(t, persistedSteps[0].Content)
+	requireNoProviderExecutedToolCallPrompt(t, secondCallPrompt)
+
+	toolCall := requireToolCallContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolCall.ProviderExecuted)
+	toolResult := requireToolResultContent(t, persistedSteps[0].Content, "tc-1", "read_file")
+	require.False(t, toolResult.ProviderExecuted)
+	promptResult := requireToolResultPrompt(t, secondCallPrompt, "tc-1")
+	require.False(t, promptResult.ProviderExecuted)
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal
@@ -1551,4 +2383,344 @@ func TestRun_PersistStepInterruptedFallback(t *testing.T) {
 		}
 	}
 	require.True(t, foundText, "fallback should persist the text content")
+}
+
+func TestRun_PrepareMessagesInjectsSystemContextMidLoop(t *testing.T) {
+	t.Parallel()
+
+	const injectedInstruction = "You are working in /home/coder/project. Follow AGENTS.md guidelines."
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+
+	// Step 0 calls a tool. Step 1 sees the injected system message.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	// Simulate: after the tool executes (step 0), instruction
+	// becomes available. PrepareMessages injects it before step 1.
+	instructionInjected := make(chan struct{})
+	var instructionAvailable atomic.Value
+	// The tool sets instruction after execution.
+	tool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			instructionAvailable.Store(injectedInstruction)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and open a PR"),
+		},
+		Tools:    []fantasy.AgentTool{tool},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			select {
+			case <-instructionInjected:
+				return nil
+			default:
+			}
+			instr, ok := instructionAvailable.Load().(string)
+			if !ok || instr == "" {
+				return nil
+			}
+			close(instructionInjected)
+			// Insert a system message after existing system messages.
+			result := make([]fantasy.Message, 0, len(msgs)+1)
+			inserted := false
+			for i, msg := range msgs {
+				result = append(result, msg)
+				if !inserted && msg.Role == fantasy.MessageRoleSystem {
+					// Insert after the last system message.
+					if i+1 >= len(msgs) || msgs[i+1].Role != fantasy.MessageRoleSystem {
+						result = append(result, fantasy.Message{
+							Role: fantasy.MessageRoleSystem,
+							Content: []fantasy.MessagePart{
+								fantasy.TextPart{Text: instr},
+							},
+						})
+						inserted = true
+					}
+				}
+			}
+			if !inserted {
+				// No system messages, prepend.
+				result = append([]fantasy.Message{{
+					Role: fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: instr},
+					},
+				}}, result...)
+			}
+			return result
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+
+	// The second LLM call should contain the injected instruction.
+	require.NotEmpty(t, secondCallPrompt)
+	var foundInstruction bool
+	for _, msg := range secondCallPrompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			continue
+		}
+		for _, part := range msg.Content {
+			if tp, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+				if strings.Contains(tp.Text, "AGENTS.md") {
+					foundInstruction = true
+				}
+			}
+		}
+	}
+	require.True(t, foundInstruction,
+		"step 1 prompt should contain the injected system instruction")
+}
+
+func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	// Three steps: tool call, tool call, text. PrepareMessages
+	// should inject on step 1 and return nil on step 2.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if step < 2 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-" + strings.Repeat("x", step+1), ToolCallName: "noop"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-" + strings.Repeat("x", step+1), Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-" + strings.Repeat("x", step+1)},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-" + strings.Repeat("x", step+1),
+						ToolCallName:  "noop",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var prepareCalls atomic.Int32
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "do something"),
+		},
+		Tools:    []fantasy.AgentTool{newNoopTool("noop")},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			call := prepareCalls.Add(1)
+			if call == 1 {
+				// First call: inject a message.
+				return append(msgs, fantasy.Message{
+					Role:    fantasy.MessageRoleSystem,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "injected"}},
+				})
+			}
+			// Subsequent calls: no changes.
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 3, streamCalls)
+	// PrepareMessages is called before each of the 3 steps.
+	require.Equal(t, 3, int(prepareCalls.Load()))
+}
+
+func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
+	t.Parallel()
+
+	originalBytes := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+
+	t.Run("EncodesRawBytesToBase64", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "image",
+					Data:      originalBytes,
+					MediaType: "image/jpeg",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"screenshot": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-1",
+			ToolName:   "screenshot",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			map[string]struct{}{},
+		)
+
+		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected ToolResultOutputContentMedia")
+		require.Equal(t, "image/jpeg", media.MediaType)
+
+		decoded, err := base64.StdEncoding.DecodeString(media.Data)
+		require.NoError(t, err, "Data should be valid base64")
+		require.Equal(t, originalBytes, decoded)
+	})
+
+	t.Run("SanitizesInvalidUTF8InContent", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"screenshot",
+			"takes a screenshot",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Type:      "image",
+					Data:      originalBytes,
+					MediaType: "image/png",
+					Content:   "hello\xffworld",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"screenshot": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-2",
+			ToolName:   "screenshot",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"screenshot"},
+			map[string]struct{}{},
+		)
+
+		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
+		require.True(t, ok, "expected ToolResultOutputContentMedia")
+		require.True(t, utf8.ValidString(media.Text), "Text should be valid UTF-8")
+		require.Contains(t, media.Text, "hello")
+		require.Contains(t, media.Text, "world")
+	})
+
+	t.Run("SanitizesInvalidUTF8InTextResult", func(t *testing.T) {
+		t.Parallel()
+
+		tool := fantasy.NewAgentTool(
+			"echo",
+			"echoes input",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{
+					Content: "hello\xffworld",
+				}, nil
+			},
+		)
+
+		toolMap := map[string]fantasy.AgentTool{
+			"echo": tool,
+		}
+		tc := fantasy.ToolCallContent{
+			ToolCallID: "call-3",
+			ToolName:   "echo",
+			Input:      "{}",
+		}
+
+		result := executeSingleTool(
+			context.Background(),
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			"fake", "fake-model",
+			map[string]bool{},
+			[]string{"echo"},
+			map[string]struct{}{},
+		)
+
+		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
+		require.True(t, ok, "expected ToolResultOutputContentText, got %T", result.Result)
+		require.True(t, utf8.ValidString(textOutput.Text), "Text should be valid UTF-8")
+		require.Contains(t, textOutput.Text, "hello")
+		require.Contains(t, textOutput.Text, "world")
+	})
 }

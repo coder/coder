@@ -1,6 +1,10 @@
 # This workflow checks if a PR requires documentation updates.
-# It creates a Coder Task that uses AI to analyze the PR changes,
-# search existing docs, and comment with recommendations.
+# It creates a Coder Agent chat session that uses AI to analyze the PR
+# changes, search existing docs, and comment with recommendations.
+#
+# Uses the Coder Chat API (/api/experimental/chats) instead of the Tasks
+# API — all API calls use curl + jq directly, no dedicated GitHub Action
+# or workspace provisioning required.
 #
 # Triggers:
 #   - New PR opened: Initial documentation review
@@ -27,11 +31,6 @@ on:
       pr_url:
         description: "Pull Request URL to check"
         required: true
-        type: string
-      template_preset:
-        description: "Template preset to use"
-        required: false
-        default: ""
         type: string
 
 permissions:
@@ -82,13 +81,6 @@ jobs:
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Setup Coder CLI
-        if: steps.check-secrets.outputs.skip != 'true'
-        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
-        with:
-          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
-          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-
       - name: Determine PR Context
         if: steps.check-secrets.outputs.skip != 'true'
         id: determine-context
@@ -98,12 +90,8 @@ jobs:
           GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
           INPUTS_PR_URL: ${{ inputs.pr_url }}
-          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
         run: |
-          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
-          echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
-
-          # Determine trigger type for task context
+          # Determine trigger type for context
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
             echo "Using PR URL: ${INPUTS_PR_URL}"
@@ -150,7 +138,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build task prompt
+      - name: Build chat prompt
         if: steps.check-secrets.outputs.skip != 'true'
         id: extract-context
         env:
@@ -181,8 +169,8 @@ jobs:
               ;;
           esac
 
-          # Build task prompt with sticky comment logic
-          TASK_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
+          # Build chat prompt with sticky comment logic
+          CHAT_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
           ${CONTEXT}
 
@@ -214,7 +202,7 @@ jobs:
             > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
           ---
-          *Automated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+          *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
           <!-- doc-check-sticky -->
           \`\`\`
 
@@ -222,192 +210,154 @@ jobs:
 
           # Output the prompt
           {
-            echo "task_prompt<<EOFOUTPUT"
-            echo "${TASK_PROMPT}"
+            echo "chat_prompt<<EOFOUTPUT"
+            echo "${CHAT_PROMPT}"
             echo "EOFOUTPUT"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Checkout create-task-action
+      # ------------------------------------------------------------------
+      # Create a chat via the Coder Chat API.
+      # The Chat API creates a lightweight chat session — no workspace
+      # provisioning or dedicated GitHub Action checkout required.
+      # ------------------------------------------------------------------
+      - name: Create chat via Coder Chat API
         if: steps.check-secrets.outputs.skip != 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          path: ./.github/actions/create-task-action
-          persist-credentials: false
-          ref: main
-          repository: coder/create-task-action
-
-      - name: Create Coder Task for Documentation Check
-        if: steps.check-secrets.outputs.skip != 'true'
-        id: create_task
+        id: create-chat
         continue-on-error: true
-        uses: ./.github/actions/create-task-action
-        with:
-          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
-          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-          coder-organization: "default"
-          coder-template-name: coder-workflow-bot
-          coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
-          coder-task-name-prefix: doc-check
-          coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
-          coder-username: doc-check-bot
-          github-token: ${{ github.token }}
-          github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
-          comment-on-issue: false
+        env:
+          CHAT_PROMPT: ${{ steps.extract-context.outputs.chat_prompt }}
+        run: |
+          set -euo pipefail
 
-      - name: Handle Task Creation Failure
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome != 'success'
+          echo "Creating chat session..."
+
+          RESPONSE=$(curl --silent --fail-with-body \
+            -X POST \
+            -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg prompt "${CHAT_PROMPT}" \
+              '{content: [{type: "text", text: $prompt}]}')" \
+            "${CODER_URL}/api/experimental/chats")
+
+          CHAT_ID=$(echo "${RESPONSE}" | jq -r '.id')
+          CHAT_STATUS=$(echo "${RESPONSE}" | jq -r '.status')
+
+          if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
+            echo "::error::Failed to create chat — no ID returned"
+            echo "Response: ${RESPONSE}"
+            exit 1
+          fi
+
+          # Validate that CHAT_ID is a UUID before using it in URL paths.
+          if [[ ! "${CHAT_ID}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "::error::CHAT_ID is not a valid UUID: ${CHAT_ID}"
+            exit 1
+          fi
+
+          CHAT_URL="${CODER_URL}/agents?chat=${CHAT_ID}"
+
+          echo "Chat created: ${CHAT_ID} (status: ${CHAT_STATUS})"
+          echo "Chat URL: ${CHAT_URL}"
+
+          echo "chat_id=${CHAT_ID}" >> "${GITHUB_OUTPUT}"
+          echo "chat_url=${CHAT_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Handle Chat Creation Failure
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome != 'success'
         run: |
           {
-            echo "## Documentation Check Task"
+            echo "## Documentation Check"
             echo ""
-            echo "⚠️ The external Coder task service was unavailable, so this"
+            echo "⚠️ The Coder Chat API was unavailable, so this"
             echo "advisory documentation check did not run."
             echo ""
             echo "Maintainers can rerun the workflow or trigger it manually"
             echo "after the service recovers."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Write Task Info
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
+      - name: Write Chat Info
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome == 'success'
         env:
-          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
+          CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
           PR_URL: ${{ steps.determine-context.outputs.pr_url }}
         run: |
           {
-            echo "## Documentation Check Task"
+            echo "## Documentation Check"
             echo ""
             echo "**PR:** ${PR_URL}"
-            echo "**Task created:** ${TASK_CREATED}"
-            echo "**Task name:** ${TASK_NAME}"
-            echo "**Task URL:** ${TASK_URL}"
+            echo "**Chat ID:** \`${CHAT_ID}\`"
+            echo "**Chat URL:** ${CHAT_URL}"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Wait for Task Completion
-        if: steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
-        id: wait_task
+      # ------------------------------------------------------------------
+      # Poll the chat status until the agent finishes.
+      # The Chat API is asynchronous — after creation the agent begins
+      # working in the background. We poll GET /api/experimental/chats/<id>
+      # every 5 seconds until the status is "waiting" (agent needs input),
+      # "completed" (agent finished), or "error". Timeout after 10 minutes.
+      # ------------------------------------------------------------------
+      - name: Poll chat status
+        if: steps.check-secrets.outputs.skip != 'true' && steps.create-chat.outcome == 'success'
+        id: poll-status
         env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
         run: |
-          echo "Waiting for task to complete..."
-          echo "Task name: ${TASK_NAME}"
+          set -euo pipefail
 
-          if [[ -z "${TASK_NAME}" ]]; then
-            echo "::error::TASK_NAME is empty"
-            exit 1
-          fi
+          POLL_INTERVAL=5
+          TIMEOUT=600
+          ELAPSED=0
 
-          MAX_WAIT=600  # 10 minutes
-          WAITED=0
-          POLL_INTERVAL=3
-          LAST_STATUS=""
+          echo "Polling chat ${CHAT_ID} every ${POLL_INTERVAL}s (timeout: ${TIMEOUT}s)..."
 
-          is_workspace_message() {
-            local msg="$1"
-            [[ -z "$msg" ]] && return 0  # Empty = treat as workspace/startup
-            [[ "$msg" =~ ^Workspace ]] && return 0
-            [[ "$msg" =~ ^Agent ]] && return 0
-            return 1
-          }
+          while true; do
+            RESPONSE=$(curl --silent --fail-with-body \
+              -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+              "${CODER_URL}/api/experimental/chats/${CHAT_ID}")
 
-          while [[ $WAITED -lt $MAX_WAIT ]]; do
-            # Get task status (|| true prevents set -e from exiting on non-zero)
-            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
-            STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
+            STATUS=$(echo "${RESPONSE}" | jq -r '.status')
 
-            # Debug: show first poll's raw output
-            if [[ $WAITED -eq 0 ]]; then
-              echo "Raw status output: ${RAW_OUTPUT:0:500}"
-            fi
+            echo "[${ELAPSED}s] Chat status: ${STATUS}"
 
-            if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
-              if [[ "$LAST_STATUS" != "waiting" ]]; then
-                echo "[${WAITED}s] Waiting for task status..."
-                LAST_STATUS="waiting"
-              fi
-              sleep $POLL_INTERVAL
-              WAITED=$((WAITED + POLL_INTERVAL))
-              continue
-            fi
+            case "${STATUS}" in
+              waiting|completed)
+                echo "Chat reached terminal status: ${STATUS}"
+                echo "final_status=${STATUS}" >> "${GITHUB_OUTPUT}"
+                exit 0
+                ;;
+              error)
+                echo "::error::Chat entered error state"
+                echo "${RESPONSE}" | jq .
+                echo "final_status=error" >> "${GITHUB_OUTPUT}"
+                exit 1
+                ;;
+              pending|running)
+                # Still working — keep polling.
+                ;;
+              *)
+                echo "::warning::Unknown chat status: ${STATUS}"
+                ;;
+            esac
 
-            TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
-            TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
-            WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
-
-            # Build current status string for comparison
-            CURRENT_STATUS="${TASK_STATE}|${WORKSPACE_STATUS}|${TASK_MESSAGE}"
-
-            # Only log if status changed
-            if [[ "$CURRENT_STATUS" != "$LAST_STATUS" ]]; then
-              if [[ "$TASK_STATE" == "idle" ]] && is_workspace_message "$TASK_MESSAGE"; then
-                echo "[${WAITED}s] Workspace ready, waiting for Agent..."
-              else
-                echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
-              fi
-              LAST_STATUS="$CURRENT_STATUS"
-            fi
-
-            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
-              echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
+            if [[ ${ELAPSED} -ge ${TIMEOUT} ]]; then
+              echo "::error::Timed out after ${TIMEOUT}s waiting for chat to finish"
+              echo "final_status=timeout" >> "${GITHUB_OUTPUT}"
               exit 1
             fi
 
-            if [[ "$TASK_STATE" == "idle" ]]; then
-              if ! is_workspace_message "$TASK_MESSAGE"; then
-                # Real completion message from Claude!
-                echo ""
-                echo "Task completed: ${TASK_MESSAGE}"
-                RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
-                echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
-                echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
-                break
-              fi
-            fi
-
-            sleep $POLL_INTERVAL
-            WAITED=$((WAITED + POLL_INTERVAL))
+            sleep "${POLL_INTERVAL}"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
           done
-
-          if [[ $WAITED -ge $MAX_WAIT ]]; then
-            echo "::error::Task monitoring timed out after ${MAX_WAIT}s"
-            exit 1
-          fi
-
-      - name: Fetch Task Logs
-        if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
-        env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-        run: |
-          echo "::group::Task Conversation Log"
-          if [[ -n "${TASK_NAME}" ]]; then
-            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
-          else
-            echo "No task name, skipping log fetch"
-          fi
-          echo "::endgroup::"
-
-      - name: Cleanup Task
-        if: always() && steps.check-secrets.outputs.skip != 'true' && steps.create_task.outcome == 'success'
-        env:
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-        run: |
-          if [[ -n "${TASK_NAME}" ]]; then
-            echo "Deleting task: ${TASK_NAME}"
-            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
-          else
-            echo "No task name, skipping cleanup"
-          fi
 
       - name: Write Final Summary
         if: always() && steps.check-secrets.outputs.skip != 'true'
         env:
-          CREATE_TASK_OUTCOME: ${{ steps.create_task.outcome }}
-          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
-          TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
-          RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          CREATE_CHAT_OUTCOME: ${{ steps.create-chat.outcome }}
+          CHAT_ID: ${{ steps.create-chat.outputs.chat_id }}
+          CHAT_URL: ${{ steps.create-chat.outputs.chat_url }}
+          FINAL_STATUS: ${{ steps.poll-status.outputs.final_status }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
         run: |
           {
@@ -415,15 +365,13 @@ jobs:
             echo "---"
             echo "### Result"
             echo ""
-            if [[ "${CREATE_TASK_OUTCOME}" == "success" ]]; then
-              echo "**Status:** ${TASK_MESSAGE:-Task completed}"
-              if [[ -n "${RESULT_URI}" ]]; then
-                echo "**Comment:** ${RESULT_URI}"
-              fi
+            if [[ "${CREATE_CHAT_OUTCOME}" == "success" ]]; then
+              echo "**Status:** ${FINAL_STATUS:-Chat completed}"
+              echo "**Chat URL:** ${CHAT_URL}"
               echo ""
-              echo "Task \`${TASK_NAME}\` has been cleaned up."
+              echo "Chat \`${CHAT_ID}\` has finished."
             else
-              echo "**Status:** Skipped because the external Coder task"
-              echo "service was unavailable."
+              echo "**Status:** Skipped because the Coder Chat API"
+              echo "was unavailable."
             fi
           } >> "${GITHUB_STEP_SUMMARY}"

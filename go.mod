@@ -81,13 +81,18 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 2) Go 1.25 downgrade for Windows CI compat
 // 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
 // 4) (anthropic-sdk-go) dannykopping's appendCompact performance fixes
-// See: https://github.com/coder/fantasy/commits/7aaf56df81f9
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260409111551-7aaf56df81f9
+// 5) (anthropic-sdk-go) DirectEncoder to eliminate nested MarshalJSON allocation chain
+// 6) Anthropic EffortXHigh constant for Claude Opus 4.7
+// 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
+//    replay stored reasoning item references, only replay web_search references
+//    when paired with reasoning, and validate function_call output pairing.
+// See: https://github.com/coder/fantasy/commits/f83367a4a205
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951a49c681df
 
-// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK with some
-// additional performance improvements.
-// See: https://github.com/coder/anthropic-sdk-go/commits/5711db120546
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260409105508-5711db120546
+// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
+// with performance improvements and Bedrock header cleanup.
+// See: https://github.com/coder/anthropic-sdk-go/commits/3be8e193ec89
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260424230212-3be8e193ec89
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262
@@ -156,7 +161,7 @@ require (
 	github.com/gohugoio/hugo v0.160.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
-	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
+	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/go-github/v61 v61.0.0
@@ -164,7 +169,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.9.0
-	github.com/hashicorp/hc-install v0.9.2
+	github.com/hashicorp/hc-install v0.9.4
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/hashicorp/yamux v0.1.2
@@ -266,7 +271,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/ProtonMail/go-crypto v1.3.0 // indirect
+	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -279,7 +284,7 @@ require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.12 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.12
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.14
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
@@ -317,7 +322,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/go-chi/hostrouter v0.3.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -431,7 +436,7 @@ require (
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
 	github.com/tdewolff/parse/v2 v2.8.11 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/pretty v1.2.1
 	github.com/tinylib/msgp v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
@@ -494,9 +499,9 @@ require (
 require (
 	charm.land/fantasy v0.8.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
+	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.1.1-0.20260410135158-9ac7525ed947
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8
@@ -504,10 +509,13 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.17.1
+	github.com/go-git/go-git/v5 v5.18.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mark3labs/mcp-go v0.38.0
+	github.com/openai/openai-go/v3 v3.28.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/sony/gobreaker/v2 v2.3.0
+	github.com/tidwall/sjson v1.2.5
 	gonum.org/v1/gonum v0.17.0
 )
 
@@ -602,7 +610,6 @@ require (
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
-	github.com/openai/openai-go/v3 v3.28.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
@@ -612,10 +619,8 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
-	github.com/sony/gobreaker/v2 v2.3.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tmaxmax/go-sse v0.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/urfave/cli/v2 v2.27.5 // indirect

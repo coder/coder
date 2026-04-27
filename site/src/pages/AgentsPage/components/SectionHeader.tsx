@@ -28,18 +28,15 @@ export const SectionHeader: FC<SectionHeaderProps> = ({
 			: "m-0 mt-0.5 text-sm text-content-secondary";
 
 	return (
-		<>
-			<div className="flex items-start justify-between gap-4">
-				<div className="min-w-0 flex-1">
-					<div className="flex w-full items-center gap-2">
-						<Heading className={headingClass}>{label}</Heading>
-						{badge}
-					</div>
-					{description && <p className={descriptionClass}>{description}</p>}
+		<div className="flex items-start justify-between gap-4">
+			<div className="min-w-0 flex-1">
+				<div className="flex w-full items-center gap-2">
+					<Heading className={headingClass}>{label}</Heading>
+					{badge}
 				</div>
-				{action}
+				{description && <p className={descriptionClass}>{description}</p>}
 			</div>
-			<hr className="my-4 border-0 border-t border-solid border-border" />
-		</>
+			{action}
+		</div>
 	);
 };

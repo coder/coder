@@ -151,7 +151,7 @@ _gen/bin/metricsdocgen-scanner: $(wildcard scripts/metricsdocgen/scanner/*.go) |
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen/scanner
 
-_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) | _gen
+_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
 
@@ -699,11 +699,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
 .PHONY: lint-light
 
 lint/site-icons:
@@ -718,9 +718,10 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
 lint/examples: | _gen/bin/examplegen
@@ -736,6 +737,10 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 lint/bootstrap:
 	bash scripts/check_bootstrap_quotes.sh
 .PHONY: lint/bootstrap
+
+lint/emdash:
+	bash scripts/check_emdash.sh
+.PHONY: lint/emdash
 
 
 lint/helm:
@@ -876,8 +881,15 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
-		test-storybook \
 		site/out/index.html
+	# Storybook tests run after Go tests and the site build to avoid
+	# CPU starvation. Rolldown's tokio workers in Vite's transform
+	# pipeline stall when competing with Go compilation and the
+	# production build, causing browser import() calls to hang
+	# indefinitely (vitest has no import-phase timeout).
+	echo "test storybook:"
+	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push

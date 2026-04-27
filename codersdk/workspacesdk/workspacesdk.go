@@ -175,6 +175,10 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
+// AgentConnFunc returns a new connection to the specified agent. If release is
+// non-nil, callers must invoke it after they are done with the AgentConn.
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (conn AgentConn, release func(), err error)
+
 // @typescript-ignore DialAgentOptions
 type DialAgentOptions struct {
 	Logger slog.Logger
@@ -254,6 +258,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &header,
+		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,

@@ -67,15 +67,16 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 
 	handler := NewHandler(a.logger, a.opts...)
 
-	// scanAndSend performs a scan and sends results if there are
-	// changes.
+	// Scan returns nil only when no roots are subscribed; once any
+	// root lands it returns either a delta or a heartbeat message.
 	scanAndSend := func() {
 		msg := handler.Scan(ctx)
-		if msg != nil {
-			if err := stream.Send(*msg); err != nil {
-				a.logger.Debug(ctx, "failed to send changes", slog.Error(err))
-				cancel()
-			}
+		if msg == nil {
+			return
+		}
+		if err := stream.Send(*msg); err != nil {
+			a.logger.Debug(ctx, "failed to send changes", slog.Error(err))
+			cancel()
 		}
 	}
 

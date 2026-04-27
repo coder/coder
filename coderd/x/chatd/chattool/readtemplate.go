@@ -14,19 +14,18 @@ import (
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
-	DB                 database.Store
 	OwnerID            uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type readTemplateArgs struct {
-	TemplateID string `json:"template_id"`
+	TemplateID string `json:"template_id" description:"The UUIDv4 of the template to read details for. Obtain this from list_templates."`
 }
 
 // ReadTemplate returns a tool that retrieves details about a specific
 // template, including its configurable rich parameters. The agent
 // uses this after list_templates and before create_workspace.
-func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
+func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
@@ -34,7 +33,7 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 			"template with list_templates and before creating a "+
 			"workspace with create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.DB == nil {
+			if db == nil {
 				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
@@ -53,17 +52,21 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
-			ctx, err = asOwner(ctx, options.DB, options.OwnerID)
+			ctx, err = asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
-			template, err := options.DB.GetTemplateByID(ctx, templateID)
+			template, err := db.GetTemplateByID(ctx, templateID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
-			params, err := options.DB.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
+			if template.OrganizationID != organizationID {
+				return fantasy.NewTextErrorResponse("template not found"), nil
+			}
+
+			params, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("failed to get template parameters: %w", err).Error(),

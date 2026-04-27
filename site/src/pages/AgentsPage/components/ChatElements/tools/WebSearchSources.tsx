@@ -85,7 +85,7 @@ const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 				"px-2.5 py-1 text-xs leading-none text-content-secondary",
 				"no-underline transition-colors",
 				"hover:bg-surface-tertiary hover:text-content-primary",
-				"hover:border-border-hover",
+				"hover:border-border-secondary",
 				"max-w-[200px]",
 			)}
 		>

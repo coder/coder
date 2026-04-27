@@ -1,4 +1,4 @@
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
@@ -279,7 +279,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 												variant="subtle"
 												aria-label="Open menu"
 											>
-												<EllipsisVertical aria-hidden="true" />
+												<EllipsisVerticalIcon aria-hidden="true" />
 												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
@@ -327,7 +327,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 												variant="subtle"
 												aria-label="Open menu"
 											>
-												<EllipsisVertical aria-hidden="true" />
+												<EllipsisVerticalIcon aria-hidden="true" />
 												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>

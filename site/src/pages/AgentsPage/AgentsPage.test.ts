@@ -153,7 +153,7 @@ describe("useEmptyStateDraft", () => {
 		});
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
 
-		// Simulate error recovery — re-enable persistence.
+		// Simulate error recovery -- re-enable persistence.
 		act(() => {
 			result.current.resetDraft();
 		});
@@ -307,12 +307,14 @@ describe("useFileAttachments persistence", () => {
 			fileName: string;
 			fileType: string;
 			lastModified: number;
+			organizationId: string;
 		}> = {},
 	) => ({
 		fileId: "file-1",
 		fileName: "photo.png",
 		fileType: "image/png",
 		lastModified: 1000,
+		organizationId: "org-1",
 		...overrides,
 	});
 
@@ -502,6 +504,104 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		unmount();
+	});
+
+	it("restores only attachments matching current organization", () => {
+		const entries = [
+			makePersistedEntry({
+				fileId: "f1",
+				fileName: "a.png",
+				organizationId: "org-1",
+			}),
+			makePersistedEntry({
+				fileId: "f2",
+				fileName: "b.png",
+				organizationId: "org-2",
+			}),
+		];
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify(entries),
+		);
+
+		const { result, unmount } = renderFileAttachments();
+
+		expect(result.current.attachments).toHaveLength(1);
+		expect(result.current.attachments[0].name).toBe("a.png");
+
+		// localStorage should be pruned to only the matching org.
+		const stored = JSON.parse(
+			localStorage.getItem(persistedAttachmentsStorageKey)!,
+		);
+		expect(stored).toHaveLength(1);
+		expect(stored[0].fileId).toBe("f1");
+		unmount();
+	});
+
+	it("prunes legacy entries without organizationId", () => {
+		const legacy = {
+			fileId: "old-file",
+			fileName: "legacy.png",
+			fileType: "image/png",
+			lastModified: 1000,
+			// No organizationId field -- simulates pre-org-scoping data.
+		};
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([legacy]),
+		);
+
+		const { result, unmount } = renderFileAttachments();
+
+		expect(result.current.attachments).toHaveLength(0);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		unmount();
+	});
+
+	it("skips restoration when organizationId is undefined", () => {
+		const entry = makePersistedEntry();
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([entry]),
+		);
+
+		const { result, unmount } = renderHook(() =>
+			useFileAttachments(undefined, { persist: true }),
+		);
+
+		// Should not restore -- org not yet known.
+		expect(result.current.attachments).toHaveLength(0);
+		// Should NOT prune -- org unknown, so leave storage alone.
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).not.toBeNull();
+		unmount();
+	});
+
+	it("persists organizationId with attachment metadata", async () => {
+		const { API } = await import("#/api/api");
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "new-file-id",
+		});
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+
+		const { result, unmount } = renderFileAttachments();
+
+		const file = new File(["hello"], "test.png", { type: "image/png" });
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+
+		await vi.waitFor(() => {
+			const state = result.current.uploadStates.get(file);
+			expect(state?.status).toBe("uploaded");
+		});
+
+		const stored = JSON.parse(
+			localStorage.getItem(persistedAttachmentsStorageKey)!,
+		);
+		expect(stored).toHaveLength(1);
+		expect(stored[0].organizationId).toBe("org-1");
 		unmount();
 	});
 });

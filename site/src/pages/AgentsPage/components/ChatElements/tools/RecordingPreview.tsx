@@ -1,6 +1,7 @@
 import { ImageOffIcon, PlayIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { getChatFileURL } from "../../../utils/chatAttachments";
 import { VideoLightbox } from "../../VideoLightbox";
 import { DEFAULT_ASPECT, PREVIEW_HEIGHT } from "./previewConstants";
 
@@ -35,8 +36,7 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	// component remounts and resets its internal error state.
 	const [lightboxKey, setLightboxKey] = useState(0);
 
-	const videoSrc =
-		srcOverride ?? `/api/experimental/chats/files/${recordingFileId}`;
+	const videoSrc = srcOverride ?? getChatFileURL(recordingFileId);
 
 	return (
 		<div
@@ -50,10 +50,7 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 				</div>
 			) : thumbnailFileId ? (
 				<img
-					src={
-						thumbnailSrcOverride ??
-						`/api/experimental/chats/files/${thumbnailFileId}`
-					}
+					src={thumbnailSrcOverride ?? getChatFileURL(thumbnailFileId)}
 					alt="Recording thumbnail"
 					className="h-full w-full pointer-events-none object-cover"
 					onError={() => setThumbnailError(true)}

@@ -102,12 +102,14 @@ func TestPush(t *testing.T) {
 	})
 
 	t.Run("FailedDelivery", func(t *testing.T) {
+		// 5xx responses are transient failures. The subscription should
+		// remain after a failed delivery so it can be retried later.
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
 			assertWebpushPayload(t, r)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Invalid request"))
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal server error"))
 		})
 
 		user := dbgen.User(t, store, database.User{})
@@ -123,12 +125,144 @@ func TestPush(t *testing.T) {
 		msg := randomWebpushMessage(t)
 		err = manager.Dispatch(ctx, user.ID, msg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Invalid request")
+		assert.Contains(t, err.Error(), "Internal server error")
 
 		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 1, "One subscription should be returned")
 		assert.Equal(t, subscriptions[0].ID, sub.ID, "The subscription should not be deleted")
+	})
+
+	// StaleSubscriptionStatuses verifies that documented permanent-failure
+	// status codes from the push service cause the subscription to be
+	// deleted. iOS Safari returns 404 and 403 BadJwtToken for invalidated
+	// subscriptions, FCM returns 404 for endpoints that are no longer
+	// valid, and a 400 means the subscription cannot be used.
+	t.Run("StaleSubscriptionStatuses", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name           string
+			statusCode     int
+			body           string
+			expectError    bool
+			expectErrorMsg string
+		}{
+			{
+				name:           "NotFound",
+				statusCode:     http.StatusNotFound,
+				body:           "Not Found",
+				expectError:    true,
+				expectErrorMsg: "Not Found",
+			},
+			{
+				name:           "Forbidden",
+				statusCode:     http.StatusForbidden,
+				body:           "BadJwtToken",
+				expectError:    true,
+				expectErrorMsg: "BadJwtToken",
+			},
+			{
+				name:           "BadRequest",
+				statusCode:     http.StatusBadRequest,
+				body:           "Invalid request",
+				expectError:    true,
+				expectErrorMsg: "Invalid request",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+					assertWebpushPayload(t, r)
+					w.WriteHeader(tc.statusCode)
+					w.Write([]byte(tc.body))
+				})
+				user := dbgen.User(t, store, database.User{})
+				_, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+					UserID:            user.ID,
+					Endpoint:          serverURL,
+					EndpointAuthKey:   validEndpointAuthKey,
+					EndpointP256dhKey: validEndpointP256dhKey,
+					CreatedAt:         dbtime.Now(),
+				})
+				require.NoError(t, err)
+
+				msg := randomWebpushMessage(t)
+				err = manager.Dispatch(ctx, user.ID, msg)
+				if tc.expectError {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.expectErrorMsg)
+				} else {
+					require.NoError(t, err)
+				}
+
+				subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+				require.NoError(t, err)
+				assert.Len(t, subscriptions, 0, "Stale subscription should be deleted on %d", tc.statusCode)
+			})
+		}
+	})
+
+	// StaleAndFailedSubscriptions verifies that a stale subscription
+	// returning 404 is cleaned up even when a sibling subscription's
+	// delivery fails with a transient error in the same Dispatch call.
+	// Regression test for the case where a delivery error short-circuits
+	// stale subscription cleanup, leaving permanently invalid rows in
+	// the database.
+	t.Run("StaleAndFailedSubscriptions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		manager, store, server500URL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("transient error"))
+		})
+
+		serverStale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer serverStale.Close()
+		serverStaleURL := serverStale.URL
+
+		user := dbgen.User(t, store, database.User{})
+
+		subFailed, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+			UserID:            user.ID,
+			Endpoint:          server500URL,
+			EndpointAuthKey:   validEndpointAuthKey,
+			EndpointP256dhKey: validEndpointP256dhKey,
+			CreatedAt:         dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		_, err = store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+			UserID:            user.ID,
+			Endpoint:          serverStaleURL,
+			EndpointAuthKey:   validEndpointAuthKey,
+			EndpointP256dhKey: validEndpointP256dhKey,
+			CreatedAt:         dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
+		// Should still surface a delivery error from one of the
+		// failing siblings. errgroup returns whichever goroutine
+		// finishes with an error first, so the error may originate
+		// from either the 500 or the 404 sibling. The contract we
+		// care about is that the stale (404) subscription is
+		// cleaned up regardless of which error wins the race.
+		require.Error(t, err)
+
+		// The stale subscription should have been cleaned up regardless.
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		if assert.Len(t, subscriptions, 1, "Only the transiently failing subscription should remain") {
+			assert.Equal(t, subFailed.ID, subscriptions[0].ID, "The transiently failing subscription should not be deleted")
+		}
 	})
 
 	t.Run("MultipleSubscriptions", func(t *testing.T) {
@@ -387,6 +521,8 @@ func assertWebpushPayload(t testing.TB, r *http.Request) {
 }
 
 // setupPushTest creates a common test setup for webpush notification tests.
+// The test HTTP client bypasses SSRF protection so that httptest.Server
+// (bound to 127.0.0.1) can be reached.
 func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (webpush.Dispatcher, database.Store, string) {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)
@@ -400,6 +536,9 @@ func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Sto
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
+	// Use an unrestricted HTTP client for tests. The default SSRF-safe
+	// client rejects loopback addresses, which blocks httptest.Server.
+	opts = append(opts, webpush.WithHTTPClient(http.DefaultClient))
 	manager, err := webpush.New(ctx, &logger, db, "http://example.com", opts...)
 	require.NoError(t, err, "Failed to create webpush manager")
 
@@ -422,4 +561,57 @@ func TestNoopWebpusher(t *testing.T) {
 	require.Contains(t, testErr.Error(), "push disabled")
 
 	require.Empty(t, noop.PublicKey())
+}
+
+// TestSSRFPrevention verifies that the default SSRF-safe HTTP client blocks
+// webpush delivery to loopback (and other non-public) addresses. This
+// reproduces the attack vector from the original SSRF PoC: an authenticated
+// user supplies a localhost endpoint in their webpush subscription, and the
+// server must refuse to connect.
+func TestSSRFPrevention(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Start a server that records whether it received a request.
+	var received atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		received.Store(true)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	// Create a dispatcher via New() WITHOUT WithHTTPClient so it
+	// uses the default SSRF-safe client that blocks loopback.
+	db, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	manager, err := webpush.New(ctx, &logger, db, "http://example.com")
+	require.NoError(t, err)
+
+	// Test() calls webpushSend directly with the supplied endpoint.
+	err = manager.Test(ctx, codersdk.WebpushSubscription{
+		Endpoint:  server.URL,
+		AuthKey:   validEndpointAuthKey,
+		P256DHKey: validEndpointP256dhKey,
+	})
+	require.Error(t, err, "SSRF-safe client should reject Test() to loopback address")
+	assert.False(t, received.Load(), "Test() request should not reach the localhost server")
+
+	// Dispatch() goes through the subscription cache → webpushSend path.
+	user := dbgen.User(t, db, database.User{})
+	_, err = db.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         dbtime.Now(),
+		UserID:            user.ID,
+		Endpoint:          server.URL,
+		EndpointAuthKey:   validEndpointAuthKey,
+		EndpointP256dhKey: validEndpointP256dhKey,
+	})
+	require.NoError(t, err)
+
+	err = manager.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
+		Title: "SSRF test",
+		Body:  "This should not arrive.",
+	})
+	require.Error(t, err, "SSRF-safe client should reject Dispatch() to loopback address")
+	assert.False(t, received.Load(), "Dispatch() request should not reach the localhost server")
 }

@@ -2,6 +2,8 @@ package chattool_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 
 	"charm.land/fantasy"
@@ -17,6 +19,170 @@ import (
 
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
+
+	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		getWorkspaceConnCalled := false
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				getWorkspaceConnCalled = true
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"/home/coder/README.md","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "during plan turns, edit_files is restricted to "+planPath, resp.Content)
+		assert.False(t, getWorkspaceConnCalled)
+	})
+
+	t.Run("PlanTurnRejectsMixedPaths", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		getWorkspaceConnCalled := false
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				getWorkspaceConnCalled = true
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:   "call-1",
+			Name: "edit_files",
+			Input: `{"files":[` +
+				`{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]},` +
+				`{"path":"/home/coder/README.md","edits":[{"search":"old","replace":"new"}]}` +
+				`]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "during plan turns, edit_files is restricted to "+planPath, resp.Content)
+		assert.False(t, getWorkspaceConnCalled)
+	})
+
+	t.Run("PlanTurnAllowsResolvedPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		resolvePlanPathCalls := 0
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(planPath, nil)
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: planPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
+			}},
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				resolvePlanPathCalls++
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, 1, resolvePlanPathCalls)
+	})
+
+	t.Run("PlanTurnAllowsLegacyAgentWithoutResolvePath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().
+			ResolvePath(gomock.Any(), planPath).
+			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: planPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
+			}},
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+	})
+
+	t.Run("PlanTurnRejectsSymlinkedPlanPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		planPath := "/home/coder/.coder/plans/PLAN-test-uuid.md"
+		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return("/home/coder/README.md", nil)
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ResolvePlanPath: func(context.Context) (string, string, error) {
+				return planPath, "/home/coder", nil
+			},
+			IsPlanTurn: true,
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"` + planPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns", resp.Content)
+	})
 
 	t.Run("RejectsPlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
 		t.Parallel()
@@ -131,14 +297,17 @@ func TestEditFiles(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
-		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: chatPlanPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: chatPlanPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
 			}},
-		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		resolvePlanPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -165,14 +334,17 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/coder/myproject/plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: "/home/coder/myproject/plan.md",
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
 			}},
-		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -196,14 +368,17 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/coder/myproject/plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: "/home/coder/myproject/plan.md",
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
 			}},
-		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		planPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -230,14 +405,17 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: "/home/dev/my-plan.md",
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: "/home/dev/my-plan.md",
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
 			}},
-		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		resolvePlanPathCalled := false
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
@@ -264,14 +442,17 @@ func TestEditFiles(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		request := workspacesdk.FileEditRequest{Files: []workspacesdk.FileEdits{{
-			Path: chattool.LegacySharedPlanPath,
-			Edits: []workspacesdk.FileEdit{{
-				Search:  "old",
-				Replace: "new",
+		request := workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: chattool.LegacySharedPlanPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
 			}},
-		}}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(nil)
+			IncludeDiff: true,
+		}
+		mockConn.EXPECT().EditFiles(gomock.Any(), request).Return(workspacesdk.FileEditResponse{}, nil)
 
 		tool := chattool.EditFiles(chattool.EditFilesOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -287,4 +468,56 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 	})
+}
+
+func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/target.txt"
+	expectedFiles := []workspacesdk.FileEditResult{
+		{
+			Path: targetPath,
+			Diff: "--- " + targetPath + "\n+++ " + targetPath + "\n@@ -1 +1 @@\n-old\n+new\n",
+		},
+	}
+	// The tool must opt into diffs (IncludeDiff: true) and forward
+	// the agent's per-file results through to its response.
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: targetPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old",
+					Replace: "new",
+				}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{Files: expectedFiles}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"search":"old","replace":"new"}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+
+	var decoded struct {
+		OK    bool                          `json:"ok"`
+		Files []workspacesdk.FileEditResult `json:"files"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &decoded))
+	assert.True(t, decoded.OK)
+	require.Len(t, decoded.Files, 1)
+	assert.Equal(t, targetPath, decoded.Files[0].Path)
+	assert.Equal(t, expectedFiles[0].Diff, decoded.Files[0].Diff)
 }

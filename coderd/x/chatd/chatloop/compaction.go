@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -16,6 +18,14 @@ const (
 	defaultCompactionThresholdPercent = int32(70)
 	minCompactionThresholdPercent     = int32(0)
 	maxCompactionThresholdPercent     = int32(100)
+
+	// compactionDebugCreateRunTimeout caps the compaction debug
+	// CreateRun budget so a slow or locked DB cannot consume the
+	// compaction's configured Timeout and cause model.Generate to
+	// fail with deadline exceeded. Debug instrumentation is
+	// best-effort; running without the debug row is preferable to
+	// failing the compaction.
+	compactionDebugCreateRunTimeout = 5 * time.Second
 
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
 		"Summarize the conversation so a new assistant can seamlessly " +
@@ -46,6 +56,9 @@ type CompactionOptions struct {
 	SystemSummaryPrefix string
 	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
+	DebugSvc            *chatdebug.Service
+	ChatID              uuid.UUID
+	HistoryTipMessageID int64
 
 	// ToolCallID and ToolName identify the synthetic tool call
 	// used to represent compaction in the message stream.
@@ -269,6 +282,79 @@ func shouldCompact(contextTokens, contextLimit int64, thresholdPercent int32) (f
 	return usagePercent, usagePercent >= float64(thresholdPercent)
 }
 
+func startCompactionDebugRun(
+	ctx context.Context,
+	options CompactionOptions,
+) (context.Context, func(error)) {
+	if options.DebugSvc == nil || options.ChatID == uuid.Nil {
+		return ctx, func(error) {}
+	}
+
+	parentRun, ok := chatdebug.RunFromContext(ctx)
+	if !ok {
+		return ctx, func(error) {}
+	}
+
+	historyTipMessageID := options.HistoryTipMessageID
+	if historyTipMessageID == 0 {
+		historyTipMessageID = parentRun.HistoryTipMessageID
+	}
+
+	// Use a separate short-lived context for the debug insert so a
+	// slow or locked DB cannot consume the compaction timeout budget
+	// and turn debug slowness into a compaction failure via
+	// model.Generate hitting a deadline exceeded. Detached from the
+	// parent so cancellation of the compaction run still lets the
+	// insert reach a terminal state, matching the best-effort
+	// contract of debug instrumentation.
+	createRunCtx, createRunCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
+	)
+	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+		ChatID:              options.ChatID,
+		RootChatID:          parentRun.RootChatID,
+		ParentChatID:        parentRun.ParentChatID,
+		ModelConfigID:       parentRun.ModelConfigID,
+		TriggerMessageID:    parentRun.TriggerMessageID,
+		HistoryTipMessageID: historyTipMessageID,
+		Kind:                chatdebug.KindCompaction,
+		Status:              chatdebug.StatusInProgress,
+		Provider:            parentRun.Provider,
+		Model:               parentRun.Model,
+	})
+	createRunCancel()
+	if err != nil {
+		// Debug instrumentation must not surface as a compaction failure.
+		return ctx, func(error) {}
+	}
+
+	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
+		RunID:               run.ID,
+		ChatID:              options.ChatID,
+		RootChatID:          parentRun.RootChatID,
+		ParentChatID:        parentRun.ParentChatID,
+		ModelConfigID:       parentRun.ModelConfigID,
+		TriggerMessageID:    parentRun.TriggerMessageID,
+		HistoryTipMessageID: historyTipMessageID,
+		Kind:                chatdebug.KindCompaction,
+		Provider:            parentRun.Provider,
+		Model:               parentRun.Model,
+	})
+
+	return compactionCtx, func(runErr error) {
+		status := chatdebug.ClassifyError(runErr)
+		if runErr != nil && xerrors.Is(runErr, ErrInterrupted) {
+			status = chatdebug.StatusInterrupted
+		}
+		// Debug instrumentation must not surface as a compaction failure.
+		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
+			RunID:  run.ID,
+			ChatID: options.ChatID,
+			Status: status,
+		})
+	}
+}
+
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
 // complete history (system prompt, user/assistant turns, tool
@@ -279,7 +365,7 @@ func generateCompactionSummary(
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
 	options CompactionOptions,
-) (string, error) {
+) (summary string, err error) {
 	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
 	summaryPrompt = append(summaryPrompt, fantasy.Message{
@@ -292,6 +378,22 @@ func generateCompactionSummary(
 
 	summaryCtx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
+
+	summaryCtx, finishDebugRun := startCompactionDebugRun(summaryCtx, options)
+	defer func() {
+		// If model.Generate (or anything else below) panics, the
+		// named err return is still nil at this point. Without the
+		// recover hook we would finalize the debug run as Completed
+		// in the exact crash path operators rely on to diagnose
+		// failures. Finalize with the panic as an error status and
+		// re-panic so the caller's recovery still observes the
+		// original panic value.
+		if r := recover(); r != nil {
+			finishDebugRun(xerrors.Errorf("panic during compaction summary: %v", r))
+			panic(r)
+		}
+		finishDebugRun(err)
+	}()
 
 	response, err := model.Generate(summaryCtx, fantasy.Call{
 		Prompt:     summaryPrompt,

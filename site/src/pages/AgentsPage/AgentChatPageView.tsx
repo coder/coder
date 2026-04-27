@@ -1,10 +1,4 @@
-import {
-	ArchiveIcon,
-	MonitorDotIcon,
-	MonitorIcon,
-	MonitorPauseIcon,
-	MonitorXIcon,
-} from "lucide-react";
+import { ArchiveIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -21,11 +15,6 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
-	type DisplayWorkspaceStatusType,
-	getDisplayWorkspaceStatus,
-} from "#/utils/workspace";
-
-import {
 	AgentChatInput,
 	type ChatMessageInputRef,
 } from "./components/AgentChatInput";
@@ -41,8 +30,11 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
+import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -109,10 +101,16 @@ interface AgentChatPageViewProps {
 	modelSelectorHelp?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
+	workspaceOptions?: readonly TypesGen.Workspace[];
+	selectedWorkspaceId?: string | null;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
+	isWorkspaceLoading?: boolean;
 
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
@@ -126,24 +124,24 @@ interface AgentChatPageViewProps {
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
+	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+		everDirty: ReadonlySet<string>;
 		refresh: () => boolean;
 	};
 
 	// Workspace action handlers.
-	canOpenEditors: boolean;
-	canOpenWorkspace: boolean;
 	sshCommand: string | undefined;
-	handleOpenInEditor: (editor: "cursor" | "vscode") => void;
-	handleViewWorkspace: () => void;
-	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 
 	// Archive actions.
 	handleArchiveAgentAction: () => void;
@@ -161,6 +159,7 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messageCount: number;
 
 	urlTransform?: UrlTransform;
 
@@ -195,27 +194,31 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelSelectorHelp,
 	hasModelOptions,
 	isModelCatalogLoading = false,
+	planModeEnabled,
+	onPlanModeToggle,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
+	workspaceOptions = [],
+	selectedWorkspaceId = null,
+	onWorkspaceChange = () => {},
+	isWorkspaceLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
+	debugLoggingEnabled,
 	gitWatcher,
-	canOpenEditors,
-	canOpenWorkspace,
 	sshCommand,
-	handleOpenInEditor,
-	handleViewWorkspace,
-	handleOpenTerminal,
 	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
@@ -227,6 +230,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -239,6 +243,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
+	const canSendAskUserQuestionResponse =
+		!isInputDisabled && !isSubmissionPending
+			? onSendAskUserQuestionResponse
+			: undefined;
+
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -273,7 +282,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
 	};
 
+	const shouldShowSidebar = showSidebarPanel;
+
 	// Compute local diff stats from git watcher unified diffs.
+
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder = (() => {
+		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
+		return repoRoots[0] || workspaceAgent?.expanded_directory;
+	})();
 
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
@@ -281,53 +299,98 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const attachedWorkspace = (() => {
 		if (!workspace || !workspaceRoute) return undefined;
-		let { type, text } = getDisplayWorkspaceStatus(
-			workspace.latest_build.status,
-			workspace.latest_build.job,
+
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
 		);
-		const agentPreparing =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "created" ||
-				workspaceAgent?.lifecycle_state === "starting");
-		const agentStartupFailed =
-			workspace.latest_build.status === "running" &&
-			(workspaceAgent?.lifecycle_state === "start_error" ||
-				workspaceAgent?.lifecycle_state === "start_timeout");
-		if (agentPreparing) {
-			type = "active";
-			text = "Preparing";
-		} else if (agentStartupFailed) {
-			type = "warning";
-			text = "Startup failed";
-		}
-		const effectiveType = workspace.health.healthy ? type : "warning";
-		const statusLabel = workspace.health.healthy
-			? `Workspace ${text.toLowerCase()}`
-			: `Workspace ${text.toLowerCase()} (unhealthy)`;
-		const iconCls = "size-3";
-		const statusIconMap: Record<DisplayWorkspaceStatusType, React.ReactNode> = {
-			success: <MonitorIcon className={iconCls} />,
-			active: <MonitorDotIcon className={iconCls} />,
-			inactive: <MonitorPauseIcon className={iconCls} />,
-			error: <MonitorXIcon className={iconCls} />,
-			danger: <MonitorXIcon className={iconCls} />,
-			warning: <MonitorXIcon className={iconCls} />,
-		};
+		const statusIcon = <StatusIcon type={effectiveType} />;
 		return {
+			id: workspace.id,
 			name: workspace.name,
 			route: workspaceRoute,
-			statusIcon: statusIconMap[effectiveType],
+			statusIcon,
 			statusLabel,
 		};
 	})();
+
+	// Desktop is only available when the workspace + agent are ready;
+	// `SidebarTabView` gates the desktop tab/panel on the same condition,
+	// so resolve tab selection against the same availability to avoid
+	// picking "desktop" when no desktop panel is rendered.
+	const availableDesktopChatId =
+		workspace && workspaceAgent ? desktopChatId : undefined;
+	// Single source of truth for available tabs and their order. The list
+	// of tab IDs used by `getEffectiveTabId` is derived from this so a
+	// new tab can never be added to one without the other going out of
+	// sync.
+	const sidebarTabConfigs = [
+		{ id: "git", label: "Git" },
+		...(workspace && workspaceAgent
+			? [{ id: "terminal", label: "Terminal" }]
+			: []),
+		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+	];
+	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
+	const effectiveSidebarTabId = getEffectiveTabId(
+		sidebarTabIds,
+		sidebarTabId,
+		availableDesktopChatId,
+	);
+	const renderTabContent = (tabId: string): ReactNode => {
+		switch (tabId) {
+			case "git":
+				return (
+					<GitPanel
+						prTab={
+							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+						}
+						repositories={gitWatcher.repositories}
+						everDirty={gitWatcher.everDirty}
+						onRefresh={handleRefresh}
+						onCommit={handleCommit}
+						isExpanded={visualExpanded}
+						remoteDiffStats={diffStatusData}
+						chatInputRef={editing.chatInputRef}
+					/>
+				);
+			case "terminal":
+				return workspace && workspaceAgent ? (
+					<TerminalPanel
+						chatId={agentId}
+						isVisible={
+							shouldShowSidebar && effectiveSidebarTabId === "terminal"
+						}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+					/>
+				) : null;
+			case "debug":
+				return (
+					<DebugPanel
+						chatId={agentId}
+						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+					/>
+				);
+			default:
+				return null;
+		}
+	};
+	const sidebarTabs = sidebarTabConfigs.map((tab) => ({
+		id: tab.id,
+		label: tab.label,
+		content: renderTabContent(tab.id),
+	}));
+
+	const isEditing =
+		editing.editingMessageId !== null ||
+		editing.editingQueuedMessageID !== null;
 
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 		</title>
 	);
-
-	const shouldShowSidebar = showSidebarPanel;
 
 	return (
 		<ChatWorkspaceContext
@@ -356,14 +419,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								panel={{
 									showSidebarPanel,
 									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-								}}
-								workspace={{
-									canOpenEditors,
-									canOpenWorkspace,
-									onOpenInEditor: handleOpenInEditor,
-									onViewWorkspace: handleViewWorkspace,
-									onOpenTerminal: handleOpenTerminal,
-									sshCommand,
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -405,6 +460,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isFetchingMoreMessages={isFetchingMoreMessages}
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
+							messageCount={messageCount}
 						>
 							<div className="px-4">
 								<ChatPageTimeline
@@ -415,10 +471,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									editingMessageId={editing.editingMessageId}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
+									onImplementPlan={onImplementPlan}
+									onSendAskUserQuestionResponse={canSendAskUserQuestionResponse}
 								/>
 							</div>
 						</ChatScrollContainer>
-						<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
 								store={store}
@@ -436,12 +494,19 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								planModeEnabled={planModeEnabled}
+								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
+								workspaceOptions={workspaceOptions}
+								selectedWorkspaceId={selectedWorkspaceId}
+								onWorkspaceChange={onWorkspaceChange}
+								isWorkspaceLoading={isWorkspaceLoading}
 								inputRef={editing.chatInputRef}
 								initialValue={editing.editorInitialValue}
 								initialEditorState={editing.initialEditorState}
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
+								isEditing={isEditing}
 								editingQueuedMessageID={editing.editingQueuedMessageID}
 								onStartQueueEdit={editing.handleStartQueueEdit}
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
@@ -454,7 +519,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								lastInjectedContext={lastInjectedContext}
+								workspace={workspace}
+								workspaceAgent={workspaceAgent}
+								chatId={agentId}
+								sshCommand={sshCommand}
 								attachedWorkspace={attachedWorkspace}
+								folder={preferredFolder}
 							/>
 						</div>
 					</div>
@@ -468,56 +538,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					>
 						<SidebarTabView
-							activeTabId={sidebarTabId}
+							effectiveTabId={effectiveSidebarTabId}
 							onActiveTabChange={setSidebarTabId}
-							tabs={[
-								{
-									id: "git",
-									label: "Git",
-									content: (
-										<GitPanel
-											prTab={
-												prNumber && agentId
-													? { prNumber, chatId: agentId }
-													: undefined
-											}
-											repositories={gitWatcher.repositories}
-											onRefresh={handleRefresh}
-											onCommit={handleCommit}
-											isExpanded={visualExpanded}
-											remoteDiffStats={diffStatusData}
-											chatInputRef={editing.chatInputRef}
-										/>
-									),
-								},
-								...(workspace && workspaceAgent
-									? [
-											{
-												id: "terminal",
-												label: "Terminal",
-												content: (
-													<TerminalPanel
-														chatId={agentId}
-														isVisible={
-															shouldShowSidebar && sidebarTabId === "terminal"
-														}
-														workspace={workspace}
-														workspaceAgent={workspaceAgent}
-													/>
-												),
-											},
-										]
-									: []),
-							]}
+							tabs={sidebarTabs}
 							onClose={() => onSetShowSidebarPanel(false)}
 							isExpanded={visualExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							chatTitle={chatTitle}
-							desktopChatId={
-								workspace && workspaceAgent ? desktopChatId : undefined
-							}
+							desktopChatId={availableDesktopChatId}
 						/>
 					</RightPanel>
 				</div>
@@ -535,6 +565,8 @@ interface AgentChatPageLoadingViewProps {
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -549,6 +581,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	modelSelectorPlaceholder,
 	hasModelOptions,
 	isModelCatalogLoading = false,
+	planModeEnabled,
+	onPlanModeToggle,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -567,14 +601,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
-					}}
-					workspace={{
-						canOpenEditors: false,
-						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
-						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
-						sshCommand: undefined,
 					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
@@ -596,7 +622,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
 						initialValue=""
@@ -606,6 +632,8 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={onPlanModeToggle}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 					/>
@@ -645,14 +673,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenEditors: false,
-					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
-					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
-					sshCommand: undefined,
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}

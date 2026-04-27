@@ -46,6 +46,14 @@ func sharedPlanPathMessage(requestedPath, chatPath string) string {
 	)
 }
 
+func symlinkedPlanPathMessage(planPath, resolvedPath string) string {
+	return fmt.Sprintf(
+		"the chat-specific plan path %s resolves to %s; symlinked plan paths are not allowed during plan turns",
+		planPath,
+		resolvedPath,
+	)
+}
+
 func planPathVerificationMessage(requestedPath string) string {
 	return fmt.Sprintf(
 		"the plan path %s could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly",
