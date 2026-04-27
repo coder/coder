@@ -112,3 +112,23 @@ describe("baseModeFor", () => {
 		expect(baseModeFor("light-tritan")).toBe("light");
 	});
 });
+
+describe("colorblind role palettes", () => {
+	it("keeps protan-deuter error distinct from danger", () => {
+		expect(themes["light-protan-deuter"].roles.error).not.toEqual(
+			themes["light-protan-deuter"].roles.danger,
+		);
+		expect(themes["dark-protan-deuter"].roles.error).not.toEqual(
+			themes["dark-protan-deuter"].roles.danger,
+		);
+	});
+
+	it("keeps tritan danger on the base orange role", () => {
+		expect(themes["light-tritan"].roles.danger).toEqual(
+			themes.light.roles.danger,
+		);
+		expect(themes["dark-tritan"].roles.danger).toEqual(
+			themes.dark.roles.danger,
+		);
+	});
+});

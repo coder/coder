@@ -4,10 +4,9 @@ import colors from "../tailwindColors";
 // Protanopia and deuteranopia compress the red/green channel, so semantic
 // "good/bad" pairs that rely on green vs red need a different axis. We
 // shift destructive states onto a vermilion/orange hue (Tailwind orange
-// scale, inspired by the Okabe-Ito CVD-safe scheme) and positive/active
-// states onto sky-blue. Warning stays amber because it reads as clearly
-// different from blue under protan/deuter, and preview stays on violet
-// so no two roles share an indistinguishable hue.
+// scale, inspired by the Okabe-Ito CVD-safe scheme), positive/active
+// states onto sky-blue, and warning onto fuchsia so it does not collide
+// with destructive states on the orange axis. Preview stays on violet.
 const roles: Roles = {
 	danger: {
 		background: colors.orange[950],
@@ -40,22 +39,22 @@ const roles: Roles = {
 		},
 	},
 	error: {
-		background: colors.orange[950],
-		outline: colors.orange[500],
-		text: colors.orange[50],
+		background: colors.red[950],
+		outline: colors.red[600],
+		text: colors.red[50],
 		fill: {
-			solid: colors.orange[400],
-			outline: colors.orange[400],
+			solid: colors.red[400],
+			outline: colors.red[400],
 			text: colors.white,
 		},
 	},
 	warning: {
-		background: colors.amber[950],
-		outline: colors.amber[300],
-		text: colors.amber[50],
+		background: colors.fuchsia[950],
+		outline: colors.fuchsia[300],
+		text: colors.fuchsia[50],
 		fill: {
-			solid: colors.amber[500],
-			outline: colors.amber[500],
+			solid: colors.fuchsia[500],
+			outline: colors.fuchsia[500],
 			text: colors.white,
 		},
 	},
@@ -79,7 +78,7 @@ const roles: Roles = {
 			text: colors.white,
 		},
 	},
-	// Success uses sky blue so it is distinguishable from `error` (orange)
+	// Success uses sky blue so it is distinguishable from `error` (red)
 	// under protanopia and deuteranopia. Green would blur into the red of
 	// `error` for most users with red/green CVD.
 	success: {

@@ -2,36 +2,36 @@ import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
 // Tritanopia reduces blue/yellow discrimination. Red vs green remains
-// intact, so we keep `success` on green and `error` on red, and shift
-// `warning` to a magenta/fuchsia that stays distinct from the blue
-// accents and the red destructive states.
+// intact, so we keep `success` on green, `error` on red, and `danger`
+// on the base orange. Only `warning` shifts to a magenta/fuchsia that
+// stays distinct from the blue accents and red destructive states.
 const roles: Roles = {
 	danger: {
-		background: colors.rose[50],
-		outline: colors.rose[400],
-		text: colors.rose[950],
+		background: colors.orange[50],
+		outline: colors.orange[400],
+		text: colors.orange[950],
 		fill: {
-			solid: colors.rose[600],
-			outline: colors.rose[600],
+			solid: colors.orange[600],
+			outline: colors.orange[600],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.rose[50],
-			outline: colors.rose[800],
-			text: colors.rose[800],
+			background: colors.orange[50],
+			outline: colors.orange[800],
+			text: colors.orange[800],
 			fill: {
-				solid: colors.rose[800],
-				outline: colors.rose[800],
+				solid: colors.orange[800],
+				outline: colors.orange[800],
 				text: colors.white,
 			},
 		},
 		hover: {
-			background: colors.rose[100],
-			outline: colors.rose[500],
+			background: colors.orange[100],
+			outline: colors.orange[500],
 			text: colors.black,
 			fill: {
-				solid: colors.rose[500],
-				outline: colors.rose[500],
+				solid: colors.orange[500],
+				outline: colors.orange[500],
 				text: colors.white,
 			},
 		},

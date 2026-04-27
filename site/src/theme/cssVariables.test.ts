@@ -44,6 +44,10 @@ const REQUIRED_VARIABLES = [
 	"--highlight-sky",
 	"--highlight-red",
 	"--highlight-magenta",
+	"--syntax-key",
+	"--syntax-string",
+	"--syntax-number",
+	"--syntax-boolean",
 	"--git-added-bright",
 	"--git-deleted-bright",
 	"--git-merged-bright",
@@ -78,6 +82,13 @@ function escapeRegex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function extractVariable(block: string, variable: string): string | null {
+	const match = block.match(
+		new RegExp(`${escapeRegex(variable)}\\s*:\\s*([^;]+);`),
+	);
+	return match ? match[1].trim() : null;
+}
+
 describe("theme CSS variables", () => {
 	const cssPath = path.resolve(__dirname, "../index.css");
 	const css = fs.readFileSync(cssPath, "utf8");
@@ -99,6 +110,32 @@ describe("theme CSS variables", () => {
 					});
 				}
 			}
+		});
+	}
+
+	for (const selector of [
+		".light-protan-deuter",
+		".dark-protan-deuter",
+	] as const) {
+		describe(`${selector} semantic separation`, () => {
+			const block = extractBlock(css, selector);
+
+			it("keeps warning distinct from destructive colors", () => {
+				expect(block).not.toBeNull();
+				expect(extractVariable(block ?? "", "--content-warning")).not.toBe(
+					extractVariable(block ?? "", "--content-destructive"),
+				);
+				expect(extractVariable(block ?? "", "--surface-orange")).not.toBe(
+					extractVariable(block ?? "", "--surface-red"),
+				);
+			});
+
+			it("keeps links distinct from success colors", () => {
+				expect(block).not.toBeNull();
+				expect(extractVariable(block ?? "", "--content-link")).not.toBe(
+					extractVariable(block ?? "", "--content-success"),
+				);
+			});
 		});
 	}
 });
