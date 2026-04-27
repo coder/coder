@@ -85,7 +85,7 @@ describe("getAppHref", () => {
 		);
 	});
 
-	it("includes the command in the URL when app has a command", () => {
+	it("includes the app slug in the URL when app has a command", () => {
 		const app = {
 			...MockWorkspaceApp,
 			command: "ls -la",
@@ -97,7 +97,7 @@ describe("getAppHref", () => {
 			path: "",
 		});
 		expect(href).toBe(
-			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la`,
+			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?app=${app.slug}`,
 		);
 	});
 

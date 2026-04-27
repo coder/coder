@@ -1195,6 +1195,10 @@ export async function openTerminalWindow(
 		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
 	);
 
+	// The terminal command confirmation dialog requires explicit user
+	// approval before the command executes.
+	await terminal.getByRole("button", { name: "Run command" }).click();
+
 	return terminal;
 }
 
