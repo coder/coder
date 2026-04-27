@@ -7,7 +7,6 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { AdminBadge } from "./AdminBadge";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
@@ -110,7 +109,6 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						Conversation Retention Period
 					</h3>
-					<AdminBadge />
 				</div>
 				<Switch
 					checked={isRetentionEnabled}
@@ -125,18 +123,25 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 			</p>
 			{isRetentionEnabled && (
 				<>
-					<Input
-						type="number"
-						name="retention_days"
-						min={1}
-						max={3650}
-						step={1}
-						aria-label="Conversation retention period in days"
-						value={form.values.retention_days}
-						onChange={form.handleChange}
-						disabled={isSavingRetentionDays || isRetentionDaysLoading}
-						className="w-full"
-					/>
+					<div className="flex gap-2">
+						<Input
+							type="number"
+							name="retention_days"
+							min={1}
+							max={3650}
+							step={1}
+							aria-label="Conversation retention period in days"
+							value={form.values.retention_days}
+							onChange={form.handleChange}
+							onBlur={form.handleBlur}
+							aria-invalid={Boolean(form.errors.retention_days)}
+							disabled={isSavingRetentionDays || isRetentionDaysLoading}
+							className="flex-1"
+						/>
+						<span className="flex h-10 w-[120px] items-center px-3 text-sm text-content-secondary">
+							Days
+						</span>
+					</div>
 					{form.errors.retention_days && form.touched.retention_days && (
 						<p className="m-0 text-xs text-content-destructive">
 							{form.errors.retention_days}

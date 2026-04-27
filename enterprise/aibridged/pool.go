@@ -13,9 +13,9 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/mcp"
-	"github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/tracing"
 )
 
 const (

@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
+import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";
@@ -35,10 +35,10 @@ export const redirectToOIDCAuth = (
 ) => {
 	switch (toType) {
 		case "github":
-			window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		case "oidc":
-			window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		default:
 			throw new Error(`Unknown login type ${toType}`);

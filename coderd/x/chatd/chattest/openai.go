@@ -50,11 +50,30 @@ type OpenAIRequest struct {
 	Messages           []OpenAIMessage `json:"messages"`
 	Stream             bool            `json:"stream,omitempty"`
 	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
+}
+
+func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {
+	type openAIRequest OpenAIRequest
+	decoded := struct {
+		*openAIRequest
+		Input []interface{} `json:"input,omitempty"`
+	}{
+		openAIRequest: (*openAIRequest)(r),
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	// The Responses API uses input, while older fake-server tests
+	// inspected prompt. Keep exposing both shapes through Prompt.
+	if r.Prompt == nil && decoded.Input != nil {
+		r.Prompt = decoded.Input
+	}
+	return nil
 }
 
 // OpenAIMessage represents a message in an OpenAI request.
@@ -71,6 +90,7 @@ type OpenAIToolFunction struct {
 // OpenAITool represents a tool definition in an OpenAI request.
 type OpenAITool struct {
 	Type     string             `json:"type"`
+	Name     string             `json:"name,omitempty"`
 	Function OpenAIToolFunction `json:"function"`
 }
 
@@ -139,6 +159,26 @@ type openAIServer struct {
 	request *OpenAIRequest
 }
 
+// OpenAI creates a fake OpenAI-compatible test server with a
+// sensible default handler and returns its base URL. It handles
+// both the Responses API (/responses) and the Chat Completions
+// API (/chat/completions).
+//
+// Non-streaming requests (e.g. structured-output title generation)
+// receive a JSON payload satisfying the generatedTitle schema.
+// Streaming requests (e.g. the main chat loop) receive a single
+// text chunk. Use NewOpenAI when a test needs control over the
+// response.
+func OpenAI(t testing.TB) string {
+	t.Helper()
+	return NewOpenAI(t, func(req *OpenAIRequest) OpenAIResponse {
+		if req.Stream {
+			return OpenAIStreamingResponse(OpenAITextChunks("Hello from test server.")...)
+		}
+		return OpenAINonStreamingResponse(`{"title": "Test Chat"}`)
+	})
+}
+
 // NewOpenAI creates a new OpenAI test server with a handler function.
 // The handler is called for each request and should return either a streaming
 // response (via channel) or a non-streaming response.
@@ -191,6 +231,13 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.request = &req
 	s.mu.Unlock()
+
+	if req.Prompt != nil {
+		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
+	}
 
 	resp := s.handler(&req)
 	s.writeResponsesAPIResponse(w, &req, resp)

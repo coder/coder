@@ -15,6 +15,10 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
+// MaxLabelLength is the maximum number of runes kept when building
+// first_message labels for debug run summaries.
+const MaxLabelLength = 200
+
 // whitespaceRun matches one or more consecutive whitespace characters.
 var whitespaceRun = regexp.MustCompile(`\s+`)
 

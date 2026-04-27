@@ -1,15 +1,18 @@
-import { type FC, Profiler, type ReactNode, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { getChatFileURL } from "../utils/chatAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
+	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
@@ -25,8 +28,7 @@ import {
 } from "./ChatConversation/chatStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
-	buildComputerUseSubagentIds,
-	buildSubagentTitles,
+	buildSubagentMaps,
 	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
@@ -87,8 +89,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		})
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
-	const subagentTitles = buildSubagentTitles(parsedMessages);
-	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
+	const { titles: subagentTitles, variants: subagentVariants } =
+		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -108,6 +110,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
 					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
 					onImplementPlan={onImplementPlan}
@@ -115,7 +118,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
-					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={false}
 				/>
 				<LiveStreamTail
@@ -124,7 +126,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
@@ -173,6 +175,7 @@ interface ChatPageInputProps {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
+	isEditing: boolean;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -233,6 +236,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	initialEditorState,
 	remountKey,
 	onContentChange,
+	isEditing,
 	editingQueuedMessageID,
 	onStartQueueEdit,
 	onCancelQueueEdit,
@@ -297,6 +301,16 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
+	const editAttachments = useFileAttachments(organizationId);
+	const {
+		setAttachments: setEditAttachments,
+		setPreviewUrls: setEditPreviewUrls,
+		setUploadStates: setEditUploadStates,
+		resetAttachments: resetEditAttachments,
+	} = editAttachments;
+	const wasEditingRef = useRef(isEditing);
+	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
 		textContents,
@@ -304,19 +318,32 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
-		resetAttachments,
-		setAttachments,
-		setPreviewUrls,
-		setUploadStates,
-	} = useFileAttachments(organizationId);
-	// Pre-populate attachments from existing file blocks when
-	// entering edit mode on a message with images.
+	} = modeAttachments;
+
+	// Edit attachments are scoped to the chat being edited, not the compose
+	// draft. Clear them when navigation changes the chat scope.
+	const editScopeRef = useRef({ organizationId, chatId });
+
 	useEffect(() => {
+		const previous = editScopeRef.current;
+		const scopeChanged =
+			previous.organizationId !== organizationId || previous.chatId !== chatId;
+		editScopeRef.current = { organizationId, chatId };
+		if (scopeChanged) {
+			resetEditAttachments();
+		}
+	}, [organizationId, chatId, resetEditAttachments]);
+
+	// Pre-populate the edit bucket from existing file blocks only
+	// while explicitly editing a message.
+	useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
 		if (!editingFileBlocks || editingFileBlocks.length === 0) {
-			// Clear attachments when exiting edit mode.
-			setAttachments([]);
-			setUploadStates(new Map());
-			setPreviewUrls(new Map());
+			setEditAttachments([]);
+			setEditUploadStates(new Map());
+			setEditPreviewUrls(new Map());
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
@@ -329,13 +356,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
-		setAttachments(files);
-		setPreviewUrls(
+		setEditAttachments(files);
+		setEditPreviewUrls(
 			new Map(
-				files.map((f, i) => [
-					f,
-					`/api/experimental/chats/files/${fileBlocks[i].file_id}`,
-				]),
+				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();
@@ -348,8 +372,23 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 				});
 			}
 		}
-		setUploadStates(newUploadStates);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+		setEditUploadStates(newUploadStates);
+	}, [
+		isEditing,
+		editingFileBlocks,
+		setEditAttachments,
+		setEditPreviewUrls,
+		setEditUploadStates,
+	]);
+
+	// Exiting edit mode should only clear the edit bucket. Compose draft
+	// attachments must survive canceling or completing an edit.
+	useEffect(() => {
+		if (wasEditingRef.current && !isEditing) {
+			resetEditAttachments();
+		}
+		wasEditingRef.current = isEditing;
+	}, [isEditing, resetEditAttachments]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
@@ -358,6 +397,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
+					const hasActiveUploads = attachments.some((file) =>
+						isUploadInProgress(uploadStates.get(file)),
+					);
+					if (hasActiveUploads) {
+						toast.warning("Wait for file uploads to finish before sending.");
+						return;
+					}
 					// Collect uploaded attachment metadata for the optimistic
 					// transcript builder while keeping the server payload
 					// shape unchanged downstream.
@@ -389,7 +435,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						// Attachments preserved for retry on failure.
 						return;
 					}
-					resetAttachments();
+					if (isEditing) {
+						editAttachments.resetAttachments();
+					} else {
+						composeAttachments.resetAttachments();
+					}
 				})();
 			}}
 			attachments={attachments}

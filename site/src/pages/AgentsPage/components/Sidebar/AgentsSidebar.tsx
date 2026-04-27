@@ -20,32 +20,38 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	ArrowLeftIcon,
 	BotIcon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
+	CoinsIcon,
 	EllipsisIcon,
 	FilterIcon,
+	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
-	KeyRoundIcon,
+	KeyIcon,
 	LayoutTemplateIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
 	PinIcon,
 	PinOffIcon,
+	PlugIcon,
+	ReceiptTextIcon,
+	RefreshCwIcon,
+	ServerIcon,
+	Settings2Icon,
 	SettingsIcon,
 	ShieldIcon,
+	ShrinkIcon,
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
-	WalletIcon,
-	WandSparklesIcon,
 } from "lucide-react";
 import {
 	createContext,
@@ -68,6 +74,13 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -95,11 +108,26 @@ import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
 	| { panel: "chats" }
 	| { panel: "settings"; section: string | undefined }
+	| { panel: "settings-admin"; section: string | undefined }
 	| { panel: "analytics" };
+
+const ADMIN_SETTINGS_SECTIONS = new Set([
+	"agents",
+	"templates",
+	"providers",
+	"models",
+	"mcp-servers",
+	"spend",
+	"insights",
+	"instructions",
+	"experiments",
+	"lifecycle",
+]);
 
 /**
  * Derive the current sidebar view from the URL pathname.
@@ -110,9 +138,24 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	}
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
-		return { panel: "settings", section: settingsMatch[1] };
+		const section = settingsMatch[1];
+		if (section === "admin") {
+			return { panel: "settings-admin", section: undefined };
+		}
+		return {
+			panel: ADMIN_SETTINGS_SECTIONS.has(section ?? "")
+				? "settings-admin"
+				: "settings",
+			section,
+		};
 	}
 	return { panel: "chats" };
+}
+
+export function isSettingsView(
+	view: SidebarView,
+): view is Extract<SidebarView, { panel: "settings" | "settings-admin" }> {
+	return view.panel === "settings" || view.panel === "settings-admin";
 }
 
 interface AgentsSidebarProps {
@@ -127,7 +170,8 @@ interface AgentsSidebarProps {
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	onProposeTitle?: (chatId: string) => Promise<string>;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -157,6 +201,7 @@ const statusConfig = {
 
 type ChatTree = {
 	readonly rootIds: readonly string[];
+	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
@@ -263,45 +308,54 @@ const getParentChatID = (chat: Chat): string | undefined => {
 	return asNonEmptyString(chat.parent_chat_id);
 };
 
-const getRootChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString(chat.root_chat_id);
-};
-
 const buildChatTree = (chats: readonly Chat[]): ChatTree => {
-	const orderById = new Map<string, number>();
 	const chatById = new Map<string, Chat>();
 	const parentById = new Map<string, string | undefined>();
 	const childrenById = new Map<string, string[]>();
 
-	for (const [index, chat] of chats.entries()) {
-		orderById.set(chat.id, index);
+	// The paginated list now contains only root chats. Children
+	// are embedded in each root's `children` field.
+	for (const chat of chats) {
 		chatById.set(chat.id, chat);
 		childrenById.set(chat.id, []);
-	}
-
-	for (const chat of chats) {
-		let parentID = getParentChatID(chat);
-		if (!parentID || parentID === chat.id || !chatById.has(parentID)) {
-			parentID = undefined;
+		// Guard against stale cache entries: if a flat child
+		// entry appears in `chats` after its embedded parent has
+		// already set its parent link, do not overwrite the link
+		// with `undefined`. Without this, the defensive fallback
+		// below re-adds the child to its parent's list, producing
+		// a duplicate key in React rendering.
+		if (!parentById.has(chat.id)) {
+			parentById.set(chat.id, undefined);
 		}
 
-		if (!parentID) {
-			const rootID = getRootChatID(chat);
-			if (rootID && rootID !== chat.id && chatById.has(rootID)) {
-				parentID = rootID;
+		if (chat.children) {
+			for (const child of chat.children) {
+				chatById.set(child.id, child);
+				parentById.set(child.id, chat.id);
+				childrenById.get(chat.id)?.push(child.id);
+				// Children cannot have their own children (depth
+				// capped at 1), but initialize the map entry for
+				// uniform lookup.
+				childrenById.set(child.id, []);
 			}
 		}
-
-		parentById.set(chat.id, parentID);
-		if (parentID) {
-			childrenById.get(parentID)?.push(chat.id);
-		}
 	}
 
-	for (const children of childrenById.values()) {
-		children.sort((leftID, rightID) => {
-			return (orderById.get(leftID) ?? 0) - (orderById.get(rightID) ?? 0);
-		});
+	// Defensive fallback for cached data during rollout: if any
+	// chat has a parent_chat_id that points to a chat in the list
+	// but was not embedded, build the link. This handles stale
+	// cache entries from before the backend change.
+	for (const chat of chats) {
+		const parentID = getParentChatID(chat);
+		if (
+			parentID &&
+			parentID !== chat.id &&
+			chatById.has(parentID) &&
+			!parentById.get(chat.id)
+		) {
+			parentById.set(chat.id, parentID);
+			childrenById.get(parentID)?.push(chat.id);
+		}
 	}
 
 	const rootIds = chats
@@ -310,6 +364,7 @@ const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 
 	return {
 		rootIds,
+		chatById,
 		childrenById,
 		parentById,
 	};
@@ -325,10 +380,17 @@ const collectVisibleChatIDs = ({
 	readonly tree: ChatTree;
 }): Set<string> => {
 	if (!search) {
-		return new Set(chats.map((chat) => chat.id));
+		const allIDs = new Set(chats.map((chat) => chat.id));
+		for (const chat of chats) {
+			for (const child of chat.children ?? []) {
+				allIDs.add(child.id);
+			}
+		}
+		return allIDs;
 	}
 
-	const matchedChatIDs = chats
+	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
+	const matchedChatIDs = allChats
 		.filter((chat) => chat.title.toLowerCase().includes(search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
@@ -385,7 +447,7 @@ interface ChatTreeContextValue {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onRegenerateTitle: (chatId: string) => void;
+	readonly onOpenRenameDialog?: (chat: Chat) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -423,7 +485,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -465,212 +527,232 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	return (
-		<div className="flex min-w-0 flex-col">
-			<div
-				data-testid={`agents-tree-node-${chat.id}`}
-				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-					isChildNode &&
-						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-				)}
-			>
-				<div
-					className={cn(
-						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-						hasChildren && "cursor-pointer",
-					)}
+	const renderMenuItems = ({
+		Item,
+		Separator,
+	}: {
+		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
+		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
+	}) => (
+		<>
+			{!chat.archived && !isChildNode && (
+				<Item
+					onSelect={() =>
+						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+					}
 				>
-					<div
-						className={cn(
-							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
-						)}
-					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
-					</div>
-					{hasChildren && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => toggleExpanded(chatID)}
-							className={cn(
-								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								"[@media(hover:hover)]:group-hover/icon:visible",
-							)}
-							data-testid={`agents-tree-toggle-${chat.id}`}
-							aria-label={isExpanded ? "Collapse" : "Expand"}
-							aria-expanded={isExpanded}
-						>
-							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						</Button>
-					)}
-				</div>
-				<NavLink
-					to={`/agents/${chat.id}`}
-					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-				>
-					{({ isActive }) => (
+					{chat.pin_order > 0 ? (
 						<>
-							<div className="min-w-0 flex-1 overflow-hidden text-left">
-								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-									<span
-										aria-busy={isRegeneratingThisChat}
-										className={cn(
-											"block flex-1 truncate text-[13px] text-content-primary",
-											isActive && "font-medium",
-											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
-											isRegeneratingThisChat && "animate-pulse",
-										)}
-									>
-										{chat.title}
-									</span>
-									{chat.has_unread && !isActiveChat && (
-										<span className="sr-only">(unread)</span>
-									)}
-									{isRegeneratingThisChat && (
-										<span className="sr-only" role="status">
-											Regenerating title…
-										</span>
-									)}
-								</div>
-								<div className="flex min-w-0 items-center gap-1.5">
-									{hasLinkedDiffStatus && hasLineStats && (
-										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-											title={`${filesChangedLabel}, +${additions} -${deletions}`}
-										>
-											<span className="text-git-added-bright">
-												+{additions}
-											</span>
-											<span className="text-git-deleted-bright">
-												&minus;{deletions}
-											</span>
-										</span>
-									)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
-										)}
-										title={subtitle}
-									>
-										{subtitle}
-									</div>
-								</div>
-							</div>
+							<PinOffIcon className="h-3.5 w-3.5" />
+							Unpin agent
 						</>
-					)}
-				</NavLink>
-				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-					{isArchivingThisChat ? (
-						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
 						<>
-							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
-										data-testid={`unread-indicator-${chat.id}`}
-										aria-hidden="true"
-									/>
-								) : (
-									shortRelativeTime(chat.updated_at)
-								)}
-							</span>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
-									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									{!chat.archived && !isChildNode && (
-										<DropdownMenuItem
-											onSelect={() =>
-												chat.pin_order > 0
-													? onUnpinAgent(chat.id)
-													: onPinAgent(chat.id)
-											}
-										>
-											{chat.pin_order > 0 ? (
-												<>
-													<PinOffIcon className="h-3.5 w-3.5" />
-													Unpin agent
-												</>
-											) : (
-												<>
-													<PinIcon className="h-3.5 w-3.5" />
-													Pin agent
-												</>
-											)}
-										</DropdownMenuItem>
-									)}
-									{chat.archived ? (
-										<DropdownMenuItem
-											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
-										>
-											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-											Unarchive agent
-										</DropdownMenuItem>
-									) : (
-										<>
-											<DropdownMenuItem
-												disabled={isRegeneratingThisChat}
-												onSelect={() => onRegenerateTitle(chat.id)}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
-											>
-												<ArchiveIcon className="h-3.5 w-3.5" />
-												Archive agent
-											</DropdownMenuItem>
-											{workspaceId && (
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
-												>
-													<Trash2Icon className="h-3.5 w-3.5" />
-													Archive & delete workspace
-												</DropdownMenuItem>
-											)}
-										</>
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
+							<PinIcon className="h-3.5 w-3.5" />
+							Pin agent
 						</>
 					)}
-				</div>
-			</div>
+				</Item>
+			)}
+			{chat.archived ? (
+				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+					<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+					Unarchive agent
+				</Item>
+			) : (
+				<>
+					{onOpenRenameDialog && (
+						<Item onSelect={() => onOpenRenameDialog(chat)}>
+							<SquarePenIcon className="h-3.5 w-3.5" />
+							Rename chat
+						</Item>
+					)}
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						disabled={isArchiving}
+						onSelect={() => onArchiveAgent(chat.id)}
+					>
+						<ArchiveIcon className="h-3.5 w-3.5" />
+						Archive agent
+					</Item>
+					{workspaceId && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							disabled={isArchiving}
+							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+						>
+							<Trash2Icon className="h-3.5 w-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+				</>
+			)}
+		</>
+	);
+
+	return (
+		<div className="flex min-w-0 flex-col">
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div
+						data-testid={`agents-tree-node-${chat.id}`}
+						className={cn(
+							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							isChildNode &&
+								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+						)}
+					>
+						<div
+							className={cn(
+								"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+								hasChildren && "cursor-pointer",
+							)}
+						>
+							<div
+								className={cn(
+									"flex h-5 w-5 items-center justify-center rounded-md",
+									hasChildren &&
+										"[@media(hover:hover)]:group-hover/icon:invisible",
+								)}
+							>
+								<StatusIcon
+									data-testid={
+										isDelegatedExecuting
+											? `agents-tree-executing-${chat.id}`
+											: undefined
+									}
+									className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+								/>
+							</div>
+							{hasChildren && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={() => toggleExpanded(chatID)}
+									className={cn(
+										"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+										"[@media(hover:hover)]:group-hover/icon:visible",
+									)}
+									data-testid={`agents-tree-toggle-${chat.id}`}
+									aria-label={isExpanded ? "Collapse" : "Expand"}
+									aria-expanded={isExpanded}
+								>
+									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+								</Button>
+							)}
+						</div>
+						<NavLink
+							to={`/agents/${chat.id}`}
+							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+						>
+							{({ isActive }) => (
+								<>
+									<div className="min-w-0 flex-1 overflow-hidden text-left">
+										<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+											<span
+												aria-busy={isRegeneratingThisChat}
+												className={cn(
+													"block flex-1 truncate text-[13px] text-content-primary",
+													isActive && "font-medium",
+													isRegeneratingThisChat && "animate-pulse",
+												)}
+											>
+												{chat.title}
+											</span>
+											{chat.has_unread && !isActiveChat && (
+												<span className="sr-only">(unread)</span>
+											)}
+											{isRegeneratingThisChat && (
+												<span className="sr-only" role="status">
+													Regenerating title…
+												</span>
+											)}
+										</div>
+										<div className="flex min-w-0 items-center gap-1.5">
+											{hasLinkedDiffStatus && hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
+												</span>
+											)}
+											<div
+												className={cn(
+													"min-w-0 overflow-hidden text-[13px] leading-4",
+													errorReason
+														? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+														: "truncate text-content-secondary",
+												)}
+												title={subtitle}
+											>
+												{subtitle}
+											</div>
+										</div>
+									</div>
+								</>
+							)}
+						</NavLink>
+						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<>
+									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										{chat.has_unread && !isActiveChat ? (
+											<span
+												className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										) : (
+											shortRelativeTime(chat.updated_at)
+										)}
+									</span>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisIcon className="h-3.5 w-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+										>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</>
+							)}
+						</div>
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+					{renderMenuItems({
+						Item: ContextMenuItem,
+						Separator: ContextMenuSeparator,
+					})}
+				</ContextMenuContent>
+			</ContextMenu>
 
 			{hasChildren && isExpanded && (
 				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
@@ -742,7 +824,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onReorderPinnedAgent,
-		onRegenerateTitle,
+		onRenameTitle,
+		onProposeTitle,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -768,19 +851,28 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
+	const isSettingsPanel = isSettingsView(sidebarView);
+	const isFallbackToUserPanel =
+		sidebarView.panel === "settings-admin" && !isAdmin;
+	const settingsPanel =
+		sidebarView.panel === "settings-admin" && isAdmin
+			? "settings-admin"
+			: "settings";
+	const settingsSection =
+		isSettingsPanel && !isFallbackToUserPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
-		enabled: sidebarView.panel === "settings" && !isAdmin,
+		enabled: isSettingsPanel && !isAdmin,
 	});
-	const isApiKeysSection =
-		sidebarView.panel === "settings" && sidebarView.section === "api-keys";
+	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	const chatTree = buildChatTree(chats);
-	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
 		search: normalizedSearch,
@@ -899,7 +991,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
-				className="[&_[role=menuitem]]:text-[13px]"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
 			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
@@ -973,20 +1065,21 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
-		onRegenerateTitle,
+		onOpenRenameDialog: onRenameTitle ? setChatPendingRename : undefined,
 	};
 
-	const subNavTitle = "Settings";
+	const subNavTitle =
+		settingsPanel === "settings-admin" ? "Manage Agents" : "Settings";
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
-					sidebarView.panel === "settings" && "-translate-x-full",
+					isSettingsPanel && "-translate-x-full",
 				)}
-				aria-hidden={sidebarView.panel === "settings"}
-				inert={sidebarView.panel === "settings" ? true : undefined}
+				aria-hidden={isSettingsPanel}
+				inert={isSettingsPanel ? true : undefined}
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
@@ -1005,7 +1098,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								aria-label="Settings"
 								className={cn(
 									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-									sidebarView.panel === "settings" && "text-content-primary",
+									isSettingsPanel && "text-content-primary",
 								)}
 							>
 								<Link to="/agents/settings" state={{ from: location.pathname }}>
@@ -1034,147 +1127,157 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						disabled={isCreating}
 					/>
 				</div>
-				<ScrollArea
-					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-						{loadError ? (
-							<div className="space-y-3 px-1">
-								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
-							</div>
-						) : isLoading ? (
-							<>
-								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
-									{Array.from({ length: 6 }, (_, i) => (
-										<div
-											key={i}
-											className="flex items-start gap-2 rounded-md px-2 py-1"
-										>
-											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-											<div className="min-w-0 flex-1 space-y-1.5">
-												<Skeleton
-													className="h-3.5"
-													style={{ width: `${55 + ((i * 17) % 35)}%` }}
-												/>
-												<Skeleton className="h-3 w-20" />
-											</div>
-										</div>
-									))}
+				<div className="relative min-h-0 flex-1">
+					<ScrollArea
+						className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+						scrollBarClassName="w-1.5"
+						viewportClassName={cn(
+							"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"md:[mask-image:none] md:[-webkit-mask-image:none]",
+						)}
+					>
+						<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+							{loadError ? (
+								<div className="space-y-3 px-1">
+									<ErrorAlert error={loadError} />
+									{onRetryLoad && (
+										<Button size="sm" variant="outline" onClick={onRetryLoad}>
+											Retry
+										</Button>
+									)}
 								</div>
-							</>
-						) : (
-							<ChatTreeContext value={chatTreeCtx}>
-								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										<button
-											type="button"
-											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-											onClick={() =>
-												onArchivedFilterChange?.(
-													archivedFilter === "archived" ? "active" : "archived",
-												)
-											}
-										>
-											{archivedFilter === "archived"
-												? "← Back to active"
-												: "View archived →"}
-										</button>
+							) : isLoading ? (
+								<>
+									<Skeleton className="ml-2.5 h-3.5 w-16" />
+									<div className="flex flex-col gap-0.5">
+										{Array.from({ length: 6 }, (_, i) => (
+											<div
+												key={i}
+												className="flex items-start gap-2 rounded-md px-2 py-1"
+											>
+												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+												<div className="min-w-0 flex-1 space-y-1.5">
+													<Skeleton
+														className="h-3.5"
+														style={{ width: `${55 + ((i * 17) % 35)}%` }}
+													/>
+													<Skeleton className="h-3 w-20" />
+												</div>
+											</div>
+										))}
 									</div>
-								) : (
-									<div>
-										{visibleRootIDs.length > 0 && (
-											<div className="pb-2">
-												{/* ── Pinned section ── */}
-												{pinnedChats.length > 0 && (
-													<div className="[&:not(:first-child)]:mt-3">
-														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>Pinned</span>
-															{showFilterOnPinned && filterDropdown}
-														</div>
-														<DndContext
-															sensors={sensors}
-															collisionDetection={closestCenter}
-															onDragEnd={handleDragEnd}
-														>
-															<SortableContext
-																items={pinnedChatIds}
-																strategy={verticalListSortingStrategy}
+								</>
+							) : (
+								<ChatTreeContext value={chatTreeCtx}>
+									{visibleRootIDs.length === 0 ? (
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() =>
+													onArchivedFilterChange?.(
+														archivedFilter === "archived"
+															? "active"
+															: "archived",
+													)
+												}
+											>
+												{archivedFilter === "archived"
+													? "← Back to active"
+													: "View archived →"}
+											</button>
+										</div>
+									) : (
+										<div>
+											{visibleRootIDs.length > 0 && (
+												<div className="pb-2">
+													{/* ── Pinned section ── */}
+													{pinnedChats.length > 0 && (
+														<div className="[&:not(:first-child)]:mt-3">
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>Pinned</span>
+																{showFilterOnPinned && filterDropdown}
+															</div>
+															<DndContext
+																sensors={sensors}
+																collisionDetection={closestCenter}
+																onDragEnd={handleDragEnd}
 															>
-																<div
-																	ref={pinnedContainerRef}
-																	className="flex flex-col gap-0.5"
+																<SortableContext
+																	items={pinnedChatIds}
+																	strategy={verticalListSortingStrategy}
 																>
-																	{sortedPinnedChats.map((chat) => (
-																		<SortableChatTreeNode
+																	<div
+																		ref={pinnedContainerRef}
+																		className="flex flex-col gap-0.5"
+																	>
+																		{sortedPinnedChats.map((chat) => (
+																			<SortableChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																			/>
+																		))}
+																	</div>
+																</SortableContext>
+															</DndContext>
+														</div>
+													)}
+													{/* ── Time-grouped sections ── */}
+													{TIME_GROUPS.map((group) => {
+														const groupChats = visibleRootIDs
+															.map((id) => chatById.get(id))
+															.filter(
+																(chat): chat is Chat =>
+																	chat !== undefined &&
+																	getTimeGroup(chat.updated_at) === group &&
+																	chat.pin_order === 0,
+															);
+														if (groupChats.length === 0) return null;
+														return (
+															<div
+																key={group}
+																className="[&:not(:first-child)]:mt-3"
+															>
+																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																	<span>{group}</span>
+																	{group === firstNonEmptyGroup &&
+																		filterDropdown}
+																</div>
+																<div className="flex flex-col gap-0.5">
+																	{groupChats.map((chat) => (
+																		<ChatTreeNode
 																			key={chat.id}
 																			chat={chat}
+																			isChildNode={false}
 																		/>
 																	))}
 																</div>
-															</SortableContext>
-														</DndContext>
-													</div>
-												)}
-												{/* ── Time-grouped sections ── */}
-												{TIME_GROUPS.map((group) => {
-													const groupChats = visibleRootIDs
-														.map((id) => chatById.get(id))
-														.filter(
-															(chat): chat is Chat =>
-																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group &&
-																chat.pin_order === 0,
+															</div>
 														);
-													if (groupChats.length === 0) return null;
-													return (
-														<div
-															key={group}
-															className="[&:not(:first-child)]:mt-3"
-														>
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>{group}</span>
-																{group === firstNonEmptyGroup && filterDropdown}
-															</div>
-															<div className="flex flex-col gap-0.5">
-																{groupChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
-															</div>
-														</div>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								)}
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
-								)}
-							</ChatTreeContext>
-						)}
-					</div>
-				</ScrollArea>
+													})}
+												</div>
+											)}
+										</div>
+									)}
+									{(hasNextPage || isFetchingNextPage) && (
+										<LoadMoreSentinel
+											onLoadMore={onLoadMore}
+											isFetchingNextPage={isFetchingNextPage}
+										/>
+									)}
+								</ChatTreeContext>
+							)}
+						</div>
+					</ScrollArea>
+				</div>
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
@@ -1217,10 +1320,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
-					sidebarView.panel !== "settings" && "translate-x-full",
+					!isSettingsPanel && "translate-x-full",
 				)}
-				aria-hidden={sidebarView.panel !== "settings"}
-				inert={sidebarView.panel !== "settings" ? true : undefined}
+				aria-hidden={!isSettingsPanel}
+				inert={!isSettingsPanel ? true : undefined}
 			>
 				{/* Back header */}
 				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
@@ -1232,14 +1335,28 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							asChild
 							variant="subtle"
 							size="icon"
-							aria-label="Back to Agents"
+							aria-label={
+								settingsPanel === "settings-admin"
+									? "Back to Settings"
+									: "Back to Agents"
+							}
 							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
-							<Link
-								to={(location.state as { from?: string })?.from || "/agents"}
-							>
-								<ChevronLeftIcon />
-							</Link>
+							{settingsPanel === "settings-admin" ? (
+								<Link
+									to="/agents/settings/general"
+									state={location.state}
+									aria-label="Back to Settings"
+								>
+									<ArrowLeftIcon />
+								</Link>
+							) : (
+								<Link
+									to={(location.state as { from?: string })?.from || "/agents"}
+								>
+									<ArrowLeftIcon />
+								</Link>
+							)}
 						</Button>
 						<div className="flex-1" />
 						{onCollapse && (
@@ -1256,81 +1373,120 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 				{/* Sub-navigation items */}
-				{sidebarView.panel === "settings" && (
+				{settingsPanel === "settings" ? (
 					<nav className="flex flex-col gap-0.5 px-2 py-2">
 						<SettingsNavItem
 							icon={UserIcon}
-							label="Behavior"
-							active={
-								!sidebarView.section || sidebarView.section === "behavior"
-							}
-							to="/agents/settings/behavior"
+							label="General"
+							active={!settingsSection || settingsSection === "general"}
+							to="/agents/settings/general"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ShrinkIcon}
+							label="Compaction"
+							active={settingsSection === "compaction"}
+							to="/agents/settings/compaction"
 							state={location.state}
 						/>
 						{showApiKeysItem && (
 							<SettingsNavItem
-								icon={KeyRoundIcon}
-								label="API Keys"
-								active={sidebarView.section === "api-keys"}
+								icon={KeyIcon}
+								label="Secrets (API keys)"
+								active={settingsSection === "api-keys"}
 								to="/agents/settings/api-keys"
 								state={location.state}
 							/>
 						)}
 						{isAdmin && (
-							<>
-								<SettingsNavItem
-									icon={BotIcon}
-									label="Agents"
-									active={sidebarView.section === "agents"}
-									to="/agents/settings/agents"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={LayoutTemplateIcon}
-									label="Templates"
-									active={sidebarView.section === "templates"}
-									to="/agents/settings/templates"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={KeyRoundIcon}
-									label="Providers"
-									active={sidebarView.section === "providers"}
-									to="/agents/settings/providers"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={BoxesIcon}
-									label="Models"
-									active={sidebarView.section === "models"}
-									to="/agents/settings/models"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={WalletIcon}
-									label="Spend"
-									active={sidebarView.section === "spend"}
-									to="/agents/settings/spend"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={WandSparklesIcon}
-									label="Insights"
-									active={sidebarView.section === "insights"}
-									to="/agents/settings/insights"
-									state={location.state}
-									adminOnly
-								/>
-							</>
+							<SettingsNavItem
+								icon={Settings2Icon}
+								label="Manage Agents"
+								active={false}
+								to="/agents/settings/admin"
+								state={location.state}
+								trailingIcon={ChevronRightIcon}
+							/>
 						)}
+					</nav>
+				) : (
+					<nav className="flex flex-col gap-0.5 px-2 py-2">
+						<SettingsNavItem
+							icon={BotIcon}
+							label="Agents"
+							active={!settingsSection || settingsSection === "agents"}
+							to="/agents/settings/agents"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={PlugIcon}
+							label="Providers"
+							active={settingsSection === "providers"}
+							to="/agents/settings/providers"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={BoxesIcon}
+							label="Models"
+							active={settingsSection === "models"}
+							to="/agents/settings/models"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ServerIcon}
+							label="MCP Servers"
+							active={settingsSection === "mcp-servers"}
+							to="/agents/settings/mcp-servers"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={LayoutTemplateIcon}
+							label="Templates"
+							active={settingsSection === "templates"}
+							to="/agents/settings/templates"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={CoinsIcon}
+							label="Spend"
+							active={settingsSection === "spend"}
+							to="/agents/settings/spend"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={ReceiptTextIcon}
+							label="Instructions"
+							active={settingsSection === "instructions"}
+							to="/agents/settings/instructions"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={FlaskConicalIcon}
+							label="Experiments"
+							active={settingsSection === "experiments"}
+							to="/agents/settings/experiments"
+							state={location.state}
+						/>
+						<SettingsNavItem
+							icon={RefreshCwIcon}
+							label="Lifecycle"
+							active={settingsSection === "lifecycle"}
+							to="/agents/settings/lifecycle"
+							state={location.state}
+						/>
 					</nav>
 				)}
 			</div>
+			{onRenameTitle && (
+				<RenameChatDialog
+					chat={chatPendingRename}
+					onRename={onRenameTitle}
+					onPropose={onProposeTitle}
+					onOpenChange={(open) => {
+						if (!open) setChatPendingRename(null);
+					}}
+				/>
+			)}
 		</div>
 	);
 };
@@ -1341,6 +1497,7 @@ type SettingsNavItemProps = {
 	active: boolean;
 	adminOnly?: boolean;
 	disabled?: boolean;
+	trailingIcon?: FC<{ className?: string }>;
 } & (
 	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
@@ -1359,22 +1516,26 @@ const NavItemContent: FC<{
 	icon: FC<{ className?: string }>;
 	label: string;
 	adminOnly?: boolean;
-}> = ({ icon: Icon, label, adminOnly }) => (
+	trailingIcon?: FC<{ className?: string }>;
+}> = ({ icon: Icon, label, adminOnly, trailingIcon: TrailingIcon }) => (
 	<>
 		<Icon className="h-4 w-4 shrink-0" />
-		<span className="flex flex-1 items-center gap-2">
-			{label}
-			{adminOnly && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="ml-auto inline-flex">
-							<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="right">Admin only</TooltipContent>
-				</Tooltip>
-			)}
-		</span>
+		<span className="min-w-0 flex-1">{label}</span>
+		{(adminOnly || TrailingIcon) && (
+			<span className="ml-auto flex items-center gap-2">
+				{adminOnly && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="right">Admin only</TooltipContent>
+					</Tooltip>
+				)}
+				{TrailingIcon && <TrailingIcon className="h-4 w-4 shrink-0" />}
+			</span>
+		)}
 	</>
 );
 
@@ -1384,6 +1545,7 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 	active,
 	adminOnly,
 	disabled,
+	trailingIcon,
 	...rest
 }) => {
 	if (rest.to != null) {
@@ -1397,7 +1559,12 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 				aria-current={active ? "page" : undefined}
 				tabIndex={disabled ? -1 : undefined}
 			>
-				<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+				<NavItemContent
+					icon={icon}
+					label={label}
+					adminOnly={adminOnly}
+					trailingIcon={trailingIcon}
+				/>
 			</Link>
 		);
 	}
@@ -1410,7 +1577,12 @@ const SettingsNavItem: FC<SettingsNavItemProps> = ({
 			className={navItemClassName(active, disabled)}
 			aria-current={active ? "page" : undefined}
 		>
-			<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+			<NavItemContent
+				icon={icon}
+				label={label}
+				adminOnly={adminOnly}
+				trailingIcon={trailingIcon}
+			/>
 		</button>
 	);
 };

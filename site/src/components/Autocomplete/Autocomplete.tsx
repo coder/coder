@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { CheckIcon, XIcon } from "lucide-react";
 import {
 	type KeyboardEvent,
 	type ReactNode,
@@ -184,7 +184,7 @@ export function Autocomplete<TOption>({
 								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
 								aria-label="Clear selection"
 							>
-								<X className="size-4 text-content-secondary hover:text-content-primary" />
+								<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
 							</span>
 						)}
 						<span className="flex items-center justify-center size-5">
@@ -234,7 +234,9 @@ export function Autocomplete<TOption>({
 												) : (
 													<>
 														<span className="flex-1">{optionLabel}</span>
-														{selected && <Check className="size-4 shrink-0" />}
+														{selected && (
+															<CheckIcon className="size-4 shrink-0" />
+														)}
 													</>
 												)}
 											</CommandItem>

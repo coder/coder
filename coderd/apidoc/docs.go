@@ -122,6 +122,7 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Bridge interceptions",
                 "operationId": "list-ai-bridge-interceptions",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -5468,6 +5469,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    },
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -13375,6 +13379,10 @@ const docTemplate = `{
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
                 },
+                "last_active_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "last_prompt": {
                     "type": "string"
                 },
@@ -19757,7 +19765,8 @@ const docTemplate = `{
                 "workspace_agent",
                 "workspace_app",
                 "task",
-                "ai_seat"
+                "ai_seat",
+                "chat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19786,7 +19795,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeAISeat",
+                "ResourceTypeChat"
             ]
         },
         "codersdk.Response": {
@@ -21221,6 +21231,21 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThinkingDisplayMode": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "preview",
+                "always_expanded",
+                "always_collapsed"
+            ],
+            "x-enum-varnames": [
+                "ThinkingDisplayModeAuto",
+                "ThinkingDisplayModePreview",
+                "ThinkingDisplayModeAlwaysExpanded",
+                "ThinkingDisplayModeAlwaysCollapsed"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -21539,6 +21564,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -21997,6 +22025,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },

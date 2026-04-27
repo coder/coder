@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Database, Settings, TriangleAlert } from "lucide-react";
+import { DatabaseIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react";
 import { Badges } from "#/components/Badges/Badges";
 import { Badge } from "./Badge";
 
@@ -14,15 +14,15 @@ export const Default: Story = {
 	render: () => (
 		<Badges>
 			<Badge size="xs">
-				<Database />
+				<DatabaseIcon />
 				Text
 			</Badge>
 			<Badge size="sm">
-				<Database />
+				<DatabaseIcon />
 				Text
 			</Badge>
 			<Badge size="md">
-				<Database />
+				<DatabaseIcon />
 				Text
 			</Badge>
 		</Badges>
@@ -34,14 +34,14 @@ export const Warning: Story = {
 		<Badges>
 			<Badge variant="warning" size="xs">
 				Warning
-				<TriangleAlert />
+				<TriangleAlertIcon />
 			</Badge>
 			<Badge variant="warning" size="sm">
-				<TriangleAlert />
+				<TriangleAlertIcon />
 				Warning
 			</Badge>
 			<Badge variant="warning" size="md">
-				<TriangleAlert />
+				<TriangleAlertIcon />
 				Warning
 			</Badge>
 		</Badges>
@@ -53,14 +53,14 @@ export const Destructive: Story = {
 		<Badges>
 			<Badge variant="destructive" size="xs">
 				Destructive
-				<TriangleAlert />
+				<TriangleAlertIcon />
 			</Badge>
 			<Badge variant="destructive" size="sm">
-				<TriangleAlert />
+				<TriangleAlertIcon />
 				Destructive
 			</Badge>
 			<Badge variant="destructive" size="md">
-				<TriangleAlert />
+				<TriangleAlertIcon />
 				Destructive
 			</Badge>
 		</Badges>
@@ -134,7 +134,7 @@ export const Magenta: Story = {
 export const SmallWithIcon: Story = {
 	render: () => (
 		<Badge variant="default" size="sm">
-			<Settings />
+			<SettingsIcon />
 			Preset
 		</Badge>
 	),
@@ -143,7 +143,7 @@ export const SmallWithIcon: Story = {
 export const MediumWithIcon: Story = {
 	render: () => (
 		<Badge variant="warning" size="md">
-			<TriangleAlert />
+			<TriangleAlertIcon />
 			Immutable
 		</Badge>
 	),

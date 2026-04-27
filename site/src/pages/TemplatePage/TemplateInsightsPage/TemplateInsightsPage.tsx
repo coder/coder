@@ -1,6 +1,6 @@
 import chroma from "chroma-js";
 import {
-	CircleCheck as CircleCheckIcon,
+	CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";

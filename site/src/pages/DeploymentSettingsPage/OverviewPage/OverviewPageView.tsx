@@ -4,6 +4,7 @@ import type {
 	Experiment,
 	SerpentOption,
 } from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -13,7 +14,6 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useDeploymentOptions } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
-import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 

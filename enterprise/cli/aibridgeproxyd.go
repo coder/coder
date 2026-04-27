@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/enterprise/coderd"
 )

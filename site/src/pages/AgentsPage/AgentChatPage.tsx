@@ -32,6 +32,7 @@ import {
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
+	userChatDebugLogging,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -95,6 +96,8 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
+/** @internal localStorage key prefix for the per-chat active sidebar tab. Exported for testing. */
+export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
@@ -108,12 +111,55 @@ type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 export function getPersistedDraftInputValue(
 	chatID: string | undefined,
 ): string {
-	if (typeof window === "undefined" || !chatID) {
+	if (!chatID) {
 		return "";
 	}
 	return parseStoredDraft(
 		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
 	).text;
+}
+
+/**
+ * Read the persisted active sidebar tab ID for a given chat. Returns
+ * `null` when no value is stored or the chat ID is missing.
+ */
+export function getPersistedSidebarTabId(
+	chatID: string | undefined,
+): string | null {
+	if (!chatID) {
+		return null;
+	}
+	return localStorage.getItem(
+		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
+	);
+}
+
+/**
+ * Persist the active sidebar tab ID for a given chat so it can be
+ * restored across session switches. No-op when the chat ID is missing.
+ */
+export function savePersistedSidebarTabId(
+	chatID: string | undefined,
+	tabID: string,
+): void {
+	if (!chatID) {
+		return;
+	}
+	localStorage.setItem(
+		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
+		tabID,
+	);
+}
+
+/**
+ * Remove the persisted active sidebar tab ID for a given chat. Called
+ * when a chat is archived so a future unarchive starts fresh.
+ */
+export function clearPersistedSidebarTabId(chatID: string | undefined): void {
+	if (!chatID) {
+		return;
+	}
+	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
 }
 
 /** @internal Exported for testing. */
@@ -138,6 +184,40 @@ export const restoreOptimisticRequestSnapshot = (
 		store.setStreamError(snapshot.streamError);
 	});
 };
+
+export async function submitEditAndScroll({
+	editMessage,
+	editArgs,
+	scrollToBottom,
+	onError,
+}: {
+	editMessage: (args: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	}) => Promise<unknown>;
+	editArgs: {
+		messageId: number;
+		optimisticMessage?: TypesGen.ChatMessage;
+		req: TypesGen.EditChatMessageRequest;
+	};
+	scrollToBottom: (() => void) | null | undefined;
+	onError: (error: unknown) => void;
+}): Promise<void> {
+	try {
+		await editMessage(editArgs);
+	} catch (error) {
+		onError(error);
+		throw error;
+	}
+	// Scroll after the mutation resolves so the optimistic
+	// truncation and server reconciliation have already been
+	// applied to the DOM. Scrolling before this point causes
+	// the sticky user message to cycle through prior messages
+	// as the IntersectionObserver reacts to rapid layout
+	// shifts between the old and truncated content.
+	scrollToBottom?.();
+}
 
 /** @internal Exported for testing. */
 export const waitForPendingChatSettingsSyncs = async (
@@ -619,6 +699,7 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = filterWorkspaceOptionsByOrganization(
@@ -626,6 +707,8 @@ const AgentChatPage: FC = () => {
 		chatQuery.data?.organization_id,
 	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const debugLoggingEnabled =
+		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1222,18 +1305,19 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			scrollToBottomRef.current?.();
-			try {
-				await editMessage({
+			await submitEditAndScroll({
+				editMessage,
+				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
-				});
-			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				handleUsageLimitError(error);
-				throw error;
-			}
+				},
+				scrollToBottom: scrollToBottomRef.current,
+				onError: (error) => {
+					restoreOptimisticRequestSnapshot(store, previousSnapshot);
+					handleUsageLimitError(error);
+				},
+			});
 			return;
 		}
 
@@ -1400,6 +1484,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}
@@ -1422,6 +1507,7 @@ const AgentChatPage: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import {
@@ -6,7 +6,7 @@ import {
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
-import { isDevBuild } from "#/utils/buildInfo";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */
@@ -53,7 +53,8 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig &&
-					(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+					(experiments.includes("oauth2") ||
+						getPrereleaseFlag(buildInfo) === "devel") && (
 						<SidebarNavItem href="/deployment/oauth2-provider/apps">
 							OAuth2 Applications
 						</SidebarNavItem>
@@ -84,11 +85,9 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<div className="flex flex-row items-center gap-1">
-
-							Groups {showOrganizations && <ArrowUpRight size={16} />}
-						</div>
-
+							<div className="flex flex-row items-center gap-1">
+								Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
+							</div>
 					</SidebarNavItem>
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (
@@ -105,6 +104,13 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/agents/settings/agents">
+						<div className="flex flex-row items-center gap-1">
+							Manage Coder Agents <ArrowUpRightIcon size={16} />
+						</div>
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

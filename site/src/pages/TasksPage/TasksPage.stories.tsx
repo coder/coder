@@ -541,7 +541,10 @@ export const AllTaskNotificationsDisabledAlertVisible: Story = {
 			{
 				// User preferences: alert NOT dismissed
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: false },
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+				},
 			},
 		],
 	},
@@ -572,7 +575,10 @@ export const AllTaskNotificationsDisabledAlertDismissed: Story = {
 			{
 				// User preferences: alert IS dismissed
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: true },
+				data: {
+					task_notification_alert_dismissed: true,
+					thinking_display_mode: "auto" as const,
+				},
 			},
 		],
 	},
@@ -609,7 +615,10 @@ export const OneTaskNotificationEnabledAlertHidden: Story = {
 			{
 				// User preferences: doesn't matter since alert shouldn't show anyway
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: false },
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+				},
 			},
 		],
 	},
@@ -645,7 +654,10 @@ export const AllTaskNotificationsExplicitlyDisabledAlertVisible: Story = {
 			{
 				// User preferences: alert NOT dismissed
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: false },
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+				},
 			},
 		],
 	},

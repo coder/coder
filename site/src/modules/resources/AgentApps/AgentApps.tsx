@@ -1,4 +1,4 @@
-import { Folder } from "lucide-react";
+import { FolderIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
 	Workspace,
@@ -29,7 +29,7 @@ export const AgentApps: FC<AgentAppsProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<AgentButton>
-					<Folder />
+					<FolderIcon />
 					{section.group}
 				</AgentButton>
 			</DropdownMenuTrigger>

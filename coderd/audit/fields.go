@@ -10,7 +10,8 @@ import (
 type BackgroundSubsystem string
 
 const (
-	BackgroundSubsystemDormancy BackgroundSubsystem = "dormancy"
+	BackgroundSubsystemDormancy        BackgroundSubsystem = "dormancy"
+	BackgroundSubsystemChatAutoArchive BackgroundSubsystem = "chat_auto_archive"
 )
 
 func BackgroundTaskFields(subsystem BackgroundSubsystem) map[string]string {
@@ -25,7 +26,7 @@ func BackgroundTaskFieldsBytes(ctx context.Context, logger slog.Logger, subsyste
 
 	wriBytes, err := json.Marshal(af)
 	if err != nil {
-		logger.Error(ctx, "marshal additional fields for dormancy audit", slog.Error(err))
+		logger.Error(ctx, "marshal additional fields for background audit", slog.Error(err))
 		return []byte("{}")
 	}
 

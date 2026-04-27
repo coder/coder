@@ -262,7 +262,10 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 		return (
 			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-				<PopoverContent side="top" className="w-auto max-w-72 px-3 py-2">
+				<PopoverContent
+					side="top"
+					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
+				>
 					{panelContent}
 				</PopoverContent>
 			</Popover>

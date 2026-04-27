@@ -95,6 +95,12 @@ type Chat struct {
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
 	ClientType          ChatClientType    `json:"client_type"`
+	// Children holds child (subagent) chats nested under this root
+	// chat. Always initialized to an empty slice so the JSON field
+	// is present as []. Child chats cannot create their own
+	// subagents, so nesting depth is capped at 1 and this slice is
+	// always empty for child chats.
+	Children []Chat `json:"children"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -212,6 +218,7 @@ type ChatMessagePart struct {
 	URL               string              `json:"url" variants:"source"`
 	Title             string              `json:"title,omitempty" variants:"source?"`
 	MediaType         string              `json:"media_type" variants:"file"`
+	Name              string              `json:"name,omitempty" variants:"file?"`
 	Data              []byte              `json:"data,omitempty" variants:"file?"`
 	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
 	FileName          string              `json:"file_name" variants:"file-reference"`
@@ -327,11 +334,12 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 }
 
 // ChatMessageFile builds a file chat message part.
-func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+func ChatMessageFile(fileID uuid.UUID, mediaType string, name string) ChatMessagePart {
 	return ChatMessagePart{
 		Type:      ChatMessagePartTypeFile,
 		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
 		MediaType: mediaType,
+		Name:      name,
 	}
 }
 
@@ -554,19 +562,46 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatExploreModelOverrideResponse is the response body for the Explore
-// subagent model override configuration endpoint.
-type ChatExploreModelOverrideResponse struct {
-	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
-	// HasMalformedOverride reports whether the saved override is malformed and
-	// is currently being treated as unset.
-	HasMalformedOverride bool `json:"has_malformed_override"`
+// ChatAgentModelOverrideContext identifies which chat or subagent context
+// a deployment override applies to.
+type ChatAgentModelOverrideContext string
+
+const (
+	ChatAgentModelOverrideContextGeneral ChatAgentModelOverrideContext = "general"
+	ChatAgentModelOverrideContextExplore ChatAgentModelOverrideContext = "explore"
+)
+
+// Valid reports whether the override context is one of the supported values.
+func (c ChatAgentModelOverrideContext) Valid() bool {
+	switch c {
+	case ChatAgentModelOverrideContextGeneral,
+		ChatAgentModelOverrideContextExplore:
+		return true
+	default:
+		return false
+	}
 }
 
-// UpdateChatExploreModelOverrideRequest is the request body for updating the
-// Explore subagent model override configuration endpoint.
-type UpdateChatExploreModelOverrideRequest struct {
-	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+// AllChatAgentModelOverrideContexts returns all supported override contexts.
+func AllChatAgentModelOverrideContexts() []ChatAgentModelOverrideContext {
+	return []ChatAgentModelOverrideContext{
+		ChatAgentModelOverrideContextGeneral,
+		ChatAgentModelOverrideContextExplore,
+	}
+}
+
+// ChatAgentModelOverrideResponse is the response body for the chat agent
+// model override configuration endpoint.
+type ChatAgentModelOverrideResponse struct {
+	Context       ChatAgentModelOverrideContext `json:"context"`
+	ModelConfigID string                        `json:"model_config_id"`
+	IsMalformed   bool                          `json:"is_malformed"`
+}
+
+// UpdateChatAgentModelOverrideRequest is the request body for updating the
+// chat agent model override configuration endpoint.
+type UpdateChatAgentModelOverrideRequest struct {
+	ModelConfigID string `json:"model_config_id"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -714,10 +749,9 @@ type ChatDebugRunSummary struct {
 	FinishedAt *time.Time       `json:"finished_at,omitempty" format:"date-time"`
 }
 
-// ChatDebugRun is the detailed run response including steps.
-// This type is consumed by the run-detail handler added in a later
-// PR in this stack; it is forward-declared here so that all SDK
-// types live in the same schema-layer commit.
+// ChatDebugRun is the detailed run response returned by the run-detail
+// endpoint. It includes the same summary fields as ChatDebugRunSummary
+// along with the full step history for the run.
 type ChatDebugRun struct {
 	ID                  uuid.UUID        `json:"id" format:"uuid"`
 	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
@@ -762,6 +796,11 @@ type ChatDebugStep struct {
 // Zero means disabled — the template's own autostop setting applies.
 const DefaultChatWorkspaceTTL = 0
 
+// DefaultChatAutoArchiveDays is the default auto-archive window, in
+// days, applied when no site config row exists. Zero disables
+// auto-archival.
+const DefaultChatAutoArchiveDays int32 = 0
+
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
@@ -787,6 +826,17 @@ type ChatRetentionDaysResponse struct {
 // retention period.
 type UpdateChatRetentionDaysRequest struct {
 	RetentionDays int32 `json:"retention_days"`
+}
+
+// ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
+type ChatAutoArchiveDaysResponse struct {
+	AutoArchiveDays int32 `json:"auto_archive_days"`
+}
+
+// UpdateChatAutoArchiveDaysRequest is a request to update the chat
+// auto-archive period.
+type UpdateChatAutoArchiveDaysRequest struct {
+	AutoArchiveDays int32 `json:"auto_archive_days"`
 }
 
 // ParseChatWorkspaceTTL parses a stored TTL string, returning the
@@ -1157,6 +1207,47 @@ type ChatDiffContents struct {
 	Diff           string    `json:"diff,omitempty"`
 }
 
+// Chat git watch error messages. These are the user-visible messages
+// the server returns in 400 responses from
+// /api/experimental/chats/{id}/stream/git when the chat cannot be
+// observed through a workspace agent. They are exported so the CLI
+// (and any future consumer) can match them structurally via
+// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+// Keep these in sync with coderd/exp_chats.go.
+const (
+	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
+	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
+	ChatGitWatchWorkspaceNoAgentsMessage = "Chat workspace has no agents."
+	// ChatGitWatchAgentStatePrefix is the common prefix of the
+	// message produced by ChatGitWatchAgentStateMessage. The CLI
+	// uses it as a mechanical fingerprint for the "agent not yet
+	// connected" case without depending on the formatted values.
+	ChatGitWatchAgentStatePrefix = "Agent state is "
+)
+
+// ChatGitWatchAgentStateMessage is the user-visible error message
+// returned from /api/experimental/chats/{id}/stream/git when the
+// chat workspace's agent is not in the connected state.
+func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
+	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
+}
+
+// IsChatGitWatchFallbackMessage reports whether msg matches one of
+// the 400-response messages /api/experimental/chats/{id}/stream/git
+// emits when the chat cannot be observed through a workspace agent.
+// Clients should treat these cases as "no diff available" and fall
+// back to the empty remote diff instead of surfacing a hard error.
+func IsChatGitWatchFallbackMessage(msg string) bool {
+	trimmed := strings.TrimSpace(msg)
+	switch trimmed {
+	case ChatGitWatchNoWorkspaceMessage,
+		ChatGitWatchWorkspaceNotFoundMessage,
+		ChatGitWatchWorkspaceNoAgentsMessage:
+		return true
+	}
+	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
+}
+
 // ChatStreamEventType represents the kind of chat stream update.
 type ChatStreamEventType string
 
@@ -1172,10 +1263,11 @@ const (
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
-	ID        int64             `json:"id"`
-	ChatID    uuid.UUID         `json:"chat_id" format:"uuid"`
-	Content   []ChatMessagePart `json:"content"`
-	CreatedAt time.Time         `json:"created_at" format:"date-time"`
+	ID            int64             `json:"id"`
+	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	Content       []ChatMessagePart `json:"content"`
+	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -1193,6 +1285,9 @@ type ChatStreamStatus struct {
 type ChatStreamError struct {
 	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
+	// Detail is optional provider-specific context shown alongside the
+	// normalized error message when available.
+	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
 	Kind string `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
@@ -1973,25 +2068,33 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatExploreModelOverride returns the deployment-wide Explore subagent
-// model override.
-func (c *ExperimentalClient) GetChatExploreModelOverride(ctx context.Context) (ChatExploreModelOverrideResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/explore-model-override", nil)
+// GetChatAgentModelOverride returns the deployment-wide chat agent model
+// override for the requested context.
+func (c *ExperimentalClient) GetChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext) (ChatAgentModelOverrideResponse, error) {
+	path := fmt.Sprintf(
+		"/api/experimental/chats/config/agent-model-override/%s",
+		url.PathEscape(string(override)),
+	)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return ChatExploreModelOverrideResponse{}, err
+		return ChatAgentModelOverrideResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatExploreModelOverrideResponse{}, ReadBodyAsError(res)
+		return ChatAgentModelOverrideResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatExploreModelOverrideResponse
+	var resp ChatAgentModelOverrideResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatExploreModelOverride updates the deployment-wide Explore subagent
-// model override.
-func (c *ExperimentalClient) UpdateChatExploreModelOverride(ctx context.Context, req UpdateChatExploreModelOverrideRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/explore-model-override", req)
+// UpdateChatAgentModelOverride updates the deployment-wide chat agent model
+// override for the requested context.
+func (c *ExperimentalClient) UpdateChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext, req UpdateChatAgentModelOverrideRequest) error {
+	path := fmt.Sprintf(
+		"/api/experimental/chats/config/agent-model-override/%s",
+		url.PathEscape(string(override)),
+	)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
 		return err
 	}
@@ -2087,6 +2190,33 @@ func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRete
 // UpdateChatRetentionDays updates the chat retention period.
 func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatAutoArchiveDays returns the configured chat auto-archive period.
+func (c *ExperimentalClient) GetChatAutoArchiveDays(ctx context.Context) (ChatAutoArchiveDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/auto-archive-days", nil)
+	if err != nil {
+		return ChatAutoArchiveDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatAutoArchiveDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAutoArchiveDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatAutoArchiveDays updates the chat auto-archive period.
+func (c *ExperimentalClient) UpdateChatAutoArchiveDays(ctx context.Context, req UpdateChatAutoArchiveDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/auto-archive-days", req)
 	if err != nil {
 		return err
 	}
@@ -2335,6 +2465,93 @@ func (c *ExperimentalClient) WatchChats(ctx context.Context) (<-chan ChatWatchEv
 	}), nil
 }
 
+// GetChatDebugLogging returns the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) GetChatDebugLogging(ctx context.Context) (ChatDebugLoggingAdminSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-logging", nil)
+	if err != nil {
+		return ChatDebugLoggingAdminSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugLoggingAdminSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugLoggingAdminSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugLogging updates the runtime admin setting that allows
+// users to opt into chat debug logging.
+func (c *ExperimentalClient) UpdateChatDebugLogging(ctx context.Context, req UpdateChatDebugLoggingAllowUsersRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatDebugLogging returns whether chat debug logging is active
+// for the current user and whether the user may change it.
+func (c *ExperimentalClient) GetUserChatDebugLogging(ctx context.Context) (UserChatDebugLoggingSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-debug-logging", nil)
+	if err != nil {
+		return UserChatDebugLoggingSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatDebugLoggingSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserChatDebugLoggingSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatDebugLogging updates the current user's chat debug
+// logging preference.
+func (c *ExperimentalClient) UpdateUserChatDebugLogging(ctx context.Context, req UpdateUserChatDebugLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRuns returns the debug runs for a chat.
+func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRunSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatDebugRunSummary
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDebugRun returns a single debug run along with its full step
+// history. Use GetChatDebugRuns when only the run summary list is needed.
+func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
+	if err != nil {
+		return ChatDebugRun{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRun{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRun
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
@@ -2464,18 +2681,23 @@ func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uui
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
-// GetChatGitChanges returns git changes for a chat.
-func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
+// ProposeChatTitleResponse is returned by the propose-title endpoint.
+type ProposeChatTitleResponse struct {
+	Title string `json:"title"`
+}
+
+// ProposeChatTitle requests the server to generate a suggested chat title without persisting it.
+func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.UUID) (ProposeChatTitleResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/propose", chatID), nil)
 	if err != nil {
-		return nil, err
+		return ProposeChatTitleResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return ProposeChatTitleResponse{}, readBodyAsChatUsageLimitError(res)
 	}
-	var changes []ChatGitChange
-	return changes, json.NewDecoder(res.Body).Decode(&changes)
+	var resp ProposeChatTitleResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.

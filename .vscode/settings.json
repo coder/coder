@@ -62,5 +62,21 @@
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
 	},
-	"biome.lsp.bin": "site/node_modules/.bin/biome"
+	"biome.lsp.bin": "site/node_modules/.bin/biome",
+
+	// Prefer type only imports.
+	"typescript.preferences.preferTypeOnlyAutoImports": true,
+	// Prefer aliased/non-relative imports (e.g. "#/...") over "../../...".
+	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"javascript.preferences.importModuleSpecifier": "non-relative",
+	// We discourage people from various older libraries that
+	// are no longer recommended/being migrated from.
+	"typescript.preferences.autoImportSpecifierExcludeRegexes": [
+		// discourage people from using MUI components
+		"^@mui(?:/.*)?$",
+		// discourage people from using Emotion CSS
+		"^@emotion(?:/.*)?$",
+		// we prefer people use `lodash/foo` over `lodash`
+		"^lodash$"
+	]
 }

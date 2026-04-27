@@ -1,4 +1,4 @@
-import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { EllipsisVerticalIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
@@ -96,9 +96,7 @@ export const TasksTable: FC<TasksTableProps> = ({
 							<Checkbox
 								disabled={!tasks || tasks.length === 0}
 								checked={
-									tasks &&
-									tasks.length > 0 &&
-									checkedTaskIds.size === tasks.length
+									Boolean(tasks) && checkedTaskIds.size === tasks?.length
 								}
 								onCheckedChange={(checked) => {
 									if (!tasks || !onCheckChange) {
@@ -294,7 +292,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 									variant="subtle"
 									onClick={(e) => e.stopPropagation()}
 								>
-									<EllipsisVertical aria-hidden="true" />
+									<EllipsisVerticalIcon aria-hidden="true" />
 									<span className="sr-only">Show task actions</span>
 								</Button>
 							</DropdownMenuTrigger>

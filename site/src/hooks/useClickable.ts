@@ -2,7 +2,6 @@ import {
 	type KeyboardEventHandler,
 	type MouseEventHandler,
 	type RefObject,
-	useEffectEvent,
 	useRef,
 } from "react";
 
@@ -44,11 +43,10 @@ export const useClickable = <
 	role?: TRole,
 ): UseClickableResult<TElement, TRole> => {
 	const ref = useRef<TElement>(null);
-	const onClickEvent = useEffectEvent(onClick);
 
 	return {
 		ref,
-		onClick: onClickEvent,
+		onClick,
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 

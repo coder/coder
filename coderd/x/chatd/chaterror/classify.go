@@ -11,6 +11,7 @@ import (
 // underlying provider or runtime error.
 type ClassifiedError struct {
 	Message    string
+	Detail     string
 	Kind       string
 	Provider   string
 	Retryable  bool
@@ -19,6 +20,28 @@ type ClassifiedError struct {
 	// RetryAfter is a normalized minimum retry delay derived from
 	// provider response metadata when available.
 	RetryAfter time.Duration
+}
+
+const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
+	"internal state mismatch. This is not a configuration or billing issue."
+
+type responsesAPIDiagnosticMatch struct {
+	pattern string
+	detail  string
+}
+
+// responsesAPIDiagnosticMatches maps provider error fragments to safe
+// diagnostics. Details must not include provider item IDs because they are
+// returned to clients and used by operators for grepping.
+var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
+	{
+		pattern: "no tool output found for function call",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=function_call_output_missing.",
+	},
+	{
+		pattern: "was provided without its required 'reasoning' item",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+	},
 }
 
 // WithProvider returns a copy of the classification using an explicit
@@ -78,7 +101,7 @@ func Classify(err error) ClassifiedError {
 
 	structured := extractProviderErrorDetails(err)
 	message := strings.TrimSpace(err.Error())
-	if message == "" && structured.statusCode == 0 && structured.retryAfter <= 0 {
+	if message == "" && structured.detail == "" && structured.statusCode == 0 && structured.retryAfter <= 0 {
 		return ClassifiedError{}
 	}
 
@@ -93,6 +116,18 @@ func Classify(err error) ClassifiedError {
 	if canceled || interrupted {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
+			Detail:     structured.detail,
+			Kind:       KindGeneric,
+			Provider:   provider,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
+
+	if detail, ok := responsesAPIDiagnostic(lower, structured.detail); ok {
+		return normalizeClassification(ClassifiedError{
+			Message:    responsesAPIDiagnosticMessage,
+			Detail:     detail,
 			Kind:       KindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
@@ -163,6 +198,7 @@ func Classify(err error) ClassifiedError {
 			continue
 		}
 		return normalizeClassification(ClassifiedError{
+			Detail:     structured.detail,
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
@@ -172,6 +208,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	return normalizeClassification(ClassifiedError{
+		Detail:     structured.detail,
 		Kind:       KindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
@@ -179,15 +216,27 @@ func Classify(err error) ClassifiedError {
 	})
 }
 
+func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
+	lowerDetail := strings.ToLower(detail)
+	for _, match := range responsesAPIDiagnosticMatches {
+		if strings.Contains(lowerMessage, match.pattern) || strings.Contains(lowerDetail, match.pattern) {
+			return match.detail, true
+		}
+	}
+	return "", false
+}
+
 func normalizeClassification(classified ClassifiedError) ClassifiedError {
 	classified.Message = strings.TrimSpace(classified.Message)
+	classified.Detail = normalizeClassificationDetail(classified.Detail)
 	classified.Kind = strings.TrimSpace(classified.Kind)
 	classified.Provider = normalizeProvider(classified.Provider)
 	if classified.RetryAfter < 0 {
 		classified.RetryAfter = 0
 	}
 	if classified.Kind == "" && classified.Message == "" {
-		if classified.StatusCode == 0 && classified.RetryAfter <= 0 {
+		if classified.Detail == "" && classified.StatusCode == 0 &&
+			classified.RetryAfter <= 0 {
 			return ClassifiedError{}
 		}
 		classified.Kind = KindGeneric
@@ -199,4 +248,18 @@ func normalizeClassification(classified ClassifiedError) ClassifiedError {
 		classified.Message = terminalMessage(classified)
 	}
 	return classified
+}
+
+const maxClassificationDetailRunes = 500
+
+func normalizeClassificationDetail(detail string) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return ""
+	}
+	runes := []rune(detail)
+	if len(runes) <= maxClassificationDetailRunes {
+		return detail
+	}
+	return string(runes[:maxClassificationDetailRunes-1]) + "…"
 }
