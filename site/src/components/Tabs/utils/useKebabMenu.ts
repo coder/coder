@@ -2,6 +2,7 @@ import {
 	type RefObject,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -105,9 +106,9 @@ export const useKebabMenu = <T extends TabValue>({
 		recalculateOverflow(availableWidthRef.current);
 	}, [recalculateOverflow, tabs]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const container = containerRef.current;
-		if (!container) {
+		if (!container || !enabled || !isActive) {
 			return;
 		}
 
@@ -121,7 +122,7 @@ export const useKebabMenu = <T extends TabValue>({
 		});
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [recalculateOverflow]);
+	}, [recalculateOverflow, enabled, isActive]);
 
 	const overflowTabValuesSet = new Set(overflowTabValues);
 	const { visibleTabs, overflowTabs } = tabs.reduce<{
