@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -35,7 +36,7 @@ type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -43,22 +44,46 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "delegated work that may inspect or modify workspace files",
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				return childSubagentChatOptions{}, nil
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveSubagentModelConfigID(
+					ctx,
+					parent.OwnerID,
+					codersdk.ChatAgentModelOverrideContextGeneral,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				options := childSubagentChatOptions{}
+				if modelConfigID != uuid.Nil {
+					options.modelConfigIDOverride = &modelConfigID
+				}
+				return options, nil
 			},
 		},
 		{
 			id:          subagentTypeExplore,
 			description: "read-only discovery, code tracing, and system understanding",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveSubagentModelConfigID(
 					ctx,
-					parent.OwnerID,
-					currentModelConfigID,
+					turnParent.OwnerID,
+					codersdk.ChatAgentModelOverrideContextExplore,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
+				if modelConfigID == uuid.Nil {
+					modelConfigID = currentModelConfigID
+				}
+				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
+					ctx,
+					turnParent,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				// Clearing plan mode changes only the Explore model behavior.
+				// The inherited tool snapshot still comes from the parent turn.
 				clearPlanMode := database.NullChatPlanMode{}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
@@ -67,6 +92,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					},
 					modelConfigIDOverride: &modelConfigID,
 					planModeOverride:      &clearPlanMode,
+					inheritedMCPServerIDs: inheritedMCPServerIDs,
 				}, nil
 			},
 		},
@@ -82,7 +108,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,

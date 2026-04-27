@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -91,6 +92,57 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 		Endpoint: endpoint,
 	})
 	require.Error(t, err, "delete webpush subscription for another user")
+}
+
+// TestWebpushSubscribeOverwritesKeys verifies that re-subscribing with the
+// same endpoint and rotated keys overwrites the existing row in place rather
+// than inserting a duplicate. This is the reinstall path: on iOS, deleting
+// the PWA from the home screen and reinstalling can yield the same endpoint
+// with new p256dh / auth keys, and Coder must replace the stored keys so
+// dispatch encrypts with the keys the device can decrypt.
+func TestWebpushSubscribeOverwritesKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	store, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		WebpushDispatcher: &testWebpushDispatcher{},
+		Database:          store,
+		Pubsub:            ps,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	const endpoint = "https://push.example.com/subscription/reinstall"
+	const secondAuthKey = "AnotherAuthKey/yV1FuojuRmHP42=="
+	const secondP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgABc="
+
+	// First subscribe with the original keys.
+	err := memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
+		Endpoint:  endpoint,
+		AuthKey:   validEndpointAuthKey,
+		P256DHKey: validEndpointP256dhKey,
+	})
+	require.NoError(t, err, "initial subscribe")
+
+	// Re-subscribe with the same endpoint but rotated keys. This
+	// simulates the post-reinstall path on iOS where the browser
+	// retains the endpoint but rotates p256dh / auth.
+	err = memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
+		Endpoint:  endpoint,
+		AuthKey:   secondAuthKey,
+		P256DHKey: secondP256dhKey,
+	})
+	require.NoError(t, err, "re-subscribe with rotated keys")
+
+	// The second subscribe must replace the keys in place; we should
+	// see exactly one row carrying the new keys.
+	subs, err := store.GetWebpushSubscriptionsByUserID(dbauthz.AsSystemRestricted(ctx), member.ID)
+	require.NoError(t, err)
+	require.Len(t, subs, 1, "re-subscribe should overwrite the row, not append a duplicate")
+	require.Equal(t, endpoint, subs[0].Endpoint)
+	require.Equal(t, secondAuthKey, subs[0].EndpointAuthKey, "auth key should be the latest one")
+	require.Equal(t, secondP256dhKey, subs[0].EndpointP256dhKey, "p256dh key should be the latest one")
 }
 
 func TestWebpushSubscribeRejectsInvalidEndpoint(t *testing.T) {

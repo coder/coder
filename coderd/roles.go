@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -45,12 +44,6 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	siteRoles := rbac.SiteBuiltInRoles()
-	// Include the agents-access role only when the agents
-	// experiment is enabled or this is a dev build, matching
-	// the RequireExperimentWithDevBypass gate on chat routes.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) || buildinfo.IsDev() {
-		siteRoles = append(siteRoles, rbac.AgentsAccessRole())
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK,
 		assignableRoles(actorRoles.Roles, siteRoles, dbCustomRoles))

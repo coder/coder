@@ -5,7 +5,11 @@ import type { WebpushMessage } from "#/api/typesGenerated";
 // top level during module evaluation.
 
 const mockShowNotification = vi.fn(() => Promise.resolve());
-const mockRegistration = { showNotification: mockShowNotification };
+const mockSubscribe = vi.fn();
+const mockRegistration = {
+	showNotification: mockShowNotification,
+	pushManager: { subscribe: mockSubscribe },
+};
 const mockMatchAll =
 	vi.fn<
 		() => Promise<
@@ -324,5 +328,140 @@ describe("serviceWorker notificationclick handler", () => {
 
 		expect(event.notification.close).toHaveBeenCalled();
 		expect(mockClients.openWindow).toHaveBeenCalledWith("/agents");
+	});
+});
+
+// Helper to build a minimal PushSubscriptionChangeEvent-like object.
+// Mirrors the spec shape consumed by the service worker handler.
+function makePushSubscriptionChangeEvent(
+	oldSubscription: {
+		endpoint: string;
+		options?: { applicationServerKey?: ArrayBuffer | Uint8Array | string };
+	} | null,
+	newSubscription: {
+		endpoint: string;
+		options?: { applicationServerKey?: ArrayBuffer | Uint8Array | string };
+		toJSON: () => unknown;
+	} | null,
+) {
+	let waitUntilPromise: Promise<unknown> = Promise.resolve();
+	return {
+		oldSubscription,
+		newSubscription,
+		waitUntil: (p: Promise<unknown>) => {
+			waitUntilPromise = p;
+		},
+		get _waitUntilPromise() {
+			return waitUntilPromise;
+		},
+	};
+}
+
+describe("serviceWorker pushsubscriptionchange handler", () => {
+	const originalFetch = globalThis.fetch;
+	let mockFetch: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		mockFetch = vi.fn(() =>
+			Promise.resolve({ ok: true, status: 204 } as Response),
+		);
+		globalThis.fetch = mockFetch as unknown as typeof fetch;
+	});
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+
+	it("re-subscribes and POSTs the new subscription when the browser supplies one", async () => {
+		const applicationServerKey = new Uint8Array([1, 2, 3]).buffer;
+		const newSubscription = {
+			endpoint: "https://push.example.com/new",
+			options: { applicationServerKey },
+			toJSON: () => ({
+				endpoint: "https://push.example.com/new",
+				keys: { auth: "new-auth", p256dh: "new-p256dh" },
+			}),
+		};
+		const oldSubscription = {
+			endpoint: "https://push.example.com/old",
+			options: { applicationServerKey },
+		};
+
+		const event = makePushSubscriptionChangeEvent(
+			oldSubscription,
+			newSubscription,
+		);
+		handlers.pushsubscriptionchange(event);
+		await event._waitUntilPromise;
+
+		// The browser already supplied newSubscription, so we must
+		// not call subscribe again.
+		expect(mockSubscribe).not.toHaveBeenCalled();
+
+		// Should have POSTed the new subscription and remove
+		// the old endpoint via DELETE.
+		const calls = mockFetch.mock.calls;
+		expect(calls).toHaveLength(2);
+
+		const [postUrl, postInit] = calls[0];
+		expect(postUrl).toBe("/api/v2/users/me/webpush/subscription");
+		expect(postInit?.method).toBe("POST");
+		const postBody = JSON.parse(postInit?.body as string);
+		expect(postBody).toEqual({
+			endpoint: "https://push.example.com/new",
+			auth_key: "new-auth",
+			p256dh_key: "new-p256dh",
+		});
+
+		const [deleteUrl, deleteInit] = calls[1];
+		expect(deleteUrl).toBe("/api/v2/users/me/webpush/subscription");
+		expect(deleteInit?.method).toBe("DELETE");
+		const deleteBody = JSON.parse(deleteInit?.body as string);
+		expect(deleteBody).toEqual({
+			endpoint: "https://push.example.com/old",
+		});
+	});
+
+	it("re-subscribes via pushManager when no newSubscription is provided", async () => {
+		const applicationServerKey = new Uint8Array([4, 5, 6]).buffer;
+		const oldSubscription = {
+			endpoint: "https://push.example.com/old",
+			options: { applicationServerKey },
+		};
+		const freshSubscription = {
+			endpoint: "https://push.example.com/fresh",
+			toJSON: () => ({
+				endpoint: "https://push.example.com/fresh",
+				keys: { auth: "fresh-auth", p256dh: "fresh-p256dh" },
+			}),
+		};
+		mockSubscribe.mockResolvedValue(freshSubscription);
+
+		const event = makePushSubscriptionChangeEvent(oldSubscription, null);
+		handlers.pushsubscriptionchange(event);
+		await event._waitUntilPromise;
+
+		expect(mockSubscribe).toHaveBeenCalledWith({
+			userVisibleOnly: true,
+			applicationServerKey,
+		});
+
+		const calls = mockFetch.mock.calls;
+		expect(calls).toHaveLength(2);
+		const postBody = JSON.parse(calls[0][1]?.body as string);
+		expect(postBody).toEqual({
+			endpoint: "https://push.example.com/fresh",
+			auth_key: "fresh-auth",
+			p256dh_key: "fresh-p256dh",
+		});
+	});
+
+	it("does nothing when there is no application server key to recover", async () => {
+		const event = makePushSubscriptionChangeEvent(null, null);
+		handlers.pushsubscriptionchange(event);
+		await event._waitUntilPromise;
+
+		expect(mockSubscribe).not.toHaveBeenCalled();
+		expect(mockFetch).not.toHaveBeenCalled();
 	});
 });

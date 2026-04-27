@@ -42,11 +42,10 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		stopAfter       time.Duration
 		workspaceName   string
 
-		parameterFlags       workspaceParameterFlags
-		autoUpdates          string
-		copyParametersFrom   string
-		useParameterDefaults bool
-		noWait               bool
+		parameterFlags     workspaceParameterFlags
+		autoUpdates        string
+		copyParametersFrom string
+		noWait             bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -333,7 +332,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
 
-				UseParameterDefaults: useParameterDefaults,
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -449,12 +448,6 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
 		serpent.Option{
-			Flag:        "use-parameter-defaults",
-			Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
-			Description: "Automatically accept parameter defaults when no value is provided.",
-			Value:       serpent.BoolOf(&useParameterDefaults),
-		},
-		serpent.Option{
 			Flag:        "no-wait",
 			Env:         "CODER_CREATE_NO_WAIT",
 			Description: "Return immediately after creating the workspace. The build will run in the background.",
@@ -464,6 +457,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
+	cmd.Options = append(cmd.Options, parameterFlags.useParameterDefaultsOption())
 	orgContext.AttachOptions(cmd)
 	return cmd
 }

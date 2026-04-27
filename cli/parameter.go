@@ -24,11 +24,13 @@ type workspaceParameterFlags struct {
 	richParameterDefaults []string
 
 	promptRichParameters bool
+	useParameterDefaults bool
 }
 
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
 	options := append(wpf.cliEphemeralParameters(), wpf.cliParameters()...)
 	options = append(options, wpf.cliParameterDefaults()...)
+	options = append(options, wpf.useParameterDefaultsOption())
 	return append(options, wpf.alwaysPrompt())
 }
 
@@ -89,6 +91,15 @@ func (wpf *workspaceParameterFlags) cliParameterDefaults() []serpent.Option {
 			Description: `Rich parameter default values in the format "name=value".`,
 			Value:       serpent.StringArrayOf(&wpf.richParameterDefaults),
 		},
+	}
+}
+
+func (wpf *workspaceParameterFlags) useParameterDefaultsOption() serpent.Option {
+	return serpent.Option{
+		Flag:        "use-parameter-defaults",
+		Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
+		Description: "Automatically accept parameter defaults when no value is provided.",
+		Value:       serpent.BoolOf(&wpf.useParameterDefaults),
 	}
 }
 
