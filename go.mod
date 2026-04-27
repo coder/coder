@@ -87,7 +87,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    replay stored reasoning item references, only replay web_search references
 //    when paired with reasoning, and validate function_call output pairing.
 // See: https://github.com/coder/fantasy/commits/f83367a4a205
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951a49c681df
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260427164812-d0e6ce2243af
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
