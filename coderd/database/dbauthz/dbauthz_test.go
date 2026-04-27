@@ -2361,6 +2361,12 @@ func (s *MethodTestSuite) TestTemplate() {
 		// No asserts because SQLFilter.
 		check.Args(arg).Asserts().Returns(slice.New(a))
 	}))
+	s.Run("GetTemplatesByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.Template{})
+		ids := []uuid.UUID{a.ID}
+		dbm.EXPECT().GetTemplatesByIDs(gomock.Any(), ids).Return([]database.Template{a}, nil).AnyTimes()
+		check.Args(ids).Asserts(a, policy.ActionRead).Returns(slice.New(a))
+	}))
 	s.Run("GetAuthorizedTemplates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.Template{})
 		arg := database.GetTemplatesWithFilterParams{}
@@ -4796,6 +4802,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		arg := database.GetProvisionerJobsByIDsWithQueuePositionParams{}
 		dbm.EXPECT().GetProvisionerJobsByIDsWithQueuePosition(gomock.Any(), arg).Return([]database.GetProvisionerJobsByIDsWithQueuePositionRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts()
+	}))
+	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{}
+		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{}, nil).AnyTimes()
+		check.Args(ids).Asserts()
 	}))
 	s.Run("GetReplicaByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()

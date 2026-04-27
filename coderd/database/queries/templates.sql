@@ -8,6 +8,17 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetTemplatesByIDs :many
+-- Hot-path lookup used by list-workspaces enrichment. Avoids the expensive
+-- CASE chain and LEFT JOIN template_versions in GetTemplatesWithFilter.
+SELECT
+	*
+FROM
+	template_with_names
+WHERE
+	id = ANY(@ids :: uuid [ ])
+	AND deleted = false;
+
 -- name: GetTemplatesWithFilter :many
 SELECT
 	t.*
