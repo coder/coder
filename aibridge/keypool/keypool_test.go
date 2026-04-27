@@ -138,10 +138,11 @@ func TestMarkTemporary(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		cooldown      time.Duration
-		setup         func(t *testing.T, pool *keypool.Pool, clk *quartz.Mock) *keypool.Key
-		expectedState keypool.KeyState
+		name               string
+		cooldown           time.Duration
+		setup              func(t *testing.T, pool *keypool.Pool, clk *quartz.Mock) *keypool.Key
+		expectedState      keypool.KeyState
+		expectedTransition bool
 	}{
 		{
 			// valid -> temporary: key becomes unavailable.
@@ -152,7 +153,8 @@ func TestMarkTemporary(t *testing.T) {
 				require.NoError(t, err)
 				return key
 			},
-			expectedState: keypool.KeyStateTemporary,
+			expectedState:      keypool.KeyStateTemporary,
+			expectedTransition: true,
 		},
 		{
 			// temporary -> temporary: new cooldown is longer,
@@ -165,7 +167,8 @@ func TestMarkTemporary(t *testing.T) {
 				key.MarkTemporary(10 * time.Second)
 				return key
 			},
-			expectedState: keypool.KeyStateTemporary,
+			expectedState:      keypool.KeyStateTemporary,
+			expectedTransition: false,
 		},
 		{
 			// temporary -> temporary: new cooldown is shorter,
@@ -178,7 +181,8 @@ func TestMarkTemporary(t *testing.T) {
 				key.MarkTemporary(60 * time.Second)
 				return key
 			},
-			expectedState: keypool.KeyStateTemporary,
+			expectedState:      keypool.KeyStateTemporary,
+			expectedTransition: false,
 		},
 		{
 			// permanent -> permanent: no-op, permanent is irreversible.
@@ -190,7 +194,8 @@ func TestMarkTemporary(t *testing.T) {
 				key.MarkPermanent()
 				return key
 			},
-			expectedState: keypool.KeyStatePermanent,
+			expectedState:      keypool.KeyStatePermanent,
+			expectedTransition: false,
 		},
 	}
 
@@ -202,9 +207,10 @@ func TestMarkTemporary(t *testing.T) {
 			require.NoError(t, err)
 
 			key := tc.setup(t, pool, clk)
-			key.MarkTemporary(tc.cooldown)
+			transition := key.MarkTemporary(tc.cooldown)
 
 			assert.Equal(t, tc.expectedState, key.State())
+			assert.Equal(t, tc.expectedTransition, transition)
 		})
 	}
 }
@@ -213,9 +219,10 @@ func TestMarkPermanent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		setup         func(t *testing.T, pool *keypool.Pool) *keypool.Key
-		expectedState keypool.KeyState
+		name               string
+		setup              func(t *testing.T, pool *keypool.Pool) *keypool.Key
+		expectedState      keypool.KeyState
+		expectedTransition bool
 	}{
 		{
 			// valid -> permanent: key becomes permanently unavailable.
@@ -225,7 +232,8 @@ func TestMarkPermanent(t *testing.T) {
 				require.NoError(t, err)
 				return key
 			},
-			expectedState: keypool.KeyStatePermanent,
+			expectedState:      keypool.KeyStatePermanent,
+			expectedTransition: true,
 		},
 		{
 			// temporary -> permanent: escalation from rate limit
@@ -237,7 +245,8 @@ func TestMarkPermanent(t *testing.T) {
 				key.MarkTemporary(60 * time.Second)
 				return key
 			},
-			expectedState: keypool.KeyStatePermanent,
+			expectedState:      keypool.KeyStatePermanent,
+			expectedTransition: true,
 		},
 		{
 			// permanent -> permanent: no-op, already permanent.
@@ -248,7 +257,8 @@ func TestMarkPermanent(t *testing.T) {
 				key.MarkPermanent()
 				return key
 			},
-			expectedState: keypool.KeyStatePermanent,
+			expectedState:      keypool.KeyStatePermanent,
+			expectedTransition: false,
 		},
 	}
 
@@ -260,9 +270,10 @@ func TestMarkPermanent(t *testing.T) {
 			require.NoError(t, err)
 
 			key := tc.setup(t, pool)
-			key.MarkPermanent()
+			transition := key.MarkPermanent()
 
 			assert.Equal(t, tc.expectedState, key.State())
+			assert.Equal(t, tc.expectedTransition, transition)
 		})
 	}
 }

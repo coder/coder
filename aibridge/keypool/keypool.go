@@ -102,38 +102,49 @@ func (k *Key) State() KeyState {
 	return KeyStateValid
 }
 
-// MarkTemporary marks the key as temporarily unavailable
-// with the specified cooldown duration.
-func (k *Key) MarkTemporary(cooldown time.Duration) {
+// MarkTemporary marks the key as temporarily unavailable with
+// the specified cooldown duration. Returns true if this call
+// transitions the key to temporary.
+func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 	k.pool.mu.Lock()
 	defer k.pool.mu.Unlock()
 
 	// Permanent is irreversible.
 	if k.isPermanent {
-		return
+		return false
 	}
 
 	if cooldown <= 0 {
 		cooldown = defaultCooldown
 	}
 
-	newDeadline := k.pool.clock.Now().Add(cooldown)
+	now := k.pool.clock.Now()
+	// Used to detect the valid -> temporary transition.
+	inCooldown := k.cooldownUntil.After(now)
+	newDeadline := now.Add(cooldown)
 
 	// In case the key has a later expiry, keep it.
 	if k.cooldownUntil.After(newDeadline) {
-		return
+		return false
 	}
 
 	k.cooldownUntil = newDeadline
+	return !inCooldown
 }
 
 // MarkPermanent marks the key as permanently unavailable. This
-// is a terminal state.
-func (k *Key) MarkPermanent() {
+// is a terminal state. Returns true if this call transitions
+// the key to permanent.
+func (k *Key) MarkPermanent() bool {
 	k.pool.mu.Lock()
 	defer k.pool.mu.Unlock()
 
+	if k.isPermanent {
+		return false
+	}
+
 	k.isPermanent = true
+	return true
 }
 
 // Walker traverses a Pool for a single request. Each request
