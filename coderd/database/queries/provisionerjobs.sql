@@ -67,6 +67,18 @@ WHERE
 	id = $1
 FOR UPDATE;
 
+-- name: GetProvisionerJobsByIDs :many
+-- Lightweight lookup used by the list-workspaces enrichment hot path. Avoids
+-- the expensive ROW_NUMBER() window in
+-- GetProvisionerJobsByIDsWithQueuePosition for non-pending jobs (which always
+-- yield queue_position=0 and queue_size=0 anyway).
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = ANY(@ids :: uuid [ ]);
+
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
