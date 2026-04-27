@@ -2402,7 +2402,10 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
+				// Regression guard: ensure that both auto-archive and retention
+				// are both set to a distinct non-zero value.
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
 
 				// Inactive root: newest message 100 days old.
 				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale-chat", now.Add(-120*24*time.Hour))
@@ -2444,7 +2447,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Equal(t, deps.user.ID, sent[0].UserID)
 				// Ensure that config-derived fields flow through to payload.
 				require.Equal(t, "90", sent[0].Data["auto_archive_days"])
-				require.Equal(t, "0", sent[0].Data["retention_days"])
+				require.Equal(t, "30", sent[0].Data["retention_days"])
 			},
 		},
 		{
