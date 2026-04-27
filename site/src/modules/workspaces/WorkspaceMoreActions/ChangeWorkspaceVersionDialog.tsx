@@ -89,10 +89,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 													/>
 												}
 												title={
-													<div
-														className="flex flex-row justify-between gap-4"
-														style={{ width: "100%" }}
-													>
+													<div className="flex flex-row justify-between gap-4 w-full">
 														<div className="flex flex-row items-center gap-2">
 															{option.name}
 															{option.message && (

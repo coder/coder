@@ -70,6 +70,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							Type <strong>{name}</strong> below to confirm.
 						</p>
 					</div>
+
 					<form onSubmit={onSubmit}>
 						<TextField
 							fullWidth

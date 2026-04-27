@@ -57,7 +57,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 							</WorkspaceSettings.Provider>
 						)
 					)}
-				</div>{" "}
+				</div>
 			</Margins>
 		</>
 	);
