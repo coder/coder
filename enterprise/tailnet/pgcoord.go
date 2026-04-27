@@ -1823,17 +1823,20 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 	h.timer.Reset(d, "heartbeats", "resetExpiryTimerWithLock")
 }
 
-// checkDBHeartbeats rescues expiry candidates whose database heartbeat
+// filterCandidates rescues expiry candidates whose database heartbeat
 // has advanced since the last observation, proving they are still alive
 // despite missed pubsub heartbeats.
-func (h *heartbeats) checkDBHeartbeats(candidates map[uuid.UUID]time.Duration, dbMap map[uuid.UUID]time.Time, prevDBHeartbeats map[uuid.UUID]time.Time) {
+func (h *heartbeats) filterCandidates(candidates map[uuid.UUID]time.Duration, dbHeartbeats map[uuid.UUID]time.Time, oldDBHeartbeats map[uuid.UUID]time.Time) {
 	now := h.clock.Now()
 	for id := range candidates {
-		dbTime, inDB := dbMap[id]
+		dbTime, inDB := dbHeartbeats[id]
+		// If the coordinator is not in the database, it is not alive.
 		if !inDB {
 			continue
 		}
-		prevTime, hasPrev := prevDBHeartbeats[id]
+
+		// If the database heartbeat has not advanced since the last observation, it is not alive.
+		prevTime, hasPrev := oldDBHeartbeats[id]
 		if !hasPrev || !dbTime.After(prevTime) {
 			continue
 		}
@@ -1960,26 +1963,28 @@ func (h *heartbeats) checkExpiry() {
 	if err != nil {
 		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
 	} else {
-		dbMap := make(map[uuid.UUID]time.Time, len(dbCoords))
+		dbHeartbeats := make(map[uuid.UUID]time.Time, len(dbCoords))
 		for _, c := range dbCoords {
-			dbMap[c.ID] = c.HeartbeatAt
+			dbHeartbeats[c.ID] = c.HeartbeatAt
 		}
 
 		// Snapshot previous DB heartbeats before updating, so helpers
 		// can compare old vs new to detect advancement.
-		prevDBHeartbeats := make(map[uuid.UUID]time.Time, len(h.lastDBHeartbeat))
-		maps.Copy(prevDBHeartbeats, h.lastDBHeartbeat)
+		oldDBHeartbeats := make(map[uuid.UUID]time.Time, len(h.lastDBHeartbeat))
+		maps.Copy(oldDBHeartbeats, h.lastDBHeartbeat)
 
 		// Update all baselines from the fresh DB snapshot.
-		maps.Copy(h.lastDBHeartbeat, dbMap)
+		maps.Copy(h.lastDBHeartbeat, dbHeartbeats)
 
-		h.checkDBHeartbeats(candidates, dbMap, prevDBHeartbeats)
-		if filter := h.discoverCoordinators(dbMap, prevDBHeartbeats); filter != filterUpdateNone {
+		// Remove candidates that are still alive from the database.
+		h.filterCandidates(candidates, dbHeartbeats, oldDBHeartbeats)
+		// Discover coordinators that are alive in the database but not in the memory.
+		if filter := h.discoverCoordinators(dbHeartbeats, oldDBHeartbeats); filter != filterUpdateNone {
 			go func() {
 				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
 			}()
 		}
-		h.cleanupStaleEntries(dbMap)
+		h.cleanupStaleEntries(dbHeartbeats)
 	}
 
 	// Expire remaining candidates.
