@@ -132,7 +132,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.14.0
-	github.com/coder/terraform-provider-coder/v2 v2.15.0
+	github.com/coder/terraform-provider-coder/v2 v2.16.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.18.0

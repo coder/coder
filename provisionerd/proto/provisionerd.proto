@@ -28,6 +28,10 @@ message AcquiredJob {
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
     // Reserved 11 for an experiment `exp_reuse_terraform_workspace` (bool) that was replaced.
     reserved 11;
+    // User secrets belonging to the workspace owner, to be forwarded into the
+    // plan request sent to the provisioner. Only populated for start
+    // transitions.
+    repeated provisioner.UserSecretValue user_secrets = 12;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
