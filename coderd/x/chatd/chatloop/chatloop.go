@@ -1079,6 +1079,16 @@ func applyAnthropicProviderToolGuard(
 			guarded,
 		)
 		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
+		if !isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+			logger.Error(
+				ctx,
+				"anthropic provider tool guard postcondition failed: prompt still unsafe after nuclear strip",
+				slog.F("phase", "pre_request_guard_postcondition_failed"),
+				slog.F("tool_type", "provider_executed"),
+				slog.F("provider", provider),
+				slog.F("model", modelName),
+			)
+		}
 	}
 
 	details, truncated := anthropicProviderToolViolationLogDetails(

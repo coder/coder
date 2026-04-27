@@ -1197,35 +1197,6 @@ func requireAnthropicProviderToolPromptSafe(
 	requireNoDisallowedProviderToolCallsPrompt(t, prompt, allowed)
 }
 
-type chatloopTestLogSink struct {
-	mu      sync.Mutex
-	entries []slog.SinkEntry
-}
-
-func (s *chatloopTestLogSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entries = append(s.entries, entry)
-}
-
-func (*chatloopTestLogSink) Sync() {}
-
-func (s *chatloopTestLogSink) entriesAtLevelWithMessage(
-	level slog.Level,
-	message string,
-) []slog.SinkEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entries := make([]slog.SinkEntry, 0, len(s.entries))
-	for _, entry := range s.entries {
-		if entry.Level == level && entry.Message == message {
-			entries = append(entries, entry)
-		}
-	}
-	return entries
-}
-
 func requireLogField(t *testing.T, entry slog.SinkEntry, name string) any {
 	t.Helper()
 
@@ -2940,8 +2911,8 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	t.Run("guard logs removals", func(t *testing.T) {
 		t.Parallel()
 
-		logSink := &chatloopTestLogSink{}
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		logSink := testutil.NewFakeSink(t)
+		logger := logSink.Logger()
 		guarded := applyAnthropicProviderToolGuard(
 			context.Background(),
 			logger,
@@ -2958,10 +2929,10 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 
 		requireNoProviderExecutedToolCallPrompt(t, guarded)
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
-		entries := logSink.entriesAtLevelWithMessage(
-			slog.LevelWarn,
-			"removed provider-executed tool history",
-		)
+		entries := logSink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelWarn &&
+				e.Message == "removed provider-executed tool history"
+		})
 		require.Len(t, entries, 1)
 		require.Equal(t, "pre_request_guard", requireLogField(t, entries[0], "phase"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
