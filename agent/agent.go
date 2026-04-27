@@ -2218,7 +2218,7 @@ func (a *agent) Close() error {
 	}
 
 	if err := a.mcpManager.Close(); err != nil {
-		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
+		a.logger.Warn(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

@@ -180,6 +180,11 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
+	// noAutoAcquire mirrors Config.NoAutoAcquire. When true the start()
+	// loop drains wakeCh and acquireTicker events without calling
+	// processOnce, making the server passive with respect to chat
+	// acquisition.
+	noAutoAcquire bool
 
 	// heartbeatMu guards heartbeatRegistry.
 	heartbeatMu sync.Mutex
@@ -3571,10 +3576,17 @@ type Config struct {
 	Pubsub                         pubsub.Pubsub
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AlwaysEnableDebugLogs          bool
-	WebpushDispatcher              webpush.Dispatcher
-	UsageTracker                   *workspacestats.UsageTracker
-	Clock                          quartz.Clock
-	PrometheusRegistry             prometheus.Registerer
+	// NoAutoAcquire disables automatic chat acquisition in response to
+	// signalWake() and the periodic acquire ticker. When true, the server
+	// runs its heartbeat and stale-recovery loops but never calls
+	// processOnce on its own. Use this in tests that want a truly passive
+	// server so that CreateChat (and other operations that call
+	// signalWake) cannot race with the test's own DB reads.
+	NoAutoAcquire      bool
+	WebpushDispatcher  webpush.Dispatcher
+	UsageTracker       *workspacestats.UsageTracker
+	Clock              quartz.Clock
+	PrometheusRegistry prometheus.Registerer
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -3652,6 +3664,7 @@ func New(cfg Config) *Server {
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 		chatHeartbeatInterval:      chatHeartbeatInterval,
+		noAutoAcquire:              cfg.NoAutoAcquire,
 		usageTracker:               cfg.UsageTracker,
 		clock:                      clk,
 		recordingSem:               make(chan struct{}, maxConcurrentRecordingUploads),
@@ -3738,9 +3751,13 @@ func (p *Server) start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-acquireTicker.C:
-			p.processOnce(ctx)
+			if !p.noAutoAcquire {
+				p.processOnce(ctx)
+			}
 		case <-p.wakeCh:
-			p.processOnce(ctx)
+			if !p.noAutoAcquire {
+				p.processOnce(ctx)
+			}
 		case <-staleTicker.C:
 			p.recoverStaleChats(ctx)
 			if debugSvc := p.existingDebugService(); debugSvc != nil {

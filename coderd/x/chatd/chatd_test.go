@@ -2082,7 +2082,7 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
+	replica := newWakeTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -2234,9 +2234,9 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	// The wake channel may trigger immediate processing after EditMessage,
-	// transitioning the chat from pending to running then error before we
-	// read the DB. Wait for any in-flight processing to settle.
+	// With a passive server (NoAutoAcquire), EditMessage sets the chat to
+	// Pending but no background processing runs. WaitUntilIdleForTest is a
+	// no-op here; the Eventually immediately satisfies Status != Running.
 	// Note: WaitUntilIdleForTest must be called from the test goroutine
 	// (not inside require.Eventually) to avoid a WaitGroup Add/Wait race.
 	chatd.WaitUntilIdleForTest(replica)
@@ -2433,7 +2433,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
+	replica := newWakeTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -4787,7 +4787,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 
 	// Use nil pubsub to force the no-pubsub path.
 	db, _ := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, nil, uuid.New())
+	replica := newWakeTestServer(t, db, nil, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -5739,6 +5739,36 @@ func newTestServer(
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: testutil.WaitLong,
+		NoAutoAcquire:              true,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
+// newWakeTestServer creates a test server that responds to signalWake()
+// events but uses a very long acquire ticker so it does not poll
+// aggressively. Use this instead of newTestServer when the test
+// deliberately needs background chat processing to run exactly once
+// in response to a wake signal (e.g. after CreateChat) before the
+// test inspects state. For fully passive servers use newTestServer;
+// for aggressively polling servers use newActiveTestServer.
+func newWakeTestServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	replicaID uuid.UUID,
+) *chatd.Server {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -5767,6 +5797,7 @@ func newDebugEnabledTestServer(
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		AlwaysEnableDebugLogs:      true,
+		NoAutoAcquire:              true,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
