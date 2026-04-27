@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { CONCRETE_THEMES } from "./colorblind";
 
 // These CSS variables drive the diff panel and the semantic color roles
 // that are most affected by colorblindness. Every theme class block must
@@ -44,6 +45,10 @@ const REQUIRED_VARIABLES = [
 	"--highlight-sky",
 	"--highlight-red",
 	"--highlight-magenta",
+	"--syntax-key",
+	"--syntax-string",
+	"--syntax-number",
+	"--syntax-boolean",
 	"--git-added-bright",
 	"--git-deleted-bright",
 	"--git-merged-bright",
@@ -53,13 +58,12 @@ const REQUIRED_VARIABLES = [
 // to one of these, so we only validate the concrete classes here.
 const THEME_CLASSES = [
 	":root",
-	".light",
-	".dark",
-	".dark-protan-deuter",
-	".light-protan-deuter",
-	".dark-tritan",
-	".light-tritan",
+	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
 ];
+
+const COLORBLIND_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
+	themeName.includes("-"),
+).map((themeName) => `.${themeName}`);
 
 function extractBlock(css: string, selector: string): string | null {
 	// Selectors can be grouped with commas in the stylesheet, for example
@@ -76,6 +80,13 @@ function extractBlock(css: string, selector: string): string | null {
 
 function escapeRegex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractVariable(block: string, variable: string): string | null {
+	const match = block.match(
+		new RegExp(`${escapeRegex(variable)}\\s*:\\s*([^;]+);`),
+	);
+	return match ? match[1].trim() : null;
 }
 
 describe("theme CSS variables", () => {
@@ -99,6 +110,29 @@ describe("theme CSS variables", () => {
 					});
 				}
 			}
+		});
+	}
+
+	for (const selector of COLORBLIND_THEME_CLASSES) {
+		describe(`${selector} semantic separation`, () => {
+			const block = extractBlock(css, selector);
+
+			it("keeps warning distinct from destructive colors", () => {
+				expect(block).not.toBeNull();
+				expect(extractVariable(block ?? "", "--content-warning")).not.toBe(
+					extractVariable(block ?? "", "--content-destructive"),
+				);
+				expect(extractVariable(block ?? "", "--surface-orange")).not.toBe(
+					extractVariable(block ?? "", "--surface-red"),
+				);
+			});
+
+			it("keeps links distinct from success colors", () => {
+				expect(block).not.toBeNull();
+				expect(extractVariable(block ?? "", "--content-link")).not.toBe(
+					extractVariable(block ?? "", "--content-success"),
+				);
+			});
 		});
 	}
 });

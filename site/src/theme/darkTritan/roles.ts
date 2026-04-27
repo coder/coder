@@ -3,36 +3,36 @@ import colors from "../tailwindColors";
 
 // Tritanopia reduces blue/yellow discrimination, so the standard amber
 // warning can blur into the sky-blue active/notice accents. Under
-// tritanopia, red vs green remains intact, so we keep `success` on green
-// and `error` on red, and shift `warning` to a magenta/pink that stays
-// distinct from both the blue accents and the red destructive states.
+// tritanopia, red vs green remains intact, so we keep `success` on green,
+// `error` on red, and `danger` on the base orange. Only `warning` shifts
+// to a magenta/pink that stays distinct from blue and red states.
 const roles: Roles = {
 	danger: {
-		background: colors.rose[950],
-		outline: colors.rose[500],
-		text: colors.rose[50],
+		background: colors.orange[950],
+		outline: colors.orange[500],
+		text: colors.orange[50],
 		fill: {
-			solid: colors.rose[500],
-			outline: colors.rose[400],
+			solid: colors.orange[500],
+			outline: colors.orange[400],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.rose[950],
-			outline: colors.rose[800],
-			text: colors.rose[200],
+			background: colors.orange[950],
+			outline: colors.orange[800],
+			text: colors.orange[200],
 			fill: {
-				solid: colors.rose[800],
-				outline: colors.rose[800],
+				solid: colors.orange[800],
+				outline: colors.orange[800],
 				text: colors.white,
 			},
 		},
 		hover: {
-			background: colors.rose[900],
-			outline: colors.rose[500],
+			background: colors.orange[900],
+			outline: colors.orange[500],
 			text: colors.white,
 			fill: {
-				solid: colors.rose[500],
-				outline: colors.rose[500],
+				solid: colors.orange[500],
+				outline: colors.orange[500],
 				text: colors.white,
 			},
 		},

@@ -2,6 +2,7 @@
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { Branding } from "./branding";
+import type { ConcreteThemeName } from "./colorblind";
 import dark from "./dark";
 import darkProtanDeuter from "./darkProtanDeuter";
 import darkTritan from "./darkTritan";
@@ -35,8 +36,8 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 export const DEFAULT_THEME = "dark";
 
 // Keep the keys of this object in sync with `CONCRETE_THEMES` in
-// `./colorblind.ts`. A test in `colorblind.test.ts` enforces the
-// invariant at build time.
+// `./colorblind.ts`. The `ConcreteThemeName` type and a test in
+// `colorblind.test.ts` enforce the invariant at build time.
 const theme = {
 	dark,
 	light,
@@ -44,6 +45,6 @@ const theme = {
 	"light-protan-deuter": lightProtanDeuter,
 	"dark-tritan": darkTritan,
 	"light-tritan": lightTritan,
-} satisfies Record<string, Theme>;
+} satisfies Record<ConcreteThemeName, Theme>;
 
 export default theme;

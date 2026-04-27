@@ -15,6 +15,40 @@
 	font-display: swap;
 }
 
+@layer components {
+	@media (max-width: 767px) {
+		/*
+			Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
+			custom property on the chat input container so the dropdown
+			position tracks the actual input box, not a hardcoded offset.
+		*/
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+			position: fixed !important;
+			left: 1rem !important;
+			width: calc(100vw - 2rem) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-top-below-header
+			) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+		.mobile-full-width-dropdown {
+			width: 100% !important;
+			min-width: 0 !important;
+			max-width: none !important;
+		}
+	}
+}
+
 @layer base {
 	:root,
 	.light {
@@ -155,18 +189,19 @@
 		--primary-foreground: var(--surface-primary);
 	}
 	/*
-		Colorblind-friendly variants. Each of these class names is set as
-		the only theme class on `<html>` by ThemeProvider, so a block must
-		declare every CSS variable used across the app. Where a variable
-		is unaffected by the colorblind palette (layout chrome, neutrals)
-		we keep the value in sync with the base `.light` or `.dark` block
-		above.
+		Colorblind-friendly variants. ThemeProvider applies these concrete
+		classes alongside the base mode class (`dark` or `light`) so
+		Tailwind's selector-based dark mode keeps working. Each block is a
+		complete standalone color declaration for the theme variables
+		validated by cssVariables.test.ts, which prevents stale values from
+		leaking through when users switch themes. Non-color chrome still
+		inherits from `:root` and the base mode class.
 
 		Palette rationale:
 		- dark-protan-deuter / light-protan-deuter: shift the red/green
 		  success+error axis onto sky-blue (success) + vermilion/orange
-		  (destructive). Warning stays amber because amber reads as
-		  distinct from blue under protanopia and deuteranopia.
+		  (destructive). Warning shifts to fuchsia so it does not collide
+		  with destructive states on the orange axis.
 		- dark-tritan / light-tritan: keep the red/green success+error
 		  axis intact and move warning from amber to fuchsia because
 		  amber and sky-blue blur together under tritanopia.
@@ -174,11 +209,11 @@
 	.light-protan-deuter {
 		--content-primary: 240 10% 4%;
 		--content-secondary: 240 5% 34%;
-		--content-link: 199 89% 48%;
+		--content-link: 221 83% 53%;
 		--content-invert: 0 0% 98%;
 		--content-disabled: 240 5% 65%;
 		--content-success: 199 89% 48%;
-		--content-warning: 27 96% 61%;
+		--content-warning: 322 81% 43%;
 		--content-destructive: 24 95% 53%;
 		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
@@ -189,7 +224,7 @@
 		--surface-destructive: 34 100% 92%;
 		--surface-green: 201 94% 86%;
 		--surface-grey: 240 5% 96%;
-		--surface-orange: 34 100% 92%;
+		--surface-orange: 289 100% 98%;
 		--surface-sky: 191, 67%, 89%;
 		--surface-red: 34 100% 92%;
 		--surface-purple: 259, 100%, 95%;
@@ -200,14 +235,13 @@
 		--border-sky: 203 90% 40%;
 		--border-green: 201 94% 86%;
 		--border-magenta: 295, 68%, 46%;
-		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-warning: 322 81% 60%;
 		--border-destructive: 24 95% 53%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
-		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 201 94% 36%;
-		--highlight-orange: 30 100% 32%;
+		--highlight-orange: 322 81% 43%;
 		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 24 95% 42%;
 		--highlight-magenta: 295, 68%, 40%;
@@ -234,18 +268,15 @@
 		--muted-foreground: var(--content-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
-		--avatar-lg: 2.5rem;
-		--avatar-default: 2rem;
-		--avatar-sm: 1.5rem;
 	}
 	.dark-protan-deuter {
 		--content-primary: 0 0% 100%;
 		--content-secondary: 240 5% 65%;
-		--content-link: 199 82% 67%;
+		--content-link: 213 94% 68%;
 		--content-invert: 240 10% 4%;
 		--content-disabled: 240 5% 26%;
 		--content-success: 199 82% 67%;
-		--content-warning: 31 97% 72%;
+		--content-warning: 322 81% 67%;
 		--content-destructive: 27 96% 67%;
 		--surface-primary: 240 10% 4%;
 		--surface-secondary: 240 6% 10%;
@@ -256,7 +287,7 @@
 		--surface-destructive: 17 75% 15%;
 		--surface-green: 201 80% 14%;
 		--surface-grey: 240 6% 10%;
-		--surface-orange: 13 81% 15%;
+		--surface-orange: 322 70% 15%;
 		--surface-sky: 196, 67%, 12%;
 		--surface-red: 17 75% 15%;
 		--surface-purple: 268, 68%, 17%;
@@ -265,7 +296,7 @@
 		--border-default: 240 4% 16%;
 		--border-success: 199 82% 67%;
 		--border-magenta: 292, 100%, 78%;
-		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-warning: 322 81% 67%;
 		--border-destructive: 27 96% 67%;
 		--border-sky: 194 90% 62%;
 		--border-green: 201 94% 86%;
@@ -273,7 +304,7 @@
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 201 94% 86%;
-		--highlight-orange: 31 100% 70%;
+		--highlight-orange: 322 81% 67%;
 		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 27 96% 67%;
 		--highlight-magenta: 292, 100%, 78%;
@@ -334,7 +365,6 @@
 		--border-destructive: 0 84% 60%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
-		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
 		--highlight-orange: 322 81% 43%;
@@ -364,9 +394,6 @@
 		--muted-foreground: var(--content-secondary);
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
-		--avatar-lg: 2.5rem;
-		--avatar-default: 2rem;
-		--avatar-sm: 1.5rem;
 	}
 	.dark-tritan {
 		--content-primary: 0 0% 100%;

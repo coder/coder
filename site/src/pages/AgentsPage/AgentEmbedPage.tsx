@@ -9,6 +9,7 @@ import { ProxyProvider } from "#/contexts/ProxyContext";
 import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import { permissionChecks } from "#/modules/permissions";
 import {
+	baseModeFor,
 	CONCRETE_THEMES,
 	type ConcreteThemeName,
 	isConcreteThemeName,
@@ -86,6 +87,12 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	// stale class on the root.
 	root.classList.remove(...CONCRETE_THEMES);
 	root.classList.add(theme);
+	// Also apply the base mode class (`dark` or `light`) so Tailwind's
+	// `dark:` variant and any `.dark`/`.light` selector-based theming
+	// keep matching when a colorblind variant is active. The mode class
+	// is already part of `CONCRETE_THEMES`, so the clear above removes
+	// any stale value before we add the fresh one.
+	root.classList.add(baseModeFor(theme));
 	root.dataset.embedTheme = theme;
 };
 
@@ -175,7 +182,9 @@ const AgentEmbedPage: FC = () => {
 	});
 
 	// Apply the initial theme from the URL query param
-	// (?theme=light|dark) or fall back to prefers-color-scheme.
+	// (?theme=<concrete theme name>) or fall back to
+	// prefers-color-scheme. Accepts any concrete theme, including
+	// colorblind-friendly variants such as `dark-tritan`.
 	// useLayoutEffect runs before paint to prevent a flash.
 	const [searchParams] = useSearchParams();
 	useLayoutEffect(() => {

@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
 import themes from "../src/theme";
+import { baseModeFor, isConcreteThemeName } from "../src/theme/colorblind";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
@@ -89,18 +90,22 @@ const withTheme: Decorator = (Story, context) => {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
 	const { themeOverride } = DecoratorHelpers.useThemeParameters();
 	const selected = themeOverride || selectedTheme || "dark";
+	const concreteName = isConcreteThemeName(selected) ? selected : "dark";
+	const htmlClassName = Array.from(
+		new Set([concreteName, baseModeFor(concreteName)]),
+	).join(" ");
 
 	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
-	// theme to the HTML class list. This approach is necessary because Tailwind
-	// CSS relies on class names to apply styles, and dynamically changing themes
-	// requires updating the class list accordingly.
-	document.querySelector("html")?.setAttribute("class", selected);
+	// concrete theme and base mode to the HTML class list. This mirrors the
+	// production ThemeProvider so Tailwind's selector-based `dark:` variant keeps
+	// working in Storybook when a dark colorblind variant is active.
+	document.querySelector("html")?.setAttribute("class", htmlClassName);
 
 	return (
 		<StrictMode>
 			<StyledEngineProvider injectFirst>
-				<MuiThemeProvider theme={themes[selected]}>
-					<EmotionThemeProvider theme={themes[selected]}>
+				<MuiThemeProvider theme={themes[concreteName]}>
+					<EmotionThemeProvider theme={themes[concreteName]}>
 						<TooltipProvider delayDuration={100}>
 							<CssBaseline />
 							<Story />
