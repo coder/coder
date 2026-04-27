@@ -221,17 +221,27 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 			>
 				<TableCell>
 					<div className="flex items-center gap-5">
-						<Checkbox
-							data-testid={`checkbox-${task.id}`}
-							checked={checked}
-							onClick={(e) => {
-								e.stopPropagation();
+						{/* Wrap the checkbox in a click-absorbing container
+						 * so that near-miss clicks do not bubble up to the
+						 * row's navigation handler. */}
+						<div
+							className="flex items-center py-2 pr-2 -ml-2 pl-2"
+							onClick={(e) => e.stopPropagation()}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.stopPropagation();
+								}
 							}}
-							onCheckedChange={(checked) => {
-								onCheckChange(task.id, Boolean(checked));
-							}}
-							aria-label={`Select task ${task.initial_prompt}`}
-						/>
+						>
+							<Checkbox
+								data-testid={`checkbox-${task.id}`}
+								checked={checked}
+								onCheckedChange={(checked) => {
+									onCheckChange(task.id, Boolean(checked));
+								}}
+								aria-label={`Select task ${task.initial_prompt}`}
+							/>
+						</div>
 						<AvatarData
 							title={
 								<span className="block max-w-[520px] truncate">
