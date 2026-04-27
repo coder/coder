@@ -59,6 +59,245 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	return prompt
 }
 
+func TestSanitizeAnthropicProviderToolCalls(t *testing.T) {
+	t.Parallel()
+
+	textPart := fantasy.TextPart{Text: "Here is a summary."}
+	webSearchCall := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_search",
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+	matchedResult := fantasy.ToolResultPart{
+		ToolCallID:       "srvtoolu_search",
+		Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+		ProviderExecuted: true,
+	}
+	codeExecutionCall := fantasy.ToolCallPart{
+		ToolCallID:       "srvtoolu_code",
+		ToolName:         "code_execution",
+		Input:            `{"code":"print(1)"}`,
+		ProviderExecuted: true,
+	}
+	localCall := fantasy.ToolCallPart{
+		ToolCallID: "toolu_local",
+		ToolName:   "read_file",
+		Input:      `{"path":"main.go"}`,
+	}
+	unpairedWebSearchCall := webSearchCall
+	unpairedWebSearchCall.ToolCallID = "srvtoolu_unpaired"
+	disableParallelToolUse := true
+	providerOptions := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &disableParallelToolUse,
+		},
+	}
+	enableParallelToolUse := false
+	providerOptionsAllowParallel := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{
+			DisableParallelToolUse: &enableParallelToolUse,
+		},
+	}
+
+	testCases := []struct {
+		name        string
+		provider    string
+		messages    []fantasy.Message
+		want        []fantasy.Message
+		wantRemoved int
+		wantDropped int
+	}{
+		{
+			name:     "removes unpaired call and keeps text",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "drops assistant message when only part is removed",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+			want:        []fantasy.Message{},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "coalesces adjacent roles after dropping empty message",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search for coder"},
+					},
+				},
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{webSearchCall},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "now summarize"},
+					},
+					ProviderOptions: providerOptions,
+				},
+			},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "search for coder"},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
+				},
+			}},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "coalesces adjacent provider options without flattening boundaries",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "search for coder"},
+					},
+					ProviderOptions: providerOptionsAllowParallel,
+				},
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{webSearchCall},
+				},
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "now summarize"},
+					},
+					ProviderOptions: providerOptions,
+				},
+			},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{
+						Text:            "search for coder",
+						ProviderOptions: providerOptionsAllowParallel,
+					},
+					fantasy.TextPart{
+						Text:            "now summarize",
+						ProviderOptions: providerOptions,
+					},
+				},
+			}},
+			wantRemoved: 1,
+			wantDropped: 1,
+		},
+		{
+			name:     "keeps matched call and result",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+		},
+		{
+			name:     "removes only unpaired call from mixed message",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+					matchedResult,
+					unpairedWebSearchCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					webSearchCall,
+					matchedResult,
+				},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "removes unpaired provider call and keeps local call",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					codeExecutionCall,
+					localCall,
+				},
+			}},
+			want: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					localCall,
+				},
+			}},
+			wantRemoved: 1,
+		},
+		{
+			name:     "leaves other providers unchanged",
+			provider: "fake",
+			messages: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{webSearchCall},
+			}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sanitized, stats := chatprompt.SanitizeAnthropicProviderToolCalls(
+				tc.provider,
+				tc.messages,
+			)
+			require.Equal(t, tc.wantRemoved, stats.RemovedToolCalls)
+			require.Equal(t, tc.wantDropped, stats.DroppedMessages)
+			require.Equal(t, tc.want, sanitized)
+		})
+	}
+}
+
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
@@ -509,6 +748,131 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"toolu_local"}, resultIDs)
+	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(
+		fantasyanthropic.Name,
+		prompt,
+	)
+	require.Equal(t, 1, sanitizeStats.RemovedToolCalls)
+	require.Len(t, sanitized, 2)
+	remainingToolCalls := chatprompt.ExtractToolCalls(sanitized[0].Content)
+	require.Len(t, remainingToolCalls, 1)
+	require.Equal(t, "toolu_local", remainingToolCalls[0].ToolCallID)
+}
+
+func TestInjectMissingToolResults_SkipsProviderExecutedAndInjectsLocal(t *testing.T) {
+	t.Parallel()
+
+	providerCall := codersdk.ChatMessageToolCall(
+		"srvtoolu_web_search",
+		"web_search",
+		json.RawMessage(`{"query":"coder"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"toolu_read",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		providerCall,
+		localCall,
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{{
+		Role:           database.ChatMessageRoleAssistant,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        assistantContent,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}})
+
+	require.Len(t, prompt, 2, "expected assistant plus local synthetic tool result")
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+
+	toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
+	require.Len(t, toolCalls, 2)
+	require.Equal(t, "srvtoolu_web_search", toolCalls[0].ToolCallID)
+	require.True(t, toolCalls[0].ProviderExecuted)
+	require.Equal(t, "toolu_read", toolCalls[1].ToolCallID)
+	require.False(t, toolCalls[1].ProviderExecuted)
+
+	require.Equal(t, []string{"toolu_read"}, extractToolResultIDs(t, prompt[1]))
+	require.Len(t, prompt[1].Content, 1)
+	toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+	require.True(t, ok, "expected synthetic ToolResultPart")
+	require.Equal(t, "toolu_read", toolResult.ToolCallID)
+	require.False(t, toolResult.ProviderExecuted)
+	errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](toolResult.Output)
+	require.True(t, ok, "expected synthetic error output")
+	require.ErrorContains(t, errOutput.Error, "tool call was interrupted")
+}
+
+func TestInjectMissingToolResults_AdjacentAssistantsInjectLocalResults(t *testing.T) {
+	t.Parallel()
+
+	assistantAContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant a"),
+		codersdk.ChatMessageToolCall(
+			"toolu_a",
+			"read_file",
+			json.RawMessage(`{"path":"a.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	assistantBContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant b"),
+		codersdk.ChatMessageToolCall(
+			"toolu_b",
+			"read_file",
+			json.RawMessage(`{"path":"b.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("next user message"),
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantAContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantBContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        userContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	})
+
+	require.Len(t, prompt, 5)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[3].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[4].Role)
+	require.Equal(t, []string{"toolu_a"}, extractToolResultIDs(t, prompt[1]))
+	require.Equal(t, []string{"toolu_b"}, extractToolResultIDs(t, prompt[3]))
+
+	assistantAText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected assistant A text")
+	require.Equal(t, "assistant a", assistantAText.Text)
+	assistantBText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[2].Content[0])
+	require.True(t, ok, "expected assistant B text")
+	require.Equal(t, "assistant b", assistantBText.Text)
+	userText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[4].Content[0])
+	require.True(t, ok, "expected user text")
+	require.Equal(t, "next user message", userText.Text)
 }
 
 // TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
@@ -695,7 +1059,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	t.Parallel()
 
 	// The assistant message contains a PE tool call, a PE tool result,
-	// and a text block — mimicking a web_search step where persistStep
+	// and a text block, mimicking a web_search step where persistStep
 	// keeps the PE result inline.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
@@ -751,7 +1115,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 // TestProviderExecutedResult_LegacyToolRow verifies backward
 // compatibility: PE tool results that were stored as separate
 // tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes — orphaned PE results are dropped, and
+// by the repair passes, orphaned PE results are dropped, and
 // matching PE results in the same step work via the existing
 // injectMissingToolUses logic.
 func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
@@ -1903,10 +2267,10 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),                     // empty — filtered
-			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),                // empty — filtered
-			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText(""),                     // empty, filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),                // empty, filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace, filtered
 			codersdk.ChatMessageText("hello"),                // kept
 			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
 			codersdk.ChatMessageReasoning("thinking deeply"), // kept
@@ -1930,7 +2294,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected TextPart at index 0")
 		require.Equal(t, "hello", textPart.Text)
 
-		// Leading/trailing whitespace is preserved — only
+		// Leading/trailing whitespace is preserved, only
 		// all-whitespace parts are dropped.
 		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
 		require.True(t, ok, "expected TextPart at index 1")
@@ -1953,9 +2317,9 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),          // empty — filtered
-			codersdk.ChatMessageText(" "),         // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText(""),          // empty, filtered
+			codersdk.ChatMessageText(" "),         // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),     // empty, filtered
 			codersdk.ChatMessageText("  reply  "), // kept with whitespace
 			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
 		}

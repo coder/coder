@@ -1238,8 +1238,18 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
+		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 	})
 }
 
@@ -1264,21 +1274,80 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-		UserID:                         user.ID,
-		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user task notification alert dismissed.",
-			Detail:  err.Error(),
+	if params.ThinkingDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidThinkingDisplayModes, params.ThinkingDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid thinking display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "thinking_display_mode", Detail: "must be one of: auto, preview, always_expanded, always_collapsed"},
+			},
 		})
 		return
+	}
+	var err error
+
+	var updatedTaskAlertDismissed bool
+	if params.TaskNotificationAlertDismissed != nil {
+		updatedTaskAlertDismissed, err = api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+			UserID:                         user.ID,
+			TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating user task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		updatedTaskAlertDismissed, err = api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	var resolvedThinkingMode codersdk.ThinkingDisplayMode
+	if params.ThinkingDisplayMode != "" {
+		updated, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+			UserID:              user.ID,
+			ThinkingDisplayMode: string(params.ThinkingDisplayMode),
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedThinkingMode = codersdk.ThinkingDisplayMode(updated)
+	} else {
+		stored, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedThinkingMode = sanitizeThinkingDisplayMode(stored)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
+		ThinkingDisplayMode:            resolvedThinkingMode,
 	})
+}
+
+func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
+	mode := codersdk.ThinkingDisplayMode(raw)
+	if slices.Contains(codersdk.ValidThinkingDisplayModes, mode) {
+		return mode
+	}
+	return codersdk.ThinkingDisplayModeAuto
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {

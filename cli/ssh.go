@@ -1017,7 +1017,9 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
+			useParameterDefaults: true,
+		}, buildFlags{
 			reason: string(codersdk.BuildReasonSSHConnection),
 		}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok {
@@ -1027,7 +1029,9 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 				return GetWorkspaceAndAgent(ctx, inv, client, false, input)
 
 			case http.StatusForbidden:
-				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
+				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
+					useParameterDefaults: true,
+				}, buildFlags{}, WorkspaceUpdate)
 				if err != nil {
 					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}

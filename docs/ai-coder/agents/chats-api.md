@@ -326,8 +326,38 @@ appear in the `files` field on subsequent
 
 | Status            | Meaning                                                                      |
 |-------------------|------------------------------------------------------------------------------|
-| `waiting`         | No pending work (newly created, finished, or interrupted).                   |
+| `waiting`         | Idle. Newly created, finished successfully, or interrupted.                  |
 | `pending`         | Queued for processing.                                                       |
 | `running`         | Agent is actively working.                                                   |
+| `paused`          | Agent is paused (for example, waiting for user input).                       |
+| `completed`       | Agent finished and the task is complete.                                     |
 | `error`           | Agent encountered an error.                                                  |
 | `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
+
+## Configuration
+
+Deployment-wide chat settings are read and written under
+`/api/experimental/chats/config/*`. Reading config requires authentication; writing requires
+deployment-admin privileges.
+
+### Auto-archive window
+
+Chats whose newest non-deleted message is older than
+`auto_archive_days` are automatically archived by a background job.
+Pinned chats and chats belonging to a still-active thread are
+exempt. `0` disables the feature; the default is 90.
+
+```sh
+# Read
+curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  https://coder.example.com/api/experimental/chats/config/auto-archive-days
+# { "auto_archive_days": 90 }
+
+# Update
+curl -X PUT -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"auto_archive_days": 60}' \
+  https://coder.example.com/api/experimental/chats/config/auto-archive-days
+```
+
+Accepted range: `0` to `3650` (~10 years).

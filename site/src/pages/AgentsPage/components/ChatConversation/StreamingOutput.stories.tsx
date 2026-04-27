@@ -73,7 +73,7 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		const thinkingMatches = canvas.getAllByText(/thinking\.\.\./i);
+		const thinkingMatches = canvas.getAllByText(/thinking\.\.\.$/i);
 		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
 	},
 };
@@ -256,7 +256,7 @@ export const RetryStartupTimeout: Story = {
 
 /**
  * During streaming, if only tool-call blocks have arrived (no text
- * or reasoning), the "Thinking..." indicator should still be visible
+ * or reasoning), the "Thinking" indicator should still be visible
  * alongside the tool cards.
  */
 export const ThinkingDuringStreamingWithToolCalls: Story = {
@@ -272,9 +272,9 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// "Thinking..." should still be visible during streaming
+		// "Thinking" should still be visible during streaming
 		// when only tool-call blocks have arrived.
-		const matches = canvas.getAllByText("Thinking...");
+		const matches = canvas.getAllByText("Thinking");
 		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };
