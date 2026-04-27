@@ -26,7 +26,6 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 
 	return (
 		<div className="flex flex-col bg-surface-primary">
-
 			{displayResources.map((resource) => (
 				<ResourceCard
 					key={resource.id}
@@ -51,6 +50,5 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 				</div>
 			)}
 		</div>
-
 	);
 };

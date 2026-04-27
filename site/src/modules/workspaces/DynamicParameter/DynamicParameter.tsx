@@ -505,7 +505,6 @@ const MaskableInput: FC<MaskableInputProps> = ({
 
 	return (
 		<div className="flex flex-row items-center">
-
 			<Input
 				id={id}
 				type={masked && showMaskedInput ? "text" : type}
@@ -536,7 +535,6 @@ const MaskableInput: FC<MaskableInputProps> = ({
 				</Button>
 			)}
 		</div>
-
 	);
 };
 
@@ -554,7 +552,6 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 
 	return (
 		<div className="flex flex-row items-center">
-
 			<Textarea
 				ref={textareaRef}
 				id={id}
@@ -592,7 +589,6 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 				</Button>
 			)}
 		</div>
-
 	);
 };
 

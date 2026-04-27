@@ -49,7 +49,6 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 				<ol style={{ margin: 0, padding: 0 }}>
 					<div className="flex flex-col gap-1 mt-3">
-
 						<SSHStep
 							helpText="Configure SSH hosts on machine:"
 							codeExample="coder config-ssh"
@@ -59,7 +58,6 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
 					</div>
-
 				</ol>
 
 				<HelpPopoverLinksGroup>

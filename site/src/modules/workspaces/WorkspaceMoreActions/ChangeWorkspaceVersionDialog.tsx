@@ -54,8 +54,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 			confirmText="Change"
 			title="Change version"
 			description={
-					<div className="flex flex-col gap-4">
-
+				<div className="flex flex-col gap-4">
 					<p>You are about to change the version of this workspace.</p>
 					{validVersions ? (
 						<>
@@ -90,15 +89,11 @@ export const ChangeWorkspaceVersionDialog: FC<
 													/>
 												}
 												title={
-														<div
-															className="flex flex-row justify-between gap-4"
-															style={{ width: "100%" }}
-														>
-
-															<div
-																className="flex flex-row items-center gap-2"
-															>
-
+													<div
+														className="flex flex-row justify-between gap-4"
+														style={{ width: "100%" }}
+													>
+														<div className="flex flex-row items-center gap-2">
 															{option.name}
 															{option.message && (
 																<InfoIcon
@@ -106,12 +101,11 @@ export const ChangeWorkspaceVersionDialog: FC<
 																	className="size-icon-xs"
 																/>
 															)}
-															</div>
+														</div>
 
 														{workspace.template_active_version_id ===
 															option.id && <Pill type="success">Active</Pill>}
-														</div>
-
+													</div>
 												}
 												subtitle={createDayString(option.created_at)}
 											/>
@@ -156,8 +150,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 					) : (
 						<Loader />
 					)}
-					</div>
-
+				</div>
 			}
 		/>
 	);

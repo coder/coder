@@ -140,7 +140,6 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 			}}
 			description={
 				<div className="flex flex-col gap-4 pb-4">
-
 					<p>
 						Downloading logs will create a zip file containing all logs from all
 						jobs in this workspace. This may take a while.
@@ -163,7 +162,6 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 						))}
 					</ul>
 				</div>
-
 			}
 		/>
 	);

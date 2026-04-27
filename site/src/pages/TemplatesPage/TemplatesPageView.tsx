@@ -227,9 +227,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-						<div className="flex flex-row gap-2 items-center">						Templates
+					<div className="flex flex-row gap-2 items-center">
+						{" "}
+						Templates
 						<TemplateHelpPopover />
-						</div>				</PageHeaderTitle>
+					</div>{" "}
+				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Select a template to create a workspace.
 				</PageHeaderSubtitle>

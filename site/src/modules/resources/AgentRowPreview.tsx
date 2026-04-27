@@ -26,9 +26,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 			className="flex flex-row items-center justify-between gap-4"
 			css={styles.agentRow}
 		>
-
 			<div className="flex flex-row items-baseline gap-4">
-
 				<div css={styles.agentStatusWrapper}>
 					<div css={styles.agentStatusPreview} />
 				</div>
@@ -36,7 +34,6 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 					className="flex flex-row items-baseline gap-8"
 					css={styles.agentData}
 				>
-
 					<div
 						className="flex flex-row items-baseline gap-2"
 						css={[
@@ -49,11 +46,9 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							}),
 						]}
 					>
-
 						<span>Agent:</span>
 						<span css={styles.agentDataValue}>{agent.name}</span>
 					</div>
-
 
 					<div
 						className="flex flex-row items-baseline gap-2"
@@ -67,7 +62,6 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							}),
 						]}
 					>
-
 						<span>OS:</span>
 						<span css={[styles.agentDataValue, styles.agentOS]}>
 							{agent.operating_system}
@@ -78,12 +72,8 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 						className="flex flex-row items-center gap-2"
 						css={styles.agentDataItem}
 					>
-
 						<span>Apps:</span>
-						<div
-							className="flex flex-row items-center gap-1 flex-wrap"
-						>
-
+						<div className="flex flex-row items-center gap-1 flex-wrap">
 							{/* We display all modules returned in agent.apps */}
 							{agent.apps.map((app) => (
 								<AppPreview key={app.slug}>
@@ -129,7 +119,6 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 				</div>
 			</div>
 		</div>
-
 	);
 };
 

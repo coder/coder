@@ -249,13 +249,14 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-					<div className="flex flex-row gap-4">					<Avatar
+				<div className="flex flex-row gap-4">
+					{" "}
+					<Avatar
 						size="lg"
 						variant="icon"
 						src={template.icon}
 						fallback={template.name}
 					/>
-
 					<div>
 						<div className="flex flex-row items-center gap-2">
 							<PageHeaderTitle>

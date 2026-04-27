@@ -8,9 +8,7 @@ interface SelectedTemplateProps {
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (
-		<div
-			className="flex flex-row gap-4 py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border"
-		>
+		<div className="flex flex-row gap-4 py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border">
 			<Avatar
 				variant="icon"
 				size="lg"

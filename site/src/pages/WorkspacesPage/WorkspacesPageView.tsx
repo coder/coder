@@ -98,25 +98,26 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-						<div className="flex flex-row gap-2 items-center">
-							<span>Workspaces</span>
-							<WorkspaceHelpPopover />
-						</div>				</PageHeaderTitle>
+					<div className="flex flex-row gap-2 items-center">
+						<span>Workspaces</span>
+						<WorkspaceHelpPopover />
+					</div>{" "}
+				</PageHeaderTitle>
 			</PageHeader>
 
-				<div className="flex flex-col gap-4">
-					{hasError(error) && !isApiValidationError(error) && (
-						<ErrorAlert error={error} />
-					)}
-					<WorkspacesFilter
-						filter={filterState.filter}
-						error={error}
-						statusMenu={filterState.menus.status}
-						templateMenu={filterState.menus.template}
-						userMenu={filterState.menus.user}
-						organizationsMenu={filterState.menus.organizations}
-					/>
-				</div>
+			<div className="flex flex-col gap-4">
+				{hasError(error) && !isApiValidationError(error) && (
+					<ErrorAlert error={error} />
+				)}
+				<WorkspacesFilter
+					filter={filterState.filter}
+					error={error}
+					statusMenu={filterState.menus.status}
+					templateMenu={filterState.menus.template}
+					userMenu={filterState.menus.user}
+					organizationsMenu={filterState.menus.organizations}
+				/>
+			</div>
 			<TableToolbar>
 				{checkedWorkspaces.length > 0 ? (
 					<>

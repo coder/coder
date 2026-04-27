@@ -46,29 +46,24 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 			</HelpPopoverTrigger>
 			<HelpPopoverContent>
 				<div className="flex flex-col gap-2">
-
 					<div>
 						<HelpPopoverTitle>{title}</HelpPopoverTitle>
 						<HelpPopoverText>{text}</HelpPopoverText>
 					</div>
 
 					<div className="flex flex-col gap-1">
-
 						<span className="font-semibold text-content-primary">
 							Agent version
 						</span>
 						<span>{agent.version}</span>
 					</div>
 
-
 					<div className="flex flex-col gap-1">
-
 						<span className="font-semibold text-content-primary">
 							Server version
 						</span>
 						<span>{serverVersion}</span>
 					</div>
-
 
 					<HelpPopoverLinksGroup>
 						<HelpPopoverAction
@@ -83,7 +78,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 						</HelpPopoverAction>
 					</HelpPopoverLinksGroup>
 				</div>
-
 			</HelpPopoverContent>
 		</HelpPopover>
 	);

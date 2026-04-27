@@ -61,16 +61,16 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			confirmText={confirmText}
 			description={
 				<>
-						<div className="flex flex-col gap-3">						<p>
+					<div className="flex flex-col gap-3">
+						{" "}
+						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
-
 						{Boolean(info) && <div css={styles.callout}>{info}</div>}
-
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>
-						</div>
+					</div>
 					<form onSubmit={onSubmit}>
 						<TextField
 							fullWidth

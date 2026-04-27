@@ -40,32 +40,33 @@ export const VersionRow: FC<VersionRowProps> = ({
 			className={clickableProps.className}
 		>
 			<TableCell css={styles.versionCell}>
-					<div
-						className="flex flex-row items-center justify-between gap-4"
-						css={styles.versionWrapper}
-					>					<div className="flex flex-row items-center gap-4">
+				<div
+					className="flex flex-row items-center justify-between gap-4"
+					css={styles.versionWrapper}
+				>
+					{" "}
+					<div className="flex flex-row items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-							<div
-								className="flex flex-row items-center gap-2"
-								css={styles.versionSummary}
-							>							<span>
+						<div
+							className="flex flex-row items-center gap-2"
+							css={styles.versionSummary}
+						>
+							{" "}
+							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>
 							</span>
-
 							{version.message && (
 								<InfoTooltip title="Message" message={version.message} />
 							)}
-
 							<span css={styles.versionTime}>
 								{new Date(version.created_at).toLocaleTimeString()}
 							</span>
 						</div>
 					</div>
-
 					<div className="flex flex-row items-center gap-4">
 						{isActive && (
 							<Pill role="status" type="success">

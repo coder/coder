@@ -139,7 +139,6 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 const AgentMetadataSkeleton: FC = () => {
 	return (
 		<div className="flex flex-row items-baseline gap-12">
-
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={6} variant="text" />
 				<Skeleton width={65} height={8} variant="text" />
@@ -155,7 +154,6 @@ const AgentMetadataSkeleton: FC = () => {
 				<Skeleton width={65} height={8} variant="text" />
 			</div>
 		</div>
-
 	);
 };
 

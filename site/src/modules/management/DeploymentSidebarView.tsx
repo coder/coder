@@ -85,9 +85,9 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-							<div className="flex flex-row items-center gap-1">
-								Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
-							</div>
+						<div className="flex flex-row items-center gap-1">
+							Groups {showOrganizations && <ArrowUpRight size={16} />}
+						</div>
 					</SidebarNavItem>
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (

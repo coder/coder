@@ -479,9 +479,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-										<div
-											className="flex flex-col gap-0 text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]"
-										>										{formatTime(usage.seconds)}
+									<div className="flex flex-col gap-0 text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
+										{" "}
+										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
 												Opened {usage.times_used.toLocaleString()}{" "}

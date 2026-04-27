@@ -216,9 +216,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-											<div
-												className="flex flex-row gap-4 items-center mt-4"
-											>											<PremiumBadge />
+										<div className="flex flex-row gap-4 items-center mt-4">
+											{" "}
+											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
 										</div>
 									)}

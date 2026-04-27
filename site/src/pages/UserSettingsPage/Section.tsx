@@ -40,7 +40,9 @@ export const Section: FC<SectionProps> = ({
 					<div className="mb-6 flex flex-row justify-between">
 						<div>
 							{title && (
-									<div className="flex flex-row items-center gap-4">									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
+								<div className="flex flex-row items-center gap-4">
+									{" "}
+									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
@@ -48,7 +50,8 @@ export const Section: FC<SectionProps> = ({
 											className="mb-[5px]"
 										/>
 									)}
-									</div>							)}
+								</div>
+							)}
 							{description && typeof description === "string" && (
 								<p className={DESCRIPTION_CLASS}>{description}</p>
 							)}

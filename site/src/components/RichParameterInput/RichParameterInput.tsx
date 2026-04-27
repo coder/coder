@@ -17,11 +17,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import type {
 	AutofillBuildParameter,
 	AutofillSource,
 } from "#/utils/richParameters";
-import { cn } from "#/utils/cn";
 import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
@@ -236,7 +236,11 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 
 	return (
 		<div
-			className={cn("flex flex-col", size === "small" ? "gap-2.5" : "gap-4", size)}
+			className={cn(
+				"flex flex-col",
+				size === "small" ? "gap-2.5" : "gap-4",
+				size,
+			)}
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
@@ -330,23 +334,24 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 						value={option.value}
 						control={<Radio size="small" />}
 						label={
-								<div className="flex flex-row items-center gap-4">
-									{option.icon && (
-										<ExternalImage
-											css={styles.optionIcon}
-											src={option.icon}
-											alt="Parameter icon"
-										/>
-									)}
-									{option.description ? (
-										<div
-											className={cn(
-												"flex",
-												small ? "flex-row gap-2 items-center" : "flex-col gap-0 py-1",
-											)}
-											>
-												{small ? (
-
+							<div className="flex flex-row items-center gap-4">
+								{option.icon && (
+									<ExternalImage
+										css={styles.optionIcon}
+										src={option.icon}
+										alt="Parameter icon"
+									/>
+								)}
+								{option.description ? (
+									<div
+										className={cn(
+											"flex",
+											small
+												? "flex-row gap-2 items-center"
+												: "flex-col gap-0 py-1",
+										)}
+									>
+										{small ? (
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div>{option.name}</div>
@@ -365,13 +370,12 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 												</MemoizedMarkdown>
 											</>
 										)}
-										</div>
-									) : (
-										option.name
-									)}
 									</div>
-								}
-
+								) : (
+									option.name
+								)}
+							</div>
+						}
 					/>
 				))}
 			</RadioGroup>

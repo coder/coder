@@ -50,8 +50,6 @@ export const DeprecatedBadge: React.FC = () => {
 
 export const Badges: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<div className="flex flex-row items-center gap-2 mb-4">
-			{children}
-		</div>
+		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
 	);
 };

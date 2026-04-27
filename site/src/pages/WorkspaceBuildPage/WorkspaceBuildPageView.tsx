@@ -100,12 +100,14 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	return (
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
-					<div className="flex flex-row gap-4">					<BuildAvatar build={build} size="lg" />
+				<div className="flex flex-row gap-4">
+					{" "}
+					<BuildAvatar build={build} size="lg" />
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>
 					</div>
-					</div>
+				</div>
 				<Stats
 					aria-label="Build details"
 					className="flex flex-col items-start gap-2 px-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"

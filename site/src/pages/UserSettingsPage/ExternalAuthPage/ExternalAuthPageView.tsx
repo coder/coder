@@ -129,7 +129,9 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-					<div className="flex flex-row items-center gap-2">					<Avatar variant="icon" src={app.display_icon} fallback={name} />
+				<div className="flex flex-row items-center gap-2">
+					{" "}
+					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*
 					 * If the link is authenticated and has a refresh token, show that it will automatically
@@ -145,14 +147,14 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							</TooltipContent>
 						</Tooltip>
 					)}
-
 					{link?.validate_error && (
 						<span>
 							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>
 					)}
-					</div>			</TableCell>
+				</div>{" "}
+			</TableCell>
 			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}

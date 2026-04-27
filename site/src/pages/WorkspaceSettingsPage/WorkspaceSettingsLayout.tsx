@@ -36,7 +36,9 @@ export const WorkspaceSettingsLayout: FC = () => {
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
 			<Margins>
-					<div className="flex flex-row gap-20 py-12">					{error ? (
+				<div className="flex flex-row gap-20 py-12">
+					{" "}
+					{error ? (
 						<ErrorAlert error={error} />
 					) : (
 						workspaceQuery.data && (
@@ -56,7 +58,8 @@ export const WorkspaceSettingsLayout: FC = () => {
 							</WorkspaceSettings.Provider>
 						)
 					)}
-					</div>			</Margins>
+				</div>{" "}
+			</Margins>
 		</>
 	);
 };
