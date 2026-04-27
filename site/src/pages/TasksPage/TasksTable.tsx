@@ -225,7 +225,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 						 * so that near-miss clicks do not bubble up to the
 						 * row's navigation handler. */}
 						<div
-							className="flex items-center py-2 pr-2 -ml-2 pl-2"
+							className="flex items-center cursor-default py-4 pr-4 -ml-4 pl-4"
 							onClick={(e) => e.stopPropagation()}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {
