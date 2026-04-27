@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -151,6 +153,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 	var lastErr error
 	var interceptionErr error
+	var resolvedKey keypool.ResolvedKey
 
 	isFirst := true
 newStream:
@@ -161,7 +164,18 @@ newStream:
 			break
 		}
 
-		stream := i.newStream(streamCtx, svc)
+		// Resolve the key for this attempt from the resolver.
+		var streamOpts []option.RequestOption
+		if i.cfg.KeyResolver != nil {
+			resolvedKey, err = i.cfg.KeyResolver.Next()
+			if err != nil {
+				interceptionErr = err
+				break
+			}
+			streamOpts = append(streamOpts, option.WithAPIKey(resolvedKey.Value()))
+		}
+
+		stream := i.newStream(streamCtx, svc, streamOpts...)
 
 		var message anthropic.Message
 		var lastToolName string
@@ -510,7 +524,22 @@ newStream:
 				}
 			}
 		} else {
-			// Stream has not started yet; write to response if present.
+			// Stream has not started yet. Check if the
+			// error is key-specific and can be retried
+			// with the next key in the pool.
+			if resolvedKey != nil && stream.Err() != nil {
+				var apiErr *anthropic.Error
+				if errors.As(stream.Err(), &apiErr) {
+					switch apiErr.StatusCode {
+					case http.StatusTooManyRequests:
+						resolvedKey.MarkTemporary(keypool.ParseRetryAfter(apiErr.Response))
+						continue newStream
+					case http.StatusUnauthorized, http.StatusForbidden:
+						resolvedKey.MarkPermanent()
+						continue newStream
+					}
+				}
+			}
 			i.writeUpstreamError(w, getErrorResponse(stream.Err()))
 		}
 
@@ -585,9 +614,11 @@ func (*StreamingInterception) encodeForStream(payload []byte, typ string) []byte
 }
 
 // newStream traces svc.NewStreaming() call.
-func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
+func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService, extraOpts ...option.RequestOption) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
 	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer span.End()
 
-	return svc.NewStreaming(ctx, anthropic.MessageNewParams{}, i.withBody())
+	opts := []option.RequestOption{i.withBody()}
+	opts = append(opts, extraOpts...)
+	return svc.NewStreaming(ctx, anthropic.MessageNewParams{}, opts...)
 }

@@ -6,14 +6,15 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 // anthropicCfg creates a minimal Anthropic config for testing.
 func anthropicCfg(url string, key string) config.Anthropic {
 	return config.Anthropic{
-		BaseURL: url,
-		Key:     key,
+		BaseURL:     url,
+		KeyResolver: keypool.NewBYOKResolver(key),
 	}
 }
 

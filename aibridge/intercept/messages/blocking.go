@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -338,5 +340,37 @@ func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.Mes
 	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
-	return svc.New(ctx, anthropic.MessageNewParams{}, i.withBody())
+	if i.cfg.KeyResolver == nil {
+		return svc.New(ctx, anthropic.MessageNewParams{}, i.withBody())
+	}
+
+	for {
+		key, err := i.cfg.KeyResolver.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		msg, err := svc.New(ctx, anthropic.MessageNewParams{}, i.withBody(), option.WithAPIKey(key.Value()))
+		if err == nil {
+			return msg, nil
+		}
+
+		// Check if the error is a provider API error with a
+		// status code that warrants key failover.
+		var apiErr *anthropic.Error
+		if !errors.As(err, &apiErr) {
+			return nil, err
+		}
+
+		switch apiErr.StatusCode {
+		case http.StatusTooManyRequests:
+			key.MarkTemporary(keypool.ParseRetryAfter(apiErr.Response))
+		case http.StatusUnauthorized, http.StatusForbidden:
+			key.MarkPermanent()
+		default:
+			// Other errors (5xx, network, etc.) are not
+			// key-specific. Return without failover.
+			return nil, err
+		}
+	}
 }

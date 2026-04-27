@@ -10,10 +10,12 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/quartz"
 )
 
 func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
@@ -88,19 +90,31 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	}
 
 	// Add legacy Anthropic provider if configured. Bedrock credentials
-	// alone are sufficient — an Anthropic API key is not required when
+	// alone are sufficient: an Anthropic API key is not required when
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
 			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
-		providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		var legacyResolver keypool.KeyResolver
+		if key := cfg.LegacyAnthropic.Key.String(); key != "" {
+			legacyPool, err := keypool.New([]string{key}, quartz.NewReal())
+			if err != nil {
+				return nil, xerrors.Errorf("create legacy anthropic key pool: %w", err)
+			}
+			legacyResolver = keypool.NewPoolResolver(legacyPool)
+		}
+		legacyAnthropic, err := aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 			Name:             aibridge.ProviderAnthropic,
 			BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
-			Key:              cfg.LegacyAnthropic.Key.String(),
+			KeyResolver:      legacyResolver,
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
-		}, getBedrockConfig(cfg.LegacyBedrock)))
+		}, getBedrockConfig(cfg.LegacyBedrock))
+		if err != nil {
+			return nil, xerrors.Errorf("create legacy anthropic provider: %w", err)
+		}
+		providers = append(providers, legacyAnthropic)
 		usedNames[aibridge.ProviderAnthropic] = struct{}{}
 	}
 
@@ -110,14 +124,14 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		if name == "" {
 			name = p.Type
 		}
-		// Currently, only the first key is used, if any.
-		// TODO(ssncferreira): pass a keypool.Pool instead.
-		var key string
-		if len(p.Keys) > 0 {
-			key = p.Keys[0]
-		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
+			// Currently, only the first key is used, if any.
+			// TODO(ssncferreira): add key failover for OpenAI.
+			var key string
+			if len(p.Keys) > 0 {
+				key = p.Keys[0]
+			}
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
@@ -126,13 +140,25 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}))
 		case aibridge.ProviderAnthropic:
-			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			var resolver keypool.KeyResolver
+			if len(p.Keys) > 0 {
+				pool, err := keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create key pool for provider %q: %w", name, err)
+				}
+				resolver = keypool.NewPoolResolver(pool)
+			}
+			antProvider, err := aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              key,
+				KeyResolver:      resolver,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
-			}, bedrockConfigFromProvider(p)))
+			}, bedrockConfigFromProvider(p))
+			if err != nil {
+				return nil, xerrors.Errorf("create anthropic provider %q: %w", name, err)
+			}
+			providers = append(providers, antProvider)
 		case aibridge.ProviderCopilot:
 			providers = append(providers, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 				Name:           name,

@@ -17,8 +17,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 // anthropicForwardHeaders lists headers from incoming requests that should be
@@ -50,15 +52,22 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.anthropic.com/"
 	}
-	if cfg.Key == "" {
-		cfg.Key = os.Getenv("ANTHROPIC_API_KEY")
+	// When no resolver is provided, fall back to the env var.
+	if cfg.KeyResolver == nil {
+		if envKey := os.Getenv("ANTHROPIC_API_KEY"); envKey != "" {
+			pool, err := keypool.New([]string{envKey}, quartz.NewReal())
+			if err != nil {
+				return nil, xerrors.Errorf("create anthropic key pool: %w", err)
+			}
+			cfg.KeyResolver = keypool.NewPoolResolver(pool)
+		}
 	}
 	if cfg.APIDumpDir == "" {
 		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
@@ -78,7 +87,7 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 	return &Anthropic{
 		cfg:        cfg,
 		bedrockCfg: bedrockCfg,
-	}
+	}, nil
 }
 
 func (*Anthropic) Type() string {
@@ -134,31 +143,36 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	// Any Coder-specific authentication has already been stripped.
 	//
 	// In centralized mode neither Authorization nor X-Api-Key is
-	// present, so cfg keeps the centralized key unchanged.
+	// present, so cfg keeps the resolver set in the constructor.
 	//
 	// In BYOK mode the user's LLM credentials survive intact.
 	// If X-Api-Key is present the user has a personal API key;
-	// overwrite the centralized key with it. If Authorization is
-	// present the user authenticated directly with provider;
-	// set BYOKBearerToken and clear the centralized key.
-	// When both are present, X-Api-Key takes priority to match
-	// claude-code behavior.
+	// create a BYOK resolver with it. If Authorization is present
+	// the user authenticated directly with provider; create a
+	// BYOK resolver and set BYOKBearerToken. When both are
+	// present, X-Api-Key takes priority to match claude-code
+	// behavior.
 	credKind := intercept.CredentialKindCentralized
-	credSecret := cfg.Key
+	var credSecret string
 	authHeaderName := p.AuthHeader()
 	if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
-		cfg.Key = apiKey
+		// BYOK: user provided a personal API key.
+		cfg.KeyResolver = keypool.NewBYOKResolver(apiKey)
 		authHeaderName = "X-Api-Key"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = apiKey
 	} else if token := utils.ExtractBearerToken(r.Header.Get("Authorization")); token != "" {
+		// BYOK: user authenticated with an access token.
+		cfg.KeyResolver = keypool.NewBYOKResolver(token)
 		cfg.BYOKBearerToken = token
-		cfg.Key = ""
 		authHeaderName = "Authorization"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
+	} else {
+		// Centralized: the resolver was set in the constructor.
+		// The actual key is resolved per-attempt in the failover
+		// loop, so we cannot peek it here without side effects.
 	}
-
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	var interceptor intercept.Interceptor
@@ -190,7 +204,15 @@ func (p *Anthropic) InjectAuthHeader(headers *http.Header) {
 		return
 	}
 
-	headers.Set(p.AuthHeader(), p.cfg.Key)
+	// Resolve key from the resolver for passthrough routes.
+	var key string
+	if p.cfg.KeyResolver != nil {
+		resolved, err := p.cfg.KeyResolver.Next()
+		if err == nil {
+			key = resolved.Value()
+		}
+	}
+	headers.Set(p.AuthHeader(), key)
 }
 
 func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {

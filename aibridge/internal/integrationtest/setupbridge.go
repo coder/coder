@@ -250,11 +250,19 @@ func setupInjectedToolTest(
 func newDefaultProvider(providerType string, addr string) aibridge.Provider {
 	switch providerType {
 	case config.ProviderAnthropic:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), nil)
+		p, err := provider.NewAnthropic(anthropicCfg(addr, apiKey), nil)
+		if err != nil {
+			panic("create anthropic provider: " + err.Error())
+		}
+		return p
 	case config.ProviderOpenAI:
 		return provider.NewOpenAI(openAICfg(addr, apiKey))
 	case providerBedrock:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
+		p, err := provider.NewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
+		if err != nil {
+			panic("create bedrock provider: " + err.Error())
+		}
+		return p
 	default:
 		panic("unknown provider type: " + providerType)
 	}

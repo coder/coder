@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/coder/coder/v2/aibridge/keypool"
+)
 
 const (
 	ProviderAnthropic = "anthropic"
@@ -10,16 +14,19 @@ const (
 
 type Anthropic struct {
 	// Name is the provider instance name. If empty, defaults to "anthropic".
-	Name             string
-	BaseURL          string
-	Key              string
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
+	Name    string
+	BaseURL string
+	// KeyResolver provides the key for each upstream request.
+	// Set per-request in CreateInterceptor based on whether
+	// the request is centralized or BYOK.
+	KeyResolver    keypool.KeyResolver
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
 	SendActorHeaders bool
 	ExtraHeaders     map[string]string
 	// BYOKBearerToken is set in BYOK mode when the user authenticates
-	// with a access token. When set, the access token is used for upstream
-	// LLM requests instead of the API key.
+	// with an access token. When set, the access token is used for
+	// upstream LLM requests instead of the API key.
 	BYOKBearerToken string
 	// MaxRetries controls the number of automatic retries the SDK will perform
 	// on transient errors. If nil, the SDK default (2) is used.

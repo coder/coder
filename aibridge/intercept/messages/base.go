@@ -203,19 +203,20 @@ func (i *interceptionBase) isSmallFastModel() bool {
 }
 
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
-	// BYOK with access token uses Authorization: Bearer.
-	// Otherwise use X-Api-Key (centralized or BYOK with personal API key).
+	// Anthropic supports two auth methods:
+	// - BYOKBearerToken: user authenticated with an access token
+	//   (Authorization: Bearer).
+	// - KeyResolver: centralized key resolved per-attempt in the
+	//   failover loop so each retry can use a different key.
 	if i.cfg.BYOKBearerToken != "" {
 		i.logger.Debug(ctx, "using byok access token auth",
 			slog.F("bearer_hint", utils.MaskSecret(i.cfg.BYOKBearerToken)),
 		)
 		opts = append(opts, option.WithAuthToken(i.cfg.BYOKBearerToken))
-	} else {
-		i.logger.Debug(ctx, "using api key auth",
-			slog.F("api_key_hint", utils.MaskSecret(i.cfg.Key)),
-		)
-		opts = append(opts, option.WithAPIKey(i.cfg.Key))
 	}
+	// The API key is not set here when using a KeyResolver. It is
+	// resolved per-attempt from the KeyResolver in the failover
+	// loop so each retry can use a different key.
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 	if i.cfg.MaxRetries != nil {
 		opts = append(opts, option.WithMaxRetries(*i.cfg.MaxRetries))
