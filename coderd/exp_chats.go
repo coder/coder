@@ -4089,6 +4089,78 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+const (
+	chatComputerUseProviderAnthropic = "anthropic"
+	chatComputerUseProviderOpenAI    = "openai"
+)
+
+func chatComputerUseProviderOrDefault(provider string) string {
+	if provider == "" {
+		return chatComputerUseProviderAnthropic
+	}
+	return provider
+}
+
+func validChatComputerUseProvider(provider string) bool {
+	switch provider {
+	case chatComputerUseProviderAnthropic, chatComputerUseProviderOpenAI:
+		return true
+	default:
+		return false
+	}
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	provider, err := api.Database.GetChatComputerUseProvider(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching computer use provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
+		Provider: chatComputerUseProviderOrDefault(provider),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatComputerUseProviderRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !validChatComputerUseProvider(req.Provider) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid computer use provider.",
+			Detail:  fmt.Sprintf("Expected one of anthropic, openai. Got %q.", req.Provider),
+		})
+		return
+	}
+
+	if err := api.Database.UpsertChatComputerUseProvider(ctx, req.Provider); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating computer use provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func (api *API) deploymentChatDebugLoggingEnabled() bool {
 	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
 }

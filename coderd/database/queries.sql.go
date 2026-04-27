@@ -20568,6 +20568,18 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
+const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
+`
+
+func (q *sqlQuerier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatComputerUseProvider)
+	var provider string
+	err := row.Scan(&provider)
+	return provider, err
+}
+
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
@@ -20952,6 +20964,16 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
+	return err
+}
+
+const upsertChatComputerUseProvider = `-- name: UpsertChatComputerUseProvider :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_computer_use_provider'
+`
+
+func (q *sqlQuerier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatComputerUseProvider, provider)
 	return err
 }
 

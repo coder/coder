@@ -2603,6 +2603,16 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
+func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
+	// The computer-use provider is a deployment-wide setting read by any
+	// authenticated chat user. We only require that an explicit actor is
+	// present in the context so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatComputerUseProvider(ctx)
+}
+
 func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	// The owner's chats, may cross orgs. AnyOrganization() authorizes
 	// the caller if they hold read permission on chats owned by
@@ -7428,6 +7438,13 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
+}
+
+func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatComputerUseProvider(ctx, provider)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {

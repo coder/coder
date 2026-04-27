@@ -10407,6 +10407,139 @@ func TestChatDesktopEnabled(t *testing.T) {
 	})
 }
 
+func TestChatComputerUseProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsAnthropicWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("AdminCanSetAnthropic", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "anthropic",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("AdminCanSetOpenAI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "openai", resp.Provider)
+	})
+
+	t.Run("AdminCanSwitchProviders", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		err = adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "anthropic",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("InvalidProviderRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		for _, provider := range []string{"", "invalid"} {
+			err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+				Provider: provider,
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("NonAdminCanRead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		resp, err := memberClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "openai", resp.Provider)
+	})
+
+	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := memberClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedReadFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+		_, err := anonClient.GetChatComputerUseProvider(ctx)
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+}
+
 func TestChatDebugLoggingSettings(t *testing.T) {
 	t.Parallel()
 
