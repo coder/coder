@@ -187,7 +187,7 @@ function sortRolesByAccessLevel<T extends SlimRole>(
 		return roles;
 	}
 
-	// Roles not in the priority list (e.g. "member") sort after all known roles.
+	// Roles not in the priority list should sort after all known roles.
 	const rank = (name: string) =>
 		roleNamesByAccessLevel.includes(name)
 			? roleNamesByAccessLevel.indexOf(name)

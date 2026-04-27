@@ -341,15 +341,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						/>
 					)}
 
-					{form.values.login_type &&
-						availableRoles &&
-						availableRoles.length > 0 && (
-							<RoleSelector
-								roles={availableRoles}
-								selectedRoles={form.values.roles}
-								onChange={(roles) => form.setFieldValue("roles", roles)}
-							/>
-						)}
+					{availableRoles && availableRoles.length > 0 && (
+						<RoleSelector
+							roles={availableRoles}
+							selectedRoles={form.values.roles}
+							onChange={(roles) => form.setFieldValue("roles", roles)}
+						/>
+					)}
 				</div>
 
 				<FormFooter className="mt-8">

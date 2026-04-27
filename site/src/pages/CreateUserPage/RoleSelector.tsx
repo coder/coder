@@ -41,35 +41,37 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	return (
 		<div className="flex flex-col gap-2">
 			<span className="text-sm font-medium">Roles</span>
-			<div className="border border-border border-solid rounded-md">
-				<div className="overflow-y-auto max-h-64 p-3 flex flex-col gap-2">
-					{selectableRoles.map((role) => {
-						const checkboxId = `${baseId}-${role.name}`;
-						return (
-							<label
-								key={role.name}
-								htmlFor={checkboxId}
-								className="flex items-start gap-2 cursor-pointer"
-							>
-								<Checkbox
-									id={checkboxId}
-									checked={selectedRoles.includes(role.name)}
-									onCheckedChange={() => handleToggle(role.name)}
-									className="mt-1 shrink-0"
-								/>
-								<div className="flex flex-col">
-									<span className="text-sm font-medium">
-										{role.display_name || role.name}
-									</span>
-									<span className="text-sm text-content-secondary">
-										{roleDescriptions[role.name] ?? ""}
-									</span>
-								</div>
-							</label>
-						);
-					})}
+			{selectableRoles.length > 0 && (
+				<div className="border border-border border-solid rounded-md">
+					<div className="overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
+						{selectableRoles.map((role) => {
+							const checkboxId = `${baseId}-${role.name}`;
+							return (
+								<label
+									key={role.name}
+									htmlFor={checkboxId}
+									className="flex items-start gap-2 cursor-pointer"
+								>
+									<Checkbox
+										id={checkboxId}
+										checked={selectedRoles.includes(role.name)}
+										onCheckedChange={() => handleToggle(role.name)}
+										className="mt-1 shrink-0"
+									/>
+									<div className="flex flex-col">
+										<span className="text-sm font-medium">
+											{role.display_name || role.name}
+										</span>
+										<span className="text-sm text-content-secondary">
+											{roleDescriptions[role.name] ?? ""}
+										</span>
+									</div>
+								</label>
+							);
+						})}
+					</div>
 				</div>
-			</div>
+			)}
 			<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
 				<UserIcon className="size-4 mt-1 shrink-0" />
 				<div className="flex flex-col">
