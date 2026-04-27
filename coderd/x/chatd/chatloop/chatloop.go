@@ -483,7 +483,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 			var toolResults []fantasy.ToolResultContent
 			if result.shouldContinue {
 				var err error
-				toolResults, err = executeToolsForStep(ctx, opts, &result, provider, modelName, stepStart, publishMessagePart)
+				toolResults, err = executeToolsForStep(ctx, opts, &result, provider, modelName, step, stepStart, publishMessagePart)
 				if err != nil {
 					return err
 				}
@@ -1080,6 +1080,7 @@ func executeToolsForStep(
 	opts RunOptions,
 	result *stepResult,
 	provider, modelName string,
+	step int,
 	stepStart time.Time,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) ([]fantasy.ToolResultContent, error) {
@@ -1176,6 +1177,14 @@ func executeToolsForStep(
 	// (assistant + built-in results) and exit so the caller can
 	// execute them externally.
 	if len(dynamicCalls) > 0 {
+		// Strip Anthropic provider-executed tool calls without
+		// matching results before persisting so the action-required
+		// step does not carry a malformed tool-call history into
+		// downstream provider requests.
+		result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
+			ctx, opts.Logger, provider, modelName,
+			"dynamic_tool_persist", step, result.finishReason, result.content,
+		)
 		if err := persistPendingDynamicStep(ctx, opts, result, stepStart, dynamicCalls); err != nil {
 			return nil, err
 		}
