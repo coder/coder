@@ -2969,6 +2969,128 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	})
 }
 
+func TestProviderExecutedToolMessageIndexes(t *testing.T) {
+	t.Parallel()
+
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleUser, "plain"),
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolResultPart{
+					ToolCallID:       "ws-result-only",
+					ProviderExecuted: true,
+				},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolCallPart{
+					ToolCallID:       "ws-call",
+					ToolName:         "web_search",
+					Input:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolCallPart{
+					ToolCallID: "local-call",
+					ToolName:   "read_file",
+					Input:      `{"path":"main.go"}`,
+				},
+			},
+		},
+	}
+
+	require.Equal(t, map[int]struct{}{1: {}, 2: {}}, providerExecutedToolMessageIndexes(messages))
+}
+
+func TestAnthropicProviderToolFallbackStripHelpers(t *testing.T) {
+	t.Parallel()
+
+	providerCall := fantasy.ToolCallPart{
+		ToolCallID:       "ws-strip",
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+	providerResult := fantasy.ToolResultPart{
+		ToolCallID:       "ws-strip",
+		Output:           fantasy.ToolResultOutputContentText{Text: "ok"},
+		ProviderExecuted: true,
+	}
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleAssistant, "first"),
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				providerCall,
+				providerResult,
+			},
+		},
+		textMessage(fantasy.MessageRoleAssistant, "second"),
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "keep"},
+				fantasy.ToolResultPart{
+					ToolCallID:       "ws-user",
+					ProviderExecuted: true,
+				},
+			},
+		},
+	}
+
+	stripped, stats := stripAnthropicProviderToolHistoryFromMessages(
+		messages,
+		map[int]struct{}{1: {}, 3: {}},
+	)
+	require.Equal(t, 1, stats.RemovedToolCalls)
+	require.Equal(t, 2, stats.RemovedToolResults)
+	require.Equal(t, 1, stats.DroppedMessages)
+
+	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolHistory(
+		fantasyanthropic.Name,
+		stripped,
+	)
+	require.Zero(t, sanitizeStats.RemovedToolCalls)
+	require.Zero(t, sanitizeStats.RemovedToolResults)
+	require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(sanitized))
+	require.Len(t, sanitized, 2)
+	require.Equal(t, fantasy.MessageRoleAssistant, sanitized[0].Role)
+	require.Len(t, sanitized[0].Content, 2)
+	firstText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "first", firstText.Text)
+	secondText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[1])
+	require.True(t, ok)
+	require.Equal(t, "second", secondText.Text)
+	require.Equal(t, fantasy.MessageRoleUser, sanitized[1].Role)
+	require.Len(t, sanitized[1].Content, 1)
+
+	violations := make([]chatprompt.AnthropicProviderToolHistoryViolation, 33)
+	for i := range violations {
+		violations[i] = chatprompt.AnthropicProviderToolHistoryViolation{
+			MessageIndex: i,
+			PartIndex:    i + 1,
+			ID:           "ws-detail",
+			Reason:       "test_reason",
+		}
+	}
+	details, truncated := anthropicProviderToolViolationLogDetails(violations)
+	require.True(t, truncated)
+	require.Len(t, details, maxAnthropicProviderToolViolationLogDetails)
+	require.Len(t, details[0], 4)
+	require.Equal(t, 0, details[0]["message_index"])
+	require.Equal(t, 1, details[0]["part_index"])
+	require.Equal(t, "ws-detail", details[0]["id"])
+	require.Equal(t, "test_reason", details[0]["reason"])
+}
+
 // TestRun_PersistStepInterruptedFallback verifies that when the normal
 // PersistStep call returns ErrInterrupted (e.g., context canceled in a
 // race), the step is retried via the interrupt-safe path.

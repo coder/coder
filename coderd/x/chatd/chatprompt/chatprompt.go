@@ -35,7 +35,9 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
-var anthropicProviderResultToolNames = map[string]struct{}{
+// supportedAnthropicProviderToolNames is the allowlist of provider-executed
+// tool names the Anthropic provider in fantasy can currently serialize.
+var supportedAnthropicProviderToolNames = map[string]struct{}{
 	"web_search": {},
 }
 
@@ -96,14 +98,14 @@ func LogAnthropicProviderToolSanitization(
 // IsSerializableAnthropicProviderToolCall reports whether part can be
 // serialized as an Anthropic provider-executed tool call.
 func IsSerializableAnthropicProviderToolCall(part fantasy.MessagePart) bool {
-	toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+	toolCall, ok := safeAsToolCallPart(part)
 	if !ok || !toolCall.ProviderExecuted {
 		return false
 	}
 	if strings.TrimSpace(toolCall.ToolCallID) == "" || toolCall.ToolName == "" {
 		return false
 	}
-	if _, ok := anthropicProviderResultToolNames[toolCall.ToolName]; !ok {
+	if !IsAllowedAnthropicProviderToolName(toolCall.ToolName) {
 		return false
 	}
 	return json.Valid([]byte(strings.TrimSpace(toolCall.Input)))
@@ -115,22 +117,53 @@ func IsSerializableAnthropicProviderToolResult(
 	part fantasy.MessagePart,
 	matchedCall fantasy.MessagePart,
 ) bool {
-	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	result, ok := safeAsToolResultPart(part)
 	if !ok || !result.ProviderExecuted {
 		return false
 	}
 	if strings.TrimSpace(result.ToolCallID) == "" {
 		return false
 	}
-	toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](matchedCall)
+	toolCall, ok := safeAsToolCallPart(matchedCall)
 	if !ok || result.ToolCallID != toolCall.ToolCallID {
 		return false
 	}
 	return IsSerializableAnthropicProviderToolCall(matchedCall)
 }
 
-// ValidateAnthropicProviderToolHistory returns invalid Anthropic
-// provider-executed tool history blocks in messages.
+// IsAllowedAnthropicProviderToolName reports whether name is an Anthropic
+// provider-executed tool name we know how to serialize.
+func IsAllowedAnthropicProviderToolName(name string) bool {
+	_, ok := supportedAnthropicProviderToolNames[name]
+	return ok
+}
+
+func safeAsToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
+}
+
+func safeAsToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
+	}
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
+// ValidateAnthropicProviderToolHistory returns violations found in messages
+// with invalid Anthropic provider-executed tool history blocks.
 func ValidateAnthropicProviderToolHistory(
 	messages []fantasy.Message,
 ) []AnthropicProviderToolHistoryViolation {
@@ -138,9 +171,9 @@ func ValidateAnthropicProviderToolHistory(
 	return analysis.violations
 }
 
-// SanitizeAnthropicProviderToolCalls removes Anthropic provider-executed
+// SanitizeAnthropicProviderToolHistory removes Anthropic provider-executed
 // tool history that cannot be serialized safely.
-func SanitizeAnthropicProviderToolCalls(
+func SanitizeAnthropicProviderToolHistory(
 	provider string,
 	messages []fantasy.Message,
 ) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
@@ -245,7 +278,7 @@ func (a *anthropicProviderToolHistoryAnalysis) analyzeAssistantMessage(
 	histories := make(map[string]*anthropicProviderToolIDHistory)
 	ids := make([]string, 0)
 	for partIndex, part := range msg.Content {
-		if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+		if toolCall, ok := safeAsToolCallPart(part); ok && toolCall.ProviderExecuted {
 			history := ensureAnthropicProviderToolIDHistory(
 				histories,
 				&ids,
@@ -257,7 +290,7 @@ func (a *anthropicProviderToolHistoryAnalysis) analyzeAssistantMessage(
 			})
 			continue
 		}
-		if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+		if result, ok := safeAsToolResultPart(part); ok && result.ProviderExecuted {
 			history := ensureAnthropicProviderToolIDHistory(
 				histories,
 				&ids,
@@ -388,10 +421,10 @@ func (a *anthropicProviderToolHistoryAnalysis) addViolation(
 }
 
 func anthropicProviderExecutedToolPartID(part fantasy.MessagePart) (string, bool) {
-	if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+	if toolCall, ok := safeAsToolCallPart(part); ok && toolCall.ProviderExecuted {
 		return toolCall.ToolCallID, true
 	}
-	if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+	if result, ok := safeAsToolResultPart(part); ok && result.ProviderExecuted {
 		return result.ToolCallID, true
 	}
 	return "", false
@@ -401,11 +434,11 @@ func countRemovedAnthropicProviderToolPart(
 	stats *AnthropicProviderToolSanitizationStats,
 	part fantasy.MessagePart,
 ) {
-	if toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && toolCall.ProviderExecuted {
+	if toolCall, ok := safeAsToolCallPart(part); ok && toolCall.ProviderExecuted {
 		stats.RemovedToolCalls++
 		return
 	}
-	if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && result.ProviderExecuted {
+	if result, ok := safeAsToolResultPart(part); ok && result.ProviderExecuted {
 		stats.RemovedToolResults++
 	}
 }
@@ -1048,7 +1081,7 @@ func normalizeAssistantToolCallInputs(
 ) []fantasy.MessagePart {
 	normalized := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			normalized = append(normalized, part)
 			continue
@@ -1081,7 +1114,7 @@ func normalizeToolCallInput(input string) string {
 func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 	toolCalls := make([]fantasy.ToolCallContent, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			continue
 		}
@@ -1432,7 +1465,7 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 				break
 			}
 			for _, part := range prompt[j].Content {
-				tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+				tr, ok := safeAsToolResultPart(part)
 				if !ok {
 					continue
 				}
@@ -1489,7 +1522,7 @@ func injectMissingToolUses(
 
 		allToolResults := make([]fantasy.ToolResultPart, 0, len(msg.Content))
 		for _, part := range msg.Content {
-			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			toolResult, ok := safeAsToolResultPart(part)
 			if !ok {
 				continue
 			}

@@ -32,7 +32,8 @@ import (
 )
 
 const (
-	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+	maxAnthropicProviderToolViolationLogDetails = 32
+	interruptedToolResultErrorMessage           = "tool call was interrupted before it produced a result"
 	// maxCompactionRetries limits how many times the post-run
 	// compaction safety net can re-enter the step loop. This
 	// prevents infinite compaction loops when the model keeps
@@ -391,19 +392,19 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
-			prepared, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(provider, prepared)
+			prepared, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolHistory(provider, prepared)
 			chatprompt.LogAnthropicProviderToolSanitization(
 				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
 				slog.F("step_index", step),
 				slog.F("total_steps", totalSteps),
 			)
-			if applyAnthropicCaching {
-				addAnthropicPromptCaching(prepared)
-			}
 			allowedProviderTools := allowedAnthropicProviderToolNames(provider, opts.ProviderTools)
 			prepared = applyAnthropicProviderToolGuard(
 				ctx, opts.Logger, provider, modelName, prepared, allowedProviderTools,
 			)
+			if applyAnthropicCaching {
+				addAnthropicPromptCaching(prepared)
+			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -823,16 +824,15 @@ func sanitizeAnthropicProviderToolContent(
 
 	out := make([]fantasy.Content, 0, len(content))
 	for index, block := range content {
-		if _, ok := remove[index]; !ok {
-			out = append(out, block)
-			continue
-		}
-		if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
-			stats.RemovedToolCalls++
-			continue
-		}
-		if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
-			stats.RemovedToolResults++
+		if _, removeBlock := remove[index]; removeBlock {
+			if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
+				stats.RemovedToolCalls++
+			}
+			if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
+				stats.RemovedToolResults++
+			}
+			// Remove-set membership wins even if a future content type
+			// cannot be counted here.
 			continue
 		}
 		out = append(out, block)
@@ -995,12 +995,7 @@ func allowedAnthropicProviderToolNames(provider string, providerTools []Provider
 			continue
 		}
 		name := providerTool.Definition.GetName()
-		if !chatprompt.IsSerializableAnthropicProviderToolCall(fantasy.ToolCallPart{
-			ToolCallID:       "provider-tool-check",
-			ToolName:         name,
-			Input:            `{}`,
-			ProviderExecuted: true,
-		}) {
+		if !chatprompt.IsAllowedAnthropicProviderToolName(name) {
 			continue
 		}
 		allowed[name] = struct{}{}
@@ -1021,13 +1016,10 @@ func applyAnthropicProviderToolGuard(
 	}
 
 	violations := chatprompt.ValidateAnthropicProviderToolHistory(messages)
-	affectedMessages := make(map[int]struct{})
-	for _, violation := range violations {
-		if violation.MessageIndex < 0 || violation.MessageIndex >= len(messages) {
-			continue
-		}
-		affectedMessages[violation.MessageIndex] = struct{}{}
-	}
+	affectedMessages := messageIndexesFromAnthropicProviderToolViolations(
+		violations,
+		len(messages),
+	)
 	disallowedMessages := markDisallowedAnthropicProviderToolMessages(
 		messages,
 		allowedTools,
@@ -1056,7 +1048,7 @@ func applyAnthropicProviderToolGuard(
 		guarded,
 		allowedTools,
 	)
-	fallbackAffectedMessages := providerExecutedToolCallMessageIndexes(guarded)
+	fallbackAffectedMessages := providerExecutedToolMessageIndexes(guarded)
 	guarded = sanitizeAnthropicProviderToolGuardMessages(
 		ctx,
 		logger,
@@ -1068,21 +1060,64 @@ func applyAnthropicProviderToolGuard(
 		fallbackDisallowedMessages,
 		slog.F("fallback", true),
 	)
-	finalViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
-	finalDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
+	if isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+		return guarded
+	}
+
+	// The guard sanitizer should normally remove every typed provider block it
+	// selects. The strip path is a fail-closed backstop for analyzer and
+	// provider serialization drift, not a path we can drive without hooks.
+	preStripViolations := chatprompt.ValidateAnthropicProviderToolHistory(guarded)
+	preStripDisallowedMessages := countDisallowedAnthropicProviderToolMessages(
 		guarded,
 		allowedTools,
 	)
-	if len(finalViolations) > 0 || finalDisallowedMessages > 0 {
-		logger.Warn(
-			ctx,
-			"provider-executed tool history remains after guard",
-			slog.F("provider", provider),
-			slog.F("model", modelName),
-			slog.F("validation_violations", len(finalViolations)),
-			slog.F("disallowed_tool_messages", finalDisallowedMessages),
+	stripMessages := messageIndexesFromAnthropicProviderToolViolations(
+		preStripViolations,
+		len(guarded),
+	)
+	markDisallowedAnthropicProviderToolMessages(guarded, allowedTools, stripMessages)
+
+	var stripStats chatprompt.AnthropicProviderToolSanitizationStats
+	guarded, stripStats = stripAnthropicProviderToolHistoryFromMessages(
+		guarded,
+		stripMessages,
+	)
+	var sanitizeStats chatprompt.AnthropicProviderToolSanitizationStats
+	guarded, sanitizeStats = chatprompt.SanitizeAnthropicProviderToolHistory(
+		provider,
+		guarded,
+	)
+	stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
+
+	if !isSafeAnthropicProviderToolPrompt(guarded, allowedTools) {
+		guarded, sanitizeStats = stripAnthropicProviderToolHistoryFromMessages(
+			guarded,
+			providerExecutedToolMessageIndexes(guarded),
 		)
+		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
+		guarded, sanitizeStats = chatprompt.SanitizeAnthropicProviderToolHistory(
+			provider,
+			guarded,
+		)
+		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
 	}
+
+	details, truncated := anthropicProviderToolViolationLogDetails(
+		preStripViolations,
+	)
+	chatprompt.LogAnthropicProviderToolSanitization(
+		ctx,
+		logger,
+		"pre_request_guard_fallback_strip",
+		provider,
+		modelName,
+		stripStats,
+		slog.F("validation_violations", len(preStripViolations)),
+		slog.F("disallowed_tool_messages", preStripDisallowedMessages),
+		slog.F("validation_violation_details", details),
+		slog.F("truncated_violations", truncated),
+	)
 	return guarded
 }
 
@@ -1101,7 +1136,7 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	// chatprompt owns message coalescing, empty message drops, and
 	// provider option preservation. Marking affected provider calls
 	// invalid lets its existing sanitizer remove the unsafe history.
-	sanitized, stats := chatprompt.SanitizeAnthropicProviderToolCalls(provider, guardPrompt)
+	sanitized, stats := chatprompt.SanitizeAnthropicProviderToolHistory(provider, guardPrompt)
 	extra := []slog.Field{
 		slog.F("validation_violations", validationViolations),
 		slog.F("disallowed_tool_messages", disallowedMessages),
@@ -1175,19 +1210,236 @@ func messageHasDisallowedAnthropicProviderToolCall(
 	return false
 }
 
-func providerExecutedToolCallMessageIndexes(messages []fantasy.Message) map[int]struct{} {
+func messageIndexesFromAnthropicProviderToolViolations(
+	violations []chatprompt.AnthropicProviderToolHistoryViolation,
+	messageCount int,
+) map[int]struct{} {
+	indexes := make(map[int]struct{})
+	for _, violation := range violations {
+		if violation.MessageIndex < 0 || violation.MessageIndex >= messageCount {
+			continue
+		}
+		indexes[violation.MessageIndex] = struct{}{}
+	}
+	return indexes
+}
+
+func providerExecutedToolMessageIndexes(messages []fantasy.Message) map[int]struct{} {
 	indexes := make(map[int]struct{})
 	for messageIndex, message := range messages {
 		for _, part := range message.Content {
-			toolCall, ok := safeToolCallPart(part)
-			if !ok || !toolCall.ProviderExecuted {
-				continue
+			if toolCall, ok := safeToolCallPart(part); ok && toolCall.ProviderExecuted {
+				indexes[messageIndex] = struct{}{}
+				break
 			}
-			indexes[messageIndex] = struct{}{}
-			break
+			if toolResult, ok := safeToolResultPart(part); ok && toolResult.ProviderExecuted {
+				indexes[messageIndex] = struct{}{}
+				break
+			}
 		}
 	}
 	return indexes
+}
+
+func stripAnthropicProviderToolHistoryFromMessages(
+	messages []fantasy.Message,
+	affectedMessages map[int]struct{},
+) ([]fantasy.Message, chatprompt.AnthropicProviderToolSanitizationStats) {
+	var stats chatprompt.AnthropicProviderToolSanitizationStats
+	if len(affectedMessages) == 0 {
+		return messages, stats
+	}
+
+	out := make([]fantasy.Message, 0, len(messages))
+	for messageIndex, message := range messages {
+		if _, affected := affectedMessages[messageIndex]; !affected {
+			out = appendAnthropicProviderToolGuardMessage(out, message)
+			continue
+		}
+
+		parts := make([]fantasy.MessagePart, 0, len(message.Content))
+		for _, part := range message.Content {
+			if toolCall, ok := safeToolCallPart(part); ok && toolCall.ProviderExecuted {
+				stats.RemovedToolCalls++
+				continue
+			}
+			if toolResult, ok := safeToolResultPart(part); ok && toolResult.ProviderExecuted {
+				stats.RemovedToolResults++
+				continue
+			}
+			parts = append(parts, part)
+		}
+		if len(parts) == 0 {
+			stats.DroppedMessages++
+			continue
+		}
+		message.Content = parts
+		out = appendAnthropicProviderToolGuardMessage(out, message)
+	}
+	return out, stats
+}
+
+func appendAnthropicProviderToolGuardMessage(
+	out []fantasy.Message,
+	message fantasy.Message,
+) []fantasy.Message {
+	if len(out) == 0 || out[len(out)-1].Role != message.Role {
+		return append(out, message)
+	}
+
+	last := &out[len(out)-1]
+	lastContent := applyAnthropicProviderToolGuardOptionsToLastPart(
+		last.Content,
+		last.ProviderOptions,
+	)
+	messageContent := applyAnthropicProviderToolGuardOptionsToLastPart(
+		message.Content,
+		message.ProviderOptions,
+	)
+	content := make([]fantasy.MessagePart, 0, len(lastContent)+len(messageContent))
+	content = append(content, lastContent...)
+	content = append(content, messageContent...)
+	last.Content = content
+	last.ProviderOptions = nil
+	return out
+}
+
+func applyAnthropicProviderToolGuardOptionsToLastPart(
+	parts []fantasy.MessagePart,
+	options fantasy.ProviderOptions,
+) []fantasy.MessagePart {
+	if len(options) == 0 || len(parts) == 0 {
+		return parts
+	}
+
+	out := make([]fantasy.MessagePart, len(parts))
+	copy(out, parts)
+	lastIndex := len(out) - 1
+	switch part := out[lastIndex].(type) {
+	case fantasy.TextPart:
+		part.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+			part.ProviderOptions,
+			options,
+		)
+		out[lastIndex] = part
+	case *fantasy.TextPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+				clone.ProviderOptions,
+				options,
+			)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ReasoningPart:
+		part.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+			part.ProviderOptions,
+			options,
+		)
+		out[lastIndex] = part
+	case *fantasy.ReasoningPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+				clone.ProviderOptions,
+				options,
+			)
+			out[lastIndex] = &clone
+		}
+	case fantasy.FilePart:
+		part.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+			part.ProviderOptions,
+			options,
+		)
+		out[lastIndex] = part
+	case *fantasy.FilePart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+				clone.ProviderOptions,
+				options,
+			)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ToolCallPart:
+		part.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+			part.ProviderOptions,
+			options,
+		)
+		out[lastIndex] = part
+	case *fantasy.ToolCallPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+				clone.ProviderOptions,
+				options,
+			)
+			out[lastIndex] = &clone
+		}
+	case fantasy.ToolResultPart:
+		part.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+			part.ProviderOptions,
+			options,
+		)
+		out[lastIndex] = part
+	case *fantasy.ToolResultPart:
+		if part != nil {
+			clone := *part
+			clone.ProviderOptions = mergeAnthropicProviderToolGuardOptions(
+				clone.ProviderOptions,
+				options,
+			)
+			out[lastIndex] = &clone
+		}
+	}
+	return out
+}
+
+func mergeAnthropicProviderToolGuardOptions(
+	first fantasy.ProviderOptions,
+	second fantasy.ProviderOptions,
+) fantasy.ProviderOptions {
+	if len(first) == 0 {
+		return second
+	}
+	if len(second) == 0 {
+		return first
+	}
+
+	merged := maps.Clone(first)
+	for provider, options := range second {
+		if options != nil {
+			merged[provider] = options
+		}
+	}
+	return merged
+}
+
+func addAnthropicProviderToolSanitizationStats(
+	first chatprompt.AnthropicProviderToolSanitizationStats,
+	second chatprompt.AnthropicProviderToolSanitizationStats,
+) chatprompt.AnthropicProviderToolSanitizationStats {
+	return chatprompt.AnthropicProviderToolSanitizationStats{
+		RemovedToolCalls:   first.RemovedToolCalls + second.RemovedToolCalls,
+		RemovedToolResults: first.RemovedToolResults + second.RemovedToolResults,
+		DroppedMessages:    first.DroppedMessages + second.DroppedMessages,
+	}
+}
+
+func anthropicProviderToolViolationLogDetails(
+	violations []chatprompt.AnthropicProviderToolHistoryViolation,
+) ([]map[string]any, bool) {
+	count := min(len(violations), maxAnthropicProviderToolViolationLogDetails)
+	details := make([]map[string]any, 0, count)
+	for _, violation := range violations[:count] {
+		details = append(details, map[string]any{
+			"message_index": violation.MessageIndex,
+			"part_index":    violation.PartIndex,
+			"id":            violation.ID,
+			"reason":        violation.Reason,
+		})
+	}
+	return details, len(violations) > maxAnthropicProviderToolViolationLogDetails
 }
 
 func invalidateProviderExecutedToolCallsInMessages(
