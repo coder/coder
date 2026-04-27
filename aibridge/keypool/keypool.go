@@ -41,7 +41,7 @@ const defaultCooldown = 60 * time.Second
 // Key holds a key value and its runtime state.
 type Key struct {
 	value         string
-	isPermanent   bool
+	permanent     bool
 	cooldownUntil time.Time
 
 	mu    sync.RWMutex
@@ -86,12 +86,12 @@ func (k *Key) Value() string {
 }
 
 // State returns the current state of the key, derived from its
-// isPermanent flag and cooldown deadline.
+// permanent flag and cooldown deadline.
 func (k *Key) State() KeyState {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	if k.isPermanent {
+	if k.permanent {
 		return KeyStatePermanent
 	}
 	// Cooldown still active: key is temporarily unavailable.
@@ -109,7 +109,7 @@ func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 	defer k.mu.Unlock()
 
 	// Permanent is irreversible.
-	if k.isPermanent {
+	if k.permanent {
 		return false
 	}
 
@@ -138,11 +138,11 @@ func (k *Key) MarkPermanent() bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	if k.isPermanent {
+	if k.permanent {
 		return false
 	}
 
-	k.isPermanent = true
+	k.permanent = true
 	return true
 }
 
