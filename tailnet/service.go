@@ -293,10 +293,55 @@ func (c communicator) loopResp() {
 			c.logger.Debug(ctx, "loopResp failed to get response", slog.Error(err))
 			return
 		}
-		err = c.stream.Send(resp)
-		if err != nil {
-			c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
-			return
+		// Error responses are control-plane signals; flush them immediately
+		// without batching so the peer sees the error promptly.
+		if resp.Error != "" {
+			if err := c.stream.Send(resp); err != nil {
+				c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
+				return
+			}
+			continue
+		}
+
+		// Non-blocking drain of additional PeerUpdate responses so that a
+		// burst of updates is collapsed into a single DRPC Send. This
+		// reduces per-call overhead under heavy load (e.g. thousands of
+		// peer updates).
+		draining := true
+		for draining {
+			select {
+			case next, ok := <-c.resps:
+				if !ok {
+					draining = false
+					continue
+				}
+				if next.Error != "" {
+					// Flush the accumulated batch before forwarding the
+					// error so ordering is preserved.
+					if len(resp.PeerUpdates) > 0 {
+						if err := c.stream.Send(resp); err != nil {
+							c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
+							return
+						}
+					}
+					if err := c.stream.Send(next); err != nil {
+						c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
+						return
+					}
+					resp = &proto.CoordinateResponse{}
+					continue
+				}
+				resp.PeerUpdates = append(resp.PeerUpdates, next.PeerUpdates...)
+			default:
+				draining = false
+			}
+		}
+
+		if len(resp.PeerUpdates) > 0 {
+			if err := c.stream.Send(resp); err != nil {
+				c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
+				return
+			}
 		}
 	}
 }
